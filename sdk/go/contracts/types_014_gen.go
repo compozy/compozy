@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type PromptMode string
+
 type PromptPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -154,9 +156,4 @@ type ResourceSnapshotRecord struct {
 	ID    string          `json:"id"`
 	Scope ResourceScope   `json:"scope"`
 	Spec  json.RawMessage `json:"spec"`
-}
-
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
 }

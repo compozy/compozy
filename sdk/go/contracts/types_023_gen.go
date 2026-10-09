@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+type TaskRunTotal struct {
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	Count      int           `json:"count"`
+}
+
+type TaskRunsParams struct {
+	ID        string        `json:"id"`
+	Status    TaskRunStatus `json:"status,omitempty"`
+	SessionID string        `json:"session_id,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+}
+
+type TaskScope string
+
+type TaskStatusChangedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	ParentTaskID   string    `json:"parent_task_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	WorkflowID     string    `json:"workflow_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ActorKind      string    `json:"actor_kind,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
+	OriginKind     string    `json:"origin_kind,omitempty"`
+	OriginRef      string    `json:"origin_ref,omitempty"`
+	TaskStatus     string    `json:"task_status,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	ReleaseReason  string    `json:"release_reason,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+	FromStatus     string    `json:"from_status"`
+	ToStatus       string    `json:"to_status"`
+}
+
+type TaskStatusTotal struct {
+	Scope  TaskScope `json:"scope"`
+	Status Status    `json:"status"`
+	Count  int       `json:"count"`
+}
+
 type TaskSummaryPayload struct {
 	ID                   string                           `json:"id"`
 	ProfileID            string                           `json:"profile_id"`
@@ -277,73 +319,4 @@ type TerminalLimitRejectedPayload struct {
 	Limit       string    `json:"limit"`
 	Current     int       `json:"current"`
 	Max         int       `json:"max"`
-}
-
-type TerminalObservationPatch struct{}
-
-type TerminalOpenedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	Mode        string    `json:"mode"`
-	Cwd         string    `json:"cwd"`
-	Title       string    `json:"title,omitempty"`
-}
-
-type TerminalRecordingStartedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RecordingID string    `json:"recording_id"`
-}
-
-type TerminalRecordingStoppedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RecordingID string    `json:"recording_id"`
-	Digest      string    `json:"digest"`
-	Bytes       int64     `json:"bytes"`
-	Reason      string    `json:"reason"`
-	Truncated   bool      `json:"truncated"`
-}
-
-type TerminalSubscriberEvictedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	Flow        string    `json:"flow"`
-	Reason      string    `json:"reason"`
 }

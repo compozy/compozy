@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
+
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -61,6 +63,7 @@ type Server struct {
 	pollInterval          time.Duration
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
+	subagents             session.SubagentService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository

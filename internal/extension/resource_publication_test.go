@@ -160,7 +160,7 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 		if got, want := descriptor.Tool.Visibility, toolspkg.VisibilitySession; got != want {
 			t.Fatalf("Tool.Visibility = %q, want %q", got, want)
 		}
-		if got, want := descriptor.Tool.MaxResultBytes, int64(4096); got != want {
+		if got, want := descriptor.Tool.ExecutionMetadata().MaxResultBytes, int64(4096); got != want {
 			t.Fatalf("Tool.MaxResultBytes = %d, want %d", got, want)
 		}
 		presentation := descriptor.Tool.Presentation()

@@ -103,6 +103,12 @@ export {
   type OverlayContainer,
 } from "./components/hooks/use-overlay-container";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
+export {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  type HoverCardContentProps,
+} from "./components/hover-card";
 export { Tabs, TabsContent, TabsList, TabsTrigger, type TabsTriggerProps } from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {

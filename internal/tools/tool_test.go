@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 type testProvider struct {
@@ -65,14 +66,14 @@ func validDescriptor() Descriptor {
 			Kind:  SourceBuiltin,
 			Owner: "daemon",
 		},
-		Visibility:      VisibilityModel,
-		Risk:            RiskRead,
-		ReadOnly:        true,
-		ConcurrencySafe: true,
-		MaxResultBytes:  1024,
-		Toolsets:        []ToolsetID{"compozy__bootstrap"},
-		Tags:            []string{"skills"},
-		SearchHints:     []string{"skill body"},
+		Visibility:            VisibilityModel,
+		Risk:                  RiskRead,
+		ReadOnly:              true,
+		ConcurrencySafe:       true,
+		ToolExecutionMetadata: NewToolExecutionMetadata(false, "", 1024),
+		Toolsets:              []ToolsetID{"compozy__bootstrap"},
+		Tags:                  []string{"skills"},
+		SearchHints:           []string{"skill body"},
 	}
 }
 
@@ -328,6 +329,59 @@ func TestShouldValidateIdentifierHelpers(t *testing.T) {
 func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should preserve optional execution metadata across wire round trips and isolated copies",
+		func(t *testing.T) {
+			t.Parallel()
+			if size := unsafe.Sizeof(Descriptor{}); size >= 512 {
+				t.Fatalf("Descriptor size = %d, must remain below the 512-byte lint threshold", size)
+			}
+			t.Logf(
+				"Descriptor size = %d bytes; Tool size = %d bytes",
+				unsafe.Sizeof(Descriptor{}),
+				unsafe.Sizeof(Tool{}),
+			)
+			if unsafe.Sizeof(Tool{}) >= 512 {
+				t.Fatal("Tool exceeds the by-value copy budget")
+			}
+			for _, metadata := range []*ToolExecutionMetadata{nil, NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096)} {
+				descriptor := validDescriptor()
+				descriptor.ToolExecutionMetadata = metadata
+				want := descriptor.ExecutionMetadata()
+				wire, err := json.Marshal(descriptor)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var cold Tool
+				if err := json.Unmarshal(wire, &cold); err != nil {
+					t.Fatal(err)
+				}
+				if cold.ExecutionMetadata() != want {
+					t.Fatalf("flat wire metadata lost: %s", wire)
+				}
+				var decoded Descriptor
+				if err := json.Unmarshal(wire, &decoded); err != nil {
+					t.Fatal(err)
+				}
+				if decoded.ExecutionMetadata() != want {
+					t.Fatal(decoded.ExecutionMetadata())
+				}
+				for _, copied := range []Descriptor{cloneDescriptor(descriptor), descriptor.Tool().Descriptor(), cold.Descriptor()} {
+					if copied.ExecutionMetadata() != want {
+						t.Fatal(copied.ExecutionMetadata())
+					}
+					if copied.ToolExecutionMetadata != nil {
+						copied.InputErrorCode = "changed"
+						copied.Idempotent = false
+						if descriptor.ExecutionMetadata() != want {
+							t.Fatal("execution metadata shared across copies")
+						}
+					}
+				}
+			}
+		},
+	)
+
 	t.Run("Should convert descriptors to cold tools with cloned schemas", func(t *testing.T) {
 		t.Parallel()
 
@@ -435,7 +489,7 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 		{
 			name: "Should reject negative result budgets",
 			mutate: func(d *Descriptor) {
-				d.MaxResultBytes = -1
+				d.SetMaxResultBytes(-1)
 			},
 			reason: ReasonResultBudgetExceeded,
 		},

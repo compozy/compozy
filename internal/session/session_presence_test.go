@@ -265,3 +265,109 @@ func (s *presenceAttentionStore) settleCallCount() int {
 	defer s.mu.Unlock()
 	return len(s.settledSeen)
 }
+
+// Invariant: subagents never raise unseen-done and parents wait for live delegates; owner: attention (UT-055).
+func TestSubagentAttention(t *testing.T) {
+	t.Parallel()
+	t.Run("Should force child seen and defer parent settle UT-055", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+		attention := newPresenceAttentionStore()
+		manager := newPresenceTestManager(t, attention, &now)
+		child, _ := manager.Get("sess-1")
+		child.mu.Lock()
+		child.Lineage = &store.SessionLineage{SpawnRole: store.SubagentSpawnRole}
+		child.mu.Unlock()
+		if err := manager.settleSessionAttention(t.Context(), child.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		if !attention.lastSettledSeen() {
+			t.Fatal("subagent raised unseen attention")
+		}
+		service, db, _ := newSubagentTestService(t)
+		db.rows["live"] = store.SessionSubagent{ID: "live", ParentSessionID: child.ID, Status: "running"}
+		manager.SetSubagentService(service)
+		calls := attention.settleCallCount()
+		if err := manager.settleSessionAttention(t.Context(), child.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		if attention.settleCallCount() != calls {
+			t.Fatal("settled while descendants remain live")
+		}
+	})
+}
+
+// Invariant: the last child settles parent attention once, unless a running turn or dispatched wake owns that edge.
+// Owner: session attention; canonical UT-055 service boundary.
+func TestSubagentAttentionLastChild(t *testing.T) {
+	for _, state := range []string{"idle", "running", "dispatched"} {
+		t.Run("Should settle parent attention exactly once when "+state, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			now := s.now()
+			attention := newPresenceAttentionStore()
+			manager := newPresenceTestManager(t, attention, &now)
+			manager.SetSubagentService(s)
+			s.runtime = attentionSubagentRuntime{subagentTestRuntime: r, manager: manager}
+			first := requireSubagent(t, s, subagentTestRequest())
+			req := subagentTestRequest()
+			req.IdempotencyKey = "last"
+			last := requireSubagent(t, s, req)
+			snap := r.snapshots["parent"]
+			snap.Active = state == "running"
+			r.snapshots["parent"] = snap
+			if state == "dispatched" {
+				db.rows["prior"] = store.SessionSubagent{
+					ID:              "prior",
+					ParentSessionID: "parent",
+					Status:          store.SubagentStatusCompleted,
+					Delivery:        store.SubagentDeliveryClaimed,
+					WakeMessageID:   new("prior-wake"),
+				}
+				db.wakes["prior-wake"] = store.SessionSubagentWake{
+					WakeMessageID:   "prior-wake",
+					ParentSessionID: "parent",
+					State:           store.SubagentWakeStateDispatched,
+				}
+			}
+			before, err := attention.GetSessionAttention(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			settleTestChild(t, s, r, &first)
+			if attention.settleCallCount() != 0 {
+				t.Fatal("settled while one child is live")
+			}
+			settleTestChild(t, s, r, &last)
+			if err := s.OnChildSettled(t.Context(), *last.ChildSessionID); err != nil {
+				t.Fatal(err)
+			}
+			after, err := attention.GetSessionAttention(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if state == "idle" {
+				want = 1
+			}
+			if attention.settleCallCount() != want {
+				t.Fatal(attention.settleCallCount(), want)
+			}
+			if want == 1 && (after.LastSettledRevision != before.AttentionRevision+1 || !after.Unseen()) {
+				t.Fatal(before, after)
+			}
+			if want == 0 && after.LastSettledRevision != before.LastSettledRevision {
+				t.Fatal(before, after)
+			}
+		})
+	}
+}
+
+type attentionSubagentRuntime struct {
+	*subagentTestRuntime
+	manager *Manager
+}
+
+func (r attentionSubagentRuntime) SettleParent(ctx context.Context, parent string) error {
+	return r.manager.settleSessionAttention(ctx, parent, r.manager.now())
+}

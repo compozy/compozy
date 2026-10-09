@@ -1,10 +1,18 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { expectFetchRequest } from "@/test/fetch-test-utils";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
+import { sessionInspectorFocusStore } from "../../hooks/use-session-inspector-focus";
+import { sessionInspectorStore } from "../../hooks/use-session-inspector-state";
+import { useSubagentRoster } from "../../hooks/use-subagent-roster";
+import { sessionKeys } from "../../lib/query-keys";
+import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { SessionSidebar } from "../session-sidebar";
 
 // Invariant: the shared catalog routes selection gestures to bulk controls without navigation.
@@ -47,7 +55,14 @@ const view: SessionListViewModel = {
   scopeLabel: "default",
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
 };
-function renderList() {
+function renderList(
+  overrides: {
+    sessions?: SessionPayload[];
+    revealedSession?: SessionPayload | null;
+    collapsedThreadIds?: string[];
+    view?: SessionListViewModel;
+  } = {}
+) {
   const onSelect = vi.fn();
   const actions = {
     pendingAction: null,
@@ -64,21 +79,29 @@ function renderList() {
   };
   const props = {
     open: true,
-    sessions,
+    sessions: overrides.sessions ?? sessions,
+    revealedSession: overrides.revealedSession,
     disconnected: false,
-    collapsedThreadIds: [],
-    view,
+    collapsedThreadIds: overrides.collapsedThreadIds ?? [],
+    view: overrides.view ?? view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
     onNewSession: vi.fn(),
     sessionActions: actions,
   };
-  const rendered = render(<SessionSidebar {...props} />);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const tree = (node: React.ReactNode) => (
+    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
+  );
+  const rendered = render(tree(<SessionSidebar {...props} />));
   return {
     onSelect,
     actions,
+    queryClient,
     update: (nextSessions: SessionPayload[], nextView = view) =>
-      rendered.rerender(<SessionSidebar {...props} sessions={nextSessions} view={nextView} />),
+      rendered.rerender(
+        tree(<SessionSidebar {...props} sessions={nextSessions} view={nextView} />)
+      ),
   };
 }
 
@@ -207,5 +230,306 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-sidebar-session-running")).not.toHaveAttribute(
       "aria-pressed"
     );
+  });
+});
+
+// Invariant: ADR-005 — subagent sessions never take sidebar rows; the parent row carries one
+// chip from `subagent_summary`, the viewed subagent is revealed under its parent, plain spawned
+// children keep nesting, and a subagent session has no standalone archive verb.
+// Owner: SessionList through its sidebar host (same suite as the selection invariants).
+describe("SessionList subagents", () => {
+  const lineage = (parent: string, spawnRole?: string): SessionPayload["lineage"] => ({
+    parent_session_id: parent,
+    root_session_id: parent,
+    kind: "spawn",
+    ...(spawnRole ? { spawn_role: spawnRole } : {}),
+    spawn_depth: 1,
+    auto_stop_on_parent: true,
+    notify_creator: true,
+    spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+    permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+  });
+  const row = (id: string, patch: Partial<SessionPayload> = {}): SessionPayload => ({
+    ...primarySessionFixture,
+    id,
+    name: `Session ${id}`,
+    archived_at: null,
+    state: "active",
+    badge: "done",
+    ...patch,
+  });
+  const summary = (live: number, total: number, failed = 0, attention = 0) => ({
+    subagent_summary: { live, total, failed, attention, most_urgent: "running" },
+  });
+  const wireSubagent = (index: number, status: string) => ({
+    subagent_id: `sub-${index}`,
+    workspace_id: primarySessionFixture.workspace_id,
+    parent_session_id: "parent",
+    parent_turn_id: "turn-1",
+    child_session_id: `child-${index}`,
+    origin: "delegated",
+    provider_tool_call_id: null,
+    title: `Subagent ${index}`,
+    role: "",
+    status,
+    work_state: "working",
+    progress: "",
+    result: null,
+    result_preview: "",
+    result_truncated: false,
+    error: null,
+    delivery: "none",
+    depth: 1,
+    wait_timed_out: false,
+    runtime: { agent: "coder", provider: "claude", model: "", reasoning_effort: "", speed: "" },
+    started_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
+    settled_at: null,
+    created_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
+    updated_at: `2026-10-08T12:${String(index).padStart(2, "0")}:00Z`,
+  });
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("UT-W18: reveals only the viewed subagent under its parent and keeps plain children nested", () => {
+    const parent = row("parent", summary(1, 3));
+    const plainChild = row("plain", { lineage: lineage("parent") });
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({ sessions: [parent, plainChild], revealedSession: viewed });
+
+    const thread = screen.getByTestId("session-sidebar-thread-parent");
+    expect(within(thread).getByTestId("session-sidebar-session-plain")).toBeInTheDocument();
+    expect(within(thread).getByTestId("session-sidebar-session-viewed-sub")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^session-sidebar-session-/)).toHaveLength(3);
+    // Only the plain child counts toward the thread toggle; the revealed subagent never folds.
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAccessibleName(
+      "Toggle 1 child session"
+    );
+  });
+
+  it("UT-W18: a parent whose only child is the viewed subagent gets no thread toggle", () => {
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({ sessions: [row("parent", summary(1, 3))], revealedSession: viewed });
+
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+  });
+
+  it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
+    const parent = row("parent", summary(1, 3));
+    const plainChild = row("plain", { lineage: lineage("parent") });
+    const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
+    renderList({
+      sessions: [parent, plainChild],
+      revealedSession: viewed,
+      collapsedThreadIds: ["parent"],
+    });
+
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
+  });
+
+  const detailResponse = (sessionsById: Record<string, SessionPayload>) =>
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const id = new URL((input as Request).url).pathname.split("/").at(-1) ?? "";
+      const session = sessionsById[id];
+      return session
+        ? new Response(JSON.stringify({ session }), {
+            headers: { "Content-Type": "application/json" },
+          })
+        : new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+
+  // m19 / S9: the backend pages search matches only; a matched subagent whose parent did not
+  // match is nested under that parent, loaded as a non-matching context row — never a root.
+  it("UT-W18: nests a search-matched subagent under its loaded, non-matching parent", async () => {
+    const offPageParent = row("parent-off", { name: "Ship checkout v2" });
+    const matched = row("matched-sub", {
+      name: "Audit payment webhooks",
+      lineage: lineage("parent-off", "subagent"),
+    });
+    detailResponse({ "parent-off": offPageParent });
+    renderList({ sessions: [matched], view: { ...view, search: "webhook", setSearch: vi.fn() } });
+
+    // While the parent loads, the match is held back rather than shown as a root.
+    expect(screen.queryByTestId("session-sidebar-thread-matched-sub")).not.toBeInTheDocument();
+    const thread = await screen.findByTestId("session-sidebar-thread-parent-off");
+    expect(within(thread).getByTestId("session-sidebar-session-parent-off")).toBeVisible();
+    expect(within(thread).getByTestId("session-sidebar-session-matched-sub")).toBeVisible();
+    await expectFetchRequest({
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent-off?include_health=true&all_profiles=true`,
+    });
+  });
+
+  it("UT-W18: reveals a depth-2 subagent under its nearest on-page ancestor", async () => {
+    const parent = row("parent", summary(1, 1));
+    const middle = row("mid-sub", { lineage: lineage("parent", "subagent") });
+    const viewed = row("grand-sub", { lineage: lineage("mid-sub", "subagent") });
+    detailResponse({ "mid-sub": middle });
+    renderList({ sessions: [parent], revealedSession: viewed });
+
+    const thread = await screen.findByTestId("session-sidebar-thread-parent");
+    await waitFor(() =>
+      expect(within(thread).getByTestId("session-sidebar-session-grand-sub")).toBeVisible()
+    );
+    expect(within(thread).getByTestId("session-sidebar-session-mid-sub")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+  });
+
+  // Review round 2: a deleted ancestor no longer hides its descendant for good.
+  it("UT-W18: shows a viewed subagent whose parent was deleted, labelled as such", async () => {
+    const viewed = row("orphan-sub", { lineage: lineage("deleted-parent", "subagent") });
+    detailResponse({});
+    renderList({ sessions: [row("other")], revealedSession: viewed });
+
+    const orphan = await screen.findByTestId("session-sidebar-session-orphan-sub");
+    expect(orphan).toHaveTextContent("Subagent of a deleted session");
+    expect(screen.getByTestId("session-sidebar-session-other")).not.toHaveTextContent(
+      "Subagent of a deleted session"
+    );
+  });
+
+  it("keeps one cache subscription per chip across list re-renders", () => {
+    const parent = row("parent", summary(1, 2));
+    const { queryClient, update } = renderList({ sessions: [parent] });
+    const subscribe = vi.spyOn(queryClient.getQueryCache(), "subscribe");
+
+    update([{ ...parent, name: "Renamed parent" }]);
+    update([{ ...parent, name: "Renamed again" }]);
+
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
+  it("UT-W18: never promotes a viewed subagent whose parent is off the page", () => {
+    const orphan = row("orphan-sub", { lineage: lineage("elsewhere", "subagent") });
+    renderList({ sessions: [row("other")], revealedSession: orphan });
+
+    expect(screen.queryByTestId("session-sidebar-session-orphan-sub")).not.toBeInTheDocument();
+  });
+
+  it("UT-W17: renders the parent chip and loads a five-row preview on hover", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(3, 10) });
+    // A further page exists; the five-row preview still reads only the first (review n6).
+    vi.mocked(globalThis.fetch).mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            subagents: Array.from({ length: 10 }, (_, index) =>
+              wireSubagent(index, index < 3 ? "running" : "completed")
+            ),
+            next_cursor: "cursor-page-2",
+          }),
+          { headers: { "Content-Type": "application/json" } }
+        )
+    );
+    renderList({ sessions: [parent] });
+
+    const chip = screen.getByRole("button", { name: "3 of 10 subagents running" });
+    expect(chip).toHaveTextContent("3/10");
+    expect(chip).toHaveAttribute("data-state", "running");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    await user.hover(chip);
+
+    await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
+    await expectFetchRequest({
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?limit=200`,
+    });
+    expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 1) });
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), {
+      rows: [
+        subagentViewFromPayload({ ...wireSubagent(1, "running"), title: "Streamed row" } as never),
+      ],
+      staleIds: new Set<string>(),
+    });
+    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+
+    await waitFor(() => expect(screen.getByText("Streamed row")).toBeInTheDocument());
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("UT-W17: shows the total alone for failures and hides once everything settled cleanly", () => {
+    renderList({
+      sessions: [row("failed-parent", summary(0, 6, 2)), row("clean-parent", summary(0, 4))],
+    });
+
+    const chip = screen.getByRole("button", { name: "6 subagents, 2 failed" });
+    expect(chip).toHaveTextContent(/^6$/);
+    expect(chip).toHaveAttribute("data-state", "failed");
+    expect(screen.queryByRole("button", { name: /4 subagents/ })).not.toBeInTheDocument();
+  });
+
+  it("UT-W14: an idle parent with live subagents reads delegated, a running one does not", () => {
+    renderList({
+      sessions: [
+        row("waiting-parent", { badge: "done", ...summary(2, 2) }),
+        row("working-parent", { badge: "running", ...summary(2, 2) }),
+      ],
+    });
+
+    const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
+    expect(within(waiting).getByRole("img")).toHaveAttribute("data-badge", "delegated");
+    expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
+      "data-state",
+      "delegated"
+    );
+    const working = screen.getByTestId("session-sidebar-session-working-parent");
+    expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
+  });
+
+  it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
+    const user = userEvent.setup();
+    const parent = row("chip-parent", summary(1, 1));
+    const { onSelect } = renderList({ sessions: [parent] });
+
+    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(parent);
+    expect(sessionInspectorStore.getSnapshot().context.bySession["chip-parent"]).toBe(true);
+    expect(sessionInspectorFocusStore.getSnapshot().context.request).toEqual({
+      sessionId: "chip-parent",
+      section: "subagents",
+    });
+  });
+
+  it("offers no standalone archive on a subagent session row", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { state: "stopped", badge: "stopped" });
+    const viewed = row("viewed-sub", {
+      state: "stopped",
+      badge: "stopped",
+      lineage: lineage("parent", "subagent"),
+    });
+    renderList({ sessions: [parent], revealedSession: viewed });
+
+    await user.click(screen.getByTestId("session-row-actions-viewed-sub"));
+    expect(await screen.findByTestId("session-row-delete-viewed-sub")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-archive-viewed-sub")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-row-actions-parent"));
+    expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
   });
 });

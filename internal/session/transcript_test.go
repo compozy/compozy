@@ -697,3 +697,86 @@ func transcriptProjectionEvent(
 		Timestamp: timestamp,
 	}
 }
+
+// UT-019: result is the last non-empty assistant message in the newest turn, never an older turn.
+// UT-021: a settling turn that ended in an error reports that error beside its answer.
+// Owner: session transcript adapter; canonical suite: transcript_test.go, real SQLite projection.
+func TestSubagentTranscriptResult(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		messages  []string
+		turnError string
+		want      string
+	}{
+		{"Should extract last nonempty answer", []string{"draft", "", "final answer"}, "", "final answer"},
+		{"Should not reuse prior turn answer", nil, "", ""},
+		{"Should report the error that ended the turn", []string{"partial"}, "provider rate limited", "partial"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			child := createSession(t, h)
+			recorder := child.recorderHandle()
+			sequence := int64(0)
+			record := func(turn, kind, text string) {
+				t.Helper()
+				sequence++
+				content, err := json.Marshal(
+					map[string]string{
+						"schema":     "compozy.session.event.v1",
+						"type":       kind,
+						"text":       text,
+						"message_id": fmt.Sprintf("message-%d", sequence),
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := recorder.Record(
+					t.Context(),
+					store.SessionEvent{
+						Sequence:  sequence,
+						TurnID:    turn,
+						Type:      kind,
+						AgentName: child.Info().AgentName,
+						Content:   string(content),
+						Timestamp: time.Now().UTC(),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			record("old", acp.EventTypeAgentMessage, "old answer")
+			record("current", acp.EventTypeUserMessage, "task")
+			for _, message := range tc.messages {
+				record("current", acp.EventTypeAgentMessage, message)
+				if tc.turnError == "" {
+					record("current", acp.EventTypeDone, "")
+				}
+			}
+			if tc.turnError != "" {
+				record("current", acp.EventTypeError, tc.turnError)
+			}
+			// Provider-native inner output must not become the parent's delegated result.
+			sequence++
+			if err := recorder.Record(
+				t.Context(),
+				store.SessionEvent{
+					Sequence:  sequence,
+					TurnID:    "current",
+					Type:      acp.EventTypeAgentMessage,
+					AgentName: child.Info().AgentName,
+					Content:   `{"schema":"compozy.session.event.v1","type":"agent_message","text":"inner answer","parent_tool_call_id":"nested"}`,
+					Timestamp: time.Now().UTC(),
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			got, err := (managerSubagentRuntime{h.manager}).Result(t.Context(), child.ID)
+			if err != nil || got.Text != tc.want || got.Error != tc.turnError {
+				t.Fatalf("got %#v want %q / %q err %v", got, tc.want, tc.turnError, err)
+			}
+		})
+	}
+}

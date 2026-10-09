@@ -19,7 +19,7 @@ func toolArtifactDescriptors() []toolspkg.Descriptor {
 		[]string{catalogToolsKey, "artifacts", "results"},
 		[]string{"read full tool result", "page oversized result"},
 	)
-	descriptor.MaxResultBytes = toolArtifactReadMaxResultBytes
+	descriptor.SetMaxResultBytes(toolArtifactReadMaxResultBytes)
 	return []toolspkg.Descriptor{descriptor}
 }
 

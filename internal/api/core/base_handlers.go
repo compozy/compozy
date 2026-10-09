@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -28,6 +29,7 @@ type BaseHandlerConfig struct {
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
+	Subagents                    session.SubagentService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -109,6 +111,7 @@ type BaseHandlers struct {
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
+	Subagents                    session.SubagentService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -216,6 +219,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
+		Subagents:                    cfg.Subagents,
 		Sessions:                     cfg.Sessions,
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,

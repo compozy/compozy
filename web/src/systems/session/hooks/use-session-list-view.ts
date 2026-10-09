@@ -13,6 +13,7 @@ import {
 import { useSessionCatalog } from "./use-session-catalog";
 import {
   sessionListSortParam,
+  sessionListSubagentsParam,
   type SessionListScope,
   type SessionListSort,
 } from "../lib/session-list-preferences";
@@ -83,6 +84,7 @@ export function useSessionListView(
       sort: sessionListSortParam(preferences.sort),
       q: remoteSearch,
       search_fields: "title_agent",
+      subagents: sessionListSubagentsParam(remoteSearch),
       worktree: options.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
     },

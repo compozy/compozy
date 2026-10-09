@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { sessionFacetsOptions } from "../lib/session-catalog-options";
-import { sessionListSortParam, type SessionListSort } from "../lib/session-list-preferences";
+import {
+  sessionListSortParam,
+  sessionListSubagentsParam,
+  type SessionListSort,
+} from "../lib/session-list-preferences";
 import type { SessionListFilters, SessionPayload } from "../types";
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -41,6 +45,7 @@ export function useWorkspaceSessionGroups({
   const facets = useQuery({
     ...sessionFacetsOptions({
       all_workspaces: true,
+      subagents: sessionListSubagentsParam(search),
       ...(archived ? { archive: "only" as const } : {}),
       ...params,
     }),
@@ -64,6 +69,7 @@ export function useWorkspaceSessionGroups({
       sort: sessionListSortParam(sort),
       q: search,
       search_fields: "title_agent",
+      subagents: sessionListSubagentsParam(search),
       ...(archived ? { archive: "only" as const } : {}),
       ...params,
     },

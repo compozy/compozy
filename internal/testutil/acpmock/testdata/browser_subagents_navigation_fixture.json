@@ -1,0 +1,191 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "subagent-nav-parent",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You delegate ten subagents for the sidebar navigation E2E.",
+            "turns": [
+                {
+                    "name": "delegate-ten",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "delegate ten subagents"
+                    },
+                    "steps": [
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_capabilities",
+                            "tool_call_id": "subagent-nav-discover",
+                            "raw_input": {}
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-1",
+                            "raw_input": {
+                                "task": "nav subagent task 1",
+                                "title": "Nav subagent 1",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-2",
+                            "raw_input": {
+                                "task": "nav subagent task 2",
+                                "title": "Nav subagent 2",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-3",
+                            "raw_input": {
+                                "task": "nav subagent task 3",
+                                "title": "Nav subagent 3",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-4",
+                            "raw_input": {
+                                "task": "nav subagent task 4",
+                                "title": "Nav subagent 4",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-5",
+                            "raw_input": {
+                                "task": "nav subagent task 5",
+                                "title": "Nav subagent 5",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-6",
+                            "raw_input": {
+                                "task": "nav subagent task 6",
+                                "title": "Nav subagent 6",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-7",
+                            "raw_input": {
+                                "task": "nav subagent task 7",
+                                "title": "Nav subagent 7",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-8",
+                            "raw_input": {
+                                "task": "nav subagent task 8",
+                                "title": "Nav subagent 8",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-9",
+                            "raw_input": {
+                                "task": "nav subagent task 9",
+                                "title": "Nav subagent 9",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_delegate",
+                            "tool_call_id": "subagent-nav-delegate-10",
+                            "raw_input": {
+                                "task": "nav subagent task 10",
+                                "title": "Nav subagent 10",
+                                "target": {
+                                    "agent": "subagent-nav-child"
+                                }
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Delegated ten subagents."
+                        }
+                    ]
+                },
+                {
+                    "name": "subagent-wake",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Subagent wake observed."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "subagent-nav-child",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are one delegated subagent for the sidebar navigation E2E.",
+            "turns": [
+                {
+                    "name": "work-then-answer",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 30000
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Subagent finished."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

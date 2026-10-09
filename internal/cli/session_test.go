@@ -4589,3 +4589,127 @@ func TestWaitSessionCompaction(t *testing.T) {
 		})
 	}
 }
+
+// UT-046/UT-047: session subagent commands preserve documented output and errors.
+func TestSubagentCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should show a subagent without resolving the current directory", func(t *testing.T) {
+		t.Parallel()
+		client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(&stubClient{})}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(string) string { return "" }
+		code, stdout, stderr := executeRootCommandWithExit(t, deps, "session", "subagents", "show", "sub-1")
+		if code != 0 || !strings.Contains(stdout, "Recommendation") {
+			t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout, stderr)
+		}
+	})
+	t.Run("Should format hours and omit missing runtime separators", func(t *testing.T) {
+		t.Parallel()
+		row := subagentCLIRecord()
+		row.StartedAt = new(fixedTestNow.Add(-63 * time.Minute))
+		if got := subagentElapsed(row, fixedTestNow); got != "1h 03m" {
+			t.Fatal(got)
+		}
+		if got := subagentDetails(row, fixedTestNow); !strings.Contains(got, "Runtime       codex · gpt-6.1-sol\n") {
+			t.Fatal(got)
+		}
+	})
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		want    string
+		failure bool
+	}{
+		{"list table", []string{"parent"}, "ID", false},
+		{"list JSON", []string{"parent", "--json"}, `"next_cursor":null`, false},
+		{"show workspace help", []string{"show", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"cancel workspace help", []string{"cancel", "--help"}, "fast path for show/cancel that avoids searching across workspaces", false},
+		{"show result", []string{"show", "sub-1"}, "Result\nRecommendation", false},
+		{"show JSON", []string{"show", "sub-1", "--json"}, `"subagent_id":"sub-1"`, false},
+		{"cancel", []string{"cancel", "sub-1", "--reason", "done"}, "Cancel requested for sub-1 (Review).", false},
+		{"cancel JSON", []string{"cancel", "sub-1", "--json"}, `"status":"cancel_requested"`, false},
+		{"invalid limit", []string{"parent", "--limit", "0"}, "--limit must be between 1 and 200", true},
+		{"missing session", []string{"missing"}, "session_not_found", true},
+		{"missing subagent", []string{"show", "missing"}, "subagent_not_found: subagent missing not found", true},
+	} {
+		t.Run("Should render "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			base := &stubClient{}
+			withWorkspaceResolution(base)
+			client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(base)}
+			deps := newTestDeps(t, client)
+			exitCode, stdout, stderr := executeRootCommandWithExit(
+				t,
+				deps,
+				append([]string{"session", "subagents"}, tc.args...)...)
+			if tc.failure {
+				if exitCode != 1 || !strings.Contains(stderr, tc.want) {
+					t.Fatalf("exit=%d stderr=%q, want exit 1 and %q", exitCode, stderr, tc.want)
+				}
+				return
+			}
+			if exitCode != 0 || !strings.Contains(stdout, tc.want) {
+				t.Fatalf("output=%s exit=%d stderr=%s, want %q", stdout, exitCode, stderr, tc.want)
+			}
+			if tc.name == "list table" {
+				for _, column := range []string{"TITLE", "RUNTIME", "STATUS", "ELAPSED", "codex/gpt-6.1-sol", "7s"} {
+					if !strings.Contains(stdout, column) {
+						t.Fatalf("missing %s in %s", column, stdout)
+					}
+				}
+			}
+			if strings.Contains(tc.name, "JSON") && strings.Contains(stdout, "workspace_resolution") {
+				t.Fatalf("unexpected JSON envelope: %s", stdout)
+			}
+		})
+	}
+	t.Run("Should forward session list visibility", func(t *testing.T) {
+		t.Parallel()
+		flags := sessionListFlags{subagents: "exclude"}
+		query := buildSessionListQuery(flags, nil, "ws")
+		if sessionListValues(query).Get("subagents") != "exclude" {
+			t.Fatalf("query=%+v", query)
+		}
+	})
+}
+
+type subagentCommandStub struct{ DaemonClient }
+
+var _ sessionSubagentsClient = (*subagentCommandStub)(nil)
+
+func (s *subagentCommandStub) ListSessionSubagents(
+	_ context.Context,
+	id string,
+	_ SubagentListQuery,
+) (contract.SubagentListPayload, error) {
+	if id == "missing" {
+		return contract.SubagentListPayload{}, &session.SubagentError{
+			Code: "session_not_found", Message: "session_not_found: Session missing not found.",
+		}
+	}
+	return contract.SubagentListPayload{Subagents: []contract.SubagentPayload{subagentCLIRecord()}}, nil
+}
+func (s *subagentCommandStub) GetSubagent(_ context.Context, _ string, id string) (contract.SubagentPayload, error) {
+	if id == "missing" {
+		return contract.SubagentPayload{}, errors.New("subagent_not_found: subagent missing not found")
+	}
+	return subagentCLIRecord(), nil
+}
+
+func (s *subagentCommandStub) CancelSubagent(
+	_ context.Context,
+	_ string,
+	id, _ string,
+) (contract.SubagentCancelPayload, error) {
+	return contract.SubagentCancelPayload{SubagentID: id, Status: "cancel_requested"}, nil
+}
+func subagentCLIRecord() contract.SubagentPayload {
+	return contract.SubagentPayload{
+		SubagentID: "sub-1",
+		Title:      "Review",
+		Status:     "running",
+		Runtime:    contract.SubagentRuntimePayload{Provider: "codex", Model: "gpt-6.1-sol"},
+		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
+		Result:     new("Recommendation"),
+	}
+}

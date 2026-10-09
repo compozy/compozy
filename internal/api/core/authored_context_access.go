@@ -134,7 +134,11 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 		}
 		payload.Health = &converted
 	}
-	payloads, err := h.decorateSessionOwners(ctx, []contract.SessionPayload{payload})
+	payloads := []contract.SessionPayload{payload}
+	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
+		return contract.SessionPayload{}, err
+	}
+	payloads, err = h.decorateSessionOwners(ctx, payloads)
 	if err != nil {
 		return contract.SessionPayload{}, err
 	}

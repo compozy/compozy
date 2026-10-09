@@ -12,6 +12,7 @@ type Tool struct {
 	ID      ToolID     `json:"id"`
 	Backend BackendRef `json:"backend"`
 	*ToolPresentation
+	*ToolExecutionMetadata
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
 	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
@@ -25,7 +26,6 @@ type Tool struct {
 	OpenWorld           bool            `json:"open_world"`
 	RequiresInteraction bool            `json:"requires_interaction"`
 	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
 	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string        `json:"tags,omitempty"`
 	SearchHints         []string        `json:"search_hints,omitempty"`
@@ -36,6 +36,7 @@ type Descriptor struct {
 	ID      ToolID     `json:"id"`
 	Backend BackendRef `json:"backend"`
 	*ToolPresentation
+	*ToolExecutionMetadata
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
 	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
@@ -49,7 +50,6 @@ type Descriptor struct {
 	OpenWorld           bool            `json:"open_world"`
 	RequiresInteraction bool            `json:"requires_interaction"`
 	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	MaxResultBytes      int64           `json:"max_result_bytes,omitzero"`
 	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string        `json:"tags,omitempty"`
 	SearchHints         []string        `json:"search_hints,omitempty"`
@@ -58,57 +58,60 @@ type Descriptor struct {
 // Descriptor converts a cold resource into the runtime descriptor shape.
 func (t Tool) Descriptor() Descriptor {
 	return Descriptor{
-		ID:                  t.ID,
-		Backend:             t.Backend,
-		ToolPresentation:    CloneToolPresentation(t.ToolPresentation),
-		Description:         t.Description,
-		InputSchema:         cloneRawMessage(t.InputSchema),
-		OutputSchema:        cloneRawMessage(t.OutputSchema),
-		InputSchemaDigest:   t.InputSchemaDigest,
-		OutputSchemaDigest:  t.OutputSchemaDigest,
-		Source:              t.Source,
-		Visibility:          t.Visibility,
-		Risk:                t.Risk,
-		ReadOnly:            t.ReadOnly,
-		Destructive:         t.Destructive,
-		OpenWorld:           t.OpenWorld,
-		RequiresInteraction: t.RequiresInteraction,
-		ConcurrencySafe:     t.ConcurrencySafe,
-		MaxResultBytes:      t.MaxResultBytes,
-		Toolsets:            cloneToolsets(t.Toolsets),
-		Tags:                cloneStrings(t.Tags),
-		SearchHints:         cloneStrings(t.SearchHints),
+		ID:                    t.ID,
+		Backend:               t.Backend,
+		ToolPresentation:      CloneToolPresentation(t.ToolPresentation),
+		Description:           t.Description,
+		InputSchema:           cloneRawMessage(t.InputSchema),
+		OutputSchema:          cloneRawMessage(t.OutputSchema),
+		InputSchemaDigest:     t.InputSchemaDigest,
+		OutputSchemaDigest:    t.OutputSchemaDigest,
+		Source:                t.Source,
+		Visibility:            t.Visibility,
+		Risk:                  t.Risk,
+		ToolExecutionMetadata: CloneToolExecutionMetadata(t.ToolExecutionMetadata),
+		ReadOnly:              t.ReadOnly,
+		Destructive:           t.Destructive,
+		OpenWorld:             t.OpenWorld,
+		RequiresInteraction:   t.RequiresInteraction,
+		ConcurrencySafe:       t.ConcurrencySafe,
+		Toolsets:              cloneToolsets(t.Toolsets),
+		Tags:                  cloneStrings(t.Tags),
+		SearchHints:           cloneStrings(t.SearchHints),
 	}
 }
 
 // Tool returns the cold resource shape for a runtime descriptor.
 func (d Descriptor) Tool() Tool {
 	return Tool{
-		ID:                  d.ID,
-		Backend:             d.Backend,
-		ToolPresentation:    CloneToolPresentation(d.ToolPresentation),
-		Description:         d.Description,
-		InputSchema:         cloneRawMessage(d.InputSchema),
-		OutputSchema:        cloneRawMessage(d.OutputSchema),
-		InputSchemaDigest:   d.InputSchemaDigest,
-		OutputSchemaDigest:  d.OutputSchemaDigest,
-		Source:              d.Source,
-		Visibility:          d.Visibility,
-		Risk:                d.Risk,
-		ReadOnly:            d.ReadOnly,
-		Destructive:         d.Destructive,
-		OpenWorld:           d.OpenWorld,
-		RequiresInteraction: d.RequiresInteraction,
-		ConcurrencySafe:     d.ConcurrencySafe,
-		MaxResultBytes:      d.MaxResultBytes,
-		Toolsets:            cloneToolsets(d.Toolsets),
-		Tags:                cloneStrings(d.Tags),
-		SearchHints:         cloneStrings(d.SearchHints),
+		ID:                    d.ID,
+		Backend:               d.Backend,
+		ToolPresentation:      CloneToolPresentation(d.ToolPresentation),
+		ToolExecutionMetadata: CloneToolExecutionMetadata(d.ToolExecutionMetadata),
+		Description:           d.Description,
+		InputSchema:           cloneRawMessage(d.InputSchema),
+		OutputSchema:          cloneRawMessage(d.OutputSchema),
+		InputSchemaDigest:     d.InputSchemaDigest,
+		OutputSchemaDigest:    d.OutputSchemaDigest,
+		Source:                d.Source,
+		Visibility:            d.Visibility,
+		Risk:                  d.Risk,
+		ReadOnly:              d.ReadOnly,
+		Destructive:           d.Destructive,
+		OpenWorld:             d.OpenWorld,
+		RequiresInteraction:   d.RequiresInteraction,
+		ConcurrencySafe:       d.ConcurrencySafe,
+		Toolsets:              cloneToolsets(d.Toolsets),
+		Tags:                  cloneStrings(d.Tags),
+		SearchHints:           cloneStrings(d.SearchHints),
 	}
 }
 
 // Validate ensures the descriptor is dispatchable metadata.
 func (d Descriptor) Validate() error {
+	if d.ExecutionMetadata().InputErrorCode != "" && d.ExecutionMetadata().InputErrorCode != ErrorCodeInvalidRequest {
+		return NewValidationError("input_error_code", ReasonSchemaInvalid, "must be invalid_request or omitted")
+	}
 	if err := d.ID.Validate(); err != nil {
 		return err
 	}
@@ -128,13 +131,14 @@ func (d Descriptor) Validate() error {
 	if err := toolmeta.ValidateDescriptorMetadata(presentation.FriendlyVerb, presentation.Preview); err != nil {
 		return NewValidationError("presentation", ReasonSchemaInvalid, err.Error())
 	}
-	if err := ValidateJSONObject("input_schema", d.InputSchema, true); err != nil {
+	v := schemaValidator{enforceMaxLength: d.ExecutionMetadata().InputErrorCode != ""}
+	if err := v.validateJSONObject("input_schema", d.InputSchema, true); err != nil {
 		return err
 	}
 	if err := ValidateJSONObject("output_schema", d.OutputSchema, false); err != nil {
 		return err
 	}
-	if d.MaxResultBytes < 0 {
+	if d.ExecutionMetadata().MaxResultBytes < 0 {
 		return NewValidationError(
 			"max_result_bytes",
 			ReasonResultBudgetExceeded,

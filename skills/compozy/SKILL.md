@@ -35,6 +35,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |
+| Delegate a task to a subagent on another agent, provider, or model; read, list, or cancel subagents                            | references/native-tools.md + references/tasks-and-orchestration.md |
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
 | Write or scaffold extension code: manifests, permissions, provide surfaces, contributed commands, or command palette entries   | references/extension-authoring.md + references/extensions.md       |
@@ -53,7 +54,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
-- references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
+- references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, subagents versus spawned workers, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, command palette entries, and structured workflows.

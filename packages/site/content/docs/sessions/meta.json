@@ -5,6 +5,7 @@
         "lifecycle",
         "control-plane",
         "orchestration",
+        "subagents",
         "health",
         "resume",
         "compaction",

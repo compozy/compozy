@@ -12633,3 +12633,436 @@ func requireNativeDerivePartial(t *testing.T, err error, want string) {
 		t.Fatalf("derive tool partial result = %s, want %s", toolErr.PartialResult.Structured, want)
 	}
 }
+
+// The native binding suite owns caller resolution, request translation, and public error mapping.
+func TestNativeSubagentBindings(t *testing.T) {
+	t.Run("Should report exact oversized field errors", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			input nativeSubagentDelegateInput
+			want  string
+		}{
+			{nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
+			{nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
+			{nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+		} {
+			_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
+			detail, ok := errors.AsType[*session.SubagentError](err)
+			if !ok || detail.Message != tc.want {
+				t.Fatalf("error = %v, want %s", err, tc.want)
+			}
+		}
+	})
+	t.Run(
+		"Should resolve caller and preserve omitted versus empty budgets through registry dispatch",
+		func(t *testing.T) {
+			t.Parallel()
+			fake := &nativeSubagentServiceStub{}
+			fake.delegate = func(_ context.Context, req session.SubagentRequest) (session.Subagent, error) {
+				if req.Caller.SessionID != "parent" || req.Caller.WorkspaceID != "ws" ||
+					req.Caller.AgentName != "caller-agent" ||
+					req.Caller.TurnID != "turn" ||
+					req.Caller.ToolCallID != "call" {
+					t.Fatalf("caller = %#v", req.Caller)
+				}
+				if req.Mode != "async" || req.Role != "general" || req.Timeout != 10*time.Minute ||
+					req.IdempotencyKey != "call" {
+					t.Fatalf("defaults = %#v", req)
+				}
+				if req.Narrowing == nil || req.Narrowing.Tools == nil || len(req.Narrowing.Tools) != 0 ||
+					req.Narrowing.Skills != nil {
+					t.Fatalf("narrowing = %#v", req.Narrowing)
+				}
+				return session.Subagent{
+					ID:              "sub-1",
+					ParentSessionID: "parent",
+					ParentTurnID:    "turn",
+					ChildSessionID:  new("child"),
+					Origin:          "delegated",
+					Status:          "running",
+					WorkState:       "working",
+					Delivery:        "none",
+					Title:           req.Title,
+					Role:            req.Role,
+				}, nil
+			}
+			sessions := apitest.StubSessionManager{
+				ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
+					return session.PromptRunIdentity{
+						SessionID:   "parent",
+						WorkspaceID: "ws",
+						RunID:       "run",
+						Generation:  1,
+					}, nil
+				},
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						ID:          "parent",
+						ProfileID:   store.DefaultProfileID,
+						WorkspaceID: "ws",
+						AgentName:   "caller-agent",
+						State:       session.StateActive,
+					}, nil
+				},
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Subagents:  func() session.SubagentService { return fake },
+				Sessions:   sessions,
+				Workspaces: nativeTestWorkspaceService(t),
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws", AgentName: "caller-agent"},
+				toolspkg.CallRequest{
+					ToolID:     toolspkg.ToolIDSubagentDelegate,
+					TurnID:     "turn",
+					ToolCallID: "call",
+					Input:      json.RawMessage(`{"task":"Review code","tools":[]}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("call failed: %v; cause: %v", err, errors.Unwrap(err))
+			}
+			requireNativeStructuredContains(t, result, []byte(`"subagent_id":"sub-1"`))
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws", AgentName: "caller-agent"},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSubagentDelegate,
+					TurnID: "turn",
+					Input:  json.RawMessage(`{}`),
+				},
+			)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || string(toolErr.Code) != "invalid_request" || toolErr.Message != "task is required." {
+				t.Fatalf("invalid input = %#v", err)
+			}
+		},
+	)
+	t.Run("Should reject every subagent operation outside an active caller turn", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{}}
+		for id, binding := range n.subagentToolBindings() {
+			input := json.RawMessage(`{}`)
+			if id == toolspkg.ToolIDSubagentDelegate {
+				input = json.RawMessage(`{"task":"work"}`)
+			}
+			if id == toolspkg.ToolIDSubagentStatus || id == toolspkg.ToolIDSubagentCancel {
+				input = json.RawMessage(`{"subagent_id":"sub"}`)
+			}
+			result, err := binding.call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{ToolID: id, Input: input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"code":"parent_not_active"`))
+			requireNativeStructuredContains(
+				t,
+				result,
+				[]byte(`Subagents require an active turn in the calling session.`),
+			)
+		}
+	})
+	t.Run("Should preserve timeout bounds defaults and runtime overrides", func(t *testing.T) {
+		t.Parallel()
+		for _, ms := range []int64{-1, 999, 1000, 3600000, 9223372036854775807} {
+			input := nativeSubagentDelegateInput{
+				Task:      "work",
+				Mode:      "wait",
+				TimeoutMS: new(ms),
+				Target: nativeSubagentTargetInput{
+					Provider:        "codex",
+					Model:           "gpt",
+					ReasoningEffort: "high",
+					Speed:           "fast",
+				},
+			}
+			req, err := input.request(session.SubagentCaller{ToolCallID: "call"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if req.Timeout != time.Duration(max(1000, min(3600000, ms)))*time.Millisecond || req.Narrowing != nil ||
+				req.Target.Model != "gpt" ||
+				req.PermissionMode != "" {
+				t.Fatalf("request = %#v", req)
+			}
+		}
+	})
+	t.Run("Should map domain failure codes and exact public messages", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			err           error
+			code, message string
+		}{
+			{session.ErrSubagentParentNotActive, "parent_not_active", "Subagents require an active turn in the calling session."},
+			{session.ErrSubagentNotFound, "subagent_not_found", "Subagent sub-1 not found."},
+			{session.ErrSubagentNotCancelable, "subagent_not_cancelable", "Provider-native subagents cannot be canceled; stop the parent turn instead."},
+			{session.ErrSubagentArchiveFollows, "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session."},
+			{fmt.Errorf("%w: hook reason", session.ErrSubagentCapabilityDenied), "capability_denied", "hook reason"},
+			{&session.SubagentError{Code: "invalid_request", Message: "task is required."}, "invalid_request", "task is required."},
+			{&session.SubagentError{Code: "provider_unavailable", Message: "Provider codex is unavailable: Provider is not authenticated."}, "provider_unavailable", "Provider codex is unavailable: Provider is not authenticated."},
+			{&session.SubagentError{Code: "model_unavailable", Message: "Model gpt-9 is not available on codex. Available: gpt-6.1-sol, gpt-6.1-mini."}, "model_unavailable", "Model gpt-9 is not available on codex. Available: gpt-6.1-sol, gpt-6.1-mini."},
+			{&session.SubagentError{Code: "agent_not_found", Message: "Agent reviewer2 not found."}, "agent_not_found", "Agent reviewer2 not found."},
+			{&session.SubagentError{Code: "permission_escalation_denied", Message: "Subagent cannot widen permissions: tool compozy__session_stop is outside the caller's budget."}, "permission_escalation_denied", "Subagent cannot widen permissions: tool compozy__session_stop is outside the caller's budget."},
+		} {
+			result, err := subagentFailure(fmt.Errorf("wrapped: %w", tc.err), "sub-1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Error struct{ Code, Message string }
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Error.Code != tc.code || payload.Error.Message != tc.message {
+				t.Fatalf("failure = %s", result.Structured)
+			}
+		}
+	})
+	t.Run("Should expose capability metadata and route status and cancel to the caller", func(t *testing.T) {
+		t.Parallel()
+		fake := &nativeSubagentServiceStub{}
+		fake.capabilities = func(_ context.Context, c session.SubagentCaller) (session.SubagentCapabilities, error) {
+			return session.SubagentCapabilities{
+				ParentSessionID: c.SessionID,
+				Providers: []session.SubagentProviderOption{
+					{
+						Provider:        "codex",
+						ModelsTotal:     611,
+						ModelsTruncated: true,
+						CanDelegate:     true,
+						Models: []session.SubagentModelOption{
+							{ID: "gpt", Label: "GPT", ReasoningEfforts: []string{"high"}, Speeds: []string{"normal"}},
+						},
+					},
+				},
+			}, nil
+		}
+		fake.status = func(_ context.Context, c session.SubagentCaller, id string) (session.Subagent, error) {
+			if c.SessionID != "parent" || id != "sub" {
+				t.Fatalf("status caller/id = %#v/%s", c, id)
+			}
+			return session.Subagent{
+				ID:              id,
+				Status:          "completed",
+				Result:          new("answer"),
+				ResultTruncated: true,
+				Delivery:        "acknowledged",
+			}, nil
+		}
+		fake.cancel = func(_ context.Context, a session.SubagentActor, id, reason string) (session.SubagentCancelOutcome, error) {
+			if a.Kind != "agent" || a.Caller == nil || a.Caller.SessionID != "parent" || reason != "done" {
+				t.Fatalf("cancel = %#v %q", a, reason)
+			}
+			return session.SubagentCancelOutcome{ID: id, Status: "cancel_requested"}, nil
+		}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Subagents:  func() session.SubagentService { return fake },
+				Workspaces: nativeTestWorkspaceService(t),
+				Sessions: apitest.StubSessionManager{
+					ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
+						return session.PromptRunIdentity{
+							SessionID:   "parent",
+							WorkspaceID: "ws",
+							RunID:       "run",
+							Generation:  1,
+						}, nil
+					},
+					StatusFn: func(context.Context, string) (*session.Info, error) {
+						return &session.Info{ID: "parent", WorkspaceID: "ws", State: session.StateActive}, nil
+					},
+				},
+			},
+		}
+		for _, tc := range []struct {
+			id          toolspkg.ToolID
+			input, want string
+		}{
+			{toolspkg.ToolIDSubagentCapabilities, `{}`, `"reasoning_efforts":["high"]`},
+			{toolspkg.ToolIDSubagentStatus, `{"subagent_id":"sub"}`, `"delivery":"acknowledged"`},
+			{toolspkg.ToolIDSubagentCancel, `{"subagent_id":"sub","reason":"done"}`, `"status":"cancel_requested"`},
+		} {
+			result, err := n.subagentToolBindings()[tc.id].call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws"},
+				toolspkg.CallRequest{ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeStructuredContains(t, result, []byte(tc.want))
+			if tc.id == toolspkg.ToolIDSubagentCapabilities {
+				requireNativeStructuredContains(t, result, []byte(`"models_total":611`))
+				requireNativeStructuredContains(t, result, []byte(`"models_truncated":true`))
+			}
+		}
+	})
+}
+
+type nativeSubagentServiceStub struct {
+	session.SubagentService
+	capabilities func(context.Context, session.SubagentCaller) (session.SubagentCapabilities, error)
+	delegate     func(context.Context, session.SubagentRequest) (session.Subagent, error)
+	status       func(context.Context, session.SubagentCaller, string) (session.Subagent, error)
+	cancel       func(context.Context, session.SubagentActor, string, string) (session.SubagentCancelOutcome, error)
+}
+
+var _ session.SubagentService = (*nativeSubagentServiceStub)(nil)
+
+func (s *nativeSubagentServiceStub) Capabilities(
+	c context.Context,
+	r session.SubagentCaller,
+) (session.SubagentCapabilities, error) {
+	return s.capabilities(c, r)
+}
+func (s *nativeSubagentServiceStub) Delegate(c context.Context, r session.SubagentRequest) (session.Subagent, error) {
+	return s.delegate(c, r)
+}
+
+func (s *nativeSubagentServiceStub) Status(
+	c context.Context,
+	r session.SubagentCaller,
+	id string,
+) (session.Subagent, error) {
+	return s.status(c, r, id)
+}
+
+func (s *nativeSubagentServiceStub) Cancel(
+	c context.Context,
+	a session.SubagentActor,
+	id, reason string,
+) (session.SubagentCancelOutcome, error) {
+	return s.cancel(c, a, id, reason)
+}
+
+func TestNativeSubagentPermissionBoundary(t *testing.T) {
+	t.Run("Should fail closed for an unknown parent permission mode", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{EffectivePermissions: "unknown"}, nil
+			},
+		}}}
+		err := n.validateSubagentPermissions(
+			t.Context(),
+			session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeDenyAll},
+		)
+		detail, ok := errors.AsType[*session.SubagentError](err)
+		if !ok || detail.Code != "permission_escalation_denied" {
+			t.Fatalf("error = %v", err)
+		}
+	})
+	t.Run("Should reject wider permissions before calling the service", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions: apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						EffectivePermissions: "approve-reads",
+						Lineage: &store.SessionLineage{
+							PermissionPolicy: store.SessionPermissionPolicy{
+								Tools:  []string{"compozy__session_history"},
+								Skills: []string{"review"},
+							},
+						},
+					}, nil
+				}},
+			},
+		}
+		for _, req := range []session.SubagentRequest{
+			{PermissionMode: compozyconfig.PermissionModeApproveAll},
+			{Narrowing: &session.SubagentPermissionNarrowing{Tools: []string{"compozy__session_stop"}}},
+			{Narrowing: &session.SubagentPermissionNarrowing{MCPServers: []string{"external"}}},
+			{Narrowing: &session.SubagentPermissionNarrowing{WorkspacePaths: []string{"/other"}}},
+		} {
+			err := n.validateSubagentPermissions(t.Context(), req)
+			detail, ok := errors.AsType[*session.SubagentError](err)
+			if !ok || detail.Code != "permission_escalation_denied" {
+				t.Fatalf("permission error = %v", err)
+			}
+		}
+		if err := n.validateSubagentPermissions(
+			t.Context(),
+			session.SubagentRequest{
+				PermissionMode: compozyconfig.PermissionModeDenyAll,
+				Narrowing:      &session.SubagentPermissionNarrowing{Tools: []string{}, Skills: []string{"review"}},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should reject an idle caller even with a stale turn id", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws"),
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+		}
+		_, err := n.subagentCaller(
+			t.Context(),
+			toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSubagentCapabilities, TurnID: "stale"},
+		)
+		if !errors.Is(err, session.ErrSubagentParentNotActive) {
+			t.Fatalf("idle caller = %v", err)
+		}
+	})
+}
+
+func TestNativeSubagentHostedCaller(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		run        string
+		generation int64
+		allowed    bool
+	}{
+		{name: "Should resolve the current turn from the bound hosted run", run: "run", generation: 2, allowed: true},
+		{name: "Should reject a stale hosted run", run: "old-run", generation: 2},
+		{name: "Should reject a stale hosted generation", run: "run", generation: 1},
+		{name: "Should reject an unbound hosted call"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				Workspaces: nativeTestWorkspaceService(t),
+				Sessions: apitest.StubSessionManager{
+					StatusFn: func(context.Context, string) (*session.Info, error) {
+						return &session.Info{
+							ID:          "parent",
+							ProfileID:   store.DefaultProfileID,
+							WorkspaceID: "ws",
+							State:       session.StateActive,
+							Liveness: &store.SessionLivenessMeta{
+								Activity: &store.SessionActivityMeta{TurnID: "active-turn"},
+							},
+						}, nil
+					},
+					ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
+						return session.PromptRunIdentity{
+							SessionID:   "parent",
+							WorkspaceID: "ws",
+							RunID:       "run",
+							Generation:  2,
+						}, nil
+					},
+				},
+			}}
+			caller, err := adapter.subagentCaller(t.Context(), toolspkg.Scope{
+				SessionID:   "parent",
+				WorkspaceID: "ws",
+				ProfileID:   store.DefaultProfileID,
+				RunID:       tc.run,
+				Generation:  tc.generation,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSubagentDelegate, ToolCallID: "hosted-call"})
+			if tc.allowed {
+				if err != nil || caller.TurnID != "active-turn" || caller.ToolCallID != "hosted-call" {
+					t.Fatalf("hosted caller = %#v, error = %v", caller, err)
+				}
+			} else if !errors.Is(err, session.ErrSubagentParentNotActive) {
+				t.Fatalf("hosted caller error = %v", err)
+			}
+		})
+	}
+}

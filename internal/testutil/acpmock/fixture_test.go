@@ -1213,3 +1213,33 @@ func mockHomePaths(t testing.TB) compozyconfig.HomePaths {
 	}
 	return homePaths
 }
+
+func TestNativeToolStepValidation(t *testing.T) {
+	t.Run("Should require a native tool identity and object arguments without scripted results", func(t *testing.T) {
+		t.Parallel()
+		valid := Step{
+			Kind:       StepKindNativeToolCall,
+			ToolID:     "compozy__subagent_delegate",
+			ToolCallID: "delegate",
+			RawInput:   json.RawMessage(`{"task":"work"}`),
+		}
+		if err := valid.Validate("step"); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*Step){
+			func(s *Step) { s.ToolID = "shell" },
+			func(s *Step) { s.ToolCallID = "" },
+			func(s *Step) { s.RawInput = json.RawMessage(`[]`) },
+			func(s *Step) { s.RawInput = json.RawMessage(`null`) },
+			func(s *Step) { s.RawInput = nil },
+			func(s *Step) { s.RawOutput = json.RawMessage(`{"subagent_id":"synthetic"}`) },
+			func(s *Step) { s.Status = "completed" },
+		} {
+			invalid := valid
+			mutate(&invalid)
+			if err := invalid.Validate("step"); err == nil {
+				t.Fatalf("accepted invalid native call: %#v", invalid)
+			}
+		}
+	})
+}

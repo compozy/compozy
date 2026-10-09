@@ -7,6 +7,7 @@
 - Session lifecycle and CLI
 - Session event store ownership
 - Background roles and usage cost
+- Subagents
 - MCP serve and onboarding
 - Gateway exposure and device authentication
 - Remote CLI profiles and SSH forwards
@@ -796,10 +797,55 @@ markers lets you compare selected commands without revealing credentials; it is 
 
 `compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
 permission subsets. Both accept optional provider, model, reasoning-effort, and speed overrides for
-the child runtime. The parent receives one sanitized synthetic turn when an eligible child stops,
-fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
-`config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
-HTTP/UDS or native-tool request to opt out for that child.
+the child runtime. The parent receives one sanitized synthetic turn when an eligible child completes
+a turn, stops, fails, or enters a needs-you state; a canceled child turn sends no completed wake. This
+`notify_creator` behavior defaults to on and has no `config.toml` key. Use `--no-notify-creator` in
+the CLI or explicit `notify_creator: false` in the HTTP/UDS or native-tool request to opt out for that
+child.
+
+### Subagents
+
+A subagent is a delegated child session that an agent creates with `compozy__subagent_delegate` from
+inside an active turn (protocol in `references/native-tools.md`). Its durable record lives on the
+parent: subagent id, parent turn, child session, runtime, status, `work_state`, result, and delivery.
+Subagent children set `notify_creator=false`; the subagent wake replaces the creator wake for them, and
+plain `session_spawn` children keep the creator wake above. Claude's own Agent/Task tool calls are
+recorded too, as `origin: "provider_native"` rows with no child session; they never wake the parent and
+cannot be canceled.
+
+Operators and agents outside a turn read and cancel subagents through the CLI and the matching HTTP/UDS
+routes:
+
+```bash
+compozy session subagents <session-id> [--origin delegated|provider_native] [--status running,completed] [--limit 50] [--cursor <c>] [--json]
+compozy session subagents show <subagent-id> [--json]
+compozy session subagents cancel <subagent-id> [--reason <text>] [--json]
+compozy session list --subagents include|exclude|only
+```
+
+HTTP/UDS: `GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents`,
+`GET /api/workspaces/{workspace_id}/subagents/{subagent_id}`, and
+`POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel` (202 `cancel_requested`; 409
+`subagent_not_cancelable` for provider-native rows). An unknown or inaccessible session returns
+`session_not_found`; an unknown subagent returns `subagent_not_found`. The session list's `subagents`
+filter defaults to `include`; each parent row carries `subagent_summary` (`live`, `total`, `failed`,
+`attention`, `most_urgent`). The parent's session stream adds `subagents_snapshot` and
+`subagent_updated` events.
+
+Lifecycle rules that matter for operations:
+
+- Stopping a parent cancels its live delegated subagents depth-first in the same stop, and no wake
+  follows. Interrupting a parent turn keeps that turn's subagents running, but their results no longer
+  wake the parent; read them with `compozy session subagents show`.
+- Subagent sessions have no standalone archive. Archiving or unarchiving the parent cascades to its
+  subagents; archiving a subagent directly returns 409 `subagent_archive_follows_parent`.
+- Results and pending wakes survive daemon restarts. Boot recovery finalizes subagents that settled
+  while the daemon was down, re-offers their wake once, fails delegations stuck before their child
+  started, and stops orphaned subagent sessions; each action logs `subagent.recovered`.
+- Subagents have no depth, count, or TTL limit. `[subagents].result_max_chars` (default 60000, range
+  1,000–1,000,000) caps the `result` field only; the full answer stays in the child transcript.
+- Extensions observe settles with the `subagent.settled` hook, and `spawn.pre_create` runs for every
+  delegation with `spawn_role: "subagent"` and a `subagent` object (`title`, `role`, `task_chars`).
 
 TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
 settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped

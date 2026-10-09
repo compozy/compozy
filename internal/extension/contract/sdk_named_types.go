@@ -8,6 +8,8 @@ import (
 )
 
 var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
+	"SubagentSettledPayload":        {Name: "SubagentSettledPayload", Value: hooks.SubagentSettledPayload{}},
+	"SubagentObservationPatch":      {Name: "SubagentObservationPatch", Value: hooks.SubagentObservationPatch{}},
 	sdkPayloadBaseValue:             {Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
 	sdkSessionContextValue:          {Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
 	sdkTurnContextValue:             {Name: sdkTurnContextValue, Value: hooks.TurnContext{}},

@@ -14,6 +14,7 @@ import (
 
 // SessionListQuery captures the CLI filters for one session catalog page.
 type SessionListQuery struct {
+	Subagents     string
 	Workspace     string
 	Worktree      string
 	State         string
@@ -93,6 +94,9 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 
 func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
+	if query.Subagents != "" {
+		values.Set("subagents", query.Subagents)
+	}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace_id", trimmed)
 	} else {

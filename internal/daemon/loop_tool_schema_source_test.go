@@ -649,11 +649,11 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 			Kind:  toolspkg.SourceExtension,
 			Owner: "spec-cycle",
 		},
-		Visibility:      toolspkg.VisibilityModel,
-		Risk:            toolspkg.RiskMutating,
-		ReadOnly:        false,
-		ConcurrencySafe: false,
-		MaxResultBytes:  4096,
+		Visibility:            toolspkg.VisibilityModel,
+		Risk:                  toolspkg.RiskMutating,
+		ReadOnly:              false,
+		ConcurrencySafe:       false,
+		ToolExecutionMetadata: toolspkg.NewToolExecutionMetadata(false, "", 4096),
 	}
 	withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
 	if err != nil {

@@ -608,7 +608,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			}
 		}
 
-		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].MaxResultBytes,
+		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].ExecutionMetadata().MaxResultBytes,
 			toolArtifactReadMaxResultBytes; got != want {
 			t.Fatalf("tool artifact read max result bytes = %d, want %d", got, want)
 		}
@@ -1145,6 +1145,10 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDSubagentDelegate, risk: toolspkg.RiskDestructive, destructive: true, openWorld: true},
+		{id: toolspkg.ToolIDSubagentStatus, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDSubagentCancel, risk: toolspkg.RiskDestructive, destructive: true},
 		{id: "compozy__agent_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__agent_heartbeat_status", risk: toolspkg.RiskRead,
@@ -3127,4 +3131,43 @@ func requireDescriptorRisk(
 			openWorld,
 		)
 	}
+}
+
+// UT-045: the native descriptor boundary enforces the public delegation input contract.
+func TestSubagentDescriptorSchemas(t *testing.T) {
+	t.Run("Should retain public validation and idempotency metadata through descriptor conversion", func(t *testing.T) {
+		t.Parallel()
+		for _, descriptor := range subagentDescriptors() {
+			want := descriptor.ID == toolspkg.ToolIDSubagentCapabilities ||
+				descriptor.ID == toolspkg.ToolIDSubagentStatus
+			got := descriptor.Tool().Descriptor()
+			metadata := got.ExecutionMetadata()
+			if metadata.InputErrorCode != toolspkg.ErrorCodeInvalidRequest || metadata.Idempotent != want {
+				t.Fatalf("descriptor=%#v", got)
+			}
+		}
+	})
+	t.Run("Should enforce required task and closed enums", func(t *testing.T) {
+		t.Parallel()
+		d := descriptorMap(NativeDescriptors())[toolspkg.ToolIDSubagentDelegate]
+		schema := compileNativeSchema(t, d, d.InputSchema, "input")
+		for _, input := range []map[string]any{
+			{}, {"task": ""}, {"task": "work", "mode": "poll"}, {"task": "work", "role": "owner"}, {"task": "work", "permission_mode": "admin"},
+		} {
+			if err := schema.Validate(input); err == nil {
+				t.Fatalf("accepted %#v", input)
+			}
+		}
+		for _, mode := range []string{"async", "wait"} {
+			for _, role := range []string{"general", "implementation", "research", "review", "design", "test"} {
+				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-all"} {
+					if err := schema.Validate(
+						map[string]any{"task": "work", "mode": mode, "role": role, "permission_mode": permission},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		}
+	})
 }

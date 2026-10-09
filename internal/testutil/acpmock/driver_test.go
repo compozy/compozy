@@ -3,6 +3,8 @@ package acpmock
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,6 +19,7 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
@@ -1080,4 +1083,121 @@ func normalizeEvents(events []acp.AgentEvent) []map[string]string {
 		normalized = append(normalized, item)
 	}
 	return normalized
+}
+
+func TestDriverNativeToolCall(t *testing.T) {
+	for _, tc := range []struct{ name, mode, status string }{
+		{"Should invoke hosted MCP and emit correlated ACP results from the agent process", "success", "completed"},
+		{"Should emit a failed ACP result when the hosted tool returns an error", "error", "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture, err := filepath.Abs(filepath.Join("testdata", "native_tool_delegate_fixture.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			driver := acp.New()
+			proc, err := driver.Start(t.Context(), acp.StartOpts{
+				AgentName: "subagent-delegator",
+				Command:   BuildCommand(RequireDriver(t), fixture, "subagent-delegator", ""),
+				Cwd:       t.TempDir(), Permissions: compozyconfig.PermissionModeApproveAll,
+				MCPServers: []compozyconfig.MCPServer{{
+					Name: "compozy-hosted-tools", Transport: compozyconfig.MCPServerTransportStdio,
+					Command: os.Args[0], Args: []string{"-test.run=^TestNativeToolMCPServerProcess$"},
+					Env: map[string]string{"COMPOZY_TEST_NATIVE_MCP_SERVER": tc.mode},
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stopDriverProcess(t, driver, proc)
+			stream, err := driver.Prompt(t.Context(), proc, acp.PromptRequest{
+				TurnID: "native-turn", Message: "delegate child work",
+				Meta: acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := collectPromptEvents(t, stream, nil)
+			var order []string
+			for _, event := range events {
+				if event.Type == acp.EventTypeError {
+					t.Fatalf("driver error: %#v", event)
+				}
+				if event.Type != acp.EventTypeToolCall && event.Type != acp.EventTypeToolResult {
+					continue
+				}
+				order = append(order, event.Type+":"+event.ToolCallID)
+				if event.TurnID != "native-turn" {
+					t.Fatalf("tool turn = %q", event.TurnID)
+				}
+				if event.Type == acp.EventTypeToolResult && event.ToolCallID == "delegate-child" {
+					var update struct {
+						Status    string `json:"status"`
+						RawOutput struct {
+							SubagentID string `json:"subagent_id"`
+							Task       string `json:"task"`
+							Calls      int    `json:"calls"`
+						} `json:"rawOutput"`
+					}
+					if err := jsonv2.Unmarshal(event.Raw, &update); err != nil {
+						t.Fatal(err)
+					}
+					if update.Status != tc.status || update.RawOutput.SubagentID != "sub-from-mcp" ||
+						update.RawOutput.Task != "child work" || update.RawOutput.Calls != 2 {
+						t.Fatalf("native result = %s", event.Raw)
+					}
+				}
+			}
+			want := []string{
+				"tool_call:discover-subagents",
+				"tool_result:discover-subagents",
+				"tool_call:delegate-child",
+				"tool_result:delegate-child",
+			}
+			if !reflect.DeepEqual(order, want) {
+				t.Fatalf("tool events = %v, want %v", order, want)
+			}
+		})
+	}
+}
+
+func TestNativeToolMCPServerProcess(_ *testing.T) {
+	if os.Getenv("COMPOZY_TEST_NATIVE_MCP_SERVER") == "" {
+		return
+	}
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fixture-native-tools", Version: "1"}, nil)
+	calls := 0
+	for _, tool := range []string{"compozy__subagent_capabilities", "compozy__subagent_delegate"} {
+		server.AddTool(&sdkmcp.Tool{Name: tool, InputSchema: map[string]any{"type": "object"}},
+			func(_ context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+				calls++
+				var input map[string]any
+				if err := jsonv2.Unmarshal(req.Params.Arguments, &input); err != nil {
+					return nil, err
+				}
+				wantID := "discover-subagents"
+				if req.Params.Name == "compozy__subagent_delegate" {
+					wantID = "delegate-child"
+				}
+				if req.Params.Meta["toolCallId"] != wantID {
+					return nil, fmt.Errorf("missing ACP correlation: %v", req.Params.Meta)
+				}
+				return &sdkmcp.CallToolResult{
+					IsError: os.Getenv("COMPOZY_TEST_NATIVE_MCP_SERVER") == "error" &&
+						req.Params.Name == "compozy__subagent_delegate",
+					Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "Actual MCP result"}},
+					StructuredContent: map[string]any{
+						"subagent_id": "sub-from-mcp",
+						"task":        input["task"],
+						"calls":       calls,
+					},
+				}, nil
+			})
+	}
+	if err := server.Run(context.Background(), &sdkmcp.StdioTransport{}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }

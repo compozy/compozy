@@ -20,6 +20,9 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, errors.New("sessionId is required")
 	}
 	a.ensurePromptSession(sessionID)
+	a.mu.Lock()
+	a.sessions[sessionID].steerAccepted = make(chan struct{})
+	a.mu.Unlock()
 	if err := a.writeProtocolDiagnostics(acpsdk.AgentMethodSessionPrompt, sessionID, "", ""); err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
@@ -112,7 +115,7 @@ func (a *mockAgent) stepContext(
 
 func stepAcceptsExternalCancel(step acpmock.Step) bool {
 	switch step.Kind {
-	case acpmock.StepKindCommand:
+	case acpmock.StepKindCommand, acpmock.StepKindNativeToolCall:
 		return true
 	case acpmock.StepKindDriverControl:
 		return step.DriverControl.Action == acpmock.DriverControlBlockUntilCancel
@@ -181,6 +184,8 @@ func (a *mockAgent) executeStep(
 		return a.emitTextChunks(ctx, sessionID, acpsdk.UpdateAgentMessageText, step)
 	case acpmock.StepKindThought:
 		return a.emitTextChunks(ctx, sessionID, acpsdk.UpdateAgentThoughtText, step)
+	case acpmock.StepKindNativeToolCall:
+		return a.callNativeTool(ctx, sessionID, step)
 	case acpmock.StepKindToolCall:
 		return a.emitToolCall(ctx, sessionID, step)
 	case acpmock.StepKindPermission:
@@ -188,6 +193,18 @@ func (a *mockAgent) executeStep(
 	case acpmock.StepKindCommand:
 		return a.executeCommandCommand(ctx, sessionID, step)
 	case acpmock.StepKindDriverControl:
+		if step.DriverControl != nil && step.DriverControl.Action == acpmock.DriverControlWaitForSteer {
+			a.mu.Lock()
+			signal := a.sessions[string(sessionID)].steerAccepted
+			a.mu.Unlock()
+			entry := acpmock.DiagnosticsStep{Kind: step.Kind, DriverAction: step.DriverControl.Action}
+			select {
+			case <-ctx.Done():
+				return entry, ctx.Err()
+			case <-signal:
+				return entry, nil
+			}
+		}
 		return a.executeDriverControl(ctx, step)
 	default:
 		return acpmock.DiagnosticsStep{}, fmt.Errorf("unsupported step kind %s", step.Kind)

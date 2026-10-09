@@ -19,6 +19,11 @@ export function rowContainsPart(row: SessionRow, partIndex: number): boolean {
       return row.entries.some(entry => entry.partIndex === partIndex);
     case "turn-fold":
       return rowsContainPart(row.rows, partIndex);
+    case "subagents":
+      return (
+        row.parts.some(part => part.partIndex === partIndex) ||
+        [...row.nested.values()].some(parts => parts.some(part => part.partIndex === partIndex))
+      );
     case "working":
     case "changed-files":
       return false;

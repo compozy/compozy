@@ -39,6 +39,11 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Text = redactDisplayString(event.Text)
 	redacted.Title = redactDisplayString(event.Title)
 	redacted.ToolCallID = redactStructuralString(event.ToolCallID)
+	redacted = redacted.WithProviderToolMetadata(
+		redactStructuralString(event.ParentToolCallID()),
+		redactStructuralString(event.ProviderToolName()),
+		redactStructuralString(event.ToolStatus()),
+	)
 	redacted = redacted.WithToolDetail(
 		redactStructuralString(event.ToolName()),
 		redactRawMessage(event.ToolInput()),
@@ -84,6 +89,8 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.Title = redactDisplayString(payload.Title)
 	payload.ToolName = redactStructuralString(payload.ToolName)
 	payload.ToolCallID = redactStructuralString(payload.ToolCallID)
+	payload.ParentToolCallID = redactStructuralString(payload.ParentToolCallID)
+	payload.ProviderToolName = redactStructuralString(payload.ProviderToolName)
 	payload.ToolInput = redactRawMessage(payload.ToolInput)
 	payload.ToolResult = redactTranscriptToolResult(payload.ToolResult)
 	payload.StopReason = redactStructuralString(payload.StopReason)

@@ -13,6 +13,7 @@ import (
 )
 
 type transcriptStreamState struct {
+	subagentUpdates  <-chan session.SubagentUpdate
 	cursor           int64
 	usageCursor      int64
 	generation       int64
@@ -32,6 +33,12 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 	subscription sessionEventStreamSubscription,
 ) {
 	defer subscription.cancelIfActive()
+	updates, cancel, err := h.subscribeSubagents(c.Request.Context(), sessionID)
+	if err != nil {
+		h.writeTranscriptStreamError(writer, err)
+		return
+	}
+	defer cancel()
 
 	state, err := h.initializeTranscriptStream(
 		c.Request.Context(),
@@ -45,6 +52,11 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 	)
 	if err != nil {
 		h.writeTranscriptStreamError(writer, fmt.Errorf("initialize transcript stream: %w", err))
+		return
+	}
+	state.subagentUpdates = updates
+	if err := h.writeSubagentsSnapshot(c.Request.Context(), writer, sessionID, info); err != nil {
+		h.writeTranscriptStreamError(writer, err)
 		return
 	}
 	state.commandRevision, err = h.writeSessionCommandsChanged(
@@ -147,13 +159,9 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	limit int,
 	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, *session.Info, error) {
-	if time.Since(state.commandCheckedAt) >= time.Second {
-		revision, err := h.writeSessionCommandsChanged(ctx, writer, sessionID, state.commandRevision)
-		if err != nil {
-			return state, info, err
-		}
-		state.commandRevision = revision
-		state.commandCheckedAt = time.Now()
+	state, err := h.refreshTranscriptCommands(ctx, writer, sessionID, state)
+	if err != nil {
+		return state, info, err
 	}
 	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, state.cursor, namedEvents); err != nil {
 		return state, info, err
@@ -171,6 +179,7 @@ func (h *BaseHandlers) refreshTranscriptStream(
 			limit,
 			contract.TranscriptSnapshotReasonEpochMismatch,
 		)
+		resetState.subagentUpdates = state.subagentUpdates
 		resetState.commandRevision = state.commandRevision
 		resetState.commandCheckedAt = state.commandCheckedAt
 		return resetState, latest, resetErr
@@ -194,6 +203,7 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	}
 	if resetReason != "" {
 		resetState, resetErr := h.resetTranscriptStream(ctx, writer, sessionID, info, limit, resetReason)
+		resetState.subagentUpdates = state.subagentUpdates
 		resetState.commandRevision = state.commandRevision
 		resetState.commandCheckedAt = state.commandCheckedAt
 		return resetState, info, resetErr
@@ -219,6 +229,30 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	state.cursor = nextCursor
 	state.generation = generation
 	return state, info, nil
+}
+
+func (h *BaseHandlers) refreshTranscriptCommands(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	state transcriptStreamState,
+) (transcriptStreamState, error) {
+	if time.Since(state.commandCheckedAt) < time.Second {
+		return state, nil
+	}
+	return h.updateTranscriptCommands(ctx, writer, sessionID, state)
+}
+
+func (h *BaseHandlers) updateTranscriptCommands(
+	ctx context.Context, writer FlushWriter, sessionID string, state transcriptStreamState,
+) (transcriptStreamState, error) {
+	revision, err := h.writeSessionCommandsChanged(ctx, writer, sessionID, state.commandRevision)
+	if err != nil {
+		return state, err
+	}
+	state.commandRevision = revision
+	state.commandCheckedAt = time.Now()
+	return state, nil
 }
 
 func (h *BaseHandlers) resetTranscriptStream(
@@ -260,20 +294,21 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 			return
 		case <-h.StreamDoneChannel():
 			return
+		case update, ok := <-state.subagentUpdates:
+			if !h.streamSubagentUpdate(writer, sessionID, &update, ok) {
+				return
+			}
 		case <-keepAlive.C:
 			if !h.writeKeepAlive(writer) {
 				return
 			}
 		case <-commandRefresh.C:
-			revision, err := h.writeSessionCommandsChanged(
-				c.Request.Context(), writer, sessionID, state.commandRevision,
-			)
+			updated, err := h.updateTranscriptCommands(c.Request.Context(), writer, sessionID, state)
 			if err != nil {
 				h.writeTranscriptStreamError(writer, err)
 				return
 			}
-			state.commandRevision = revision
-			state.commandCheckedAt = time.Now()
+			state = updated
 		case <-ticker.C:
 			var err error
 			state, currentInfo, err = h.refreshTranscriptStream(
@@ -321,19 +356,21 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			return
 		case <-h.StreamDoneChannel():
 			return
+		case update, ok := <-state.subagentUpdates:
+			if !h.streamSubagentUpdate(writer, sessionID, &update, ok) {
+				return
+			}
 		case <-keepAlive.C:
 			if !h.writeKeepAlive(writer) {
 				return
 			}
 		case <-commandRefresh.C:
-			revision, err := h.writeSessionCommandsChanged(
-				c.Request.Context(), writer, sessionID, state.commandRevision,
-			)
+			updated, err := h.updateTranscriptCommands(c.Request.Context(), writer, sessionID, state)
 			if err != nil {
 				h.writeTranscriptStreamError(writer, err)
 				return
 			}
-			state.commandRevision, state.commandCheckedAt = revision, time.Now()
+			state = updated
 		case <-flush:
 			if !refresh() {
 				return
@@ -354,14 +391,12 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, state, limit)
 				return
 			}
-			if event.Type == contract.SessionStreamEventConsumerDegraded {
-				if err := h.writeConsumerDegraded(writer, sessionID, state.cursor, event); err != nil {
-					return
-				}
+			immediate, err := h.prepareTranscriptWake(writer, sessionID, state.cursor, event)
+			if err != nil {
+				return
 			}
 			pending = &event
-			if event.Type == session.EventTypeSessionStopped ||
-				event.Type == contract.SessionStreamEventConsumerDegraded {
+			if immediate {
 				flushTimer.Stop()
 				if !refresh() {
 					return
@@ -372,6 +407,15 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			}
 		}
 	}
+}
+
+func (h *BaseHandlers) prepareTranscriptWake(
+	writer FlushWriter, sessionID string, cursor int64, event store.SessionEvent,
+) (bool, error) {
+	if event.Type == contract.SessionStreamEventConsumerDegraded {
+		return true, h.writeConsumerDegraded(writer, sessionID, cursor, event)
+	}
+	return event.Type == session.EventTypeSessionStopped, nil
 }
 
 func (h *BaseHandlers) refreshTranscriptWake(

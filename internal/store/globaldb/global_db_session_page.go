@@ -184,6 +184,7 @@ func sessionCatalogPageFilters(
 		}
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
+	where = appendSubagentSessionFilter(where, query.Subagents)
 	if query.Resumable {
 		where = append(where, sessionListResumableWhere)
 		args = append(args, now)
@@ -336,3 +337,14 @@ func sessionCatalogCursorClause(
 }
 
 var _ store.SessionCatalogPager = (*SessionRepo)(nil)
+
+func appendSubagentSessionFilter(where []string, filter string) []string {
+	switch filter {
+	case "exclude":
+		return append(where, "(spawn_role IS NULL OR spawn_role <> 'subagent')")
+	case "only":
+		return append(where, "spawn_role = 'subagent'")
+	default:
+		return where
+	}
+}

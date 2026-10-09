@@ -465,6 +465,7 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 	})
 }
 
+// UT-039: existing legacy fixture projections retain their ordered parts unchanged.
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 	t.Run("Should retain legacy compaction calls as ordinary tool rows", func(t *testing.T) {
 		t.Parallel()
@@ -754,4 +755,261 @@ func TestCompactionProjection(t *testing.T) {
 			t.Fatalf("item = %#v", item)
 		}
 	})
+}
+
+func TestSubagentUIProjection(t *testing.T) {
+	t.Run("Should project hosted delegate names from both metadata surfaces", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"compozy__subagent_delegate", "mcp__compozy-hosted-tools__compozy__subagent_delegate", "mcp.compozy-hosted-tools.compozy__subagent_delegate", "compozy-hosted-tools.compozy__subagent_delegate"} {
+			for _, providerMetadata := range []bool{false, true} {
+				event := acp.AgentEvent{
+					Type:       acp.EventTypeToolResult,
+					SessionID:  "parent",
+					TurnID:     "turn",
+					ToolCallID: "call",
+					Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+				}
+				if providerMetadata {
+					event = event.WithProviderToolMetadata("", name, "completed")
+				} else {
+					event = event.WithTool(name, nil, false)
+				}
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				messages, err := ToUIMessages(
+					[]store.SessionEvent{
+						{
+							ID:        "event",
+							SessionID: "parent",
+							TurnID:    "turn",
+							Sequence:  1,
+							Type:      event.Type,
+							Content:   content,
+						},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cards := 0
+				for _, message := range messages {
+					for _, part := range message.Parts {
+						if part.Type == "data-compozy-subagent" {
+							cards++
+						}
+					}
+				}
+				if cards != 1 {
+					t.Fatalf("%s (provider=%v): cards=%d", name, providerMetadata, cards)
+				}
+			}
+		}
+	})
+	t.Run(
+		"Should replace a generic native title with the streamed description without guessing its provider",
+		func(t *testing.T) {
+			t.Parallel()
+			var rows []store.SessionEvent
+			for i, input := range []string{`{}`, `{"description":"Survey BRIEF.md risks"}`} {
+				event := acp.AgentEvent{
+					Type:       acp.EventTypeToolCall,
+					SessionID:  "parent",
+					TurnID:     "turn",
+					ToolCallID: "native",
+					Title:      "Task",
+				}.
+					WithTool("Agent", json.RawMessage(input), false).
+					WithProviderToolMetadata("", "Agent", "in_progress")
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows = append(
+					rows,
+					store.SessionEvent{
+						ID:        fmt.Sprintf("event-%d", i),
+						SessionID: "parent",
+						TurnID:    "turn",
+						Sequence:  int64(i + 1),
+						Type:      event.Type,
+						Content:   content,
+					},
+				)
+			}
+			messages, err := ToUIMessages(rows)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cards := 0
+			for _, message := range messages {
+				for _, part := range message.Parts {
+					if part.Type != "data-compozy-subagent" {
+						continue
+					}
+					cards++
+					var payload UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.Title != "Survey BRIEF.md risks" || payload.RuntimeProvider != "" {
+						t.Fatalf("payload=%#v", payload)
+					}
+				}
+			}
+			if cards != 1 {
+				t.Fatalf("cards=%d", cards)
+			}
+		},
+	)
+	// UT-038: tool/text attribution does not merge child chunks into parent chunks.
+	t.Run("Should project native and delegated cards at their transcript positions", func(t *testing.T) {
+		t.Parallel()
+		events := []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: "Before"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "native",
+				Title:      "Review",
+			}.WithProviderToolMetadata(
+				"",
+				"Agent",
+				"pending",
+			),
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Inner"}.WithProviderToolMetadata("native", "", ""),
+			{Type: acp.EventTypeAgentMessage, Text: "After"},
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				ToolCallID: "inner-read",
+				Title:      "Read",
+			}.WithProviderToolMetadata(
+				"native",
+				"Read",
+				"pending",
+			),
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "delegate",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+			},
+			{
+				Type:       acp.EventTypeToolResult,
+				ToolCallID: "failed",
+				Raw:        json.RawMessage(`{"rawOutput":{"subagent_id":"sub-failed"}}`),
+			},
+		}
+		events[5] = events[5].WithTool("compozy__subagent_delegate", nil, false)
+		events[6] = events[6].WithTool("compozy__subagent_delegate", nil, true)
+		var stored []store.SessionEvent
+		for i, event := range events {
+			event.SessionID, event.TurnID = "parent", "turn"
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored = append(
+				stored,
+				store.SessionEvent{
+					ID:        fmt.Sprintf("event-%d", i),
+					SessionID: "parent",
+					TurnID:    "turn",
+					Sequence:  int64(i + 1),
+					Content:   content,
+					Type:      event.Type,
+				},
+			)
+		}
+		messages, err := ToUIMessages(stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var texts, parents, cards, positions []string
+		foundInnerTool, foundFailure := false, false
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type == "text" {
+					texts = append(texts, part.Text)
+					positions = append(positions, part.Text)
+					parents = append(parents, part.ParentToolCallID)
+				}
+				if part.ToolCallID == "inner-read" {
+					foundInnerTool = part.ParentToolCallID == "native"
+				}
+				if part.ToolCallID == "failed" {
+					foundFailure = part.State == "output-error"
+				}
+				if part.Type == "data-compozy-subagent" {
+					var payload UISubagentPayload
+					if err := json.Unmarshal(part.Data, &payload); err != nil {
+						t.Fatal(err)
+					}
+					if payload.SubagentID != part.ID || payload.ToolCallID == "" || payload.TurnID != "turn" {
+						t.Fatalf("invalid card: %#v", part)
+					}
+					if payload.Origin == "provider_native" && payload.SubagentID != "sub-b5de770448cb8f99" {
+						t.Fatalf("native id = %s", payload.SubagentID)
+					}
+					cards = append(cards, payload.Origin)
+					positions = append(positions, payload.Origin)
+				}
+			}
+		}
+		if !slices.Equal(texts, []string{"Before", "Inner", "After"}) ||
+			!slices.Equal(parents, []string{"", "native", ""}) {
+			t.Fatalf("texts/parents = %v / %v", texts, parents)
+		}
+		if !slices.Equal(cards, []string{"provider_native", "delegated"}) || !foundInnerTool || !foundFailure {
+			t.Fatalf("cards=%v inner=%v failed=%v", cards, foundInnerTool, foundFailure)
+		}
+		if !slices.Equal(positions, []string{"Before", "provider_native", "Inner", "After", "delegated"}) {
+			t.Fatalf("part positions = %v", positions)
+		}
+	})
+	// UT-038: card data carries the originating parent turn independently of message IDs.
+	for _, tc := range []struct {
+		name  string
+		event acp.AgentEvent
+	}{
+		{name: "Agent call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Agent", "pending")},
+		{name: "Task call", event: acp.AgentEvent{Type: acp.EventTypeToolCall}.WithProviderToolMetadata("", "Task", "pending")},
+		{name: "delegated result", event: acp.AgentEvent{Type: acp.EventTypeToolResult,
+			Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated","turn_id":"untrusted-output-turn"}}`),
+		}.WithTool("compozy__subagent_delegate", nil, false)},
+	} {
+		t.Run("Should preserve the parent turn for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.event.SessionID, tc.event.TurnID, tc.event.ToolCallID = "parent", "parent-turn", "call"
+			content, err := MarshalAgentEvent(tc.event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages, err := ToUIMessages([]store.SessionEvent{{
+				ID: "unrelated-event-id", SessionID: "parent", TurnID: "parent-turn",
+				Sequence: 1, Content: content, Type: tc.event.Type,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cards := 0
+			for _, message := range messages {
+				for _, part := range message.Parts {
+					if part.Type != "data-compozy-subagent" {
+						continue
+					}
+					cards++
+					var data map[string]any
+					if err := json.Unmarshal(part.Data, &data); err != nil {
+						t.Fatal(err)
+					}
+					if data["turn_id"] != "parent-turn" {
+						t.Fatalf("card data = %s", part.Data)
+					}
+				}
+			}
+			if cards != 1 {
+				t.Fatalf("cards = %d, want 1", cards)
+			}
+		})
+	}
 }

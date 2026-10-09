@@ -183,6 +183,7 @@ func (s SessionInfo) Validate() error {
 // SessionListQuery filters session index queries through one explicit profile or
 // the AllProfiles aggregate.
 type SessionListQuery struct {
+	Subagents       string
 	ReadScope       ReadScope
 	ID              string
 	State           string
@@ -219,6 +220,11 @@ func (u SessionTranscriptEpochUpdate) Validate() error {
 
 // Validate rejects an implicit profile lens before checking query bounds.
 func (q SessionListQuery) Validate() error {
+	switch q.Subagents {
+	case "", "include", "exclude", "only":
+	default:
+		return fmt.Errorf("store: unsupported subagents filter %q", q.Subagents)
+	}
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
 	}

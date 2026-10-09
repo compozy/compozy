@@ -46,6 +46,11 @@ export function visibleSessionOrder(
   ]);
 }
 
+/** A delegated subagent's own session (ADR-005): summarized on its parent, never a list row. */
+export function isSubagentSession(session: SessionPayload): boolean {
+  return session.lineage?.spawn_role === "subagent";
+}
+
 /**
  * The parent a session nests under. Continued and forked sessions are new
  * top-level sessions the operator started; their source is provenance (the

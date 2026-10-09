@@ -5,8 +5,10 @@ import {
   deriveWorkingStatus,
   formatFrozenDuration,
   formatWorkingElapsed,
+  runningAgentCount,
   stopAttributionDetail,
 } from "../session-working-status";
+import type { SubagentView } from "../../components/subagents/types";
 
 // Suite: working-status derivation (S3, US-027, UT-109, UT-110).
 // Invariant: the status row reads "Working for {elapsed}" from the daemon's
@@ -111,6 +113,65 @@ describe("working status", () => {
     ).toMatchObject({ kind: "working", activity: null, agentCount: 2 });
     expect(agentCountLabel(1)).toBe("1 agent running");
     expect(agentCountLabel(2)).toBe("2 agents running");
+  });
+
+  it("UT-W10: Should count live subagents of both origins with active children, once per child", () => {
+    const row = (id: string, status: SubagentView["status"], child: string | null) =>
+      ({
+        id,
+        parent_session_id: "sess_parent",
+        child_session_id: child,
+        origin: child ? "delegated" : "provider_native",
+        title: id,
+        status,
+        progress: "",
+        result_preview: "",
+        error: null,
+        runtime: { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" },
+        started_at: "2026-09-06T12:01:00Z",
+        settled_at: null,
+        created_at: "2026-09-06T12:01:00Z",
+        updated_at: "2026-09-06T12:01:00Z",
+        delivery: "none",
+      }) satisfies SubagentView;
+    const children = session({
+      supervision: {
+        quiet_warning: null,
+        sources: [],
+        work_signals: [
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_child_1" },
+          { kind: "active_child", since: "2026-09-06T12:01:30Z", ref: "sess_plain_spawn" },
+        ],
+      },
+    });
+    const subagents = [
+      row("sub-delegated", "running", "sess_child_1"),
+      row("sub-native", "waiting", null),
+      row("sub-done", "completed", "sess_child_9"),
+    ];
+    expect(runningAgentCount(children, subagents)).toBe(3);
+    // D-05: a settled subagent's child lingers as an idle session with an active_child signal.
+    const lingering = session({
+      supervision: {
+        quiet_warning: null,
+        sources: [],
+        work_signals: [
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_child_9" },
+          { kind: "active_child", since: "2026-09-06T12:01:00Z", ref: "sess_plain_spawn" },
+        ],
+      },
+    });
+    expect(runningAgentCount(lingering, subagents)).toBe(3);
+    expect(
+      deriveWorkingStatus({
+        session: children,
+        running: true,
+        thinking: false,
+        lastTurn: null,
+        nowMs: NOW,
+        subagents: [row("sub-native", "running", null)],
+      })
+    ).toMatchObject({ kind: "working", agentCount: 3 });
   });
 
   it("Should read Thinking before content and freeze into a stop or failure after the turn", () => {

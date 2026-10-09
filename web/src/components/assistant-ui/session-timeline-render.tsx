@@ -27,15 +27,18 @@ import { SessionWorkEntryView } from "./session-work-entry";
 import { SessionToolGroupRow } from "./session-tool-group-row";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
+import { SessionSubagentRowView } from "./session-subagent-row";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
   type SessionLiveToolRow,
   type SessionReasoningRow,
   type SessionRow,
+  type SessionSubagentRow,
   type SessionTextRow,
   type SessionTurnFoldRow,
   type SessionWorkRow,
+  deriveSessionRows,
   sessionRowEqual,
 } from "./session-timeline.logic";
 import {
@@ -191,6 +194,27 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
   );
 }
 
+// Provider-native inner work renders inside its card with the same row views
+// (S8); the parent flow never holds it. Group expansion lives with the
+// message's other disclosures, keyed `subagent-group:<first id>`.
+function SessionSubagentRowContent({ row }: { row: SessionSubagentRow }) {
+  const store = useTimelineRowContext();
+  const scrollStore = useOptionalThreadScrollStore();
+  return (
+    <SessionSubagentRowView
+      row={row}
+      renderNested={subagentId => {
+        const inner = row.nested.get(subagentId);
+        return inner ? renderTimelineRows(deriveSessionRows(inner)) : null;
+      }}
+      onGroupOpenChange={() => {
+        notifyDisclosureToggled(scrollStore);
+        toggleTimelineExpansion(store, "work-group", row.id);
+      }}
+    />
+  );
+}
+
 // A find jump opens the fold the matched part sits behind ("opened for a
 // match"): the exact part when the daemon located it, the whole turn when an
 // older daemon named only the turn. The reader closes it by hand with one
@@ -264,6 +288,8 @@ const TimelineRowContent = memo(
         return <SessionChangedFilesRowContent row={row} />;
       case "turn-fold":
         return <SessionTurnFoldRowContent row={row} />;
+      case "subagents":
+        return <SessionSubagentRowContent row={row} />;
     }
   },
   (previous, next) => sessionRowEqual(previous.row, next.row)

@@ -1,5 +1,132 @@
 # Compozy Change Impact
 
+## Subagents — 2026-10-08
+
+Owner: spec `.compozy/tasks/subagents/` (ADR-001..005, §Compozy Cross-Surface Impact Audit); one PR
+from branch `subagents`. Additive across every public surface (SD-013); no delete targets. Native
+tools: four new IDs in the `sessions` toolset — `compozy__subagent_capabilities`,
+`compozy__subagent_delegate`, `compozy__subagent_status` (idempotent, not read-only: reading a terminal
+result acknowledges delivery), `compozy__subagent_cancel`; all require an active caller turn
+(`parent_not_active`). `compozy__session_spawn` and the creator wake keep their contracts; delegated
+children set `notify_creator=false`. Extensibility/hooks/config: new observe-only `subagent.settled`
+hook (family `subagent`); `spawn.pre_create` payloads gain `spawn_role: "subagent"` and a `subagent`
+object, and a TTL patch for the subagent role is `capability_denied`; new `[subagents]
+result_max_chars` (default 60000, 1000–1000000, global → workspace overlay); no new extension RPC; MCP
+sidecars and marketplace unaffected. Public wire: CLI `compozy session subagents [show|cancel]` and
+`compozy session list --subagents`; HTTP/UDS list/show/cancel routes, session-list `subagents` filter
+(default `include`) and `subagent_summary`; SSE `subagents_snapshot`/`subagent_updated`; transcript
+`data-compozy-subagent` part and optional `parentToolCallId`; synthetic `kind`/`subagent_ids`. User
+state: new `session_subagents` and `session_subagent_wakes` tables and `session_input_queue.priority`
+through one Goose migration. Workspace data isolation: records are workspace-scoped like sessions;
+children run in the parent's workspace and worktree (no cross-workspace delegation); CLI/HTTP reads
+use session read access and inaccessible sessions return `session_not_found`. Official skill:
+`SKILL.md` routing row, `references/native-tools.md` (protocol), `references/tasks-and-orchestration.md`
+(subagents vs spawned workers, shared worktree), `references/runtime-operations.md` (operator
+surfaces, lifecycle, restart); the creator-wake text now includes the `completed` reason and the
+canceled-turn suppression that `internal/session/spawn_wake.go` already implements (same drift fixed in
+site `sessions/orchestration.mdx` and `autonomy/safe-spawn.mdx`). Web/Docs: `_uiux.md` S1–S10 (card,
+group, hover, divider, waiting banner, tool phrases, status line, native nesting, sidebar chip,
+inspector roster) with the `HoverCard` primitive in `@compozy/ui`; site tutorial
+`sessions/subagents` ("Delegate to subagents"), `[subagents]` in `configuration/config-toml`,
+`subagent.settled` in `hooks/event-catalog`; generated CLI and API references regenerate from Cobra and
+OpenAPI. Glossary **Subagent** (delegated, provider-native, subagent wake) and COPY.md §6 "Subagent
+Terms". QA: new `RT-subagent-delegate`, `RT-subagent-restart`, `ET-web-subagent-card`,
+`ET-web-native-subagent`; `ET-web-session-sidebar-threads` reset to `untested` for the sidebar filter
+and chip (ADR-005).
+
+Follow-up 2026-10-09: acpmock `native_tool_call` executes injected hosted MCP tools from the
+ACP agent process and emits correlated tool/result updates; the fixture and driver docs live in
+`internal/testutil/acpmock/`. Hosted subagent bindings resolve an omitted turn ID only from a
+matching authoritative active run/generation and the parent activity snapshot. No public wire,
+hook, config, migration, or official skill shape changes. The daemon integration reads back the
+parent transcript after a real delegate call, enabling the Web subagent-card E2E fixture without
+operator-side delegation or synthetic tool results.
+
+
+Store remediation 2026-10-09 (fix-store): scoped roster reads reject an empty workspace and
+parent, cap pages at 200, and use direct ID lookup for internal cancellation/wait paths.
+Wake lookup uses a read snapshot and parent/state index; progress and pending transitions
+use the existing immediate transaction boundary. Recovery excludes stopped orphans and
+provider-native reservations. The unreleased 00131 migration gains a parent/state wake
+index and drops the redundant child index. M2 retry persistence and policy belong to fix-core. Parent catalog upserts follow summary changes while
+progress remains on the roster stream. Native tool IDs, hooks, config, HTTP/UDS shapes,
+workspace isolation, official skill and site contracts are unchanged. Existing owners:
+UT-056, UT-060, IT-021, IT-031, IT-032; QA scenarios RT-subagent-restart and
+ET-web-session-sidebar-threads retain their current fail verdict pending the controller's
+integrated re-walk. Search ancestry (m19/S9) remains unresolved because the catalog service
+combines active/durable rows and recuts pages after the store query; adding contextual
+ancestors requires an explicit pagination contract beyond a store-only change.
+
+
+Fix round 1 (sa-fix-core): wake steering freezes its batch on acceptance, channel-less pending
+injection settles with its original turn, and failed wake attempts persist across successor batches
+and restart (three failures dispose delivery and log `subagent.wake_abandoned`). The controller
+authorized adding `attempts` to unreleased migration 00131 in place; Atlas and sqlc are regenerated.
+Native work finalizes interrupted at turn/stop/recovery boundaries without a delivery wake. Recovery
+isolates row failures, preserves sent input identity, and resumes delegated work after clean shutdown.
+`subagent.settled` observers use the manager-owned asynchronous lifetime; denied concurrent replays
+retain `capability_denied`; parent locks retire after their last waiter. Hosted MCP derives omitted
+delegation keys from parent turn plus transport request identity when no provider call ID exists.
+Public DTOs, tool IDs, configuration and workspace authorization stay unchanged. ROOT descendants
+retain hosted native-tool access, verified over real MCP. Web consumers receive accurate native
+terminal state, catalog stream and one root attention completion. Official skill/site wording and
+real-provider scenario verdicts remain under sa-qa; automated evidence is in sa-fix-core-fix1.md.
+The existing RT-subagent-delegate, RT-subagent-native and RT-subagent-restart scenarios own re-walks.
+
+### API fix round 1
+
+Subagent payloads add `created_at` for stable Web ordering. HTTP/UDS cancellation accepts an empty
+body; tool request validation preserves `invalid_request` field messages through hosted MCP.
+Descriptors own idempotency and validation-error metadata. A shared hosted-name normalizer feeds
+transcript cards, native tool metadata, and hook classification. Later native task descriptions update
+the stored roster and card; a provider is no longer guessed in the card payload. CLI show/cancel can
+resolve an ID through authorized workspace routes without a registered cwd, and runtime display omits
+empty fields. Delegated speed defaults to `normal`; elapsed CLI output supports hours. Native tool
+IDs, config, hook shapes, workspace authorization, persisted schema, and official skill instructions
+are unchanged. Generated OpenAPI, Web client, and SDK contracts co-ship. Existing subagent QA scenarios
+remain failed pending the controller's re-walk; targeted API, daemon/SQLite/ACP, transcript, CLI, and
+registry suites own regression coverage.
+
+
+Tools fix round 2 (sa-tools): malformed hosted MCP `tools/call` params/metadata remain SDK-owned
+request errors (`-32602`) without terminating the connection. Dispatcher `maxLength` validation
+is opt-in through descriptor `InputErrorCode`, including descriptor registration; existing tool
+bindings retain their prior behavior. No tool IDs, hook/config contracts, workspace isolation,
+persisted data, Web or official skill/site changes. Owning automated evidence: hosted proxy
+transport and tools dispatcher suites; existing scenario verdicts remain unchanged.
+
+Fix round 2 (sa-fix-core): cancellation commits canceled/disposed before returning acceptance;
+the manager-owned lifecycle task stops the descendant tree independently of client cancellation.
+Interrupted pending steering remains deliverable and terminal wakes release transient tracking.
+Failed wakes explicitly retry after 200 ms, preserving the existing three-attempt durable cap;
+explicit turn cancellation takes precedence over a simultaneous error. Clean restart preserves an
+already completed admitted answer instead of adding a continuation turn. Public tool/HTTP shapes,
+workspace isolation, hooks/configuration and official skill contracts are unchanged. Web observes
+the persisted terminal row before physical stop finishes, consistent with 202/cancel_requested.
+Owning automated journeys and verification limits: sa-fix-core-fix2.md; real-provider verdicts remain
+with the QA owner. Native-event ingestion must stay inline before turn-settled reconciliation.
+
+
+Core fix round 3: async `subagent.settled` execution uses the service lifetime and the hook
+executor's timeout, so returning from dispatch cannot cancel its subprocess. Subagent spawn denial
+returns `capability_denied` with the hook reason alone. Wake retry backoff grows by 200 ms per failed
+attempt (three-attempt cap unchanged); disposal derives steer tracking from row wake IDs and retains
+partially claimed batches. Native tool behavior follows the existing contract; config/hook schemas,
+workspace isolation, official skills and Web shapes are unchanged. Owning tests and limits are in
+`sa-fix-core-fix3.md`; RT-subagent-delegate records automated coverage without changing its QA verdict.
+
+Tools fix round 3 (sa-tools): `compozy__subagent_capabilities` previews at most 40 models per
+delegable provider, current/default first, and omits model entries for unavailable providers.
+Provider options add `models_total` and `models_truncated`; delegate validation still uses the full
+catalog. Native descriptor/output schema and generated catalog co-ship with skill/site guidance.
+No HTTP DTO, Web, hooks/config, persistence or workspace isolation changes. UT-017 and the native
+binding suite own automation; RT-subagent-delegate retains its verdict pending the real-provider re-walk.
+
+Subagents CI follow-up: the skills-disabled startup allowance tracks the two complete bundled
+manuals (72,000 characters); the existing complete-manual assertion remains unchanged. No skill
+content, public tool/schema, hook/config, isolation or Web contract changes. The memory-retirement
+preservation test now isolates migration 00130, keeping its full data/schema/FK checks.
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

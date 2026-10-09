@@ -2328,6 +2328,7 @@ func cloneIntegrationToolRecords(records []resources.Record[toolspkg.Tool]) []re
 func cloneIntegrationTool(spec toolspkg.Tool) toolspkg.Tool {
 	cloned := spec
 	cloned.ToolPresentation = toolspkg.CloneToolPresentation(spec.ToolPresentation)
+	cloned.ToolExecutionMetadata = toolspkg.CloneToolExecutionMetadata(spec.ToolExecutionMetadata)
 	if len(spec.InputSchema) > 0 {
 		cloned.InputSchema = append([]byte(nil), spec.InputSchema...)
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -23,6 +25,7 @@ import (
 // daemonRuntimeState is one published daemon generation. Assigning or clearing
 // this value moves every runtime-owned handle through the same transition.
 type daemonRuntimeState struct {
+	subagents         session.SubagentService
 	lock              *Lock
 	harnessResolver   *HarnessContextResolver
 	registry          Registry

@@ -79,6 +79,8 @@ type EmptyState struct {
 	Icon  string `json:"icon,omitempty"`
 }
 
+type ErrorCode string
+
 type EventPostRecordPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -193,8 +195,4 @@ type ExtensionToolCallRequest struct {
 	InvocationID     string                       `json:"invocation_id,omitempty"`
 	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
 	Input            json.RawMessage              `json:"input"`
-}
-
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
 }

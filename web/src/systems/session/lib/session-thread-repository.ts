@@ -103,6 +103,11 @@ function threadPartMetadata(
   if (state) {
     metadata.state = state;
   }
+  // Provider-native attribution (S8): the subagent card owns this part.
+  const parentToolCallId = stringField(record, "parentToolCallId");
+  if (parentToolCallId) {
+    metadata.parentToolCallId = parentToolCallId;
+  }
   return metadata;
 }
 

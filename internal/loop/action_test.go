@@ -460,7 +460,10 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		toolID := tools.ToolID("compozy__task_list")
 		registry := &fakeActionToolRegistry{
 			views: map[tools.ToolID]tools.ToolView{toolID: {
-				Descriptor: tools.Descriptor{ID: toolID, MaxResultBytes: maxResultBytes},
+				Descriptor: tools.Descriptor{
+					ID:                    toolID,
+					ToolExecutionMetadata: tools.NewToolExecutionMetadata(false, "", maxResultBytes),
+				},
 			}},
 			callResult: tools.ToolResult{
 				Truncated: true,

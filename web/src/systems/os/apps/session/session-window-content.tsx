@@ -16,6 +16,7 @@ import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
+import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
 import {
   type SessionPayload,
   SessionEnvironmentControl,
@@ -231,6 +232,7 @@ export function SessionWindowContent({
   );
 
   const quietWarning = sessionQuietWarning(session);
+  const subagentParent = derive.subagentOrigin?.parent ?? null;
 
   const handleForkDeadSession = () => {
     forkSession.mutate(
@@ -264,6 +266,7 @@ export function SessionWindowContent({
             collapsedThreadIds={sidebar.collapsedThreadIds}
             view={sidebar.view}
             currentSessionId={sessionId}
+            revealedSession={session}
             onToggleThread={sidebar.onToggleThread}
             onSelectSession={sidebar.onSelectSession}
             onNewSession={sidebar.onNewSession}
@@ -341,6 +344,27 @@ export function SessionWindowContent({
               }}
               promptImageCapability={promptImageCapability}
               promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+              subagentNavigation={{
+                openSession: sidebar.openSession,
+                // "and N more" lands on the inspector's Subagents section, as the chip does.
+                showSubagents: () => requestSessionInspectorSection(sessionId, "subagents"),
+              }}
+              subagentOrigin={
+                derive.subagentOrigin && {
+                  parent: subagentParent,
+                  onOpenParent: subagentParent
+                    ? () =>
+                        sidebar.openSession(
+                          {
+                            sessionId: subagentParent.id,
+                            agentName: subagentParent.agentName,
+                            workspaceId,
+                          },
+                          { newWindow: false }
+                        )
+                    : undefined,
+                }
+              }
             />
           </div>
           {inspector.open ? (
@@ -355,6 +379,17 @@ export function SessionWindowContent({
                 }}
                 context={sessionContext.context}
                 session={session}
+                onOpenSubagent={(subagent, options) => {
+                  if (subagent.child_session_id === null) return;
+                  sidebar.openSession(
+                    {
+                      sessionId: subagent.child_session_id,
+                      agentName: subagent.runtime.agent ?? "",
+                      workspaceId,
+                    },
+                    options
+                  );
+                }}
                 turns={sessionUsageTurns.data}
                 turnsUnavailable={sessionUsageTurns.isError}
                 usage={inspectorUsage}

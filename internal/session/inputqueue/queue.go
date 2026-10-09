@@ -32,6 +32,8 @@ type Config struct {
 
 // InputRequest carries the common fields for a non-admitted busy input.
 type InputRequest struct {
+	MessageID        string
+	Priority         int
 	SessionID        string
 	Text             string
 	TargetTurnID     string
@@ -137,7 +139,7 @@ func (s *Service) Enqueue(
 
 // PrepareQueue validates queued input and allocates its durable insert without persisting it.
 func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert, error) {
-	return s.newInsert(insertSpec{
+	insert, err := s.newInsert(insertSpec{
 		sessionID:        req.SessionID,
 		targetTurnID:     req.TargetTurnID,
 		text:             req.Text,
@@ -148,6 +150,9 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
+	insert.MessageID = req.MessageID
+	insert.Priority = req.Priority
+	return insert, err
 }
 
 // EnqueueAdmitted atomically persists one external command receipt and its queue entry.

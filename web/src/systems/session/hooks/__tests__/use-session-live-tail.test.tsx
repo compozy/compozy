@@ -60,6 +60,7 @@ vi.mock("../../adapters/session-api", () => ({
 }));
 
 import { fetchSession, fetchSessionTranscript } from "../../adapters/session-api";
+import type { SubagentRoster } from "../../lib/subagent-roster";
 
 function fixtureWorkspaceId(): string {
   const workspaceId = primarySessionFixture.workspace_id;
@@ -884,6 +885,69 @@ describe("useSessionLiveTail", () => {
     await act(async () => vi.advanceTimersByTimeAsync(250));
 
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=4&epoch=1&generation=1`);
+  });
+
+  // UT-W01 (stream half): both roster events are registered explicitly (L-017) and write the
+  // client-held roster; a reconnect holds rows stale until the next snapshot.
+  it("Should feed the subagent roster from the stream and hold it stale from loss to resync", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const rosterKey = sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.status).toBe("success"));
+    });
+    const subagent = {
+      subagent_id: "sub-1",
+      workspace_id: WORKSPACE_ID,
+      parent_session_id: SESSION_ID,
+      parent_turn_id: "turn-1",
+      child_session_id: "sess-child",
+      origin: "delegated",
+      provider_tool_call_id: null,
+      title: "Audit webhooks",
+      role: "general",
+      status: "running",
+      work_state: "working",
+      runtime: { agent: "codex", provider: "codex", model: "", reasoning_effort: "", speed: "" },
+      depth: 1,
+      progress: "",
+      result: null,
+      result_preview: "",
+      result_truncated: false,
+      error: null,
+      wait_timed_out: false,
+      delivery: "none",
+      started_at: "2026-10-08T21:00:00.000Z",
+      settled_at: null,
+      updated_at: "2026-10-08T21:00:01.000Z",
+    };
+
+    act(() => {
+      sources[0]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [subagent] });
+      sources[0]?.emit("subagent_updated", {
+        session_id: SESSION_ID,
+        subagent: { ...subagent, progress: "Reading", updated_at: "2026-10-08T21:00:05.000Z" },
+      });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [{ id: "sub-1", progress: "Reading" }],
+      staleIds: new Set(),
+    });
+
+    // Stale the moment the stream drops, before any reconnect (m19).
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    expect(sources).toHaveLength(1);
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.staleIds).toEqual(
+      new Set(["sub-1"])
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(sources).toHaveLength(2);
+    act(() => {
+      sources[1]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [subagent] });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)?.staleIds.size).toBe(0);
   });
 
   it("Should wake only the exact session command projection", async () => {

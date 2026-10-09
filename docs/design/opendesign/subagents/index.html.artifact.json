@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "subagents/index.html",
+  "entry": "subagents/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-09T06:17:56.232Z",
+  "updatedAt": "2026-10-09T06:17:56.232Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

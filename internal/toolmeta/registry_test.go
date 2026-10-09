@@ -78,6 +78,10 @@ func TestNativeEntryMatchesBuiltinDescriptorInventory(t *testing.T) {
 
 func expectedNativeEntries() map[string]toolmeta.Entry {
 	return map[string]toolmeta.Entry{
+		"compozy__subagent_capabilities":          expectedNativeEntry("Checking", " ", false, "🤖", "auto"),
+		"compozy__subagent_delegate":              expectedNativeEntry("Delegating", " ", false, "🤖", "auto"),
+		"compozy__subagent_status":                expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__subagent_cancel":                expectedNativeEntry("Canceling", " ", false, "🤖", "auto"),
 		"compozy__agent_create":                   expectedNativeEntry("Creating", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_status":         expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_wake":           expectedNativeEntry("Running", " ", false, "🤖", "auto"),
@@ -324,4 +328,23 @@ func expectedNativeEntry(
 		Emoji:        emoji,
 		Preview:      preview,
 	}
+}
+
+func TestHostedNativeToolNames(t *testing.T) {
+	t.Run("Should normalize only Compozy hosted server wrappers", func(t *testing.T) {
+		t.Parallel()
+		for _, prefix := range []string{"", "mcp__compozy-hosted-tools__", "mcp.compozy-hosted-tools.", "compozy-hosted-tools."} {
+			name := prefix + "compozy__subagent_delegate"
+			if got := toolmeta.NormalizeHostedToolName(name); got != "compozy__subagent_delegate" {
+				t.Fatal(got)
+			}
+			if _, ok := toolmeta.NativeEntry(name); !ok {
+				t.Fatalf("native metadata missing for %s", name)
+			}
+		}
+		foreign := "mcp__other__compozy__subagent_delegate"
+		if got := toolmeta.NormalizeHostedToolName(foreign); got != foreign {
+			t.Fatal(got)
+		}
+	})
 }

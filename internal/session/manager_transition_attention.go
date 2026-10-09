@@ -55,6 +55,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if from == to {
 		return
 	}
+	m.publishSubagentLifecycleEdge(ctx, before, after)
 	at := m.now().UTC()
 	if after.AttentionChangedAt != nil {
 		at = after.AttentionChangedAt.UTC()

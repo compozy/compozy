@@ -19,11 +19,20 @@ import {
   transcriptStreamCursor,
   type SessionTranscriptData,
 } from "../lib/session-transcript-query";
+import {
+  applySubagentsSnapshot,
+  applySubagentUpdated,
+  EMPTY_SUBAGENT_ROSTER,
+  markSubagentRosterStale,
+  type SubagentRoster,
+} from "../lib/subagent-roster";
 import type {
   NormalizedSessionTranscriptEntry,
   SessionConsumerDegradedPayload,
   SessionEventPayload,
   SessionPayload,
+  SubagentsSnapshotPayload,
+  SubagentUpdatedPayload,
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
 } from "../types";
@@ -90,6 +99,12 @@ export function createSessionLiveTailRuntime({
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
   const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
+  const subagentRosterKey = sessionKeys.subagentRoster(workspaceId, sessionId);
+  const updateSubagentRoster = (update: (roster: SubagentRoster) => SubagentRoster) => {
+    queryClient.setQueryData<SubagentRoster>(subagentRosterKey, existing =>
+      update(existing ?? EMPTY_SUBAGENT_ROSTER)
+    );
+  };
 
   const invalidateSessionSurfaces = () => {
     void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId).catch(error =>
@@ -226,6 +241,17 @@ export function createSessionLiveTailRuntime({
       handlers.degraded(payload.through_sequence);
     };
 
+    const subagentsSnapshotListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentsSnapshotPayload>(event as MessageEvent);
+      if (!payload) return;
+      updateSubagentRoster(() => applySubagentsSnapshot(payload));
+    };
+    const subagentUpdatedListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SubagentUpdatedPayload>(event as MessageEvent);
+      if (!payload?.subagent) return;
+      updateSubagentRoster(roster => applySubagentUpdated(roster, payload));
+    };
+
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
       usageTimer = undefined;
@@ -238,13 +264,22 @@ export function createSessionLiveTailRuntime({
     };
     let detach: () => void;
     try {
-      detach = attachSessionStreamSource(source, handlers.error, {
+      // The moment the stream drops, held roster rows are unconfirmed (no tick,
+      // no pulse) until the next subscription's snapshot confirms them.
+      const handleError = (event: Event) => {
+        if (queryClient.getQueryData(subagentRosterKey))
+          updateSubagentRoster(markSubagentRosterStale);
+        handlers.error(event);
+      };
+      detach = attachSessionStreamSource(source, handleError, {
         commandsChanged: commandsChangedListener,
         usageChanged: usageChangedListener,
         degraded: degradedListener,
         delta: deltaListener,
         goalSnapshot: goalSnapshotListener,
         snapshot: snapshotListener,
+        subagentsSnapshot: subagentsSnapshotListener,
+        subagentUpdated: subagentUpdatedListener,
         terminal: terminalListener,
       });
     } catch (error) {

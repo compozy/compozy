@@ -1271,3 +1271,77 @@ func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: only subagent spawns bypass numeric governance, retain narrowing, and reject TTL rewrites.
+// Owner: Safe Spawn; canonical suite: spawn_test.go (UT-013, UT-014, UT-042).
+func TestSubagentSpawn(t *testing.T) {
+	t.Parallel()
+	for _, denyTTL := range []bool{false, true} {
+		name := "Should spawn without TTL or caps UT-013 UT-014 UT-042"
+		if denyTTL {
+			name = "Should reject hook TTL rewrite UT-042"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			hooks := &recordingSessionSpawnHooks{}
+			if denyTTL {
+				hooks.preCreatePatch = func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload { p.TTLSeconds = 1; return p }
+			}
+			h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
+			parent := createSpawnParent(
+				t,
+				h,
+				store.SessionPermissionPolicy{},
+				store.SessionSpawnBudget{MaxDepth: 1, MaxChildren: 1},
+			)
+			cleanupSessionStop(t, h, parent.ID)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), parent.ID, "delegate while active")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { close(source); collectEvents(t, output) }()
+			opts := SpawnOpts{
+				ParentSessionID: parent.ID,
+				AgentName:       "coder",
+				SpawnRole:       store.SubagentSpawnRole,
+				IdempotencyKey:  "sub-test",
+				Subagent:        &hookspkg.SubagentSpawnPayload{Title: "Review", Role: "review", TaskChars: 7},
+			}
+			child, err := h.manager.Spawn(t.Context(), opts)
+			if denyTTL {
+				if !errors.Is(err, ErrSubagentCapabilityDenied) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, child.ID)
+			if child.Info().Lineage.TTLExpiresAt != nil || child.Info().Lineage.NotifyCreator ||
+				!child.Info().Lineage.AutoStopOnParent {
+				t.Fatal(child.Info().Lineage)
+			}
+			if len(hooks.preCreate) != 1 || hooks.preCreate[0].Subagent == nil ||
+				hooks.preCreate[0].Subagent.TaskChars != 7 {
+				t.Fatal(hooks.preCreate)
+			}
+			replay, err := h.manager.Spawn(t.Context(), opts)
+			if err != nil || replay.ID != child.ID {
+				t.Fatal(replay, err)
+			}
+			opts.IdempotencyKey = "sub-test-2"
+			second, err := h.manager.Spawn(t.Context(), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, second.ID)
+			opts.SpawnRole = DefaultSpawnRole
+			if _, err := h.manager.Spawn(t.Context(), opts); !errors.Is(err, ErrSpawnValidation) {
+				t.Fatal(err)
+			}
+		})
+	}
+}

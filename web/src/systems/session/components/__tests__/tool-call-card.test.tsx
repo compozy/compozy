@@ -249,6 +249,32 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryPreview()).toHaveTextContent("bash: deploy: command not found");
   });
 
+  // COPY.md "Subagent Terms": the subagent family names a failed attempt ("Tried to …");
+  // every other tool keeps its verb tense, as above.
+  it("Should name a failed subagent tool call as an attempt and a settled one in the past", () => {
+    const { rerender } = render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "compozy__subagent_delegate",
+          toolInput: { title: "Run the checkout e2e suite" },
+          toolResult: { error: "The codex runtime isn't installed in this workspace." },
+          toolError: true,
+        })}
+      />
+    );
+    expect(queryToolName()).toHaveTextContent("Tried to delegate a subagent");
+    rerender(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "compozy__subagent_status",
+          toolInput: { subagent_id: "sub-1" },
+          toolResult: { stdout: "running" },
+        })}
+      />
+    );
+    expect(queryToolName()).toHaveTextContent("Read subagent status");
+  });
+
   it("Should render a non-empty generic failure preview when the runtime supplies no error body", async () => {
     const user = userEvent.setup();
     render(<SessionToolCallRow message={makeToolMessage({ toolError: true })} />);

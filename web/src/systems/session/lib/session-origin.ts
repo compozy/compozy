@@ -58,6 +58,19 @@ export function sessionOriginView(
   };
 }
 
+/** The spawn role delegated subagent sessions carry in their lineage. */
+export const SUBAGENT_SPAWN_ROLE = "subagent";
+
+/**
+ * The parent of a delegated subagent session (S4), or `null` for every other
+ * session — plain `session_spawn` children stay silent.
+ */
+export function subagentParentSessionId(session: SessionPayload): string | null {
+  const lineage = session.lineage;
+  if (lineage?.kind !== "spawn" || lineage.spawn_role?.trim() !== SUBAGENT_SPAWN_ROLE) return null;
+  return lineage.parent_session_id?.trim() || null;
+}
+
 /** Inspector Origin row: `continue · from claude` / `fork · through msg_…` / `fork`. */
 export function sessionOriginLedgerValue(session: SessionPayload): string | null {
   const kind = sessionOriginKind(session);

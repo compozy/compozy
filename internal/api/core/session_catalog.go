@@ -109,7 +109,18 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
+	subagents := strings.TrimSpace(c.Query("subagents"))
+	switch subagents {
+	case "", "include", "exclude", "only":
+	default:
+		return session.ListQuery{}, false, fmt.Errorf(
+			"%w: unsupported subagents %q",
+			session.ErrListQueryInvalid,
+			subagents,
+		)
+	}
 	query := session.ListQuery{
+		Subagents:       subagents,
 		SkipTotal:       skipTotal,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,

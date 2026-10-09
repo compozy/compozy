@@ -14,6 +14,8 @@ import {
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
+import { SubagentOriginContext } from "@/systems/session/contexts/session-subagents-context-value";
+import { SubagentOriginDivider } from "@/systems/session/components/subagents/subagent-origin-divider";
 import { AssistantMessage } from "./session-assistant-message";
 import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
@@ -59,6 +61,7 @@ function ThreadMessageRows({
   loadOlder: () => void;
 }) {
   const origin = use(SessionOriginContext);
+  const subagentOrigin = use(SubagentOriginContext);
   const paddingTop = virtualItems[0]?.start ?? 0;
   const paddingBottom = Math.max(0, virtualTotalSize - (virtualItems.at(-1)?.end ?? 0));
 
@@ -98,6 +101,13 @@ function ThreadMessageRows({
             {/* The derived child's own transcript starts here; nothing older is its own. */}
             {origin && messageIndex === 0 && leadingItemCount === 0 ? (
               <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+            ) : null}
+            {/* A delegated subagent's transcript opens with its parent (S4). */}
+            {subagentOrigin && messageIndex === 0 && leadingItemCount === 0 ? (
+              <SubagentOriginDivider
+                parent={subagentOrigin.parent}
+                onOpenParent={subagentOrigin.onOpenParent}
+              />
             ) : null}
             <ThreadPrimitive.Unstable_MessageById
               messageId={messageId}

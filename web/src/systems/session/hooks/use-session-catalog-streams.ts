@@ -183,6 +183,37 @@ function createCatalogReconciler(queryClient: QueryClient) {
   };
 }
 
+/** Trailing window for a parent's cold subagent list re-read. */
+export const SUBAGENT_LIST_WAKE_MS = 1_000;
+
+/**
+ * Every subagent transition upserts its parent (`_spec.md` §Catalog liveness).
+ * A burst of upserts for one parent collapses into one trailing re-read of its
+ * cold list (chip preview or an inspector without a live roster); a parent
+ * whose session stream is open reads its roster instead, so this stays idle.
+ */
+function createSubagentListReconciler(queryClient: QueryClient) {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  return {
+    wake(workspaceId: string, sessionId: string) {
+      const queryKey = sessionKeys.subagents(workspaceId, sessionId);
+      const id = JSON.stringify(queryKey);
+      if (timers.has(id)) return;
+      timers.set(
+        id,
+        setTimeout(() => {
+          timers.delete(id);
+          void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+        }, SUBAGENT_LIST_WAKE_MS)
+      );
+    },
+    close() {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    },
+  };
+}
+
 /**
  * Re-reads the session detail, then wakes a stopped session's mounted transcript.
  *
@@ -218,6 +249,7 @@ function openSessionCatalogStream(
   url: string
 ): () => void {
   const reconciler = createCatalogReconciler(queryClient);
+  const subagentLists = createSubagentListReconciler(queryClient);
   const reconcileWorkspaces: EventListener = () => {
     onStatusChange("live");
     reconciler.wake();
@@ -230,6 +262,7 @@ function openSessionCatalogStream(
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
+    subagentLists.wake(payload.workspace_id, payload.session_id);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [
@@ -266,6 +299,7 @@ function openSessionCatalogStream(
   const source = eventSourceFactory(url);
   const detach = () => {
     reconciler.close();
+    subagentLists.close();
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
   try {

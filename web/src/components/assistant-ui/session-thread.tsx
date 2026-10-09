@@ -20,6 +20,14 @@ import { ThreadScrollStoreContext } from "./hooks/thread-scroll-context";
 import { SteerProvenanceProvider } from "@/systems/session/lib/steer-provenance-context";
 import { SessionTurnOutcomesProvider } from "@/systems/session/lib/session-turn-outcomes-context";
 import { threadScrollLogic } from "./hooks/thread-scroll-store";
+import { SessionSubagentBanner } from "./session-subagent-banner";
+import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
+import {
+  SubagentNavigationContext,
+  SubagentOriginContext,
+  type SubagentNavigation,
+  type SubagentOriginContextValue,
+} from "@/systems/session/contexts/session-subagents-context-value";
 import {
   SessionDecisionDock,
   SessionTerminalQuoteSlot,
@@ -79,6 +87,10 @@ interface SessionThreadProps extends Omit<
    * business. Nothing here is a permission check — the daemon owns that.
    */
   readOnly?: boolean;
+  /** Opens sessions from the transcript (subagent drill-in, Open parent); host-owned. */
+  subagentNavigation?: SubagentNavigation | null;
+  /** The parent of a delegated subagent session, for the "Subagent of" divider (S4). */
+  subagentOrigin?: SubagentOriginContextValue | null;
 }
 
 function inactivePlaceholder(
@@ -137,6 +149,8 @@ export function SessionThread({
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
+  subagentNavigation = null,
+  subagentOrigin = null,
 }: SessionThreadProps) {
   const thread = useSessionThreadState({
     acpSessionId,
@@ -158,7 +172,7 @@ export function SessionThread({
         return onSteerPrompt(draft);
       }
     : undefined;
-  return (
+  const content = (
     <ThreadPrimitive.Root
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       data-thread-root=""
@@ -218,6 +232,9 @@ export function SessionThread({
                           />
                         ) : undefined
                       }
+                      editorBanner={
+                        <SessionSubagentBanner parentTurnRunning={thread.runtimeRunning} />
+                      }
                       canPrompt={thread.lifecycleCanPrompt}
                       onCancelPrompt={thread.handleCancelPrompt}
                       onQueuePrompt={onQueuePrompt}
@@ -257,5 +274,15 @@ export function SessionThread({
         </SessionTurnOutcomesProvider>
       </ThreadScrollStoreContext.Provider>
     </ThreadPrimitive.Root>
+  );
+  // One roster subscription for the transcript, the composer banner and the status line.
+  return (
+    <SubagentNavigationContext value={subagentNavigation}>
+      <SubagentOriginContext value={subagentOrigin}>
+        <SessionSubagentsProvider workspaceId={workspaceId ?? ""} sessionId={sessionId}>
+          {content}
+        </SessionSubagentsProvider>
+      </SubagentOriginContext>
+    </SubagentNavigationContext>
   );
 }

@@ -281,6 +281,16 @@ The shared rendered overlay assembled by `internal/situation`, exposed in Go as 
 
 Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children = 5`, mandatory TTL. Permission narrowing on **concrete atoms only**: tools, skills, MCP server IDs, and workspace path grants. Subset-only; unknown child atoms count as widening and reject.
 
+### Subagent
+
+A child agent session that a parent session's turn delegates one self-contained task to, on any available agent, provider, or model. The parent keeps a durable subagent record (`sub-…` id, `parent_turn_id`, status, `work_state`, result, delivery) and is woken when the subagent settles. Agents use `compozy__subagent_capabilities|delegate|status|cancel`; operators use `compozy session subagents …`, the matching HTTP/UDS routes, the transcript card, the sidebar chip, and the inspector roster.
+
+- **delegated** (`origin = delegated`) — created by `compozy__subagent_delegate`; it has a child session (`spawn_role = "subagent"`) that sees only the task. It reuses Safe Spawn's permission narrowing but has no depth, count, or TTL cap (ADR-003), and it inherits the caller's budget when narrowing lists are omitted.
+- **provider-native** (`origin = provider_native`) — a subagent the provider runs inside its own process (Claude's Agent/Task tool), observed from the tool call and shown as the same card. It has no child session, never wakes the parent, and cannot be canceled.
+- **subagent wake** — the pointer prompt (`synthetic.kind = "subagent_wake"`) that tells the parent which subagents settled; it carries no result. The parent reads results with `compozy__subagent_status`, which acknowledges delivery. A wake is steered into the running turn when the agent supports steering, otherwise queued ahead of user prompts. It is distinct from the creator wake that plain spawned children send.
+
+**UI label:** "subagent". Never "thread", "worker", or "task" (`task` is the Tasks domain). Copy rules in `COPY.md` §6 "Subagent Terms".
+
 ---
 
 ## OS Shell

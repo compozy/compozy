@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
+import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
 import {
   useArchiveSession,
@@ -173,12 +174,13 @@ export function useSessionLifecycleActions(
     action: "stop" | "archive" | "unarchive",
     sessions: readonly SessionPayload[]
   ) => {
+    // Subagent sessions archive with their parent (ADR-005), never on their own.
     const eligible = sessions.filter(session =>
       action === "unarchive"
-        ? session.archived_at !== null
+        ? session.archived_at !== null && !isSubagentSession(session)
         : session.archived_at === null &&
           (action === "archive"
-            ? session.state === "stopped"
+            ? session.state === "stopped" && !isSubagentSession(session)
             : session.state === "active" || session.state === "starting")
     );
     const results = await runBatch(action, eligible);

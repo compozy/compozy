@@ -31,6 +31,7 @@ func (d *Daemon) runtimeDeps(
 		HomePaths:          d.homePaths,
 		Logger:             state.logger,
 		Sessions:           sessions,
+		Subagents:          state.subagents,
 		SessionAttachments: state.sessionAttachments,
 		DrainController:    d,
 

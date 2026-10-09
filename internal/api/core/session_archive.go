@@ -37,6 +37,15 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 	if !h.requireSessionInProfile(c, existing, profileScope) {
 		return
 	}
+	if existing.Lineage != nil && existing.Lineage.SpawnRole == "subagent" {
+		subagentError(
+			c,
+			http.StatusConflict,
+			"subagent_archive_follows_parent",
+			"Subagent sessions are archived with their parent session.",
+		)
+		return
+	}
 	var info *session.Info
 	if archived {
 		info, err = archiver.Archive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)

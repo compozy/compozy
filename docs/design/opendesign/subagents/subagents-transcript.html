@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Transcript · Subagents · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="subagents.css">
+<!--
+  subagents-transcript · S1 card · S2 group · S3 hover card · S4 "Subagent of" divider ·
+  S6 subagent tool phrases · S8 provider-native nesting.
+  Contract: DESIGN-NOTES.md. Spec: .compozy/tasks/subagents/_uiux.md.
+  Provenance:
+    production — StateGlyph, StatusDot, KindIcon marks (packages/ui/src/logos), ToolCallRow line,
+                 SessionContinueDivider, thread column 720px, composer frame.
+    reference  — t3 V2LifecycleRow.tsx:290-533 (card anatomy), MessagesTimeline.tsx:3304-3417 (group),
+                 SubagentTooltipContent.tsx:33-191 (hover content). Rendered in Compozy grammar.
+    delta      — card gets a quiet canvas-soft frame (t3 draws a bare row); running = mint ring
+                 (production StateGlyph), not the spec's provisional info.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Subagents</a><span class="w2-sep">/</span><h1 class="w2-title">01 · Transcript</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="index.html">← Overview</a><a class="btn btn--sm" href="subagents-composer.html">Next: Waiting &amp; lineage →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="tr-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>A delegation becomes a live card in the parent's transcript.</b> Where the agent hands work to a subagent, the generic "Used session spawn" row is replaced by one card: who is doing it (provider mark + status dot), what it is (title), what it is doing right now (latest step, or its result once done), and for how long. Clicking the card opens the subagent's session in this window.</p>
+        <p class="sa-contract__what">Two or more delegations in the same turn fold into one group. Hovering or focusing a card shows its model, effort, status and a longer preview.</p>
+        <p class="sa-contract__file">subagents-transcript.html · S1 · S2 · S3 · S4 · S6 · S8 · stream subagent_updated · part data-compozy-subagent</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SubagentCard · SubagentAvatar · SubagentElapsed</b><i>web/src/systems/session/components/subagents/</i>renders the data-compozy-subagent part; reads the roster by id</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SubagentGroup</b><i>subagents/subagent-group.tsx</i>Collapsible + AvatarGroup + AvatarGroupCount; window-local expansion</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>HoverCard · HoverCardTrigger · HoverCardContent</b><i>packages/ui/src/components/ui/hover-card.tsx</i>generic primitive (base-ui PreviewCard), story + test</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SubagentHoverContent · useSubagentRoster</b><i>subagents/ · hooks/</i>PropertyRow + KindIcon + StateGlyph</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>session-timeline-work.ts</b><i>web/src/components/assistant-ui/</i>live cards exempt from turn + mixed-segment folds; parentToolCallId parts nest (S8)</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>tool-labels.ts</b><i>web/src/systems/session/lib/</i>subagent verb family (S6); delegate row suppressed once its card exists</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionContinueDivider · session-origin.ts</b><i>web/src/systems/session/</i>spawn_role = subagent → "Subagent of"</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>StateGlyph · StatusDot · KindIcon · AvatarGroup · Collapsible · ToolCallRow · PropertyRow · formatDuration</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#tr-live">Live turn — group, cards, hover</a><code>transcript VC-01</code></li>
+          <li><a href="#tr-card">Card — 11 states</a><code>transcript VC-02</code></li>
+          <li><a href="#tr-group">Group — 6 states</a><code>transcript VC-03</code></li>
+          <li><a href="#tr-hover">Hover card — 5 states</a><code>transcript VC-04</code></li>
+          <li><a href="#tr-native">Provider-native nesting</a><code>transcript VC-05</code></li>
+          <li><a href="#tr-tools">Subagent tool rows</a><code>transcript VC-06</code></li>
+          <li><a href="#tr-divider">"Subagent of" divider</a><code>transcript VC-07</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE TURN ===== -->
+    <section class="lab-sec" id="tr-live" data-od-id="tr-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Live turn — three delegations, one group</h2><span class="lab-sec__gist">transcript VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Hover a card for 200 ms, or Tab to it, to open its hover card. Escape closes it. Collapse and expand the group. Click a card: it switches this window to the subagent's session (⌘-click opens a new window). Elapsed times tick from one shared 1-second timer. The completed card is frozen at its <code>settled_at</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tr-live-stage">
+            <section class="win win--inline is-focused sa-win" style="--sa-win-w:900px" data-od-id="tr-live-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Ship checkout v2</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col">
+                    <div class="sa-msg-user">Before we cut v2, check the webhook retries, look for N+1 queries in #812, and draft the release notes.</div>
+                    <p class="sa-msg">I'll run these in parallel. Each one gets its own subagent so the reviews don't share context.</p>
+                    <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Checked subagent capabilities</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+
+                    <div class="subagent-group" style="position:relative" data-od-id="tr-live-group">
+                      <i class="sa-n sa-n--left">1</i>
+                      <button class="subagent-group__trigger" type="button" data-sa-disclosure aria-expanded="true" aria-controls="tr-live-panel">
+                        <span class="avatar-group">
+                          <span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span>
+                          <span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span>
+                          <span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span>
+                        </span>
+                        <span style="min-width:0"><span class="subagent-group__label">3 subagents</span><span class="subagent-group__summary" data-tone="live">1 working · 1 needs you · 1 done</span></span>
+                        <span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span>
+                        <svg class="subagent-group__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="subagent-group__panel" id="tr-live-panel">
+                        <div class="hc-host">
+                          <button class="subagent-card" type="button" data-status="running" data-hc-trigger data-sa-open="Audit payment webhooks for retry safety">
+                            <span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading internal/payments/webhook.go</span></span>
+                            <span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </button>
+                          <div class="hover-card" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Audit payment webhooks for retry safety</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div>
+                                <div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span></div>
+                              </div>
+                              <div class="subagent-hover__preview">Reading internal/payments/webhook.go</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="hc-host">
+                          <button class="subagent-card" type="button" data-status="attention" data-hc-trigger data-sa-open="Review PR #812 for N+1 queries">
+                            <span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--accent"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Review PR #812 for N+1 queries</span></span><span class="subagent-card__line2 subagent-card__line2--word">Waiting for you</span></span>
+                            <span class="subagent-elapsed" data-elapsed="98" data-live="true">1m 38s</span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </button>
+                          <div class="hover-card" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Review PR #812 for N+1 queries</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/openai.svg" alt=""><b>gpt-5.6-sol</b><span class="sep">·</span>medium<svg data-lucide="zap" aria-label="Fast"></svg></div>
+                                <div class="subagent-hover__row"><span data-sg="attention" data-size="sm"></span>Waiting for you<span class="subagent-elapsed" data-elapsed="98" data-live="true">1m 38s</span></div>
+                              </div>
+                              <div class="subagent-hover__preview">Asked to run make db-explain against the staging snapshot.</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="hc-host">
+                          <button class="subagent-card" type="button" data-status="done" data-settled="true" data-hc-trigger data-sa-open="Draft release notes for v2">
+                            <span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Draft release notes for v2</span></span><span class="subagent-card__line2">Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step.</span></span>
+                            <span class="subagent-elapsed" data-elapsed="52">52s</span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </button>
+                          <div class="hover-card" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Draft release notes for v2</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Sonnet 5.5</b><span class="sep">·</span>low</div>
+                                <div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="52">52s</span></div>
+                              </div>
+                              <div class="subagent-hover__preview">Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step. Saved to docs/releases/v2.md and linked the three PRs each change came from.</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="session-status-line"><span data-sg="running" data-size="sm"></span>Working for <b data-elapsed="174" data-live="true">2m 54s</b><span class="sep">·</span>2 agents running</div>
+                  </div></div>
+                  <div class="sa-composer-wrap"><div class="sa-composer-col">
+                    <div class="sa-composer"><div class="sa-composer__input">Message dev-loop…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send sa-send--stop" aria-label="Stop"><svg data-lucide="square"></svg></span></div></div>
+                  </div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>One delegation point, one object</b> <em>three <code>data-compozy-subagent</code> parts from the same turn render one <code>SubagentGroup</code>. The three <code>compozy__subagent_delegate</code> rows are suppressed once their cards exist. The capability check above stays as an ordinary tool row (S6). The status line counts live subagents from the roster (S7, board 02).</em></span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>1 running · 1 waiting for you · 1 completed</span><span class="sa-tag"><b>component</b>SubagentGroup · SubagentCard · HoverCard</span><span class="sa-tag"><b>VC</b>transcript/VC-01</span><span class="sa-tag"><b>accent</b>1 — the waiting-for-you dot</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CARD STATES ===== -->
+    <section class="lab-sec" id="tr-card" data-od-id="tr-card">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">SubagentCard — anatomy and every state</h2><span class="lab-sec__gist">transcript VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One avatar, two lines, elapsed, chevron.</b> Line 2 shows the latest step while live (the child's newest tool title or thought heading, at most once per second) and the result's first line once settled. When there is neither, line 2 shows the status word. The status word moves up next to the title only when line 2 is busy with progress or a result. A card never shows a terminal state it has not received.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" style="position:relative;padding:26px 16px 16px 40px" data-od-id="tr-card-anatomy">
+            <button class="subagent-card" type="button" data-status="running" style="max-width:560px">
+              <span class="subagent-avatar" style="position:relative"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span><i class="sa-n sa-n--pin" style="top:-14px;right:auto;left:-6px">1</i></span>
+              <span class="subagent-card__main" style="position:relative"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span><span class="subagent-card__word" style="position:relative">Running<i class="sa-n sa-n--pin" style="top:-14px">3</i></span></span><span class="subagent-card__line2">Reading internal/payments/webhook.go</span><i class="sa-n sa-n--pin" style="top:-14px;right:auto;left:0">2</i><i class="sa-n sa-n--pin" style="top:auto;bottom:-14px;right:auto;left:40px">4</i></span>
+              <span class="subagent-elapsed" style="position:relative" data-elapsed="161" data-live="true">2m 41s</span>
+              <span style="position:relative;display:inline-flex"><svg class="subagent-card__chev" data-lucide="chevron-right"></svg><i class="sa-n sa-n--pin" style="top:-14px">6</i></span>
+            </button>
+            <i class="sa-n" style="position:absolute;left:452px;top:12px">5</i>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>SubagentAvatar</b> <em>24px round tile, <code>surface-2</code> + <code>line-strong</code>, 13px provider mark from the KindIcon registry; bot glyph when unknown. The 8px StatusDot sits bottom-right on a 2px canvas ring.</em></span></li>
+            <li><i class="sa-n">2</i><span><b>Title</b> <em>12px, weight 510, <code>fg-strong</code>, one line, truncated. The full text is in the hover card.</em></span></li>
+            <li><i class="sa-n">3</i><span><b>Status word</b> <em>10.5px <code>subtle</code>. Shown beside the title only when line 2 carries progress or a result, and never for Completed. Failed uses <code>danger</code>.</em></span></li>
+            <li><i class="sa-n">4</i><span><b>Line 2</b> <em>11.5px <code>muted</code>, one line. Progress is coalesced to 1/s by the daemon. Whitespace is collapsed and generic endings are dropped.</em></span></li>
+            <li><i class="sa-n">5</i><span><b>SubagentElapsed</b> <em>mono 10.5px tabular. <code>7s</code> · <code>12m 05s</code> · <code>1h 03m</code>. It is computed from the daemon's <code>started_at</code> and frozen at <code>settled_at</code>. It never starts from a browser stopwatch on mount.</em></span></li>
+            <li><i class="sa-n">6</i><span><b>Chevron</b> <em>only when <code>child_session_id</code> exists. Without a child session the card has no chevron and is not a button.</em></span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Eleven states.</b> The dot follows StatusDot tones: mint pulsing while running, a hollow indicator ring while queued, accent for waiting for you, mint for completed, danger for failed, faint for canceled and interrupted. The words are fixed copy. Each card also has a word, so the state is never shown by colour alone.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-card-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">queued <code>no progress yet</code></span>
+                <button class="subagent-card" type="button" data-status="queued"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--ring"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Migrate orders.refund_reason to an enum</span></span><span class="subagent-card__line2 subagent-card__line2--word">Queued</span></span><span class="subagent-elapsed" data-elapsed="3" data-live="true">3s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">running <code>no progress</code></span>
+                <button class="subagent-card" type="button" data-status="running"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span></span><span class="subagent-card__line2 subagent-card__line2--word">Running</span></span><span class="subagent-elapsed" data-elapsed="7" data-live="true">7s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">running <code>with progress</code></span>
+                <button class="subagent-card" type="button" data-status="running"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Searching for "idempotency_key" in internal/payments</span></span><span class="subagent-elapsed" data-elapsed="725" data-live="true">12m 05s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">waiting for you <code>child needs approval / input</code></span>
+                <button class="subagent-card" type="button" data-status="attention"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--accent"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Review PR #812 for N+1 queries</span></span><span class="subagent-card__line2 subagent-card__line2--word">Waiting for you</span></span><span class="subagent-elapsed" data-elapsed="98" data-live="true">1m 38s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">completed <code>result first line · frozen</code></span>
+                <button class="subagent-card" type="button" data-status="done" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Draft release notes for v2</span></span><span class="subagent-card__line2">Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step.</span></span><span class="subagent-elapsed" data-elapsed="52">52s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">failed <code>line 2 destructive</code></span>
+                <button class="subagent-card" type="button" data-status="failed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Run the checkout e2e suite</span><span class="subagent-card__word">Failed</span></span><span class="subagent-card__line2">3 of 41 specs failed in checkout/refund.spec.ts</span></span><span class="subagent-elapsed" data-elapsed="252">4m 12s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">canceled <code>operator or parent stopped it</code></span>
+                <button class="subagent-card" type="button" data-status="stopped" data-settled="true"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--faint"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Profile the cart endpoint under load</span></span><span class="subagent-card__line2 subagent-card__line2--word">Canceled</span></span><span class="subagent-elapsed" data-elapsed="61">1m 01s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">interrupted <code>daemon restart / runtime lost</code></span>
+                <button class="subagent-card" type="button" data-status="stopped" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--faint"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Backfill refund_reason for 2025 orders</span><span class="subagent-card__word">Interrupted</span></span><span class="subagent-card__line2">Updated 18,400 of 52,000 rows</span></span><span class="subagent-elapsed" data-elapsed="3780">1h 03m</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">unknown provider mark <code>bot glyph</code></span>
+                <button class="subagent-card" type="button" data-status="running"><span class="subagent-avatar"><svg data-lucide="bot"></svg><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Summarize open support tickets about refunds</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading tickets/2026-10</span></span><span class="subagent-elapsed" data-elapsed="44" data-live="true">44s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell"><span class="lab-cell__t">stale after reconnect <code>no ticking until the roster refreshes</code></span>
+                <button class="subagent-card" type="button" data-status="running" data-stale="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading internal/payments/webhook.go</span></span><span class="subagent-elapsed" data-elapsed="161">2m 41s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+              <div class="lab-cell" style="grid-column:1 / -1"><span class="lab-cell__t">title at 72 characters <code>truncates on one line · full title in the hover card</code></span>
+                <button class="subagent-card" type="button" data-status="running" title="Investigate why refund webhooks retry twice when Stripe returns a 409 too"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Investigate why refund webhooks retry twice when Stripe returns a 409 too</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading internal/payments/stripe_client.go</span></span><span class="subagent-elapsed" data-elapsed="19" data-live="true">19s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentCard · SubagentAvatar · SubagentElapsed</span><span class="sa-tag"><b>VC</b>transcript/VC-02</span><span class="sa-tag"><b>tone</b>danger = failed only · accent = waiting for you only · stale = static dot + faint elapsed</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · GROUP ===== -->
+    <section class="lab-sec" id="tr-group" data-od-id="tr-group">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">SubagentGroup — same-turn delegations fold together</h2><span class="lab-sec__gist">transcript VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two or more adjacent cards from one turn.</b> Up to 3 overlapped avatars, then <code>+N</code>. The label counts subagents. The summary counts states in plain words, in <code>info</code> while any is live and in <code>danger</code> if any failed. Elapsed spans the first start to the last settle and is withheld while any end is unknown. Expansion is per window. A collapsed group where every subagent has settled dims to 62% and comes back on hover or focus.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-group-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">all running <code>collapsed</code></span>
+                <div class="subagent-group"><button class="subagent-group__trigger" type="button" aria-expanded="false"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span></span><span style="min-width:0"><span class="subagent-group__label">3 subagents</span><span class="subagent-group__summary" data-tone="live">3 working</span></span><span class="subagent-elapsed" data-elapsed="40" data-live="true">40s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">mixed <code>live + done</code></span>
+                <div class="subagent-group"><button class="subagent-group__trigger" type="button" aria-expanded="false"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span></span><span style="min-width:0"><span class="subagent-group__label">3 subagents</span><span class="subagent-group__summary" data-tone="live">2 working · 1 done</span></span><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">any failed <code>danger summary</code></span>
+                <div class="subagent-group"><button class="subagent-group__trigger" type="button" aria-expanded="false"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span></span><span style="min-width:0"><span class="subagent-group__label">3 subagents</span><span class="subagent-group__summary" data-tone="failed">1 working · 1 done · 1 failed</span></span><span class="subagent-elapsed" data-elapsed="252" data-live="true">4m 12s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">overflow <code>3 avatars + "+N" at ≥ 4</code></span>
+                <div class="subagent-group"><button class="subagent-group__trigger" type="button" aria-expanded="false"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span><span class="subagent-avatar"><svg data-lucide="bot"></svg></span><span class="avatar-group__count">+4</span></span><span style="min-width:0"><span class="subagent-group__label">7 subagents</span><span class="subagent-group__summary" data-tone="live">5 working · 2 done</span></span><span class="subagent-elapsed" data-elapsed="512" data-live="true">8m 32s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">all done <code>collapsed + settled → dimmed</code></span>
+                <div class="subagent-group" data-settled="true" data-dim="true"><button class="subagent-group__trigger" type="button" data-sa-disclosure aria-expanded="false" aria-controls="tr-grp-done-panel"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span></span><span style="min-width:0"><span class="subagent-group__label">2 subagents</span><span class="subagent-group__summary">2 done</span></span><span class="subagent-elapsed" data-elapsed="305">5m 05s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button>
+                  <div class="subagent-group__panel" id="tr-grp-done-panel" hidden>
+                    <button class="subagent-card" type="button" data-status="done" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Draft release notes for v2</span></span><span class="subagent-card__line2">Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step.</span></span><span class="subagent-elapsed" data-elapsed="52">52s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                    <button class="subagent-card" type="button" data-status="done" data-settled="true"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Review PR #812 for N+1 queries</span></span><span class="subagent-card__line2">Found 2 N+1 queries in OrderSummary; suggested a preload.</span></span><span class="subagent-elapsed" data-elapsed="305">5m 05s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                  </div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">expanded <code>panel lists S1 cards · chevron flips</code></span>
+                <div class="subagent-group"><button class="subagent-group__trigger" type="button" data-sa-disclosure aria-expanded="true" aria-controls="tr-grp-exp-panel"><span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span></span><span style="min-width:0"><span class="subagent-group__label">2 subagents</span><span class="subagent-group__summary" data-tone="failed">1 working · 1 failed</span></span><span class="subagent-elapsed" data-elapsed="252" data-live="true">4m 12s</span><svg class="subagent-group__chev" data-lucide="chevron-down"></svg></button>
+                  <div class="subagent-group__panel" id="tr-grp-exp-panel">
+                    <button class="subagent-card" type="button" data-status="running"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Audit payment webhooks for retry safety</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading internal/payments/webhook.go</span></span><span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                    <button class="subagent-card" type="button" data-status="failed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Run the checkout e2e suite</span><span class="subagent-card__word">Failed</span></span><span class="subagent-card__line2">3 of 41 specs failed in checkout/refund.spec.ts</span></span><span class="subagent-elapsed" data-elapsed="252">4m 12s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                  </div></div></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentGroup (Collapsible · AvatarGroup · AvatarGroupCount)</span><span class="sa-tag"><b>a11y</b>trigger = disclosure, aria-expanded · stacked avatars drop their dots</span><span class="sa-tag"><b>VC</b>transcript/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · HOVER CARD ===== -->
+    <section class="lab-sec" id="tr-hover" data-od-id="tr-hover">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Hover card — the metadata the row leaves out</h2><span class="lab-sec__gist">transcript VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>New generic primitive: <code>HoverCard</code>.</b> Tooltip is text-only by contract and Popover opens on click, so neither fits (L-031). It opens after 200 ms of hover or on focus, and closes on leave, blur or Escape. Content rows: the full title · provider mark + model + effort + a fast icon (only when fast) · status glyph + word + elapsed on the right · workspace and worktree rows only when they differ from the parent's · the preview, with whitespace collapsed and cut at 280 characters plus "…".</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-hover-states">
+            <div class="lab-grid lab-grid--3">
+              <div class="lab-cell"><span class="lab-cell__t">live <code>progress preview</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Audit payment webhooks for retry safety</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div><div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="161" data-live="true">2m 41s</span></div></div><div class="subagent-hover__preview">Reading internal/payments/webhook.go</div></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled <code>result · 280 + "…"</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Review PR #812 for N+1 queries</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/openai.svg" alt=""><b>gpt-5.6-sol</b><span class="sep">·</span>medium<svg data-lucide="zap" aria-label="Fast"></svg></div><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="305">5m 05s</span></div></div><div class="subagent-hover__preview">Found 2 N+1 queries. OrderSummary.items loads each line's product in a loop (orders/summary.go:88), and RefundList renders the customer for every row without a preload. Suggested Preload("Items.Product") and a joined customer query; both are covered by existing tests, and no migration is needed for either change, so the PR can merge after…</div></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">failed <code>error text in preview</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Run the checkout e2e suite</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Sonnet 5.5</b><span class="sep">·</span>medium</div><div class="subagent-hover__row subagent-hover__row--failed"><span data-sg="failed" data-size="sm"></span>Failed<span class="subagent-elapsed" data-elapsed="252">4m 12s</span></div></div><div class="subagent-hover__preview subagent-hover__preview--failed">3 of 41 specs failed in checkout/refund.spec.ts: "refund shows reason" timed out after 30s waiting for [data-testid=refund-reason].</div></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">model not reported <code>"Not reported", no effort</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Summarize open support tickets about refunds</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><svg data-lucide="bot"></svg><span class="nr">Not reported</span></div><div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="44" data-live="true">44s</span></div></div><div class="subagent-hover__preview">Reading tickets/2026-10</div></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">worktree differs <code>extra rows only when different</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Migrate orders.refund_reason to an enum</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div><div class="subagent-hover__row"><span data-sg="queued" data-size="sm"></span>Queued<span class="subagent-elapsed" data-elapsed="3" data-live="true">3s</span></div><div class="subagent-hover__row"><svg data-lucide="git-branch"></svg>Worktree<span class="mono">subagent/refund-reason-enum</span></div></div></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">anatomy <code>production surface recipe</code></span>
+                <table class="lab-table"><tbody>
+                  <tr><td>Surface</td><td><code>elevated</code> · <code>line-strong</code> · <code>shadow-overlay</code> · radius-md · 300px</td></tr>
+                  <tr><td>Title</td><td>12.5px semibold <code>fg-strong</code>, wraps</td></tr>
+                  <tr><td>Rows</td><td>11.5px <code>muted</code>; model <code>fg</code> 510</td></tr>
+                  <tr><td>Preview</td><td>hairline above · 11.5px <code>fg-2</code></td></tr>
+                  <tr><td>Timing</td><td>open 200 ms · close 120 ms</td></tr>
+                </tbody></table></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>HoverCard (new · packages/ui) · SubagentHoverContent</span><span class="sa-tag"><b>reuse</b>PropertyRow · KindIcon · StateGlyph</span><span class="sa-tag"><b>VC</b>transcript/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · PROVIDER-NATIVE ===== -->
+    <section class="lab-sec" id="tr-native" data-od-id="tr-native">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Provider-native subagent — its work nests inside the card</h2><span class="lab-sec__gist">transcript VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Claude's own Task agent has no Compozy session.</b> The card has no child session to open, so its chevron points right and the card expands in place. Tool calls and text whose <code>parentToolCallId</code> matches the card render inside it with the same work-row components, and the parent flow no longer shows them interleaved. A part with an unknown parent id stays in the parent flow. Collapsed is the default.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-native-demo">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">collapsed <code>default</code></span>
+                <button class="subagent-card subagent-card--native" type="button" data-status="running" data-sa-disclosure aria-expanded="false" aria-controls="tr-native-a"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Explore how refunds are persisted</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Grep "RefundReason" in internal/</span></span><span class="subagent-elapsed" data-elapsed="23" data-live="true">23s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                <div class="subagent-native" id="tr-native-a" hidden>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searched</span><span class="tool-call-row__preview">RefundReason in internal/</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searching</span><span class="tool-call-row__preview">refund_reason in migrations/</span><span class="tool-call-row__end"><span data-sg="running" data-size="sm"></span></span></div>
+                </div>
+              </div>
+              <div class="lab-cell"><span class="lab-cell__t">expanded <code>live inner rows</code></span>
+                <button class="subagent-card subagent-card--native" type="button" data-status="running" data-sa-disclosure aria-expanded="true" aria-controls="tr-native-b"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Explore how refunds are persisted</span><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2">Reading internal/store/refunds.go</span></span><span class="subagent-elapsed" data-elapsed="31" data-live="true">31s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                <div class="subagent-native" id="tr-native-b">
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searched</span><span class="tool-call-row__preview">RefundReason in internal/</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searched</span><span class="tool-call-row__preview">refund_reason in migrations/</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="file-text"></svg></span><span class="tool-call-row__tool">Reading</span><span class="tool-call-row__preview">internal/store/refunds.go</span><span class="tool-call-row__end"><span data-sg="running" data-size="sm"></span></span></div>
+                </div>
+              </div>
+              <div class="lab-cell" style="grid-column:1 / -1"><span class="lab-cell__t">settled <code>result on line 2 · inner rows kept · no drill-in</code></span>
+                <button class="subagent-card subagent-card--native" type="button" data-status="done" data-settled="true" data-sa-disclosure aria-expanded="false" aria-controls="tr-native-c"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><span class="subagent-card__title">Explore how refunds are persisted</span></span><span class="subagent-card__line2">Refunds live in refunds.reason (text); no enum yet, 3 writers.</span></span><span class="subagent-elapsed" data-elapsed="48">48s</span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></button>
+                <div class="subagent-native" id="tr-native-c" hidden>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searched 2 times</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+                  <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="file-text"></svg></span><span class="tool-call-row__tool">Read</span><span class="tool-call-row__preview">internal/store/refunds.go</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>origin = provider-native · child_session_id = null</span><span class="sa-tag"><b>component</b>SubagentCard native · session-timeline-work.ts</span><span class="sa-tag"><b>VC</b>transcript/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · TOOL ROWS ===== -->
+    <section class="lab-sec" id="tr-tools" data-od-id="tr-tools">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Subagent tool rows — verbs instead of tool ids</h2><span class="lab-sec__gist">transcript VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>tool-labels.ts gains a <code>subagent</code> family.</b> These rows use the unchanged ToolCallRow. A successful delegate row disappears behind its card. A failed delegate call has no card, so it stays here as a failed row with the error underneath.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="plain plain--canvas" data-od-id="tr-tools-states">
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Checking subagent capabilities</span><span class="tool-call-row__end"><span data-sg="running" data-size="sm"></span></span></div>
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Checked subagent capabilities 2 times</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Read subagent status</span><span class="tool-call-row__preview">Audit payment webhooks…</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Canceled a subagent</span><span class="tool-call-row__preview">Profile the cart endpoint…</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Tried to check subagent capabilities</span><span class="tool-call-row__end"><span data-sg="failed" data-size="sm"></span></span></div>
+              <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="bot"></svg></span><span class="tool-call-row__tool">Delegate a subagent</span><span class="tool-call-row__preview">Run the checkout e2e suite</span><span class="tool-call-row__end"><span data-sg="failed" data-size="sm"></span></span></div>
+              <div class="tool-call-row__err">The codex runtime isn't installed in this workspace.</div>
+            </div>
+            <table class="lab-table">
+              <thead><tr><th>Tool id</th><th>Running · Done · Failed</th></tr></thead>
+              <tbody>
+                <tr><td><code>compozy__subagent_capabilities</code></td><td>Checking / Checked / Check "subagent capabilities"</td></tr>
+                <tr><td><code>compozy__subagent_delegate</code></td><td>Delegating / Delegated / Delegate "a subagent" (hidden once its card exists)</td></tr>
+                <tr><td><code>compozy__subagent_status</code></td><td>Reading / Read / Read "subagent status"</td></tr>
+                <tr><td><code>compozy__subagent_cancel</code></td><td>Canceling / Canceled / Cancel "a subagent"</td></tr>
+                <tr><td>Grouped ×N</td><td>"Checked subagent capabilities 2 times" · zero successes → "Tried to check subagent capabilities"</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>ToolCallRow (reuse) · tool-labels.ts</span><span class="sa-tag"><b>VC</b>transcript/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · DIVIDER ===== -->
+    <section class="lab-sec" id="tr-divider" data-od-id="tr-divider">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Child transcript — "Subagent of" divider</h2><span class="lab-sec__gist">transcript VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The continue/fork divider, extended.</b> A session whose lineage is <code>spawn_role = "subagent"</code> opens with one hairline: "Subagent of", the parent's name, and an "Open parent" link that switches this window back. Plain <code>session_spawn</code> children stay silent, as today. When the parent was deleted, the divider reads "Subagent of a deleted session" and has no action.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><span class="lab-cell__t">parent available</span>
+              <div class="plain plain--canvas" style="position:relative">
+                <div class="session-continue-divider" role="separator" aria-label="Subagent of Ship checkout v2"><span class="session-continue-divider__words"><svg data-lucide="bot"></svg>Subagent of <em>Ship checkout v2</em><span class="session-continue-divider__sep">·</span><a class="session-continue-divider__link" href="#tr-divider" data-sa-open="Ship checkout v2">Open parent</a></span></div>
+                <div class="sa-msg-user" style="margin-left:auto;width:fit-content">Audit payment webhooks for retry safety. Check every handler under internal/payments for idempotency before a retry.</div>
+              </div></div>
+            <div class="lab-cell"><span class="lab-cell__t">parent deleted <code>no action</code></span>
+              <div class="plain plain--canvas">
+                <div class="session-continue-divider" role="separator" aria-label="Subagent of a deleted session"><span class="session-continue-divider__words"><svg data-lucide="bot"></svg>Subagent of a deleted session</span></div>
+                <div class="sa-msg-user" style="margin-left:auto;width:fit-content">Audit payment webhooks for retry safety. Check every handler under internal/payments for idempotency before a retry.</div>
+              </div></div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionContinueDivider · session-origin.ts</span><span class="sa-tag"><b>glyph</b>bot (subagent) · fork / arrow-right-left stay for fork / continue</span><span class="sa-tag"><b>VC</b>transcript/VC-07</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S1–S4 · S6 · S8 · ADR-005. Production read: packages/ui state-glyph.tsx · status-dot.tsx · tool-call-row(-parts).tsx · logos/claude.tsx · logos/openai.tsx · web/src/systems/session/components/session-continue-divider.tsx. Reference: .resources/t3code V2LifecycleRow.tsx · SubagentTooltipContent.tsx · MessagesTimeline.tsx. Models, titles and numbers are fixtures; runtime truth owns values.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="subagents.js"></script>
+</body>
+</html>

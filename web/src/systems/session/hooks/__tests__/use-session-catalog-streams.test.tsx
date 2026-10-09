@@ -239,6 +239,11 @@ describe("useSessionCatalogStreams", () => {
       queryKey: sessionKeys.detail("", "sess_global"),
       exact: true,
     });
+    // A subagent transition upserts its parent: a cold subagent list re-reads (trailing window).
+    expect(invalidate).toHaveBeenCalledWith(
+      { queryKey: sessionKeys.subagents("", "sess_global") },
+      { cancelRefetch: false }
+    );
 
     act(() => sources[0]?.emit("open"));
     expect(invalidate).toHaveBeenCalledWith(
@@ -290,6 +295,14 @@ describe("useSessionCatalogStreams", () => {
     );
     expect(reads.length).toBeLessThanOrEqual(13);
     expect(reads.length).toBeGreaterThan(1);
+    // M9: 1,200 parent upserts (progress bursts) collapse to one subagent-list read per window.
+    const subagentReads = invalidate.mock.calls.filter(
+      ([filters]) =>
+        JSON.stringify(filters?.queryKey) ===
+        JSON.stringify(sessionKeys.subagents("ws_busy", "sess_busy"))
+    );
+    expect(subagentReads.length).toBeLessThanOrEqual(60);
+    expect(subagentReads.length).toBeGreaterThan(1);
     unmount();
     const before = invalidate.mock.calls.length;
     act(() => vi.advanceTimersByTime(60_000));

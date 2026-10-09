@@ -51,6 +51,7 @@ var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
 	agentMutableConfigKinds = mergeAgentMutableConfigKinds(map[string]ValueKind{
+		"subagents.result_max_chars":                               ConfigValueInt,
 		"app.update_check":                                         ConfigValueBool,
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
 		toolSurfaceDefaultsAgentPath:                               ConfigValueString,

@@ -36,3 +36,8 @@ than accepted anywhere — `user` is its replacement.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-09 (Subagents tools slice): `[subagents] result_max_chars` defaults to 60000,
+accepts 1000–1000000, and supports workspace overrides. `TestSubagentsConfig` verifies real file
+loading and workspace isolation; an isolated CLI run verified the default, user override, and
+999 rejection. The integrated finalize-time reload walk remains owned by the spec QA slice.

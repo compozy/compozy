@@ -5,7 +5,11 @@ import { Icon, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { childSessionSignalState, type ChildSessionSignalState } from "../../lib/session-hierarchy";
+import {
+  childSessionSignalState,
+  isSubagentSession,
+  type ChildSessionSignalState,
+} from "../../lib/session-hierarchy";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
@@ -45,9 +49,15 @@ export function SessionListThread({
   sessionActions,
   testIdPrefix,
 }: SessionListThreadProps) {
+  // A revealed subagent session is not a plain child: it adds no toggle count and
+  // never folds away while the operator is viewing it (nav VC-02).
+  const foldable = childSessions.filter(child => !isSubagentSession(child));
+  const folded = collapsed && foldable.length > 0;
   const rootRow = (
     <SessionListRow
       session={session}
+      // Context rules make a subagent a root only when its ancestry was deleted.
+      orphanedSubagent={isSubagentSession(session)}
       owner={owner}
       current={session.id === currentSessionId}
       onSelect={() => onSelectSession(session)}
@@ -55,12 +65,12 @@ export function SessionListThread({
       sessionActions={sessionActions}
       testIdPrefix={testIdPrefix}
       trailing={
-        childSessions.length > 0 ? (
+        foldable.length > 0 ? (
           <ThreadToggle
             sessionId={session.id}
-            childCount={childSessions.length}
-            collapsed={collapsed}
-            childSignal={collapsed ? childSessionSignalState(childSessions) : null}
+            childCount={foldable.length}
+            collapsed={folded}
+            childSignal={folded ? childSessionSignalState(foldable) : null}
             onToggleThread={onToggleThread}
             testIdPrefix={testIdPrefix}
           />
@@ -70,34 +80,43 @@ export function SessionListThread({
   );
   if (childSessions.length === 0) return rootRow;
 
+  const childRow = (child: SessionPayload) => (
+    <SessionListRow
+      key={child.id}
+      session={child}
+      owner={ownerOf?.(child)}
+      current={child.id === currentSessionId}
+      onSelect={() => onSelectSession(child)}
+      selection={selection}
+      sessionActions={sessionActions}
+      testIdPrefix={testIdPrefix}
+    />
+  );
+  const revealed = childSessions.filter(isSubagentSession);
+
   return (
     <div data-testid={`${testIdPrefix}-thread-${session.id}`}>
       {rootRow}
-      <div
-        inert={collapsed}
-        className={cn(
-          "grid transition-[grid-template-rows] duration-base",
-          collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
-        )}
-      >
-        <div className="relative min-h-0 overflow-hidden pl-5 before:absolute before:top-0.5 before:bottom-1 before:left-2.75 before:w-px before:bg-line-strong">
-          {childSessions.map(child => (
-            <SessionListRow
-              key={child.id}
-              session={child}
-              owner={ownerOf?.(child)}
-              current={child.id === currentSessionId}
-              onSelect={() => onSelectSession(child)}
-              selection={selection}
-              sessionActions={sessionActions}
-              testIdPrefix={testIdPrefix}
-            />
-          ))}
+      {foldable.length > 0 ? (
+        <div
+          inert={folded}
+          className={cn(
+            "grid transition-[grid-template-rows] duration-base",
+            folded ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+          )}
+        >
+          <div className={cn(CHILD_RAIL, "min-h-0 overflow-hidden")}>{foldable.map(childRow)}</div>
         </div>
-      </div>
+      ) : null}
+      {/* The viewed subagent sits outside the fold: collapsing plain children never hides it. */}
+      {revealed.length > 0 ? <div className={CHILD_RAIL}>{revealed.map(childRow)}</div> : null}
     </div>
   );
 }
+
+/** Child rows indent behind the thread's hairline connector. */
+const CHILD_RAIL =
+  "relative pl-5 before:absolute before:top-0.5 before:bottom-1 before:left-2.75 before:w-px before:bg-line-strong";
 
 function ThreadToggle({
   sessionId,

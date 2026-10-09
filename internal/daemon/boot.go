@@ -50,6 +50,7 @@ const (
 )
 
 type bootState struct {
+	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
 	logger              *slog.Logger
 	closeLogger         func() error
@@ -347,6 +348,13 @@ func (d *Daemon) bootHarnessPromptRuntime(
 
 func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 	return situation.NewService(situation.Deps{
+		Subagents: func() situation.SubagentProvider {
+			provider, ok := state.registry.(situation.SubagentProvider)
+			if !ok {
+				return nil
+			}
+			return provider
+		},
 		Now: d.now,
 		WorkspaceResolverFunc: func() situation.WorkspaceResolver {
 			return state.workspaceResolver

@@ -5,6 +5,8 @@ import {
   useSessionOrigin,
 } from "@/systems/session";
 
+import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 
 /**
@@ -23,6 +25,7 @@ export function useSessionWindowDerive({
   const jump = useAttentionJump();
   const deriveHost = useSessionDeriveHost({ workspaceId, currentSession: session });
   const origin = useSessionOrigin(session, workspaceId);
+  const subagentOrigin = useSubagentOrigin(session, workspaceId);
 
   // New window keeps the source visible, so the child splits beside it rather
   // than joining its frame as a tab (the default for other opens).
@@ -44,6 +47,7 @@ export function useSessionWindowDerive({
     origin,
     originContext,
     onOpenOriginSource,
+    subagentOrigin,
     onContinue: () => deriveHost.request(),
     onFork: () => deriveHost.requestFork(),
   };

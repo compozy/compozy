@@ -1,0 +1,418 @@
+/* ============================================================
+   SUBAGENTS — subagents.css
+   Domain lane for the boards under opendesign/subagents/.
+   Depends on ../design-system/ds-core.css + ds-shell.css (linked first,
+   never rebound here). Contract: DESIGN-NOTES.md.
+   Spec: .compozy/tasks/subagents/_uiux.md (S1–S10) · ADR-005.
+
+   Naming rule: every product class is named after the production
+   component it renders (PARITY.md convention):
+     .state-glyph*              → packages/ui StateGlyph (reuse, unchanged — drawn by subagents.js)
+     .status-dot--*             → packages/ui StatusDot (reuse)
+     .hover-card*               → packages/ui HoverCard (NEW generic primitive · base-ui PreviewCard)
+     .subagent-avatar*          → subagents/subagent-avatar.tsx (new)
+     .subagent-elapsed          → subagents/subagent-elapsed.tsx (new · shared 1 s ticker)
+     .subagent-card*            → subagents/subagent-card.tsx (new · S1, S8)
+     .subagent-group*           → subagents/subagent-group.tsx (new · S2)
+     .subagent-hover*           → subagents/subagent-hover-content.tsx (new · S3)
+     .session-continue-divider* → session-continue-divider.tsx (modify · S4 "Subagent of")
+     .subagent-waiting-banner*  → subagents/subagent-waiting-banner.tsx (new · S5)
+     .session-status-line*      → session-status-line.tsx (modify · S7 count)
+     .tool-call-row*            → packages/ui ToolCallRow (reuse · S6 phrases via tool-labels.ts)
+     .session-list-row*         → session-list/session-list-row.tsx (modify · S9 trailing chip)
+     .subagent-chip*            → subagents/subagent-chip.tsx (new · S9)
+     .session-inspector*        → session-inspector.tsx on DetailInspector (modify · S10 host)
+     .subagent-roster*          → subagents/session-inspector-subagents-section.tsx (new · S10)
+   Lab chrome (contract block, callouts, legend, stage) is prefixed
+   `lab-` / `sa-contract` / `sa-n` / `sa-legend` / `sa-tags` and is
+   NEVER product UI.
+
+   Color = state, never decoration. Production StateGlyph colours win
+   over the spec's provisional table (DESIGN-NOTES §Signal): running =
+   mint ring (success), queued = dashed indicator ring, delegated = info,
+   done = mint check, attention = accent dot, failed = danger ×,
+   stopped = subtle square. Accent appears only for "Waiting for you".
+   ============================================================ */
+
+/* ============ 00 · LAB SCAFFOLD (copied from automations.css — this set owns its copy) ============ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 44px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.spec{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11.5px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:12px;margin-bottom:3px;color:var(--fg-strong)}
+.spec__note code{font-family:var(--font-mono);font-size:10px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+.stage{
+  position:relative;border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage .win{position:relative;animation:none}
+.stage--pad > .win{width:min(var(--sa-win-w,1080px),100%)}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.plain--canvas{background:var(--canvas)}
+.plain--flush{padding:0}
+.lab-foot{font-size:11px;line-height:1.6;color:var(--faint);border-top:1px solid var(--line-soft);padding-top:14px;max-width:80ch}
+.lab-grid{display:grid;gap:12px}
+.lab-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lab-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lab-cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lab-cell__t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lab-cell__t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.lab-table{width:100%;border-collapse:collapse;font-size:11.5px}
+.lab-table th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:7px 10px;border-bottom:1px solid var(--line)}
+.lab-table td{padding:8px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle;color:var(--muted);line-height:1.5}
+.lab-table td:first-child{color:var(--fg);font-weight:510;white-space:nowrap}
+.lab-table code{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+@media (max-width:860px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+  .lab-grid--2,.lab-grid--3{grid-template-columns:1fr}
+}
+
+/* ============ 01 · BOARD CONTRACT + CALLOUTS (lab chrome) ============ */
+.sa-contract{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.9fr);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);margin:0 0 32px;overflow:hidden}
+.sa-contract__col{padding:16px 18px;min-width:0}
+.sa-contract__col + .sa-contract__col{border-left:1px solid var(--line-soft)}
+.sa-contract__col .eyebrow{display:block;margin-bottom:8px}
+.sa-contract__what{font-size:var(--text-small-body);line-height:1.55;color:var(--fg);max-width:50ch;text-wrap:pretty}
+.sa-contract__what + .sa-contract__what{margin-top:8px}
+.sa-contract__what b{color:var(--fg-strong);font-weight:600}
+.sa-contract__file{margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.sa-mods{display:flex;flex-direction:column;gap:6px}
+.sa-mods li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.sa-mods li b{display:block;font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg);letter-spacing:0}
+.sa-mods li i{display:block;font-style:normal;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);overflow-wrap:anywhere}
+.sa-mod{display:inline-flex;align-items:center;justify-content:center;height:18px;padding:0 6px;border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:var(--neutral-tint);color:var(--neutral-ink);box-shadow:var(--shadow-hairline-inset)}
+.sa-mod--new{background:var(--success-tint);color:var(--success)}
+.sa-mod--modify{background:var(--info-tint);color:var(--info)}
+.sa-mod--delete{background:var(--danger-tint);color:var(--danger)}
+.sa-mod--reuse{background:var(--neutral-tint);color:var(--subtle)}
+.sa-mod--backend{background:var(--warning-tint);color:var(--warning)}
+.sa-states{display:flex;flex-direction:column;gap:4px;counter-reset:st}
+.sa-states li{display:flex;align-items:baseline;gap:8px;font-size:11.5px;line-height:1.5}
+.sa-states li a{color:var(--fg);border-radius:var(--radius-xxs)}
+.sa-states li a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.sa-states li::before{counter-increment:st;content:counter(st,decimal-leading-zero);font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;width:18px}
+.sa-states li code{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);white-space:nowrap}
+@media (max-width:960px){.sa-contract{grid-template-columns:1fr}.sa-contract__col + .sa-contract__col{border-left:0;border-top:1px solid var(--line-soft)}}
+
+.sa-n{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border-radius:var(--radius-xxs);background:var(--fg-strong);color:var(--canvas);font-family:var(--font-mono);font-size:9px;font-weight:700;font-style:normal;line-height:1;letter-spacing:0;vertical-align:middle;margin:0 4px;pointer-events:none;user-select:none}
+.sa-n--pin{position:absolute;top:-7px;right:-7px;margin:0;z-index:6}
+.sa-n--left{position:absolute;top:50%;left:-24px;margin:-7.5px 0 0;z-index:6}
+.sa-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;margin-top:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft)}
+.sa-legend li{display:grid;grid-template-columns:15px minmax(0,1fr);gap:8px;align-items:start;font-size:11px;line-height:1.5;color:var(--muted)}
+.sa-legend li .sa-n{margin:2px 0 0}
+.sa-legend li b{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg);letter-spacing:0}
+.sa-legend li em{font-style:normal;color:var(--subtle)}
+.sa-legend li code{font-family:var(--font-mono);font-size:10px;color:var(--fg-2)}
+@media (max-width:760px){.sa-legend{grid-template-columns:1fr}}
+.sa-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sa-tag{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;color:var(--subtle);background:var(--badge-fill)}
+.sa-tag b{font-weight:600;color:var(--muted)}
+.sa-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);opacity:0;pointer-events:none;z-index:50;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-md);background:var(--elevated);border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);font-size:var(--text-eyebrow);color:var(--fg);transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.sa-toast.is-on{opacity:1;transform:translate(-50%,0)}
+.sa-toast svg{width:14px;height:14px;color:var(--danger)}
+
+/* ============ 02 · SESSION WINDOW HOST (production geometry, drawn lean) ============
+   Provenance: OS window (ds-shell .win) + SessionThread column (max 720px) +
+   composer frame. Only the parts the subagent surfaces touch are drawn. */
+:root{--sa-win-w:1080px;--sa-thread-w:720px;--sa-rail-w:320px}
+.sa-win{display:flex;flex-direction:column;min-height:0}
+.sa-win{overflow:visible}
+.sa-win .win-body{display:flex;min-height:0;overflow:visible;background:var(--canvas)}
+.sa-thread{flex:1;min-width:0;display:flex;flex-direction:column}
+.sa-thread__scroll{flex:1;min-height:0;padding:22px 24px 8px}
+.sa-thread__col{width:min(var(--sa-thread-w),100%);margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.sa-msg-user{align-self:flex-end;max-width:78%;padding:8px 12px;border-radius:var(--radius-lg);background:var(--surface-2);font-size:var(--text-small-body);line-height:1.55;color:var(--fg)}
+.sa-msg{font-size:var(--text-small-body);line-height:1.6;color:var(--fg);max-width:66ch;text-wrap:pretty}
+.sa-msg code{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-2);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.sa-composer-wrap{flex:none;padding:0 24px 18px}
+.sa-composer-col{width:min(var(--sa-thread-w),100%);margin:0 auto;position:relative}
+.sa-composer{border:1px solid var(--line-strong);border-radius:var(--radius-xl);background:var(--canvas-soft);box-shadow:var(--shadow-card);position:relative;z-index:1}
+.sa-composer__input{min-height:46px;padding:12px 14px 4px;font-size:var(--text-small-body);color:var(--faint)}
+.sa-composer__row{display:flex;align-items:center;gap:6px;padding:6px 8px 8px}
+.sa-composer__row .w2-flex{flex:1}
+.sa-runtime{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--radius-pill);font-size:var(--text-eyebrow);color:var(--muted)}
+.sa-runtime img{width:13px;height:13px}
+.sa-send{width:28px;height:28px;border-radius:var(--radius-pill);display:grid;place-items:center;background:var(--primary);color:var(--primary-ink)}
+.sa-send svg{width:14px;height:14px}
+.sa-send--stop{background:var(--surface-2);color:var(--fg)}
+
+/* ============ 03 · StateGlyph + StatusDot (reuse) ============
+   production: state-glyph.tsx — 16-unit box, stroke 1.5; md 14px, sm 12px. */
+.state-glyph{display:inline-block;flex:none;width:14px;height:14px;vertical-align:middle}
+.state-glyph[data-size="sm"]{width:12px;height:12px}
+.state-glyph[data-state="running"],.state-glyph[data-state="done"]{color:var(--success)}
+.state-glyph[data-state="queued"]{color:var(--sa-indicator)}
+.state-glyph[data-state="delegated"]{color:var(--info)}
+.state-glyph[data-state="attention"]{color:var(--accent)}
+.state-glyph[data-state="failed"]{color:var(--danger)}
+.state-glyph[data-state="stopped"],.state-glyph[data-state="idle"]{color:var(--subtle)}
+.state-glyph[data-spinning="true"]{animation:sa-spin 1s linear infinite}
+.state-glyph .ck{stroke:var(--canvas)}
+.state-glyph[data-pulse="true"]{animation:sa-breathe 2.4s var(--ease) infinite}
+@keyframes sa-spin{to{transform:rotate(360deg)}}
+@keyframes sa-breathe{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.state-glyph[data-spinning="true"],.state-glyph[data-pulse="true"],.status-dot--pulse{animation:none}}
+:root{--sa-indicator:#707070} /* tokens.css --color-indicator (dark); ds-core has no copy */
+
+/* ============ 04 · SubagentAvatar ============
+   24px round tile: provider mark 14px (KindIcon), bot glyph when unknown;
+   bottom-right StatusDot 8px with a 2px canvas ring. */
+.subagent-avatar{position:relative;display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:var(--radius-pill);background:var(--surface-2);border:1px solid var(--line-strong);box-shadow:0 0 0 2px var(--canvas)}
+.subagent-avatar img{width:13px;height:13px;display:block}
+.subagent-avatar > svg{width:13px;height:13px;color:var(--muted)}
+.subagent-avatar--sm{width:20px;height:20px}
+.subagent-avatar--sm img,.subagent-avatar--sm > svg{width:11px;height:11px}
+.subagent-avatar .status-dot{position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;flex:none;border-radius:var(--radius-pill);box-shadow:0 0 0 2px var(--canvas)}
+.subagent-avatar--sm .status-dot{width:7px;height:7px}
+.status-dot--success{background:var(--success)}
+.status-dot--info{background:var(--info)}
+.status-dot--accent{background:var(--accent)}
+.status-dot--danger{background:var(--danger)}
+.status-dot--faint{background:var(--faint)}
+.status-dot--ring{background:var(--canvas)!important;border:1.5px solid var(--sa-indicator)}
+.status-dot--pulse{animation:sa-dot 1.8s var(--ease) infinite}
+@keyframes sa-dot{0%{box-shadow:0 0 0 2px var(--canvas),0 0 0 2px color-mix(in oklab,var(--success) 55%,transparent)}70%{box-shadow:0 0 0 2px var(--canvas),0 0 0 6px transparent}100%{box-shadow:0 0 0 2px var(--canvas),0 0 0 2px transparent}}
+/* inside hover-card / elevated surfaces the ring matches the surface */
+.hover-card .subagent-avatar,.hover-card .subagent-avatar .status-dot{--sa-ring:var(--elevated)}
+.hover-card .subagent-avatar{box-shadow:0 0 0 2px var(--elevated)}
+.hover-card .subagent-avatar .status-dot{box-shadow:0 0 0 2px var(--elevated)}
+.session-inspector .subagent-avatar{box-shadow:0 0 0 2px var(--canvas-soft)}
+.session-inspector .subagent-avatar .status-dot{box-shadow:0 0 0 2px var(--canvas-soft)}
+
+/* ============ 05 · SubagentCard (S1) ============
+   Button row: [avatar 24][title + status word / line 2][elapsed][chevron].
+   Not a ToolCallRow — borrows its 24px line rhythm; adds a quiet frame so a
+   delegation reads as an object, not a log line. */
+.subagent-card{
+  position:relative;display:grid;grid-template-columns:24px minmax(0,1fr) auto 14px;align-items:center;gap:10px;
+  width:100%;max-width:560px;min-height:46px;padding:7px 10px 7px 9px;text-align:left;
+  border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);color:var(--fg);
+  transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease)
+}
+button.subagent-card{cursor:pointer}
+button.subagent-card:hover{background:var(--surface-2);border-color:var(--line)}
+.subagent-card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-card--static{grid-template-columns:24px minmax(0,1fr) auto}
+.subagent-card__main{min-width:0;display:flex;flex-direction:column;gap:1px}
+.subagent-card__line1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.subagent-card__title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:510;color:var(--fg-strong)}
+.subagent-card__word{flex:none;font-size:10.5px;color:var(--subtle)}
+.subagent-card__line2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:1.45;color:var(--muted)}
+.subagent-card__line2--word{color:var(--subtle)}
+.subagent-card[data-status="failed"] .subagent-card__word,.subagent-card[data-status="failed"] .subagent-card__line2{color:var(--danger)}
+.subagent-card[data-status="attention"] .subagent-card__line2--word{color:var(--fg)}
+.subagent-card__chev{width:14px;height:14px;color:var(--faint);transition:color var(--dur-fast) var(--ease),transform var(--dur) var(--ease)}
+button.subagent-card:hover .subagent-card__chev{color:var(--muted)}
+.subagent-elapsed{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+.subagent-card[data-settled="true"] .subagent-elapsed{color:var(--faint)}
+.subagent-card[data-stale="true"] .subagent-elapsed{color:var(--faint)}
+/* provider-native (S8): no child session → expands inline instead of drilling in */
+.subagent-card--native .subagent-card__chev{transform:rotate(0)}
+.subagent-card--native[aria-expanded="true"] .subagent-card__chev{transform:rotate(90deg)}
+.subagent-native{max-width:560px;border:1px solid var(--line-soft);border-top:0;border-radius:0 0 var(--radius-md) var(--radius-md);background:var(--canvas);padding:6px 8px 8px 42px;margin-top:-4px;display:flex;flex-direction:column;gap:1px;position:relative}
+.subagent-native::before{content:"";position:absolute;left:21px;top:4px;bottom:10px;width:1px;background:var(--line-strong)}
+.subagent-native[hidden]{display:none}
+.subagent-card--native[aria-expanded="true"]{border-radius:var(--radius-md) var(--radius-md) 0 0}
+
+/* ============ 06 · SubagentGroup (S2) ============ */
+.subagent-group{max-width:560px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);transition:opacity var(--dur) var(--ease)}
+.subagent-group__trigger{display:grid;grid-template-columns:auto minmax(0,1fr) auto 14px;align-items:center;gap:10px;width:100%;min-height:46px;padding:7px 10px 7px 9px;text-align:left;border-radius:var(--radius-md);cursor:pointer;color:var(--fg)}
+.subagent-group__trigger:hover{background:var(--surface-2)}
+.subagent-group__trigger:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.avatar-group{display:inline-flex;align-items:center}
+.avatar-group > * + *{margin-left:-7px}
+.avatar-group__count{display:inline-grid;place-items:center;height:24px;min-width:24px;padding:0 5px;border-radius:var(--radius-pill);background:var(--elevated);border:1px solid var(--line-strong);box-shadow:0 0 0 2px var(--canvas);font-family:var(--font-mono);font-size:9.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.subagent-group__label{font-size:12px;font-weight:510;color:var(--fg-strong)}
+.subagent-group__summary{display:block;font-size:11.5px;color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subagent-group__summary[data-tone="live"]{color:var(--info)}
+.subagent-group__summary[data-tone="failed"]{color:var(--danger)}
+.subagent-group__chev{width:14px;height:14px;color:var(--faint);transition:transform var(--dur) var(--ease)}
+.subagent-group__trigger[aria-expanded="true"] .subagent-group__chev{transform:rotate(180deg)}
+.subagent-group__panel{display:flex;flex-direction:column;gap:2px;padding:4px;border-top:1px solid var(--line-soft)}
+.subagent-group__panel[hidden]{display:none}
+.subagent-group__panel .subagent-card{max-width:none;border-color:transparent;background:transparent;min-height:42px}
+.subagent-group__panel .subagent-card:hover{background:var(--surface-2);border-color:transparent}
+.subagent-group[data-dim="true"]{opacity:.62}
+.subagent-group[data-dim="true"]:hover,.subagent-group[data-dim="true"]:focus-within{opacity:1}
+
+/* ============ 07 · HoverCard (NEW @compozy/ui primitive) + SubagentHoverContent (S3) ============
+   base-ui PreviewCard: 200 ms open delay, opens on focus, Escape/leave/blur closes.
+   Surface = popover recipe: elevated · line-strong · shadow-overlay · radius-md. */
+.hc-host{position:relative;display:block}
+.hc-host--inline{display:inline-block}
+.hover-card{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:300px;padding:10px 12px 11px;border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);opacity:0;transform:translateY(-3px);pointer-events:none;transition:opacity var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
+.hover-card.is-open{opacity:1;transform:none;pointer-events:auto}
+.hover-card--static{position:relative;top:auto;left:auto;opacity:1;transform:none;pointer-events:auto}
+.hover-card--right{left:auto;right:0}
+.hover-card--side{top:-6px;left:calc(100% + 8px)}
+.hover-card--left{top:-6px;left:auto;right:calc(100% + 10px)}
+.sa-win--nav .win-body{min-height:600px;overflow:visible}
+.sa-win--nav{overflow:visible}
+.sa-win--nav .session-inspector__body{overflow:visible}
+.sa-win--nav .sa-sidebar{position:relative;z-index:3}
+.subagent-roster__row[data-stopping="true"] .subagent-elapsed{display:none}
+.subagent-hover{display:flex;flex-direction:column;gap:8px}
+.subagent-hover__title{font-size:12.5px;font-weight:600;line-height:1.4;color:var(--fg-strong);text-wrap:pretty}
+.subagent-hover__rows{display:flex;flex-direction:column;gap:5px}
+.subagent-hover__row{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;color:var(--muted)}
+.subagent-hover__row img{width:12px;height:12px;flex:none}
+.subagent-hover__row > svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+.subagent-hover__row b{font-weight:510;color:var(--fg)}
+.subagent-hover__row .sep{color:var(--faint)}
+.subagent-hover__row .nr{color:var(--subtle);font-style:italic}
+.subagent-hover__row .subagent-elapsed{margin-left:auto}
+.subagent-hover__row .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subagent-hover__row--failed{color:var(--danger)}
+.subagent-hover__preview{padding-top:8px;border-top:1px solid var(--line-soft);font-size:11.5px;line-height:1.5;color:var(--fg-2);text-wrap:pretty;overflow-wrap:anywhere}
+.subagent-hover__preview-k{display:block;font-size:10px;font-weight:500;color:var(--subtle);margin-bottom:2px}
+.subagent-hover__preview--failed{color:var(--danger)}
+.subagent-hover__more{font-size:11px;color:var(--subtle)}
+
+/* ============ 08 · ToolCallRow (reuse · S6 phrases) ============ */
+.tool-call-row{display:flex;align-items:center;gap:6px;width:fit-content;max-width:560px;min-height:24px;padding:0 4px;border-radius:var(--radius-sm);font-size:var(--text-small-body)}
+.tool-call-row:hover{background:var(--row-hover)}
+.tool-call-row__well{display:grid;place-items:center;width:20px;height:20px;flex:none}
+.tool-call-row__well svg{width:14px;height:14px;color:var(--subtle)}
+.tool-call-row__tool{font-weight:510;color:var(--muted);white-space:nowrap}
+.tool-call-row__preview{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+.tool-call-row__end{margin-left:2px;display:inline-flex;align-items:center;gap:6px;flex:none}
+.tool-call-row__err{padding:2px 4px 4px 30px;font-size:11.5px;color:var(--danger)}
+
+/* ============ 09 · "Subagent of" divider (S4 · modify SessionContinueDivider) ============ */
+.session-continue-divider{display:flex;align-items:center;gap:12px;padding:8px 0 14px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-continue-divider::before,.session-continue-divider::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+.session-continue-divider__words{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--muted)}
+.session-continue-divider__words svg{width:12px;height:12px;color:var(--subtle);flex:none}
+.session-continue-divider__words em{font-style:normal;color:var(--fg-2);max-width:36ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-continue-divider__link{display:inline-flex;align-items:center;gap:4px;color:var(--fg-2);border-radius:var(--radius-xxs);font-weight:500}
+.session-continue-divider__link svg{width:11px;height:11px}
+.session-continue-divider__link:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.session-continue-divider__link:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-continue-divider__sep{color:var(--faint)}
+
+/* ============ 10 · SubagentWaitingBanner (S5) ============
+   Sits on the composer's top edge, same docking as SessionQueueStrip:
+   one 40px strip, canvas-soft, joins the composer frame. */
+.subagent-waiting-banner{display:flex;align-items:center;gap:10px;min-height:40px;margin:0 10px -1px;padding:7px 8px 7px 12px;border:1px solid var(--line);border-bottom:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--canvas-soft);position:relative}
+.subagent-waiting-banner > .state-glyph{align-self:flex-start;margin-top:2px}
+.subagent-waiting-banner__text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.subagent-waiting-banner__title{font-size:12px;font-weight:510;line-height:1.4;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subagent-waiting-banner__desc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:1.45;color:var(--subtle)}
+.subagent-waiting-banner__name{color:var(--fg-2);border-radius:var(--radius-xxs);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:2px;cursor:pointer}
+.subagent-waiting-banner__name:hover{color:var(--fg-strong);text-decoration-color:var(--fg-2)}
+.subagent-waiting-banner__name:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-waiting-banner .btn[disabled]{opacity:.6;cursor:default}
+.subagent-waiting-banner[hidden]{display:none}
+
+/* ============ 11 · SessionStatusLine (S7) ============ */
+.session-status-line{display:flex;align-items:center;gap:7px;height:24px;padding:0 4px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-status-line b{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.session-status-line .sep{color:var(--faint)}
+
+/* ============ 12 · Sidebar row + SubagentChip (S9) ============
+   production: session-list-row.tsx — grid [12px][1fr][auto], gap 8, px 8 py 6, radius md. */
+.sa-sidebar{width:280px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.sa-sidebar__head{display:flex;align-items:center;gap:8px;padding:2px 8px 8px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.sa-sidebar__head b{font-weight:600;color:var(--fg-strong);font-size:12.5px}
+.sa-sidebar__search{display:flex;align-items:center;gap:6px;height:28px;margin:0 2px 8px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--input-fill);font-size:12px;color:var(--fg)}
+.sa-sidebar__search svg{width:13px;height:13px;color:var(--subtle)}
+.sa-sidebar__group{padding:10px 8px 4px;font-size:var(--text-eyebrow);font-weight:500;color:var(--subtle)}
+.session-list-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:4px}
+.session-list-row__btn{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:start;gap:8px;min-width:0;padding:6px 8px;border-radius:var(--radius-md);text-align:left;color:var(--fg);transition:background var(--dur-fast) var(--ease)}
+.session-list-row__btn:hover{background:var(--surface-2)}
+.session-list-row__btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-list-row[aria-current="true"] .session-list-row__btn{background:var(--selected)}
+.session-list-row__btn .state-glyph{margin-top:4px}
+.session-list-row__title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-body);color:var(--fg)}
+.session-list-row[aria-current="true"] .session-list-row__title{font-weight:510;color:var(--fg-strong)}
+.session-list-row__sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-list-row__sub b{font-weight:500;color:var(--muted)}
+.session-list-row__sub .w-info{color:var(--info)}
+.session-list-row__time{margin-top:2px;font-size:var(--text-eyebrow);color:var(--subtle);white-space:nowrap}
+.session-list-row__trail{display:flex;align-items:center;gap:2px;padding-top:4px}
+.session-list-row mark{background:var(--accent-tint);color:var(--fg-strong);border-radius:2px}
+.thread-toggle{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:var(--radius-pill);font-family:var(--font-mono);font-size:var(--text-micro);color:var(--faint);font-variant-numeric:tabular-nums}
+.thread-toggle:hover{background:var(--surface-2);color:var(--fg)}
+.thread-toggle svg{width:12px;height:12px}
+.thread-toggle[aria-expanded="true"] svg:first-child{transform:rotate(90deg)}
+.session-list-thread__children{position:relative;padding-left:20px}
+.session-list-thread__children::before{content:"";position:absolute;top:2px;bottom:4px;left:11px;width:1px;background:var(--line-strong)}
+.subagent-chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 6px 0 5px;border-radius:var(--radius-pill);font-family:var(--font-mono);font-size:var(--text-micro);color:var(--muted);font-variant-numeric:tabular-nums;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.subagent-chip:hover,.subagent-chip.is-open{background:var(--surface-2);color:var(--fg)}
+.subagent-chip:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-chip .state-glyph{width:12px;height:12px}
+.subagent-chip-list{display:flex;flex-direction:column;gap:1px;margin:0 -6px}
+.subagent-chip-list__row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:8px;padding:4px 6px;border-radius:var(--radius-sm)}
+.subagent-chip-list__row:hover{background:var(--surface-2)}
+.subagent-chip-list__t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--fg)}
+.subagent-chip-list__w{font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.subagent-chip-list__w--failed{color:var(--danger)}
+.subagent-chip-list__w--attention{color:var(--fg)}
+.subagent-chip-hc__head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.subagent-chip-hc__head b{font-size:12px;font-weight:600;color:var(--fg-strong)}
+.subagent-chip-hc__head span{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.subagent-chip-hc__foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--subtle)}
+.subagent-chip-hc__foot span{color:var(--fg-2)}
+
+/* ============ 13 · Inspector host + SessionInspectorSubagentsSection (S10) ============ */
+.session-inspector{width:var(--sa-rail-w);flex:none;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--canvas-soft)}
+.session-inspector__head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.session-inspector__body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:18px;padding:16px}
+.session-inspector__sec{display:flex;flex-direction:column;gap:9px;min-width:0;position:relative}
+.session-inspector__sec-head{display:flex;align-items:center;gap:6px}
+.session-inspector__sec-head .meta{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint);font-variant-numeric:tabular-nums}
+.session-inspector__sec--folded{opacity:.5}
+.session-inspector__ghost{height:8px;border-radius:var(--radius-xs);background:var(--line-soft)}
+.subagent-roster{display:flex;flex-direction:column;gap:1px;max-height:316px;overflow:auto;margin:0 -6px;padding:0 0 2px}
+.subagent-roster__row{position:relative;display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:30px;padding:4px 6px;border-radius:var(--radius-sm);text-align:left;cursor:pointer;color:var(--fg)}
+.subagent-roster__row:hover,.subagent-roster__row:focus-within{background:var(--surface-2)}
+.subagent-roster__row:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.subagent-roster__t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--fg)}
+.subagent-roster__end{display:inline-flex;align-items:center;gap:4px;flex:none}
+.subagent-roster__w{font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.subagent-roster__w--failed{color:var(--danger)}
+.subagent-roster__w--attention{color:var(--fg)}
+.subagent-roster__stop{display:none}
+.subagent-roster__row[data-live="true"]:hover .subagent-roster__stop,.subagent-roster__row[data-live="true"]:focus-within .subagent-roster__stop,.subagent-roster__row[data-stopping="true"] .subagent-roster__stop{display:inline-grid}
+.subagent-roster__row[data-live="true"]:hover .subagent-elapsed,.subagent-roster__row[data-live="true"]:focus-within .subagent-elapsed{display:none}
+.subagent-roster__stop{place-items:center;width:22px;height:22px;border-radius:var(--radius-sm);color:var(--muted)}
+.subagent-roster__stop:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.subagent-roster__stop:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-roster__stop svg{width:12px;height:12px}
+.subagent-roster__row[data-stopping="true"] .subagent-roster__stop{color:var(--subtle)}
+.subagent-roster__prev{display:flex;align-items:center;gap:6px;width:calc(100% + 12px);margin:4px -6px 0;padding:6px;border-radius:var(--radius-sm);font-size:11.5px;color:var(--muted);text-align:left}
+.subagent-roster__prev:hover{background:var(--surface-2);color:var(--fg)}
+.subagent-roster__prev:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.subagent-roster__prev svg{width:12px;height:12px;color:var(--subtle);transition:transform var(--dur) var(--ease)}
+.subagent-roster__prev[aria-expanded="true"] svg{transform:rotate(90deg)}
+.subagent-roster__prev .acc{margin-left:auto;font-size:10.5px;color:var(--danger)}
+.subagent-roster__more{align-self:flex-start;margin-top:2px}
+.subagent-roster [hidden]{display:none}

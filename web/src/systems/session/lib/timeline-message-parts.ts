@@ -36,7 +36,17 @@ function partTurnId(
     const fromData = stringField(data, "turn_id") ?? stringField(data, "turnId");
     if (fromData) return fromData;
   }
-  return fallbackTurnId;
+  // A subagent card names its spawning turn itself; it never borrows the
+  // message's, which could place it in the wrong turn's group or fold.
+  return isSubagentCardPart(part) ? undefined : fallbackTurnId;
+}
+
+function isSubagentCardPart(part: Record<string, unknown>): boolean {
+  const type = stringField(part, "type");
+  return (
+    type === "data-compozy-subagent" ||
+    (type === "data" && stringField(part, "name") === "compozy-subagent")
+  );
 }
 
 // The daemon's projected part position (search results name it as `part_index`).
@@ -52,6 +62,17 @@ function partTimestamp(part: Record<string, unknown>): string | undefined {
   if (own) return own;
   const data = part.data;
   return isRecord(data) ? stringField(data, "timestamp") : undefined;
+}
+
+// Provider-native attribution (S8): the transcript projection names it on the
+// part (`parentToolCallId`); the live prompt stream carries it in the AI SDK
+// provider metadata (`providerMetadata.compozy.parentToolCallId`).
+function partParentToolCallId(part: Record<string, unknown>): string | undefined {
+  const own = stringField(part, "parentToolCallId");
+  if (own) return own;
+  const metadata = part.providerMetadata;
+  if (!isRecord(metadata) || !isRecord(metadata.compozy)) return undefined;
+  return stringField(metadata.compozy, "parentToolCallId") || undefined;
 }
 
 /** Projects thread parts without discarding provider titles or original tool inputs. */
@@ -72,6 +93,8 @@ export function toTimelineParts(message: {
     const timestamp = partTimestamp(part);
     const state = stringField(part, "state");
     const partIndex = partIndexOf(part);
+    const parentToolCallId = partParentToolCallId(part);
+    const attribution = parentToolCallId ? { parentToolCallId } : {};
     const type = stringField(part, "type");
     if (type === "text") {
       return [
@@ -83,6 +106,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }
@@ -96,6 +120,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }
@@ -121,6 +146,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }

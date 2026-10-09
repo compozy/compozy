@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "subagents/subagents-transcript.html",
+  "entry": "subagents/subagents-transcript.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-09T06:12:50.541Z",
+  "updatedAt": "2026-10-09T06:12:50.541Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

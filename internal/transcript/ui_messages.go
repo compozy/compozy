@@ -41,22 +41,23 @@ type UIMessage struct {
 
 // UIMessagePart mirrors the AI SDK UIMessage part wire shape used by the web client.
 type UIMessagePart struct {
-	Type        string          `json:"type"`
-	ID          string          `json:"id,omitempty"`
-	Text        string          `json:"text,omitempty"`
-	MediaType   string          `json:"mediaType,omitempty"`
-	URL         string          `json:"url,omitempty"`
-	Filename    string          `json:"filename,omitempty"`
-	State       string          `json:"state,omitempty"`
-	ToolName    string          `json:"toolName,omitempty"`
-	ToolCallID  string          `json:"toolCallId,omitempty"`
-	Title       string          `json:"title,omitempty"`
-	Input       json.RawMessage `json:"input,omitempty"`
-	RawInput    json.RawMessage `json:"rawInput,omitempty"`
-	Output      json.RawMessage `json:"output,omitempty"`
-	ErrorText   string          `json:"errorText,omitempty"`
-	Data        json.RawMessage `json:"data,omitempty"`
-	Preliminary bool            `json:"preliminary,omitzero"`
+	ParentToolCallID string          `json:"parentToolCallId,omitempty"`
+	Type             string          `json:"type"`
+	ID               string          `json:"id,omitempty"`
+	Text             string          `json:"text,omitempty"`
+	MediaType        string          `json:"mediaType,omitempty"`
+	URL              string          `json:"url,omitempty"`
+	Filename         string          `json:"filename,omitempty"`
+	State            string          `json:"state,omitempty"`
+	ToolName         string          `json:"toolName,omitempty"`
+	ToolCallID       string          `json:"toolCallId,omitempty"`
+	Title            string          `json:"title,omitempty"`
+	Input            json.RawMessage `json:"input,omitempty"`
+	RawInput         json.RawMessage `json:"rawInput,omitempty"`
+	Output           json.RawMessage `json:"output,omitempty"`
+	ErrorText        string          `json:"errorText,omitempty"`
+	Data             json.RawMessage `json:"data,omitempty"`
+	Preliminary      bool            `json:"preliminary,omitzero"`
 }
 
 // UITokenUsagePayload mirrors the prompt-stream token usage payload.
@@ -203,6 +204,17 @@ func cloneUIMessageParts(parts []UIMessagePart) []UIMessagePart {
 }
 
 func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
+	parentID := decoded.agent.ParentToolCallID()
+	if builder.activePartIndex >= 0 && builder.parts[builder.activePartIndex].ParentToolCallID != parentID {
+		builder.closeActiveStreamPart()
+	}
+	start := len(builder.parts)
+	defer func() {
+		for i := start; i < len(builder.parts); i++ {
+			builder.parts[i].ParentToolCallID = parentID
+		}
+	}()
+
 	switch decoded.parsed.Type {
 	case acp.EventTypeAgentMessage:
 		builder.appendText(decoded.parsed.Text)
@@ -211,8 +223,10 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 	case acp.EventTypeToolCall:
 		builder.applyToolCall(decoded)
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
+		builder.appendSubagentPart(decoded)
 	case acp.EventTypeToolResult:
 		builder.applyToolResult(decoded)
+		builder.appendSubagentPart(decoded)
 	case acp.EventTypePermission:
 		builder.appendDataPart(uiPartDataPermission, uiPermissionDataPartID(decoded.agent), decoded.dataPayload())
 	case acp.EventTypeError:

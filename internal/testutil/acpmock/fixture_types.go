@@ -10,12 +10,13 @@ const FixtureVersion = 2
 type StepKind string
 
 const (
-	StepKindAssistant     StepKind = "assistant"
-	StepKindThought       StepKind = "thought"
-	StepKindToolCall      StepKind = "tool_call"
-	StepKindPermission    StepKind = "permission"
-	StepKindCommand       StepKind = "command_exec"
-	StepKindDriverControl StepKind = "driver_control"
+	StepKindAssistant      StepKind = "assistant"
+	StepKindThought        StepKind = "thought"
+	StepKindToolCall       StepKind = "tool_call"
+	StepKindNativeToolCall StepKind = "native_tool_call"
+	StepKindPermission     StepKind = "permission"
+	StepKindCommand        StepKind = "command_exec"
+	StepKindDriverControl  StepKind = "driver_control"
 )
 
 // Fixture describes one deterministic multi-agent ACP mock scenario.
@@ -26,6 +27,8 @@ type Fixture struct {
 
 // AgentFixture describes one named ACP mock agent inside a fixture file.
 type AgentFixture struct {
+	// SteerOutcome advertises the steering extension and returns this scripted outcome.
+	SteerOutcome    string   `json:"steer_outcome,omitempty"`
 	Name            string   `json:"name"`
 	Provider        string   `json:"provider"`
 	Model           string   `json:"model,omitempty"`
@@ -144,13 +147,15 @@ type TurnMatchJudge struct {
 
 // Step describes one deterministic ACP action emitted or executed by the driver.
 type Step struct {
-	Kind StepKind `json:"kind"`
+	OmitToolCallID bool     `json:"omit_tool_call_id,omitzero"`
+	Kind           StepKind `json:"kind"`
 
 	Text   string   `json:"text,omitempty"`
 	Chunks []string `json:"chunks,omitempty"`
 	// BurstCount repeats Text without delivery pacing to exercise transport pressure.
 	BurstCount int `json:"burst_count,omitzero"`
 
+	ToolID      string          `json:"tool_id,omitempty"`
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
 	Title       string          `json:"title,omitempty"`
 	ToolKind    string          `json:"tool_kind,omitempty"`
@@ -200,5 +205,6 @@ const (
 	// DriverControlFailPrompt answers the matched session/prompt with a JSON-RPC error
 	// carrying error_message, the shape a provider rate limit or auth lapse reaches the
 	// daemon in after the session was accepted.
-	DriverControlFailPrompt DriverControlAction = "fail_prompt"
+	DriverControlFailPrompt   DriverControlAction = "fail_prompt"
+	DriverControlWaitForSteer DriverControlAction = "wait_for_steer"
 )

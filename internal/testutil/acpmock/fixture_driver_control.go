@@ -2,20 +2,15 @@ package acpmock
 
 import (
 	"fmt"
-
 	"math"
-
 	"strings"
 	"time"
 )
 
 // Validate ensures the driver-control payload is internally consistent.
 func (d DriverControlStep) Validate(path string) error {
-	if d.DelayMS < 0 {
-		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
-	}
-	if int64(d.DelayMS) > math.MaxInt64/int64(time.Millisecond) {
-		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
+	if err := d.validateTiming(path); err != nil {
+		return err
 	}
 	if d.Action != DriverControlFailPrompt &&
 		(strings.TrimSpace(d.ErrorMessage) != "" || d.ErrorCode != 0) {
@@ -32,7 +27,11 @@ func (d DriverControlStep) Validate(path string) error {
 		if d.Async {
 			return fmt.Errorf("acpmock: %s.async is invalid for fail_prompt", path)
 		}
-	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay, DriverControlHoldIgnoringCancel:
+	case DriverControlDisconnect,
+		DriverControlBlockUntilCancel,
+		DriverControlDelay,
+		DriverControlHoldIgnoringCancel,
+		DriverControlWaitForSteer:
 		if strings.TrimSpace(d.RawJSONRPC) != "" {
 			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
 		}
@@ -43,8 +42,18 @@ func (d DriverControlStep) Validate(path string) error {
 	default:
 		return fmt.Errorf("acpmock: %s.action %q is invalid", path, d.Action)
 	}
-	if d.Async && d.Action == DriverControlBlockUntilCancel {
-		return fmt.Errorf("acpmock: %s.async is invalid for block_until_cancel", path)
+	return nil
+}
+
+func (d DriverControlStep) validateTiming(path string) error {
+	if d.DelayMS < 0 {
+		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
+	}
+	if int64(d.DelayMS) > math.MaxInt64/int64(time.Millisecond) {
+		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
+	}
+	if d.Async && (d.Action == DriverControlBlockUntilCancel || d.Action == DriverControlWaitForSteer) {
+		return fmt.Errorf("acpmock: %s.async is invalid for %s", path, d.Action)
 	}
 	if d.Action == DriverControlDelay || d.Action == DriverControlHoldIgnoringCancel {
 		if d.DelayMS == 0 {

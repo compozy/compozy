@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 const (
@@ -147,7 +148,7 @@ func dispatchToolHookEvent(
 }
 
 func hookAgentToolIsNative(name string) bool {
-	name = strings.TrimPrefix(strings.TrimSpace(name), "mcp.compozy-hosted-tools.")
+	name = toolmeta.NormalizeHostedToolName(name)
 	return strings.HasPrefix(name, "compozy__")
 }
 

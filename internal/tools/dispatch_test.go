@@ -158,6 +158,61 @@ func (b *recordingApprovalBridge) RequestToolApproval(
 
 func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	t.Parallel()
+	t.Run("Should enforce maximum lengths only for opted-in descriptor inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, code := range []ErrorCode{"", ErrorCodeInvalidRequest} {
+			for _, limit := range []string{`3`, `1.5`} {
+				d := validDispatchDescriptor()
+				d.ToolExecutionMetadata = NewToolExecutionMetadata(false, code, 0)
+				d.InputSchema = json.RawMessage(
+					`{"type":"object","properties":{"items":{"type":"array","items":{"allOf":[{"type":"string","maxLength":` + limit + `}]}}}}`,
+				)
+				validationErr := d.Validate()
+				if wantErr := code != "" && limit == "1.5"; (validationErr != nil) != wantErr {
+					t.Fatalf("code %q limit %s: Validate = %v", code, limit, validationErr)
+				}
+				if validationErr != nil {
+					continue
+				}
+				called := false
+				provider := dispatchProviderWithHandle(d, &registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called = true
+						return ToolResult{}, nil
+					},
+				})
+				registry := mustDispatchRegistry(t, provider)
+				_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
+					ToolID: d.ID, Input: json.RawMessage(`{"items":["four"]}`),
+				})
+				if code == "" {
+					if err != nil || !called {
+						t.Fatalf("legacy descriptor: called=%v err=%v", called, err)
+					}
+				} else if !errors.Is(err, ErrToolInvalidInput) || called {
+					t.Fatalf("opted-in descriptor: called=%v err=%v", called, err)
+				}
+			}
+		}
+	})
+
+	t.Run("Should derive public input failures from descriptor metadata", func(t *testing.T) {
+		t.Parallel()
+		d := validDispatchDescriptor()
+		d.ToolExecutionMetadata = NewToolExecutionMetadata(false, ErrorCodeInvalidRequest, 0)
+		d.InputSchema = json.RawMessage(
+			`{"type":"object","required":["subject"],"properties":{"subject":{"type":"string","minLength":1,"maxLength":3}}}`,
+		)
+		for _, tc := range []struct{ input, want string }{{`{}`, "subject is required."}, {`{"subject":""}`, "subject is required."}, {`{"subject":"four"}`, "subject exceeds 3 characters."}} {
+			err := validateCallInput(d, json.RawMessage(tc.input))
+			detail, ok := errors.AsType[*ToolError](err)
+			if !ok || detail.Code != ErrorCodeInvalidRequest || detail.Message != tc.want {
+				t.Fatalf("error=%#v", err)
+			}
+		}
+	})
 
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()
@@ -978,7 +1033,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 4096
+		descriptor.SetMaxResultBytes(4096)
 		events := &recordingToolEventSink{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1147,7 +1202,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			t.Fatalf("refreshResultEnvelopeBytes() error = %v", err)
 		}
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = resultAtCap.Bytes
+		descriptor.SetMaxResultBytes(resultAtCap.Bytes)
 		artifactStore := &recordingToolArtifactStore{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1168,7 +1223,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
 		}
-		if result.Truncated || len(result.Artifacts) != 0 || result.Bytes != descriptor.MaxResultBytes {
+		if result.Truncated || len(result.Artifacts) != 0 ||
+			result.Bytes != descriptor.ExecutionMetadata().MaxResultBytes {
 			t.Fatalf("result = %#v, want unchanged exact-cap envelope", result)
 		}
 		if got := artifactStore.putCount(); got != 0 {
@@ -1181,7 +1237,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 
 		const defaultMaxBytes int64 = 768
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 4096
+		descriptor.SetMaxResultBytes(4096)
 		artifactStore := &recordingToolArtifactStore{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -1216,7 +1272,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 768
+		descriptor.SetMaxResultBytes(768)
 		events := &recordingToolEventSink{}
 		filesystemStore := openTestToolArtifactStore(
 			t,
@@ -1315,7 +1371,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			t.Parallel()
 
 			descriptor := validDispatchDescriptor()
-			descriptor.MaxResultBytes = 768
+			descriptor.SetMaxResultBytes(768)
 			events := &recordingToolEventSink{}
 			artifactStore := &recordingToolArtifactStore{putErr: errors.New("injected disk full")}
 			provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
@@ -1607,4 +1663,19 @@ func mustDispatchRegistry(t *testing.T, provider registryTestProvider, opts ...R
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	return registry
+}
+
+func TestSubagentDelegateObservation(t *testing.T) {
+	t.Run("Should correlate the delegate outcome with its subagent", func(t *testing.T) {
+		t.Parallel()
+		event := buildToolCallEvent(
+			&dispatchTarget{descriptor: Descriptor{ID: ToolIDSubagentDelegate}},
+			CallRequest{SessionID: "parent", TurnID: "turn"},
+			ToolCallCompleted,
+			ToolEventData{Result: ToolResult{Structured: json.RawMessage(`{"subagent_id":"sub-1"}`)}},
+		)
+		if event.SubagentID != "sub-1" || event.SessionID != "parent" || event.TurnID != "turn" {
+			t.Fatalf("event = %#v", event)
+		}
+	})
 }

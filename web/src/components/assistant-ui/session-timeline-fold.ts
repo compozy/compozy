@@ -167,12 +167,15 @@ function foldTurnGroup(
 }
 
 /**
- * Text, decision asks, permissions, errors and terminal evidence remain
- * operator-visible after a turn settles (rich rows never fold, ADR-006).
+ * Text, decision asks, permissions, errors, terminal evidence and live
+ * subagent cards remain operator-visible after a turn settles (rich rows never
+ * fold, ADR-006).
  * Deliberate terminal tool rows are their own surface, not transient work.
  */
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
+  // A subagent still working outlives its turn: its card stays in view (UT-W04).
+  if (row.kind === "subagents") return row.live;
   if (row.kind === "work") {
     return (
       row.summary === null &&

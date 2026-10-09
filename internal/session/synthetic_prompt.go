@@ -11,6 +11,8 @@ import (
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
 // wake-up metadata required for persistence and later reentry handling.
 type SyntheticPromptOpts struct {
+	MessageID               string
+	Priority                int
 	Delivery                PromptDelivery
 	Message                 string
 	Metadata                acp.PromptSyntheticMeta
@@ -52,7 +54,7 @@ func (m *Manager) PromptSynthetic(
 	if err != nil {
 		return nil, err
 	}
-	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req)
+	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req, opts)
 	if err != nil {
 		delivery.cancel()
 		return nil, err
@@ -64,7 +66,7 @@ func (m *Manager) PromptSynthetic(
 	if interrupt {
 		cancelCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), m.supervision.TimeoutCancelGrace)
 		defer cancel()
-		if _, err := m.CancelPrompt(cancelCtx, session.ID); err != nil {
+		if _, err := m.CancelPromptWithCause(cancelCtx, session.ID, PromptCancelSyntheticAdmission); err != nil {
 			m.sessionLogger(session).WarnContext(ctx,
 				"session: synthetic wake cancellation failed; input remains queued",
 				"entry_id", entry.ID, "error", err,

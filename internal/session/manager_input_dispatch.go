@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,8 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		m.startManagedInputPrompt(session, managedInputFromQueueEntry(&selected))
 		return
 	}
+	dispatchCtx, unlock := m.lockSubagentInputDispatch(m.fallbackLifecycleContext(), &selected)
+	defer unlock()
 	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input failed", "error", err)
@@ -54,10 +57,11 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 				"error", releaseErr,
 			)
 		}
+		unlock()
 		m.startNextQueuedInputPrompt(target)
 		return
 	}
-	m.dispatchQueuedInput(target, session, queuedInput{
+	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
 		id:                entry.ID,
 		syntheticPrompt:   entry.SyntheticPrompt,
 		promptAdmissionID: entry.PromptAdmissionID,
@@ -98,15 +102,30 @@ func (m *Manager) peekNextQueuedInputPrompt(
 }
 
 func (m *Manager) dispatchQueuedInput(
+	dispatchCtx context.Context,
+	unlock func(),
 	target string,
 	session *Session,
 	entry queuedInput,
 ) {
 	req, err := m.newQueuedInputPromptRequest(target, entry)
 	if err != nil {
+		unlock()
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
+	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
+		if service := m.subagentService(); service != nil {
+			if err := service.OnWakeDispatched(dispatchCtx, target, entry.messageID); err != nil {
+				unlock()
+				m.handleQueuedInputDispatchError(session, target, entry, req, err)
+				return
+			}
+		}
+	}
+	// Freeze the claimed batch, then release the parent lock before submission: failed
+	// provider setup can synchronously publish a turn-settled lifecycle edge.
+	unlock()
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
@@ -114,7 +133,18 @@ func (m *Manager) dispatchQueuedInput(
 	}
 	m.acceptQueuedInputDispatch(session, target, entry, req)
 	m.startTrackedPromptTask(func() {
-		m.drainQueuedInputEvents(events)
+		canceled, failed := m.drainSubagentInputEvents(events)
+		if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
+			if service := m.subagentService(); service != nil {
+				if failed {
+					m.logSubagentError(service.OnWakeFailed(m.fallbackLifecycleContext(), target, entry.messageID))
+				} else {
+					m.logSubagentError(
+						service.OnWakeTurnSettled(m.fallbackLifecycleContext(), target, entry.messageID, canceled),
+					)
+				}
+			}
+		}
 	})
 }
 
@@ -183,6 +213,11 @@ func (m *Manager) handleQueuedInputDispatchError(
 	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.id, cause.Error()); err != nil {
 		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.id, "error", err)
 	}
+	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
+		if service := m.subagentService(); service != nil {
+			m.logSubagentError(service.OnWakeFailed(m.fallbackLifecycleContext(), target, entry.messageID))
+		}
+	}
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
 		session,
@@ -233,10 +268,4 @@ func (m *Manager) acceptQueuedInputDispatch(
 		"Queued input accepted for dispatch.",
 		evidence,
 	)
-}
-
-func (m *Manager) drainQueuedInputEvents(events <-chan acp.AgentEvent) {
-	for range events {
-		continue
-	}
 }

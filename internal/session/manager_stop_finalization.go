@@ -38,7 +38,14 @@ func (m *Manager) finalizeStoppedOwned(
 	if session == nil {
 		return nil
 	}
-	defer func() { m.finishFinalization(session.ID, err) }()
+	defer func() {
+		m.finishFinalization(session.ID, err)
+		if err == nil && session.Info().State == StateStopped {
+			if service := m.subagentService(); service != nil {
+				m.logSubagentError(service.OnChildSettled(ctx, session.ID))
+			}
+		}
+	}()
 	if session.pendingStopState() {
 		return m.finishStoppedPersistence(ctx, session)
 	}

@@ -6,11 +6,14 @@ import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
+import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import { maskedAttentionNote } from "../../lib/session-pending-interactions";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
+import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface SessionListRowProps {
@@ -25,6 +28,8 @@ export interface SessionListRowProps {
   sessionActions: SessionLifecycleActionHandlers;
   showActions?: boolean;
   testIdPrefix: string;
+  /** A subagent session whose ancestry was deleted: it leads its thread, labelled. */
+  orphanedSubagent?: boolean;
   /** Trailing controls rendered beside the row actions (e.g. a thread toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
@@ -41,9 +46,11 @@ export function SessionListRow({
   testIdPrefix,
   trailing,
   selection,
+  orphanedSubagent = false,
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
+  const subagentCounts = sessionSubagentCounts(session);
   return (
     <div className="group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
       <button
@@ -68,6 +75,7 @@ export function SessionListRow({
       >
         <SessionBadgeMark
           badge={session.badge}
+          delegated={sessionAwaitsSubagents(session)}
           className={cn(
             "mt-1",
             selection &&
@@ -75,7 +83,11 @@ export function SessionListRow({
             selection?.mode && "opacity-0"
           )}
         />
-        <SessionListRowDetails session={session} current={current} />
+        <SessionListRowDetails
+          session={session}
+          current={current}
+          orphanedSubagent={orphanedSubagent}
+        />
         <span className="mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
           <Time iso={session.updated_at} className="text-eyebrow text-subtle" />
@@ -99,6 +111,9 @@ export function SessionListRow({
         />
       ) : null}
       <div className="flex items-center gap-0.5 pt-1">
+        {subagentCounts !== null ? (
+          <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
+        ) : null}
         {trailing}
         {showActions && !selection?.mode ? (
           <SessionRowActions session={session} actions={sessionActions} />
@@ -112,11 +127,13 @@ export function SessionListRow({
 function SessionListRowDetails({
   session,
   current,
+  orphanedSubagent,
   className,
   ...props
 }: {
   session: SessionPayload;
   current: boolean;
+  orphanedSubagent: boolean;
 } & React.ComponentProps<"span">) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
@@ -145,6 +162,12 @@ function SessionListRowDetails({
           <>
             <span aria-hidden="true"> · </span>
             {maskedNote}
+          </>
+        ) : null}
+        {orphanedSubagent ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            {SUBAGENT_OF_DELETED_SESSION}
           </>
         ) : null}
         {session.archived_at !== null ? (
