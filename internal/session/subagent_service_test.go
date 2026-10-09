@@ -478,8 +478,14 @@ func TestSubagentLifecycle(t *testing.T) {
 	t.Run("Should coalesce progress to latest value UT-060", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
-			s, db, _ := newSubagentTestService(t)
+			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
+			before := len(runtime.publishes)
+			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
 			for range 9 {
 				s.OnChildActivity(t.Context(), *row.ChildSessionID, "earlier")
 			}
@@ -487,6 +493,13 @@ func TestSubagentLifecycle(t *testing.T) {
 			synctest.Wait()
 			time.Sleep(time.Second)
 			synctest.Wait()
+			update := <-updates
+			if update.Subagent.Progress != strings.Repeat("x", 280) {
+				t.Fatalf("progress stream=%#v", update)
+			}
+			if len(runtime.publishes) != before {
+				t.Fatal("progress published a parent catalog upsert")
+			}
 			if db.writes != 1 || db.rows[row.ID].Progress != strings.Repeat("x", 280) {
 				t.Fatal(db.writes, db.rows[row.ID].Progress)
 			}
@@ -627,10 +640,20 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
+			if len(runtime.publishes) != 1 {
+				t.Fatalf("creation catalog events=%v", runtime.publishes)
+			}
 			runtime.snapshots[*row.ChildSessionID] = subagentSnapshot{Info: &tc.info, Active: tc.active}
 			runtime.results[*row.ChildSessionID] = "last answer"
 			if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
 				t.Fatal(err)
+			}
+			wantPublishes := 2
+			if tc.status == store.SubagentStatusRunning {
+				wantPublishes = 1
+			}
+			if len(runtime.publishes) != wantPublishes {
+				t.Fatalf("catalog events=%v want=%d", runtime.publishes, wantPublishes)
 			}
 			got := db.rows[row.ID]
 			if got.Status != tc.status {

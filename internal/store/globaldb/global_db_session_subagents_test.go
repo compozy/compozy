@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -91,6 +92,120 @@ func finalizeSubagent(t *testing.T, s store.SubagentStore, id string, now time.T
 	}
 }
 func TestGlobalDBSubagents(t *testing.T) {
+	// M6, m16: repository reads stay scoped and bounded.
+	t.Run("Should reject unscoped lists and cap pages while looking up exact ids", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		ctx := t.Context()
+		if _, err := port.ListSubagents(ctx, store.SubagentListQuery{}); err == nil {
+			t.Fatal("accepted unscoped list")
+		}
+		for i := range 201 {
+			reserveSubagent(
+				t,
+				port,
+				workspace,
+				parent,
+				fmt.Sprintf("bounded-%03d", i),
+				now.Add(time.Duration(i)*time.Second),
+			)
+		}
+		query := store.SubagentListQuery{ParentSessionID: parent, Limit: 1000}
+		page, err := port.ListSubagents(ctx, query)
+		if err != nil || len(page.Items) != 200 || page.NextCursor == "" {
+			t.Fatalf("page=%#v err=%v", page, err)
+		}
+		query.Cursor = page.NextCursor
+		tail, err := port.ListSubagents(ctx, query)
+		if err != nil || len(tail.Items) != 1 || tail.Items[0].ID != "bounded-000" {
+			t.Fatalf("tail=%#v err=%v", tail, err)
+		}
+		row, err := port.GetSubagentByID(ctx, "bounded-000")
+		if err != nil || row.ParentSessionID != parent {
+			t.Fatalf("row=%#v err=%v", row, err)
+		}
+		if _, err = port.GetSubagentByID(ctx, "missing"); !errors.Is(err, store.ErrSubagentNotFound) {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should exclude native reservations and report a missing wake parent", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		native := reserveSubagent(t, port, workspace, parent, "delegated", now)
+		native.ID, native.IdempotencyKey, native.Origin = "native", "native", store.SubagentOriginProviderNative
+		if _, _, err := port.ReserveSubagent(t.Context(), native); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := port.ListStaleReserved(t.Context(), now.Add(time.Second))
+		if err != nil || len(rows) != 1 || rows[0].ID != "delegated" {
+			t.Fatalf("rows=%v err=%v", rows, err)
+		}
+		if _, err = port.OpenOrJoinWake(
+			t.Context(),
+			"missing",
+			nil,
+			"absent-wake",
+		); !errors.Is(
+			err,
+			store.ErrSessionNotFound,
+		) {
+			t.Fatal(err)
+		}
+	})
+	// M7, UT-056: wake reads never wait for a writer.
+	t.Run("Should read filtered wakes without the writer", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		ctx := t.Context()
+		registerSubagentSession(t, db, workspace, "other-parent", "", "", now)
+		for _, id := range []string{"first", "second"} {
+			reserveSubagent(t, port, workspace, parent, id, now)
+			finalizeSubagent(t, port, id, now)
+		}
+		if _, err := port.OpenOrJoinWake(ctx, parent, []string{"first"}, "wake-first"); err != nil {
+			t.Fatal(err)
+		}
+		if err := port.MarkWakeDispatched(ctx, "wake-first"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := port.OpenOrJoinWake(ctx, parent, []string{"second"}, "wake-second"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := port.OpenOrJoinWake(ctx, "other-parent", nil, "wake-other"); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err = writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := writer.ExecContext(context.WithoutCancel(ctx), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+		}()
+		readCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		wake, rows, err := port.GetWake(readCtx, "wake-first")
+		if err != nil || wake.State != store.SubagentWakeStateDispatched || len(rows) != 1 || rows[0].ID != "first" {
+			t.Fatalf("wake=%#v rows=%v err=%v", wake, rows, err)
+		}
+		wakes, err := port.ListWakesByParent(readCtx, parent, []string{store.SubagentWakeStateOpen})
+		if err != nil || len(wakes) != 1 || wakes[0].WakeMessageID != "wake-second" {
+			t.Fatalf("wakes=%v err=%v", wakes, err)
+		}
+	})
+
 	t.Run("Should reserve idempotently and preserve first prompt recovery until admission", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -172,7 +287,11 @@ func TestGlobalDBSubagents(t *testing.T) {
 		if err = s.MarkFirstPromptAdmitted(ctx, "missing"); !errors.Is(err, store.ErrSubagentNotFound) {
 			t.Fatalf("admit absent=%v", err)
 		}
+		registerSubagentSession(t, db, workspace, "stopped-orphan", parent, store.SubagentSpawnRole, now)
 		registerSubagentSession(t, db, workspace, "orphan", parent, store.SubagentSpawnRole, now)
+		if _, err := db.db.ExecContext(ctx, "UPDATE sessions SET state = 'active' WHERE id = 'orphan'"); err != nil {
+			t.Fatal(err)
+		}
 		orphans, err := s.ListOrphanSubagentSessions(ctx)
 		if err != nil || !slices.Equal(orphans, []string{"orphan"}) {
 			t.Fatalf("orphans=%v %v", orphans, err)

@@ -64,6 +64,9 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 		updated, changed, err := s.store.UpdateSubagentState(ctx, row.ID, status, work, s.now().UTC())
 		if err == nil && changed {
 			s.publish(ctx, updated)
+			if (row.Status == store.SubagentStatusWaiting) != (updated.Status == store.SubagentStatusWaiting) {
+				s.runtime.PublishParent(ctx, row.ParentSessionID)
+			}
 		}
 		return err
 	}

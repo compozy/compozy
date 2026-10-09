@@ -219,37 +219,13 @@ func (s *subagentService) parentRows(ctx context.Context, parent string) ([]stor
 	}
 }
 func (s *subagentService) parentWakes(ctx context.Context, parent string) ([]store.SessionSubagentWake, error) {
-	rows, err := s.parentRows(ctx, parent)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool)
-	var wakes []store.SessionSubagentWake
-	for _, row := range rows {
-		if row.WakeMessageID == nil || seen[*row.WakeMessageID] {
-			continue
-		}
-		seen[*row.WakeMessageID] = true
-		wake, _, err := s.store.GetWake(ctx, *row.WakeMessageID)
-		if err != nil {
-			return nil, err
-		}
-		if wake.State == store.SubagentWakeStateOpen || wake.State == store.SubagentWakeStateDispatched {
-			wakes = append(wakes, wake)
-		}
-	}
-	return wakes, nil
+	return s.store.ListWakesByParent(
+		ctx,
+		parent,
+		[]string{store.SubagentWakeStateOpen, store.SubagentWakeStateDispatched},
+	)
 }
 
 func (s *subagentService) internalRow(ctx context.Context, id string) (store.SessionSubagent, error) {
-	rows, err := s.parentRows(ctx, "")
-	if err != nil {
-		return store.SessionSubagent{}, err
-	}
-	for _, row := range rows {
-		if row.ID == id {
-			return row, nil
-		}
-	}
-	return store.SessionSubagent{}, store.ErrSubagentNotFound
+	return s.store.GetSubagentByID(ctx, id)
 }

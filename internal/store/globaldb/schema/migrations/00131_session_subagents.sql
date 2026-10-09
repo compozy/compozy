@@ -25,6 +25,7 @@ CREATE UNIQUE INDEX `uq_session_input_queue_goal_prompt` ON `session_input_queue
 CREATE UNIQUE INDEX `uq_session_input_queue_synthetic_message` ON `session_input_queue` (`session_id`, `message_id`) WHERE owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
 -- create "session_subagent_wakes" table
 CREATE TABLE `session_subagent_wakes` (`wake_message_id` text NULL, `workspace_id` text NOT NULL, `parent_session_id` text NOT NULL, `state` text NOT NULL, `route` text NOT NULL, `input_entry_id` text NOT NULL DEFAULT '', `steer_requeued` integer NOT NULL DEFAULT 0, `created_at` text NOT NULL, `updated_at` text NOT NULL, PRIMARY KEY (`wake_message_id`), CONSTRAINT `0` FOREIGN KEY (`workspace_id`, `parent_session_id`) REFERENCES `sessions` (`workspace_id`, `id`) ON UPDATE NO ACTION ON DELETE CASCADE, CHECK (state IN ('open','dispatched','settled','canceled')), CHECK (route IN ('queue','steer')));
+CREATE INDEX `idx_session_subagent_wakes_parent_state` ON `session_subagent_wakes` (`parent_session_id`, `state`);
 -- create index "uq_session_subagent_wakes_open" to table: "session_subagent_wakes"
 CREATE UNIQUE INDEX `uq_session_subagent_wakes_open` ON `session_subagent_wakes` (`parent_session_id`) WHERE state = 'open';
 -- create "session_subagents" table
@@ -39,8 +40,6 @@ CREATE INDEX `idx_session_subagents_parent_created` ON `session_subagents` (`par
 CREATE INDEX `idx_session_subagents_workspace_status` ON `session_subagents` (`workspace_id`, `status`);
 -- create index "idx_session_subagents_parent_delivery" to table: "session_subagents"
 CREATE INDEX `idx_session_subagents_parent_delivery` ON `session_subagents` (`parent_session_id`, `delivery`) WHERE delivery IN ('pending','claimed');
--- create index "idx_session_subagents_child" to table: "session_subagents"
-CREATE INDEX `idx_session_subagents_child` ON `session_subagents` (`child_session_id`);
 -- create index "idx_session_subagents_provider_tool" to table: "session_subagents"
 CREATE INDEX `idx_session_subagents_provider_tool` ON `session_subagents` (`parent_session_id`, `provider_tool_call_id`) WHERE origin = 'provider_native';
 -- enable back the enforcement of foreign-keys constraints

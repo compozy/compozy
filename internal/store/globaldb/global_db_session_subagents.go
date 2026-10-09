@@ -80,6 +80,12 @@ func (g *SessionRepo) GetSubagent(ctx context.Context, workspaceID, id string) (
 	}
 	return row, nil
 }
+func (g *SessionRepo) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
+	if err := g.checkReady(ctx, "get subagent by id"); err != nil {
+		return store.SessionSubagent{}, err
+	}
+	return readSubagent(ctx, g.queries, id)
+}
 func (g *SessionRepo) GetSubagentByChild(ctx context.Context, id string) (store.SessionSubagent, error) {
 	if err := g.checkReady(ctx, "get subagent by child"); err != nil {
 		return store.SessionSubagent{}, err
@@ -118,14 +124,11 @@ func (g *SessionRepo) LinkChild(
 	return out, err
 }
 func (g *SessionRepo) UpdateProgress(ctx context.Context, id, progress string, at time.Time) error {
-	if err := g.checkReady(ctx, "update subagent progress"); err != nil {
+	return g.withImmediateTransaction(ctx, "update subagent progress", func(exec globalSQLExecutor) error {
+		_, err := sqlcgen.New(exec).UpdateSubagentProgress(ctx,
+			sqlcgen.UpdateSubagentProgressParams{Progress: progress, UpdatedAt: store.FormatTimestamp(at), ID: id})
 		return err
-	}
-	_, err := g.queries.UpdateSubagentProgress(
-		ctx,
-		sqlcgen.UpdateSubagentProgressParams{Progress: progress, UpdatedAt: store.FormatTimestamp(at), ID: id},
-	)
-	return err
+	})
 }
 
 func (g *SessionRepo) FinalizeSubagent(
