@@ -73,3 +73,8 @@ Routing-slice verification: [2026-09-09 issue #564 report](../reports/2026-09-09
 `TestSpawnProviderRouteDiagnostics` additionally verifies that a startup auth failure is stopped,
 retained for inspection, and correlated with exactly one fingerprint per selected/error JSON log.
 This slice does not replace the unrelated wake-delivery walkthroughs above.
+
+QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate wake delivery,
+`subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.
+Scoped evidence: `TestSubagentHookPayloads` and `TestSubagentSituation`. The lifecycle/service slice
+and final spec QA own the integrated completion, acknowledgement, and wake-suppression walk.

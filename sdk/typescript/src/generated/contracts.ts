@@ -88,6 +88,7 @@ export interface AgentCrashedPatch {
 }
 
 export type HookEvent =
+  | "subagent.settled"
   | "session.pre_create"
   | "session.post_create"
   | "session.pre_resume"
@@ -2126,6 +2127,7 @@ export interface HookDecl {
 }
 
 export type HookEventFamily =
+  | "subagent"
   | "session"
   | "input"
   | "prompt"
@@ -4186,7 +4188,14 @@ export interface SpawnParentStoppedPayload {
   error?: string;
 }
 
+export interface SubagentSpawnPayload {
+  title: string;
+  role: string;
+  task_chars: number;
+}
+
 export interface SpawnPreCreatePayload {
+  subagent?: SubagentSpawnPayload;
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id?: string;
@@ -4264,6 +4273,29 @@ export interface SpawnTTLExpiredPayload {
   stop_reason?: string;
   reap_reason?: string;
   error?: string;
+}
+
+export interface SubagentObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface SubagentRuntimePayload {
+  provider: string;
+  model: string;
+}
+
+export interface SubagentSettledPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  profile_id?: string;
+  workspace_id: string;
+  subagent_id: string;
+  parent_session_id: string;
+  child_session_id?: string;
+  origin: string;
+  status: string;
+  runtime: SubagentRuntimePayload;
+  duration_ms: number;
 }
 
 export type Priority = string;
@@ -6423,6 +6455,7 @@ export interface WorktreePreRemovePayload {
 }
 
 export interface HookPayloadByEvent {
+  "subagent.settled": SubagentSettledPayload;
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
   "session.pre_resume": SessionPreResumePayload;
@@ -6525,6 +6558,7 @@ export interface HookPayloadByEvent {
 }
 
 export interface HookPatchByEvent {
+  "subagent.settled": SubagentObservationPatch;
   "session.pre_create": SessionCreatePatch;
   "session.post_create": SessionPostCreatePatch;
   "session.pre_resume": SessionPreResumePatch;

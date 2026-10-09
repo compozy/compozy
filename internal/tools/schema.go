@@ -25,7 +25,8 @@ func normalizeCallInput(input json.RawMessage) json.RawMessage {
 	return cloneRawMessage(input)
 }
 
-func validateCallInput(d Descriptor, input json.RawMessage) error {
+func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
+	defer func() { err = subagentInputError(d.ID, input, err) }()
 	normalized := normalizeCallInput(input)
 	if !json.Valid(normalized) {
 		return NewToolError(

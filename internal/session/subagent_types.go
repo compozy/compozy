@@ -84,11 +84,31 @@ type SubagentAgentOption struct {
 	Constraints []string
 }
 
+// SubagentModelOption advertises model-specific runtime choices.
+type SubagentModelOption struct {
+	ID               string
+	Label            string
+	ReasoningEfforts []string
+	Speeds           []string
+}
+
+// SubagentError preserves a public failure code and message across transport boundaries.
+type SubagentError struct {
+	Code    string
+	Message string
+	Err     error
+}
+
+var _ error = (*SubagentError)(nil)
+
+func (e *SubagentError) Error() string { return e.Message }
+func (e *SubagentError) Unwrap() error { return e.Err }
+
 // SubagentProviderOption is one delegable provider in the capabilities payload.
 type SubagentProviderOption struct {
 	Provider    string
 	DisplayName string
-	Models      []string
+	Models      []SubagentModelOption
 	CanDelegate bool
 	Constraints []string
 }

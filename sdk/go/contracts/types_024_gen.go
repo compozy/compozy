@@ -7,6 +7,73 @@ import (
 	"time"
 )
 
+type TerminalOpenedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	Mode        string    `json:"mode"`
+	Cwd         string    `json:"cwd"`
+	Title       string    `json:"title,omitempty"`
+}
+
+type TerminalRecordingStartedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	RecordingID string    `json:"recording_id"`
+}
+
+type TerminalRecordingStoppedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	RecordingID string    `json:"recording_id"`
+	Digest      string    `json:"digest"`
+	Bytes       int64     `json:"bytes"`
+	Reason      string    `json:"reason"`
+	Truncated   bool      `json:"truncated"`
+}
+
+type TerminalSubscriberEvictedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	Flow        string    `json:"flow"`
+	Reason      string    `json:"reason"`
+}
+
 type ToastEffect struct {
 	Tone    string `json:"tone"`
 	Message string `json:"message"`
@@ -244,64 +311,4 @@ type TurnPatch struct {
 	Deny       bool              `json:"deny,omitempty"`
 	DenyReason string            `json:"deny_reason,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type TurnStartPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnStartPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type ValidationIssue struct {
-	Path     string        `json:"path"`
-	Scope    string        `json:"scope,omitempty"`
-	Line     int           `json:"line,omitempty"`
-	Column   int           `json:"column,omitempty"`
-	Field    string        `json:"field,omitempty"`
-	Message  string        `json:"message"`
-	Severity IssueSeverity `json:"severity"`
 }

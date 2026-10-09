@@ -837,3 +837,21 @@ func (c *hostedProxyClientStub) releaseCount() int {
 	defer c.mu.Unlock()
 	return len(c.releases)
 }
+
+func TestHostedSubagentAnnotations(t *testing.T) {
+	t.Run("Should preserve read and acknowledgement semantics over hosted MCP", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			id                   tools.ToolID
+			readOnly, idempotent bool
+		}{
+			{tools.ToolIDSubagentCapabilities, true, true}, {tools.ToolIDSubagentStatus, false, true}, {tools.ToolIDSubagentDelegate, false, false}, {tools.ToolIDSubagentCancel, false, false},
+		} {
+			projected := hostedMCPTool(tools.Descriptor{ID: tc.id, ReadOnly: tc.readOnly})
+			if projected.Annotations.ReadOnlyHint != tc.readOnly ||
+				projected.Annotations.IdempotentHint != tc.idempotent {
+				t.Fatalf("annotations = %#v", projected.Annotations)
+			}
+		}
+	})
+}

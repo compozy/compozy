@@ -212,3 +212,10 @@ func hasProvenance(payload contract.AgentContextProvenancePayload) bool {
 type promptProvenancePayload struct {
 	Source string `json:"source"`
 }
+
+func appendSubagentSummary(sections []renderedSection, depth, live int) ([]renderedSection, error) {
+	if depth == 0 && live == 0 {
+		return sections, nil
+	}
+	return appendRenderedSection(sections, "subagents", fmt.Sprintf("Subagents: depth %d · live %d", depth, live))
+}

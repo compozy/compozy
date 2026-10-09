@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 99
+const expectedHookEventCount = 100
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -35,6 +35,7 @@ func TestSyncEligibleClassification(t *testing.T) {
 		t.Parallel()
 
 		asyncOnly := map[HookEvent]struct{}{
+			HookSubagentSettled:                 {},
 			HookMessageDelta:                    {},
 			HookEventPreRecord:                  {},
 			HookEventPostRecord:                 {},
@@ -279,6 +280,7 @@ func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) 
 		HookTaskRunReleased:       {HookEventFamilyTaskRun, true},
 		HookTaskRunCompleted:      {HookEventFamilyTaskRun, true},
 		HookTaskRunFailed:         {HookEventFamilyTaskRun, true},
+		HookSubagentSettled:       {HookEventFamilySubagent, false},
 		HookSpawnPreCreate:        {HookEventFamilySpawn, true},
 		HookSpawnCreated:          {HookEventFamilySpawn, true},
 		HookSpawnParentStopped:    {HookEventFamilySpawn, true},

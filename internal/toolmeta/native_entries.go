@@ -1,6 +1,10 @@
 package toolmeta
 
 var nativeEntries = map[string]Entry{
+	"compozy__subagent_capabilities":          nativeEntry("Checking", " ", false, "🤖", "auto"),
+	"compozy__subagent_delegate":              nativeEntry("Delegating", " ", false, "🤖", "auto"),
+	"compozy__subagent_status":                nativeEntry("Reading", " ", false, "🤖", "auto"),
+	"compozy__subagent_cancel":                nativeEntry("Canceling", " ", false, "🤖", "auto"),
 	"compozy__agent_create":                   nativeEntry("Creating", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_status":         nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_wake":           nativeEntry("Running", " ", false, "🤖", "auto"),

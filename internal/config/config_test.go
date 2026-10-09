@@ -2659,3 +2659,56 @@ func TestEnsureHomeLayoutCreatesRetainedDirectories(t *testing.T) {
 		}
 	})
 }
+
+// UT-050, UT-051: merged configuration owns defaults, workspace isolation, and bounds.
+func TestSubagentsConfig(t *testing.T) {
+	t.Run("Should load defaults and isolate workspace overrides", func(t *testing.T) {
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.SubagentResultMaxChars() != 60000 {
+			t.Fatalf("default = %d", cfg.SubagentResultMaxChars())
+		}
+		paths, err := ResolveHomePaths()
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, paths.ConfigFile, "[subagents]\nresult_max_chars = 70000\n")
+		workspace := t.TempDir()
+		writeFile(t, filepath.Join(workspace, DirName, ConfigName), "[subagents]\nresult_max_chars = 30000\n")
+		local, err := Load(WithWorkspaceRoot(workspace))
+		if err != nil {
+			t.Fatal(err)
+		}
+		global, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if local.SubagentResultMaxChars() != 30000 || global.SubagentResultMaxChars() != 70000 {
+			t.Fatalf("local/global = %d/%d", local.SubagentResultMaxChars(), global.SubagentResultMaxChars())
+		}
+		writeFile(t, filepath.Join(workspace, DirName, ConfigName), "[subagents]\nresult_max_chars = 999\n")
+		_, err = Load(WithWorkspaceRoot(workspace))
+		if err == nil ||
+			!strings.Contains(err.Error(), "subagents.result_max_chars must be between 1000 and 1000000: 999") {
+			t.Fatalf("invalid overlay = %v", err)
+		}
+	})
+	t.Run("Should reject values outside inclusive bounds", func(t *testing.T) {
+		t.Parallel()
+		for _, value := range []int{0, 999, 1000001} {
+			err := (SubagentsConfig{ResultMaxChars: value}).Validate()
+			want := fmt.Sprintf("subagents.result_max_chars must be between 1000 and 1000000: %d", value)
+			if err == nil || err.Error() != want {
+				t.Fatalf("value %d: %v", value, err)
+			}
+		}
+		for _, value := range []int{1000, 60000, 1000000} {
+			if err := (SubagentsConfig{ResultMaxChars: value}).Validate(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
