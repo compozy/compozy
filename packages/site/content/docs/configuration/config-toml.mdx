@@ -45,6 +45,7 @@ CompozyOS archives them on load instead of failing; see
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
 | `[session.derive]`                   | Size bounds of every transcript replay into a new agent session.                       | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
+| `[subagents]`                        | Size cap of the answer a subagent returns to its parent session.                       | `result_max_chars = 60000`                                                                            |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
@@ -308,6 +309,11 @@ timeout_cancel_grace = "30s"
 max_replay_bytes = 131072
 # Per-message cap on replayed message bodies; longer bodies end with " [content truncated]".
 max_message_bytes = 16384
+
+[subagents]
+# Cap, in characters, of the `result` a subagent returns to its parent (1000–1000000).
+# The full answer stays in the subagent's own session.
+result_max_chars = 60000
 
 [agents.soul]
 # Disabling pauses prompt injection but keeps inspect/validate/write/delete/history/rollback available.
@@ -1200,6 +1206,23 @@ max_message_bytes = 4096
 ```
 
 A workspace `.compozy/config.toml` may override either key for sessions in that workspace.
+
+## `[subagents]`
+
+`[subagents]` controls [subagents](/docs/sessions/subagents): child agent sessions an agent delegates
+one task to with `compozy__subagent_delegate`. Subagents have no depth, count, or TTL limits; recursion
+is bounded by narrowing-only permissions, the active-turn requirement, and the stop cascade. The one
+setting caps how much of a subagent's answer reaches the parent, so one subagent cannot flood the
+parent's context.
+
+| Field              | Type    | Default | Valid values             | Description                                                                                                                                                                                   |
+| ------------------ | ------- | ------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `result_max_chars` | integer | `60000` | `1000` through `1000000` | Truncation point of `result` in `compozy__subagent_status`, CLI, and HTTP/UDS payloads. A cut result sets `result_truncated: true`; the full text stays in the subagent's session transcript. |
+
+The value is read when a subagent settles, so a reload applies to subagents that finish afterwards.
+An invalid value fails config validation with the key path, for example
+`subagents.result_max_chars must be between 1000 and 1000000: 999`. A workspace
+`.compozy/config.toml` may override it for sessions in that workspace.
 
 ## `[agents.soul]`
 

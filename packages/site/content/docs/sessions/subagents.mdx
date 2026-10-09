@@ -1,0 +1,272 @@
+---
+title: Delegate to subagents
+description: Let an agent hand one task to another agent, provider, or model, keep working, and read the answer when it finishes — then watch, inspect, and cancel subagents yourself.
+---
+
+A **subagent** is a second agent session that your session's agent starts for one task. The agent
+writes the task, picks who should do it (another agent, another provider such as Codex, or another
+model), and keeps working. When the subagent finishes, CompozyOS wakes the agent, and the agent
+reads the answer and uses it.
+
+At the end of this page you will have asked a Claude session for a second opinion from Codex, watched
+the subagent run as a card in the transcript, seen the parent pick up the answer on its own, and
+checked the same subagent from the terminal.
+
+## Before you start
+
+- CompozyOS is running (`compozy status`) and the Web UI is open on a project. This page uses a
+  project named `checkout-api`.
+- You have a session with an agent that has CompozyOS tools, for example the default `claude` agent.
+- A second provider is signed in. This page uses Codex. If Codex isn't signed in, the agent will see
+  that it can't delegate there and tell you; any provider marked as available works.
+
+You don't configure anything to turn subagents on. Every session whose agent has the session tools
+can delegate.
+
+## Step 1: Ask for a second opinion
+
+In the session's composer, write what you want in plain words and send it:
+
+```text
+Ask Sol in Codex to review the plan in docs/diff-panel.md. I want a recommendation and the three
+biggest risks. Keep working on the edge cases while it does that.
+```
+
+The agent first checks who it can delegate to. A row appears in the transcript:
+
+```text
+⚒  Checked subagent capabilities 1 time
+```
+
+## Step 2: Watch the subagent card
+
+Right after that, a card appears where the agent delegated:
+
+```text
+(codex●) Sol: diff panel default and base diff design            7s ›
+         Running
+```
+
+The card shows the provider's mark, the title the agent gave the task, a status word, and how long it
+has been running. A second line shows what the subagent is doing right now, for example
+"Reading docs/diff-panel.md". The agent's own work keeps streaming next to it; it doesn't wait.
+
+Things you can do with the card:
+
+- **Hover or focus it** to see the model, reasoning effort, status, elapsed time, and a short preview
+  of the answer once there is one.
+- **Click it** to open the subagent's session in the same window. A divider at the top reads
+  "Subagent of" and the parent's name; **Open parent** takes you back. ⌘-click (Ctrl-click on Windows
+  and Linux) opens it in a new window instead.
+- When the agent starts several subagents at once, they share one group card, such as "3 subagents"
+  with "2 working · 1 done".
+
+If the parent's turn ends while subagents are still running, a banner above the composer reads
+"Waiting on subagent Sol: diff panel default and base diff design" (or "Waiting on 2 subagents").
+Its **Stop** button cancels them.
+
+## Step 3: Let the parent pick up the answer
+
+When Codex finishes, the card flips to **Completed** and its elapsed time stops. A moment later the
+parent agent is woken with a short message — you see it as a new turn — and it reads the result and
+answers you, for example:
+
+```text
+Sol recommends defaulting the panel to "branch" when the session has a worktree. The three biggest
+risks it found are …
+```
+
+You didn't have to prompt the parent again. If the parent was still in the middle of its turn, the
+answer reaches it in that turn when the agent supports it; otherwise it starts a new turn as soon as
+the current one ends, ahead of anything you queued.
+
+## Step 4: Find subagents later
+
+Subagent sessions don't crowd the sessions list. The parent's row shows a small chip instead, such as
+`1/3` while one of three subagents is running. Hover the chip for a preview, or click it to open the
+**Subagents** section of the session inspector, which lists every subagent of that session. Failed
+ones stay on top, finished ones fold into **Previous subagents**, and each row has a **Stop subagent**
+button while it runs. The chip disappears once every subagent has finished cleanly.
+
+Searching the sessions list still finds subagent sessions.
+
+## Step 5: Check it from the terminal
+
+List the subagents of the parent session (use your session id):
+
+```bash
+compozy session subagents sess-7f3a2c11d09e4b58
+```
+
+```text
+ID                     TITLE                                         RUNTIME              STATUS     ELAPSED
+sub-3c9e1f0a7b2d4e61   Sol: diff panel default and base diff design  codex/gpt-6.1-sol    completed  2m 48s
+```
+
+Show one subagent, including its answer:
+
+```bash
+compozy session subagents show sub-3c9e1f0a7b2d4e61
+```
+
+```text
+Subagent      sub-3c9e1f0a7b2d4e61
+Title         Sol: diff panel default and base diff design
+Parent        sess-7f3a2c11d09e4b58 (turn turn-91aa04c2)
+Child         sess-b41d77e05a3c9f12
+Runtime       codex · gpt-6.1-sol · high · normal
+Status        completed (result available) · acknowledged
+Started       2026-10-08 21:14:03 · settled 2026-10-08 21:16:51 (2m 48s)
+
+Result
+Recommendation: default the panel to 'branch' when the session has a worktree ...
+```
+
+Your ids, model names, and times will differ. "acknowledged" means the parent agent already read the
+answer.
+
+Cancel a subagent that is still running:
+
+```bash
+compozy session subagents cancel sub-3c9e1f0a7b2d4e61 --reason "Direction abandoned."
+```
+
+```text
+Cancel requested for sub-3c9e1f0a7b2d4e61 (Sol: diff panel default and base diff design).
+```
+
+Add `--json` to any of these commands for machine-readable output. The list also filters with
+`--origin delegated|provider_native`, `--status running,completed`, `--limit` (default 50, at most
+200), and `--cursor`. To list sessions without subagent sessions, the way the sidebar does:
+
+```bash
+compozy session list --subagents exclude
+```
+
+## How subagents behave
+
+- **The subagent sees only the task.** It doesn't get the parent's conversation or attachments, so a
+  good agent writes the task with everything the subagent needs.
+- **Permissions only narrow.** A subagent can do what its parent can do, or less. It never gets more.
+- **No limits on depth or count.** A subagent can start its own subagents. Nothing expires on a timer.
+- **Shared files.** Subagents work in the same project and worktree as the parent. Two subagents
+  editing the same file at once can step on each other, so ask for separate files or read-only work.
+- **Stop means stop.** Stopping the parent session stops all its running subagents. Interrupting one
+  turn doesn't stop them, but their answers no longer wake the parent; read them with
+  `compozy session subagents show`.
+- **Approvals stay with the subagent.** When a subagent needs your approval, its card reads "Waiting
+  for you". Open it and answer there.
+- **Restarts are safe.** Results and pending wake-ups survive a CompozyOS restart. A subagent that
+  finished while CompozyOS was off wakes the parent once when it comes back.
+- **Archiving follows the parent.** Archive or unarchive the parent and its subagents follow.
+  Subagent sessions have no archive action of their own.
+
+Claude can also start its own built-in subagents (its Agent or Task tool). CompozyOS shows those as
+the same kind of card with their inner steps tucked inside, so they no longer mix into the parent's
+work. They can't be canceled on their own; stop the parent's turn instead.
+
+## Limit the size of answers
+
+A long answer is cut before it reaches the parent so one subagent can't flood its context. The
+default is 60,000 characters; the full answer always stays in the subagent's own session. Change it
+with:
+
+```bash
+compozy config set subagents.result_max_chars 20000
+```
+
+```toml
+[subagents]
+result_max_chars = 20000 # 1,000–1,000,000; default 60000
+```
+
+When an answer is cut, `compozy session subagents show --json` reports `"result_truncated": true`.
+See [`[subagents]`](/docs/configuration/config-toml#subagents) in the config reference.
+
+## React when a subagent finishes
+
+Extensions and config hooks can observe every finished subagent with the `subagent.settled` hook.
+Its payload names the subagent, its parent and child sessions, the final status, the provider and
+model, and how long it ran:
+
+```json
+{
+  "event": "subagent.settled",
+  "workspace_id": "ws-01",
+  "subagent_id": "sub-3c9e1f0a7b2d4e61",
+  "parent_session_id": "sess-7f3a2c11d09e4b58",
+  "child_session_id": "sess-b41d77e05a3c9f12",
+  "origin": "delegated",
+  "status": "completed",
+  "runtime": { "provider": "codex", "model": "gpt-6.1-sol" },
+  "duration_ms": 167608
+}
+```
+
+The existing `spawn.pre_create` hook also runs before every delegation, with `spawn_role:
+"subagent"` and a `subagent` object holding the `title`, `role`, and `task_chars`. A hook can deny a
+delegation the same way it denies a spawn. See the [hook event catalog](/docs/hooks/event-catalog#subagent).
+
+## For agents: the subagent tools
+
+Agents use four native tools, all in the `sessions` toolset. Each one needs an active turn in the
+calling session.
+
+| Tool                             | What it does                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `compozy__subagent_capabilities` | Lists the agents, providers, and models the caller can delegate to, and why any are unavailable. |
+| `compozy__subagent_delegate`     | Starts a subagent for one self-contained `task`; `mode` is `async` (default) or `wait`.          |
+| `compozy__subagent_status`       | Reads a subagent's status and answer; reading a finished answer marks it as delivered.           |
+| `compozy__subagent_cancel`       | Cancels a running subagent.                                                                      |
+
+The intended loop is: check capabilities, delegate with `mode: "async"`, end the turn, get woken, call
+`compozy__subagent_status`, answer. The wake message is a pointer, not the answer:
+
+```text
+Subagent "Sol: diff panel default and base diff design" (sub-3c9e1f0a7b2d4e61) finished: completed.
+Call compozy__subagent_status to read each result.
+```
+
+`mode: "wait"` blocks until the answer or `timeout_ms` (default 10 minutes, at most 60). A timeout
+doesn't cancel the subagent; the agent is woken later instead. Use
+[`compozy__session_spawn`](/docs/sessions/orchestration) instead when you need a long-lived child with
+its own TTL that you prompt repeatedly.
+
+## If something goes wrong
+
+| What you see                                                     | What to do                                                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| The agent says `Provider codex is unavailable: …`                | Sign in to that provider or turn it on, then ask again. `compozy__subagent_capabilities` lists the reason for each provider. |
+| The agent says `Model … is not available on codex. Available: …` | Ask for one of the listed models, or leave the model out to use the provider's default.                                      |
+| `Subagents require an active turn in the calling session.`       | Only an agent in the middle of a turn can delegate. Ask the agent to do it in a prompt.                                      |
+| `Subagent cannot widen permissions: …`                           | The task asked for a tool or mode the parent doesn't have. Narrow the request or change the parent's permissions.            |
+| A card reads **Waiting for you**                                 | The subagent needs an approval or an answer. Click the card and respond in its session.                                      |
+| `subagent_not_cancelable` when you cancel                        | It's one of Claude's built-in subagents. Stop the parent's turn instead.                                                     |
+| `Subagent sessions are archived with their parent session.`      | Archive or unarchive the parent session.                                                                                     |
+| `subagent_not_found: subagent sub-… not found` from the CLI      | Check the id with `compozy session subagents <session-id>`, and that you're on the parent's profile.                         |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/sessions/orchestration"
+    label="Reference"
+    title="Session orchestration"
+    description="Wait for session state, spawn governed children with a TTL, and resolve their approvals."
+    meta="Spawn and wait"
+  />
+  <GuideCard
+    href="/docs/hooks/event-catalog#subagent"
+    label="Reference"
+    title="subagent.settled hook"
+    description="Payload fields and how the hook relates to spawn.pre_create."
+    meta="Hooks"
+  />
+  <GuideCard
+    href="/docs/configuration/config-toml#subagents"
+    label="Reference"
+    title="[subagents] config"
+    description="Cap the size of the answer a subagent returns to its parent."
+    meta="config.toml"
+  />
+</GuideGrid>
