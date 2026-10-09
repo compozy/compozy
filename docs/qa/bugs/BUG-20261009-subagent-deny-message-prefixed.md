@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-deny-message-prefixed: Hook denial message is wrapped in internal text
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Cosmetic
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Ada
@@ -30,3 +30,7 @@ A `spawn.pre_create` deny returns `capability_denied` with `hooks: event "spawn.
 
 Production fix and regression coverage in `TestSubagentHookDaemonIntegration`. Automated verification
 is recorded in `sa-fix-core-fix3.md`; status remains open pending the QA owner’s real-provider re-walk.
+
+## Retest 2026-10-09 round 3
+
+Fixed in d5192b98a. Re-walked on the stock build at 1d7f690e5 with a real Claude parent and Codex children: A `spawn.pre_create` deny returned `capability_denied` with exactly `QA policy: DENYME delegations are blocked.` Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

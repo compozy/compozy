@@ -6,11 +6,11 @@ persona: Bruno
 journey: J-13-follow-a-live-run
 expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the card flips to Completed and the wake turn renders before the parent's final reply; every surface matches its board VC in docs/design/opendesign/subagents/.
 entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner and working status line; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03)
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-card-hosted-tool-name; BUG-20261009-subagent-card-live-missing; BUG-20261009-subagent-running-count-settled; BUG-20261009-subagent-preview-raw-markdown
-fix_status: pending
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: c5105724d; e7e9b276a; 1ca1f1a38; 7573fab3a; f4a2d1918; 4c5dff7e4
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
 last_report: docs/qa/reports/2026-10-09-subagents-r2.md
 overlaps: RT-subagent-delegate; ET-web-native-subagent; ET-web-session-sidebar-threads; ET-web-session-transcript-calm-grammar
@@ -67,3 +67,5 @@ lane still owns the card rendering and navigation assertions above.
 QA walk 2026-10-09: no card renders for real Claude delegations on the stock build; on a QA-local patched build the card, group, hover, drill-in divider, and waiting banner with Stop worked. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents.md`.
 
 Re-walk 2026-10-09 (stock 980d51fbe): cards, group, hover (pointer and keyboard focus, Escape), drill-in divider, ⌘-click second window, waiting banner, plain-text previews, and the running count pass. The card still lags behind a delegate tool row in a composer-submitted live turn. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+Re-walk round 3 2026-10-09 (stock 1d7f690e5): with the prompt sent from the open window's composer, the group card appeared within 5 s of delegation mid-turn and followed both children to `2 done`; prose blocks around the card stay separate paragraphs. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

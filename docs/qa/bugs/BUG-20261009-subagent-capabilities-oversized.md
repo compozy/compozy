@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-capabilities-oversized: Capabilities answer is too large for Claude to read
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Ada
@@ -32,3 +32,7 @@ with additive `models_total` and `models_truncated`. Unavailable providers expos
 list. Delegate validation retains the complete catalog. UT-017 covers a 611-model catalog and an
 omitted valid delegate target; native binding coverage checks the additive wire fields. Real-provider
 verification remains pending; this entry's status is unchanged until the QA re-walk.
+
+## Retest 2026-10-09 round 3
+
+Fixed in 0961418d8. Re-walked on the stock build at 1d7f690e5 with a real Claude parent and Codex children: `compozy__subagent_capabilities` returned 21,048 characters inline to Claude; no file spill, no `jq` step. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

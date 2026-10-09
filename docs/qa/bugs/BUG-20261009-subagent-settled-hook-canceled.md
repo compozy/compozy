@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-settled-hook-canceled: subagent.settled hooks never run
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -30,3 +30,7 @@ A config hook on `subagent.settled` never executed. Each of 3 settled subagents 
 
 Production fix and regression coverage in `TestSubagentHookDaemonIntegration`. Automated verification
 is recorded in `sa-fix-core-fix3.md`; status remains open pending the QA owner’s real-provider re-walk.
+
+## Retest 2026-10-09 round 3
+
+Fixed in d5192b98a. Re-walked on the stock build at 1d7f690e5 with a real Claude parent and Codex children: A subprocess hook on `subagent.settled` (which sleeps 2 s before writing) ran to completion once with the documented payload (`subagent_id`, `parent_session_id`, `child_session_id`, `origin`, `status`, `runtime`, `duration_ms`); no `async_failed`. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

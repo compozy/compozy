@@ -71,3 +71,24 @@ a waiting-for-approval child, stop-failure toasts, search nesting, archive rules
 
 Fail. Two scenarios are open: RT-subagent-delegate (1 High, 1 Medium, 1 Low new bugs) and ET-web-subagent-card
 (1 Medium re-found). 11 of the 12 round-1 bugs are verified.
+
+## Round 3 (2026-10-09, stock 1d7f690e5)
+
+Targeted re-walk of the round-2 failures on a fresh isolated lab (`compozy-subagents-qa-r3-20261009-123022-890888`,
+torn down clean, `make qa-reap` clean) with a real Claude parent and Codex children.
+
+| Bug | Result |
+| --- | --- |
+| subagent-settled-hook-canceled | verified (d5192b98a): a subprocess hook that sleeps 2 s ran to completion once with the documented payload; no `async_failed` |
+| subagent-capabilities-oversized | verified (0961418d8): 21,048 characters returned inline, no file spill |
+| subagent-deny-message-prefixed | verified (d5192b98a): message is exactly the hook reason |
+| subagent-card-live-missing | verified (f4a2d1918): composer-submitted turn shows the group card within 5 s of delegation mid-turn |
+
+Prose blocks around cards are separate paragraphs (4c5dff7e4). Remaining glue such as `…4 bullets.Codex is still…`
+appears only when Claude continues after the operator-home Stop hook with no message boundary in the ACP stream; it
+is not specific to subagent cards and was avoided for the PR screenshots by prompting without follow-up promises.
+
+Verdicts: RT-subagent-delegate pass, ET-web-subagent-card pass. All five subagent scenarios now pass.
+
+Recaptured PR screenshots (stock build): 01, 02, 03a, 03b, 04, 05, 06, 07, 08. Kept 07b, 09a, 09b from round 2.
+

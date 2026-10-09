@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-card-live-missing: Cards appear only after the delegating turn ends
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -35,3 +35,7 @@ landed. With the prompt sent from the open session window's composer, the turn s
 40 s in another), and the group card replaced it later in the same turn. The persisted transcript and the stream
 snapshot already carried both `data-compozy-subagent` parts at that moment, so the gap is in how the composer-submitted
 live turn appends parts. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+## Retest 2026-10-09 round 3
+
+Fixed in f4a2d1918. Re-walked on the stock build at 1d7f690e5 with a real Claude parent and Codex children: Prompt sent from the open window's composer: the group card `2 subagents · 2 working` appeared within 5 s of delegation while the parent turn was still running (`2 agents running`), and followed the children to `2 done`. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
