@@ -59,6 +59,13 @@ func (r managerSubagentRuntime) Admit(ctx context.Context, row store.SessionSuba
 	if row.ChildSessionID == nil {
 		return errors.New("session: subagent child is missing")
 	}
+	// Explicit queue mode does not resume retained sessions. Recovery owns the
+	// missing first admission, including children accepted before runtime binding.
+	if _, active := r.m.Get(*row.ChildSessionID); !active {
+		if _, err := r.m.Resume(ctx, *row.ChildSessionID); err != nil {
+			return err
+		}
+	}
 	result, err := r.m.SendPrompt(
 		ctx,
 		*row.ChildSessionID,
@@ -120,13 +127,6 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 			if event.TurnID == "" {
 				continue
 			}
-			if turn == "" {
-				turn = event.TurnID
-			}
-			if event.TurnID != turn {
-				finished = true
-				break
-			}
 			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 			if err != nil {
 				return "", err
@@ -135,12 +135,20 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 				continue
 			}
 			events = append(events, event)
+			// Stop receipts can own newer turn IDs than the last prompt. Select
+			// the admitted prompt, never a lifecycle-only turn or an older answer.
+			if event.Type == acp.EventTypeUserMessage || event.Type == acp.EventTypeSyntheticReentry {
+				turn = event.TurnID
+				finished = true
+				break
+			}
 		}
 		if finished {
 			break
 		}
 		query.BeforeSequence = page[0].Sequence
 	}
+	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool { return event.TurnID != turn })
 	// Canonical assembly preserves chunk boundaries and complete assistant messages.
 	// The UI projection merges a turn's assistant segments and has no turn metadata.
 	messages, err := transcript.Assemble(events)
@@ -183,14 +191,17 @@ func (r managerSubagentRuntime) QueueWake(
 	wake store.SessionSubagentWake,
 	rows []store.SessionSubagent,
 ) (string, error) {
-	child, err := r.m.lookupPromptSession(ctx, wake.ParentSessionID)
+	parent, err := r.m.Status(ctx, wake.ParentSessionID)
 	if err != nil {
 		return "", err
+	}
+	if !subagentParentAcceptsWake(parent) {
+		return "", ErrSessionNotActive
 	}
 	if r.m.inputQueue == nil {
 		return "", errors.New("session: subagent wakes require the durable input queue")
 	}
-	generation, err := r.m.currentInputGeneration(ctx, child.ID)
+	generation, err := r.m.currentInputGeneration(ctx, parent.ID)
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +219,7 @@ func (r managerSubagentRuntime) QueueWake(
 	}
 	entry, _, err := r.m.inputQueueStore.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
 		ID:                id,
-		SessionID:         child.ID,
+		SessionID:         parent.ID,
 		OwnerKind:         store.SessionInputOwnerSynthetic,
 		MessageID:         wake.WakeMessageID,
 		Priority:          1,
@@ -229,7 +240,7 @@ func (r managerSubagentRuntime) QueueWake(
 		return "", err
 	}
 	// The caller records the wake's queue identity before a tracked dispatch can call back.
-	r.m.startTrackedPromptTask(func() { r.m.startNextQueuedInputPrompt(child.ID) })
+	r.m.startTrackedPromptTask(func() { r.m.startNextQueuedInputPrompt(parent.ID) })
 	return entry.ID, nil
 }
 func (r managerSubagentRuntime) CancelWake(ctx context.Context, wake store.SessionSubagentWake) error {

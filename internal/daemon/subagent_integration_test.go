@@ -7,6 +7,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1024,4 +1025,396 @@ func TestSubagentBootFailureDaemonIntegration(t *testing.T) {
 			t.Fatal(inputs, err)
 		}
 	})
+}
+
+// IT-031: a fresh daemon must admit the durable task exactly once after a crash
+// between LinkChild and first admission. Owner: daemon restart integration.
+func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
+	t.Run("Should readmit a linked child exactly once across a full restart", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+		db := d.registry.(store.SubagentStore)
+		now := time.Now().UTC()
+		row := store.SessionSubagent{
+			ID: "sub-first-admission", WorkspaceID: workspace, ParentSessionID: parent.ID, Depth: 1,
+			ParentTurnID: caller.TurnID, ParentToolCallID: caller.ToolCallID,
+			Origin: store.SubagentOriginDelegated, IdempotencyKey: "first-admission",
+			RequestFingerprint: "first-admission", Title: "Recover first admission", Role: "general",
+			TaskChars: len("slow child"), PendingTask: new("slow child"),
+			RuntimeAgent: "subagent-test", RuntimeProvider: acpmock.ProviderName,
+			Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
+			WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryNone,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		if _, _, err := db.ReserveSubagent(t.Context(), row); err != nil {
+			t.Fatal(err)
+		}
+		child, err := manager.Spawn(t.Context(), session.SpawnOpts{
+			ParentSessionID: parent.ID, ParentTurnID: caller.TurnID, AgentName: "subagent-test",
+			SpawnRole: "subagent", AutoStopOnParent: true, NotifyCreatorSet: true,
+			IdempotencyKey: row.ID,
+			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.LinkChild(t.Context(), row.ID, child.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		// Suspend the reactor at the durable commit boundary. Teardown still joins
+		// the real processes and closes every database before the new daemon boots.
+		manager.SetSubagentService(nil)
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		freshManager := restarted.sessions.(*session.Manager)
+		service := restarted.SubagentService()
+		reaper := &spawnReaper{sessions: freshManager, logger: discardLogger(),
+			now: func() time.Time { return time.Now().Add(time.Hour) }}
+		report, err := reaper.Sweep(t.Context())
+		if err != nil || report.Reaped != 0 {
+			t.Fatal(report, err)
+		}
+		waitForRuntimeCondition(t, "recovered child result", 10*time.Second, func() bool {
+			got, err := service.Get(t.Context(), workspace, row.ID)
+			return err == nil && store.IsSubagentStatusTerminal(got.Status)
+		})
+		got, err := restarted.registry.(store.SubagentStore).GetSubagent(t.Context(), workspace, row.ID)
+		if got.Error != nil {
+			t.Logf("recovery failure: %s", *got.Error)
+		}
+		if err != nil || got.Status != store.SubagentStatusCompleted || got.PendingTask != nil || got.Result == nil ||
+			*got.Result != "slow answer" {
+			t.Fatalf("recovered row = %+v, err = %v, failure = %v", got, err, got.Error)
+		}
+		for range 2 {
+			if err := service.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		page, err := freshManager.TranscriptPage(t.Context(), child.ID, transcript.PageQuery{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		admissions := 0
+		for _, entry := range page.Entries {
+			var meta struct {
+				MessageID string `json:"message_id"`
+			}
+			if entry.Message.Role == transcript.UIRoleUser && json.Unmarshal(entry.Message.Metadata, &meta) == nil &&
+				meta.MessageID == row.ID {
+				admissions++
+			}
+		}
+		if admissions != 1 {
+			t.Fatalf("first-prompt admissions = %d, want 1", admissions)
+		}
+	})
+}
+
+// IT-011: replay the durable checkpoint of a settled ACP child whose reactor
+// observation was lost, then reopen the entire daemon twice over the same home.
+// Owner: daemon restart integration; one retained wake, dispatched only on resume.
+func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		missed bool
+	}{
+		{"Should recover an unobserved result and retain its wake until resume", true},
+		{"Should retain an already queued wake across shutdown and restart", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, manager, workspace := newSubagentDaemonIntegration(t)
+			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
+			if tc.missed {
+				manager.SetSubagentService(nil)
+			}
+			row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
+				Caller: caller, Task: "child work", Title: "Unobserved completion",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			child, ok := manager.Get(*row.ChildSessionID)
+			if !ok {
+				t.Fatal("missing child")
+			}
+			waitForRuntimeCondition(t, "persisted child completion", 10*time.Second, func() bool {
+				return !child.IsPrompting() && child.CurrentTurnID() == ""
+			})
+			if err := manager.StopWithCause(
+				t.Context(),
+				child.ID,
+				session.CauseCompleted,
+				"fixture task completed",
+			); err != nil {
+				t.Fatal(err)
+			}
+			before, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.missed {
+				if before.Status != store.SubagentStatusRunning {
+					t.Fatal(before)
+				}
+			} else {
+				waitForRuntimeCondition(t, "wake queued before shutdown", 10*time.Second, func() bool {
+					before, err = d.SubagentService().Get(t.Context(), workspace, row.ID)
+					return err == nil && before.WakeMessageID != nil && before.Delivery == store.SubagentDeliveryClaimed
+				})
+			}
+			home, cfg := d.homePaths, d.config
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+			restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+			settled, wake := requireSubagentRestartWake(t, restarted, workspace, row.ID)
+			if before.WakeMessageID != nil && *before.WakeMessageID != *settled.WakeMessageID {
+				t.Fatal("queued wake identity changed on shutdown")
+			}
+			if settled.Status != store.SubagentStatusCompleted || settled.Result == nil ||
+				*settled.Result != "child answer" {
+				t.Fatalf("settled = %+v", settled)
+			}
+			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+			restarted = reopenSubagentIntegrationDaemon(t, home, &cfg)
+			again, secondWake := requireSubagentRestartWake(t, restarted, workspace, row.ID)
+			if wake.ID != secondWake.ID || *settled.WakeMessageID != *again.WakeMessageID ||
+				!settled.SettledAt.Equal(*again.SettledAt) {
+				t.Fatalf("restart changed settlement or wake: %+v / %+v", settled, again)
+			}
+			requireSubagentRestartDelivery(t, restarted, workspace, row.ID, parent.ID)
+		})
+	}
+}
+
+func reopenSubagentIntegrationDaemon(t *testing.T, home compozyconfig.HomePaths, cfg *compozyconfig.Config) *Daemon {
+	t.Helper()
+	d := newTestDaemon(t, home, cfg)
+	if err := d.boot(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Error(err)
+		}
+	})
+	return d
+}
+
+func requireSubagentRestartWake(
+	t *testing.T,
+	d *Daemon,
+	workspace, id string,
+) (session.Subagent, store.SessionInputQueueEntry) {
+	t.Helper()
+	service := d.SubagentService()
+	for range 2 {
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row, err := service.Get(t.Context(), workspace, id)
+	if err != nil || !store.IsSubagentStatusTerminal(row.Status) || row.WakeMessageID == nil ||
+		row.Delivery != store.SubagentDeliveryClaimed {
+		t.Fatalf("recovered row = %+v, err = %v", row, err)
+	}
+	inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), row.ParentSessionID)
+	if err != nil || len(inputs) != 1 || inputs[0].MessageID != *row.WakeMessageID {
+		t.Fatal(inputs, err)
+	}
+	manager := d.sessions.(*session.Manager)
+	if _, active := manager.Get(row.ParentSessionID); active {
+		t.Fatal("boot resumed the parent implicitly")
+	}
+	return row, inputs[0]
+}
+
+func requireSubagentRestartDelivery(t *testing.T, d *Daemon, workspace, id, parent string) {
+	t.Helper()
+	manager := d.sessions.(*session.Manager)
+	if _, err := manager.Resume(t.Context(), parent); err != nil {
+		t.Fatal(err)
+	}
+	waitForRuntimeCondition(t, "wake delivery after explicit resume", 10*time.Second, func() bool {
+		row, err := d.SubagentService().Get(t.Context(), workspace, id)
+		return err == nil && row.Delivery == store.SubagentDeliveryDelivered
+	})
+	if err := d.SubagentService().Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	events, err := manager.Events(t.Context(), parent, store.EventQuery{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wakes := 0
+	for _, event := range events {
+		if event.Type == acp.EventTypeSyntheticReentry {
+			wakes++
+		}
+	}
+	if wakes != 1 {
+		t.Fatalf("wake responses = %d, want 1", wakes)
+	}
+}
+
+// IT-012: kill the actual daemon-hosting process mid child turn; ordinary boot
+// repair must settle the child and produce one wake retained until parent resume.
+// Owner: daemon restart integration, real ACP subprocesses and persisted stores.
+func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
+	if handoff := os.Getenv("COMPOZY_SUBAGENT_CRASH_HANDOFF"); handoff != "" {
+		runSubagentCrashProcess(t, handoff)
+		return
+	}
+	t.Run("Should recover a child after killing its daemon process", func(t *testing.T) {
+		// Own every helper-created temporary directory, including TestMain's seed.
+		root, err := os.MkdirTemp("/tmp", "sa-crash-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(root); err != nil {
+				t.Error(err)
+			}
+		})
+		handoff := filepath.Join(root, "handoff.json")
+		output, err := os.Create(filepath.Join(root, "daemon.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := output.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		cmd := exec.CommandContext(
+			t.Context(),
+			os.Args[0],
+			"-test.run=^TestSubagentCrashRestartDaemonIntegration$",
+			"-test.timeout=2m",
+		)
+		cmd.Env = append(os.Environ(), "TMPDIR="+root, "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff)
+		cmd.Stdout, cmd.Stderr = output, output
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		waited := false
+		t.Cleanup(func() {
+			if !waited {
+				if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+					t.Error(err)
+				}
+				<-done
+			}
+		})
+		waitForRuntimeCondition(t, "daemon child mid turn", 30*time.Second, func() bool {
+			select {
+			case err := <-done:
+				waited = true
+				logs, readErr := os.ReadFile(output.Name())
+				t.Fatalf("helper exited before checkpoint: %v (%v)\n%s", err, readErr, logs)
+			default:
+			}
+			_, err := os.Stat(handoff)
+			return err == nil
+		})
+		data, err := os.ReadFile(handoff)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var checkpoint subagentCrashCheckpoint
+		if err := json.Unmarshal(data, &checkpoint); err != nil {
+			t.Fatal(err)
+		}
+		if err := cmd.Process.Kill(); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err == nil {
+			t.Fatal("daemon helper was not killed")
+		}
+		waited = true
+		cfg, err := compozyconfig.LoadGlobalConfig(checkpoint.Home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Automation.Enabled = false
+		cfg.Roles.AutoTitle.Enabled = false
+		cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+		restarted := reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
+		row, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, checkpoint.Row.ID)
+		info, err := restarted.sessions.Status(t.Context(), *row.ChildSessionID)
+		if err != nil || info.State != session.StateStopped || info.StopReason != store.StopAgentCrashed {
+			t.Fatalf("child recovery = %+v, err = %v", info, err)
+		}
+		if row.Status != store.SubagentStatusFailed || row.Error == nil {
+			t.Fatalf("crashed row = %+v", row)
+		}
+		// The existing dead-runtime contract forbids reviving a process-failed
+		// parent. Preserve its mailbox without bypassing that independent gate.
+		if _, err := restarted.sessions.Resume(
+			t.Context(),
+			row.ParentSessionID,
+		); !errors.Is(
+			err,
+			store.ErrSessionNotAttachable,
+		) {
+			t.Fatalf("Resume(dead parent) = %v, want ErrSessionNotAttachable", err)
+		}
+		again, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, row.ID)
+		if !row.SettledAt.Equal(*again.SettledAt) || *row.WakeMessageID != *again.WakeMessageID {
+			t.Fatal("recovery duplicated settlement or wake", again)
+		}
+	})
+}
+
+type subagentCrashCheckpoint struct {
+	Home      compozyconfig.HomePaths
+	Workspace string
+	Row       session.Subagent
+}
+
+func runSubagentCrashProcess(t *testing.T, handoff string) {
+	t.Helper()
+	d, manager, workspace := newSubagentDaemonIntegration(t)
+	_, caller := startSubagentIntegrationParent(t, manager, workspace)
+	row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
+		Caller: caller, Task: "hold parent", Title: "Crash mid child turn",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, ok := manager.Get(*row.ChildSessionID)
+	if !ok {
+		t.Fatal("missing child")
+	}
+	waitForRuntimeCondition(t, "persisted child turn", 10*time.Second, func() bool {
+		events, err := manager.Events(t.Context(), child.ID, store.EventQuery{Limit: 100})
+		if err != nil || !child.IsPrompting() || child.CurrentTurnID() == "" {
+			return false
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeThought {
+				return true
+			}
+		}
+		return false
+	})
+	data, err := json.Marshal(subagentCrashCheckpoint{Home: d.homePaths, Workspace: workspace, Row: row})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(handoff+".tmp", data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(handoff+".tmp", handoff); err != nil {
+		t.Fatal(err)
+	}
+	<-t.Context().Done()
 }

@@ -100,7 +100,10 @@ func (s *subagentService) recoverWakes(ctx context.Context) error {
 		if err != nil && !errors.Is(err, ErrSessionNotFound) {
 			return err
 		}
-		if snap.Info == nil || snap.Info.State != StateActive {
+		if snap.Info != nil && snap.Info.State == StateStopping {
+			continue
+		}
+		if !subagentParentAcceptsWake(snap.Info) {
 			if err := s.OnParentStopped(ctx, wake.ParentSessionID); err != nil {
 				return err
 			}

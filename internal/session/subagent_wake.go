@@ -169,7 +169,10 @@ func (s *subagentService) successor(ctx context.Context, parent string) error {
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		return err
 	}
-	if snap.Info == nil || snap.Info.State != StateActive {
+	if snap.Info != nil && snap.Info.State == StateStopping {
+		return nil
+	}
+	if !subagentParentAcceptsWake(snap.Info) {
 		return s.dispose(ctx, store.SubagentDisposeFilter{ParentSessionID: parent, IDs: ids})
 	}
 	wakes, err := s.parentWakes(ctx, parent)

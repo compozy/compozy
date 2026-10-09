@@ -257,6 +257,10 @@ func (r *spawnReaper) reapSpawnedCandidate(
 		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
 	}
 	if lineage.AutoStopOnParent && !spawnReaperLiveState(parent.State) {
+		if lineage.SpawnRole == store.SubagentSpawnRole &&
+			(parent.StopReason == store.StopShutdown || parent.StopReason == store.StopAgentCrashed) {
+			return spawnReapCandidate{}, false
+		}
 		return spawnReapCandidate{
 			child:  info,
 			parent: parent,
