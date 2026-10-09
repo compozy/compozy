@@ -123,6 +123,12 @@ interface ToolLabels {
   active: string;
   past: string;
   failure: string;
+  /**
+   * A settled call that failed, for families whose copy names the attempt
+   * (COPY.md "Subagent Terms": "Tried to check subagent capabilities"). Absent
+   * everywhere else: the verb keeps its tense and the × glyph carries the failure.
+   */
+  tried?: string;
 }
 
 const TOOL_LABELS: Record<string, ToolLabels> = {
@@ -201,21 +207,25 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
     active: "Checking subagent capabilities",
     past: "Checked subagent capabilities",
     failure: "check subagent capabilities",
+    tried: "Tried to check subagent capabilities",
   },
   compozy__subagent_delegate: {
     active: "Delegating a subagent",
     past: "Delegated a subagent",
     failure: "delegate a subagent",
+    tried: "Tried to delegate a subagent",
   },
   compozy__subagent_status: {
     active: "Reading subagent status",
     past: "Read subagent status",
     failure: "read subagent status",
+    tried: "Tried to read subagent status",
   },
   compozy__subagent_cancel: {
     active: "Canceling a subagent",
     past: "Canceled a subagent",
     failure: "cancel a subagent",
+    tried: "Tried to cancel a subagent",
   },
   compozy__terminal_request_input: {
     active: "Requesting input…",
@@ -309,6 +319,15 @@ export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
     case "failure":
       return `use ${name}`;
   }
+}
+
+/**
+ * The settled label of a call: its past tense, or its family's "Tried to …"
+ * when the call failed and the family names the attempt.
+ */
+export function getToolSettledLabel(toolName: string, failed: boolean): string {
+  const tried = failed ? TOOL_LABELS[toolName]?.tried : undefined;
+  return tried ?? getToolLabel(toolName, "past");
 }
 
 const RAW_TOOL_ID = /^[\w.:-]+$/u;
