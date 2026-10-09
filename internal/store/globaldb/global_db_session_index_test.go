@@ -1972,6 +1972,14 @@ func TestGlobalDBSubagentCatalog(t *testing.T) {
 			if page.Total != total {
 				t.Fatalf("total %s = %d", filter, page.Total)
 			}
+			facets, err := db.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
+				Limit: 1, Subagents: filter, Sort: "recent",
+			})
+			if err != nil || facets.Facets.All != total || len(facets.ByWorkspace) != 1 ||
+				facets.ByWorkspace[0].WorkspaceID != workspace || facets.ByWorkspace[0].Facets.All != total {
+				t.Fatalf("facets %q = %#v, error=%v; want global and workspace total %d", filter, facets, err, total)
+			}
 			foundParent := false
 			for _, r := range page.Sessions {
 				isSub := r.Lineage != nil && r.Lineage.SpawnRole == store.SubagentSpawnRole
@@ -1999,6 +2007,11 @@ func TestGlobalDBSubagentCatalog(t *testing.T) {
 			},
 		); err == nil {
 			t.Fatal("accepted invalid page filter")
+		}
+		if _, err := db.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Limit: 100, Subagents: "bogus",
+		}); err == nil {
+			t.Fatal("accepted invalid facets filter")
 		}
 		sums, err := db.Summaries(ctx, []string{parent, "empty"})
 		if err != nil {

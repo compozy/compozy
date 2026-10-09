@@ -182,6 +182,18 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 			}
 			return info, nil
 		},
+		CatalogFacetsFn: func(_ context.Context, query session.ListQuery) (store.SessionCatalogFacetResult, error) {
+			service.filter = query.Subagents
+			total := 120
+			if query.Subagents == "exclude" {
+				total = 90
+			}
+			if query.Subagents == "only" {
+				total = 30
+			}
+			facets := store.SessionCatalogFacets{All: total}
+			return store.SessionCatalogFacetResult{Facets: facets, ByWorkspace: []store.WorkspaceSessionCatalogFacets{{WorkspaceID: "ws-registry", Facets: facets}}}, nil
+		},
 		ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 			service.filter = query.Subagents
 			return session.ListPage{Sessions: []*session.Info{{ID: "parent", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID}}, Total: 120, Limit: 100}, nil
@@ -207,4 +219,48 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 		t.Fatal(err)
 	}
 	return a, b
+}
+
+// IT-029: facets preserve visibility filters at both transport boundaries.
+func TestSubagentSessionFacets(t *testing.T) {
+	t.Parallel()
+	for _, filter := range []string{"", "include", "exclude", "only", "bad"} {
+		t.Run("Should forward and validate facets visibility "+filter, func(t *testing.T) {
+			t.Parallel()
+			service := &subagentParityService{}
+			a, b := subagentParityRouters(t, service)
+			path := "/api/sessions/facets?workspace_id=ws-public"
+			if filter != "" {
+				path += "&subagents=" + filter
+			}
+			var previous string
+			for _, router := range []http.Handler{a, b} {
+				response := testutil.PerformRequest(t, router, "GET", path, nil)
+				if previous != "" && previous != response.Body.String() {
+					t.Fatalf("transport mismatch: %s vs %s", previous, response.Body)
+				}
+				previous = response.Body.String()
+				if filter == "bad" {
+					if response.Code != http.StatusBadRequest || !strings.Contains(previous, `"code":"invalid_request"`) {
+						t.Fatalf("invalid facets: %d %s", response.Code, previous)
+					}
+					continue
+				}
+				total := 120
+				if filter == "exclude" {
+					total = 90
+				}
+				if filter == "only" {
+					total = 30
+				}
+				var payload contract.SessionCatalogFacetsResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != http.StatusOK || payload.Facets.All != total || len(payload.ByWorkspace) != 1 || payload.ByWorkspace[0].Facets.All != total || service.filter != filter {
+					t.Fatalf("facets: %d %s filter=%q; want total=%d filter=%q", response.Code, previous, service.filter, total, filter)
+				}
+			}
+		})
+	}
 }
