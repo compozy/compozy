@@ -61,6 +61,9 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) canonicalEventPayload {
 	return canonicalEventPayload{
 		Schema:            CanonicalSchema,
+		ParentToolCallID:  event.ParentToolCallID(),
+		ProviderToolName:  event.ProviderToolName(),
+		Status:            event.ToolStatus(),
 		Type:              event.Type,
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
@@ -177,7 +180,8 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithGoalPromptMeta(decoded.Goal).
+	}.WithProviderToolMetadata(decoded.ParentToolCallID, decoded.ProviderToolName, decoded.Status).
+		WithGoalPromptMeta(decoded.Goal).
 		WithRequestID(decoded.RequestID).
 		WithResolvedBy(decoded.ResolvedBy).
 		WithDelivery(decoded.Delivery)

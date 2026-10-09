@@ -2268,3 +2268,84 @@ func drainCompactionTestEvents(t *testing.T, proc *AgentProcess, active *activeP
 		}
 	}
 }
+
+func TestClaudeAgentSubagentContract(t *testing.T) {
+	// UT-040; IT-020 ingest side: replay adapter-produced frames through the prompt pipeline.
+	t.Run("Should preserve native metadata on every adapter fixture frame", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile("testdata/claude_agent_subagent.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		wants := []struct{ parent, tool, kind, status string }{
+			{"", "Agent", EventTypeToolCall, "pending"},
+			{"toolu_agent", "", EventTypeAgentMessage, ""},
+			{"toolu_agent", "Read", EventTypeToolCall, "pending"},
+			{"toolu_agent", "Read", EventTypeToolResult, "completed"},
+			{"", "Agent", EventTypeToolResult, "completed"},
+		}
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) != len(wants) {
+			t.Fatalf("frames = %d, want %d", len(lines), len(wants))
+		}
+		for i, line := range lines {
+			var frame struct {
+				Params json.RawMessage `json:"params"`
+			}
+			if err := json.Unmarshal([]byte(line), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if err := proc.handleSessionUpdate(frame.Params); err != nil {
+				t.Fatal(err)
+			}
+			got := collectEventsUntilCount(t, active.events, 1)[0]
+			want := wants[i]
+			if got.ParentToolCallID() != want.parent || got.ProviderToolName() != want.tool || got.Type != want.kind ||
+				got.ToolStatus() != want.status {
+				t.Fatalf("frame %d = %#v, want %#v", i, got, want)
+			}
+		}
+	})
+	t.Run("Should fall back to ordinary rendering for an unknown metadata shape", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		raw := json.RawMessage(
+			`{"sessionId":"session-native","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello"},"_meta":{"claudeCode":{"parentToolUseId":{"changed":true},"toolName":"Agent"}}}}`,
+		)
+		if err := proc.handleSessionUpdate(raw); err != nil {
+			t.Fatal(err)
+		}
+		got := collectEventsUntilCount(t, active.events, 1)[0]
+		if got.Text != "hello" || got.ParentToolCallID() != "" || got.ProviderToolName() != "" {
+			t.Fatalf("fallback = %#v", got)
+		}
+	})
+	t.Run("Should retain attribution-only tool refinements", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		event := AgentEvent{Type: EventTypeToolCall, ToolCallID: "inner", Title: "Read"}
+		proc.emitPromptEvent(event)
+		proc.emitPromptEvent(event.WithProviderToolMetadata("toolu_agent", "Read", "in_progress"))
+		got := collectEventsUntilCount(t, active.events, 2)
+		if got[1].ParentToolCallID() != "toolu_agent" || got[1].ProviderToolName() != "Read" ||
+			got[1].ToolStatus() != "in_progress" {
+			t.Fatalf("refinement = %#v", got[1])
+		}
+	})
+}

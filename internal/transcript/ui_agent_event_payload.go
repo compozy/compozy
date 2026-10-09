@@ -10,6 +10,8 @@ import (
 
 // UIAgentEventPayload mirrors the prompt-stream data payload shape.
 type UIAgentEventPayload struct {
+	ParentToolCallID string                       `json:"parent_tool_call_id,omitempty"`
+	ProviderToolName string                       `json:"provider_tool_name,omitempty"`
 	CompactionID     string                       `json:"compaction_id,omitempty"`
 	Status           string                       `json:"status,omitempty"`
 	Summary          string                       `json:"summary,omitempty"`
@@ -43,8 +45,11 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 	event = RedactAgentEvent(event)
 	payload := UIAgentEventPayload{
 		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID,
-		RequestID: event.RequestIDValue(),
-		Text:      event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
+		RequestID:        event.RequestIDValue(),
+		ParentToolCallID: event.ParentToolCallID(),
+		ProviderToolName: event.ProviderToolName(),
+		Status:           event.ToolStatus(),
+		Text:             event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
 		PromptStopReason: event.PromptStopReason, Action: event.Action, Resource: event.Resource,
 		Decision: event.Decision, ResolvedBy: event.ResolvedByValue(),
 		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),

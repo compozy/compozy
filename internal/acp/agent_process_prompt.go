@@ -36,12 +36,15 @@ type activePromptState struct {
 }
 
 type toolCallProjection struct {
-	title       string
-	name        string
-	kind        string
-	inputDigest [sha256.Size]byte
-	hasInput    bool
-	prechecked  bool
+	parentToolCallID string
+	providerToolName string
+	status           string
+	title            string
+	name             string
+	kind             string
+	inputDigest      [sha256.Size]byte
+	hasInput         bool
+	prechecked       bool
 }
 
 const maxPendingToolResults = 128
@@ -255,10 +258,13 @@ func (a *activePromptState) shouldSuppressToolCallLocked(event AgentEvent) bool 
 
 func newToolCallProjection(event AgentEvent) toolCallProjection {
 	projection := toolCallProjection{
-		title:      strings.TrimSpace(event.Title),
-		name:       strings.TrimSpace(event.ToolName()),
-		kind:       strings.TrimSpace(event.ToolKind()),
-		prechecked: event.ToolPrechecked(),
+		parentToolCallID: event.ParentToolCallID(),
+		providerToolName: event.ProviderToolName(),
+		status:           event.ToolStatus(),
+		title:            strings.TrimSpace(event.Title),
+		name:             strings.TrimSpace(event.ToolName()),
+		kind:             strings.TrimSpace(event.ToolKind()),
+		prechecked:       event.ToolPrechecked(),
 	}
 	input := event.ToolInput()
 	if len(input) > 0 {
@@ -270,6 +276,18 @@ func newToolCallProjection(event AgentEvent) toolCallProjection {
 
 func (p toolCallProjection) merge(next toolCallProjection) (toolCallProjection, bool) {
 	changed := false
+	if next.parentToolCallID != "" && next.parentToolCallID != p.parentToolCallID {
+		p.parentToolCallID = next.parentToolCallID
+		changed = true
+	}
+	if next.providerToolName != "" && next.providerToolName != p.providerToolName {
+		p.providerToolName = next.providerToolName
+		changed = true
+	}
+	if next.status != "" && next.status != p.status {
+		p.status = next.status
+		changed = true
+	}
 	if next.title != "" && next.title != p.title {
 		p.title = next.title
 		changed = true
