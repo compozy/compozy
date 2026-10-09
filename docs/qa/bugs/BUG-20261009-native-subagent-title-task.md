@@ -1,6 +1,6 @@
 # BUG-20261009-native-subagent-title-task: Claude's own subagent card is titled “Task” instead of its description
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Cosmetic
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Rafa
@@ -26,3 +26,7 @@ The native card and record read `Task` although the Agent call's description was
 
 - The first `tool_call` event carries title `Task`; the description arrives in a later update (same tool_call_id) and is not applied to the row or the projected part. Evidence: `/Users/pedronauck/Dev/compozy/_worktrees/subagents/.compozy/tasks/subagents/orchestration/screens/pr/09a-native-card.png`.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in e7e9b276a. Re-walked on the stock build at 980d51fbe: Native card and record titled `Survey BRIEF.md risks`. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

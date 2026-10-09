@@ -7,12 +7,12 @@ journey: J-15-operate-session-via-cli-api
 expected: From an active turn, compozy__subagent_capabilities reports the caller's inherited runtime, depth, live count, and per-agent/provider can_delegate with the exact constraint strings; compozy__subagent_delegate in async mode returns status running with subagent_id and child_session_id within 3 s on a warm provider, the child's first prompt is exactly the task (role prefix when role is not general, no parent history, no attachments), the parent turn completes independently, and when the child settles the parent receives exactly one pointer wake per batch (steered into a running turn only when the agent declares steer_ext or concurrent_prompt and no user steer is queued, otherwise queued ahead of user prompts) whose text matches the fixed wake lines; compozy__subagent_status returns the result capped at [subagents].result_max_chars and moves delivery to acknowledged; wait mode returns the result or wait_timed_out without canceling the child; cancel, stop cascade, interrupt disposal, narrowing-only permissions, idempotency, and every documented error code behave as in the spec; CLI compozy session subagents list/show/cancel and the HTTP/UDS routes return the documented shapes and exit codes.
 entry_points: native tools compozy__subagent_capabilities, compozy__subagent_delegate, compozy__subagent_status, compozy__subagent_cancel (toolset sessions); compozy session subagents <session-id> [--json]; compozy session subagents show|cancel <subagent-id>; compozy session list --subagents include|exclude|only; GET /api/workspaces/{workspace_id}/sessions/{session_id}/subagents and GET|POST /api/workspaces/{workspace_id}/subagents/{subagent_id}[/cancel] over HTTP and UDS; [subagents] result_max_chars; hooks spawn.pre_create (spawn_role subagent) and subagent.settled
 qa_status: fail
-bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-idempotency-default; BUG-20261009-subagent-status-empty-input; BUG-20261009-subagent-show-needs-workspace; BUG-20261009-subagent-runtime-speed-empty
+bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-idempotency-default; BUG-20261009-subagent-status-empty-input; BUG-20261009-subagent-show-needs-workspace; BUG-20261009-subagent-runtime-speed-empty; BUG-20261009-subagent-capabilities-oversized; BUG-20261009-subagent-settled-hook-canceled; BUG-20261009-subagent-deny-message-prefixed
 fix_status: pending
 retest_status:
 fix_commits:
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
-last_report: docs/qa/reports/2026-10-09-subagents.md
+last_report: docs/qa/reports/2026-10-09-subagents-r2.md
 overlaps: RT-session-spawn-wake; RT-subagent-restart; ET-web-subagent-card; ET-web-native-subagent
 ---
 
@@ -102,3 +102,5 @@ service tests prove no immediate failed-wake retry and the `subagent.wake_abando
 `TestSubagentCleanRestartDaemonIntegration` resumes delegated work after clean shutdown;
 `TestSubagentRecoveryDaemonIntegration` reconciles native work from a lost turn as interrupted.
 These automated journeys preserve the real-provider fail verdict above until the QA owner re-walks.
+
+Re-walk 2026-10-09 (stock 980d51fbe): the five filed bugs are verified fixed. Golden path, steer routing (`prompt_steered`, delivery `delivered`), error codes, idempotency mismatch, escalation denial, `result_max_chars = 1000` truncation with hint, `999` rejected, depth 2, hook deny → `capability_denied`, cancel, and CLI/HTTP reads pass. New: the capabilities answer (99 KB) overflows Claude's MCP limit, `subagent.settled` hooks are canceled before they run, and the deny message carries an internal prefix. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

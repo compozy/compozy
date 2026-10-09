@@ -26,3 +26,12 @@ While the parent's delegating turn is still running, the transcript shows `Runni
 
 - Lab evidence: `qa-artifacts/qa/shots/10-single-running.png` and the mid-turn group capture. The live stream path seems not to carry the `data-compozy-subagent` part that the persisted projection emits.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Re-found 2026-10-09 (retest after 776aacc76)
+
+Partly fixed. With the prompt sent from the CLI, the group card appeared mid-turn as soon as the delegation
+landed. With the prompt sent from the open session window's composer, the turn still showed
+`Delegated a subagent 2 times, used 2 tools` with both rows `running` (36 s after the delegation in one run, about
+40 s in another), and the group card replaced it later in the same turn. The persisted transcript and the stream
+snapshot already carried both `data-compozy-subagent` parts at that moment, so the gap is in how the composer-submitted
+live turn appends parts. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

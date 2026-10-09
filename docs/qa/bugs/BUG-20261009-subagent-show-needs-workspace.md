@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-show-needs-workspace: `session subagents show` fails outside a registered workspace directory
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Ada
@@ -26,3 +26,7 @@ Running `compozy session subagents show sub-…` from a directory that is not a 
 
 - Subagent ids are global; the show/cancel verbs could resolve the workspace from the record.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 8130f71fc. Re-walked on the stock build at 980d51fbe: `session subagents show <id>` works from `/tmp`. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

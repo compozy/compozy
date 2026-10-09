@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-idempotency-default: Delegating without an idempotency_key always fails
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -25,3 +25,7 @@ When the agent omits `idempotency_key` (the documented default is the invoking t
 
 - The hosted-MCP invocation path does not pass the provider tool call id into the native tool context, so the default resolves to empty. Evidence: parent sess-b2170d1fc314631a tool call toolu_019Jy1rsdPLYKrbjxbq3eVD9; parent sess-f21ee28c8813d948 first turn.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in 42596465a. Re-walked on the stock build at 980d51fbe: Delegations without `idempotency_key` succeeded (single, back-to-back, and three-in-a-turn). Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

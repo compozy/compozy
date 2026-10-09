@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-status-empty-input: Status call without subagent_id answers an internal error
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Ada
@@ -25,3 +25,7 @@ Claude's first `compozy__subagent_status` call in a wake turn arrived with empty
 
 - Error mapping only; behavior otherwise correct.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in b2888dad4. Re-walked on the stock build at 980d51fbe: `compozy__subagent_status {}` → `invalid_request: subagent_id is required.` Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

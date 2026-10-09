@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-runtime-speed-empty: Delegated runtime reports an empty speed
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Cosmetic
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Ada
@@ -26,3 +26,7 @@
 
 - Reproduced in the lab; see the run report.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in e7e9b276a; 8130f71fc. Re-walked on the stock build at 980d51fbe: `runtime.speed: normal`; `show` prints `codex · gpt-5.6-sol · medium · normal`. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.

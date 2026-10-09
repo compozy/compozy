@@ -1,6 +1,6 @@
 # BUG-20261009-subagent-routes-unavailable: Every subagent read/cancel route answers 503 Subagents are unavailable
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P0
 - **Persona Affected:** Ada
@@ -26,3 +26,7 @@ Ada asks `compozy session subagents <parent>` (and the Web asks the same HTTP ro
 
 - Root cause: `bootRuntimeFoundation` builds `state.deps` (`internal/daemon/runtime_dependencies.go:34` copies `state.subagents`, still nil) before `bootSubagents` (`internal/daemon/boot_components.go:20`) assigns it; `bootServers` then passes the stale nil via `server_options.go:15,81`. Native tools are unaffected because `native_tools_dependencies_builder.go:17` uses a closure. A one-line QA-local patch (`state.deps.Subagents = state.subagents` in `prepareServerDependencies`) made every route answer 200; the rest of the walk ran on that patched build.
 - Report: `docs/qa/reports/2026-10-09-subagents.md`
+
+## Retest 2026-10-09
+
+Fixed in c5105724d; 4c5a2e667. Re-walked on the stock build at 980d51fbe: CLI list/show/cancel and HTTP reads answered 200 on the stock build. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
