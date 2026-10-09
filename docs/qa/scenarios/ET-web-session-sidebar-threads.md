@@ -4,16 +4,16 @@ area: ET
 title: In-window sessions sidebar with provenance threads and in-place switch
 persona: Bruno
 journey: J-14
-expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts open as a 264px left rail on the recessed `sunken` surface (a persisted close wins over the default) hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root (except `lineage.kind` `continue`/`fork`, which are top-level rows) behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
-entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
-qa_status: skipped
+expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts open as a 264px left rail on the recessed `sunken` surface (a persisted close wins over the default) hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root (except `lineage.kind` `continue`/`fork`, which are top-level rows) behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row shares the selected-row tint and carries no accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1). Subagent sessions (spawn_role subagent) never appear as rows or roots: the sidebar requests subagents=exclude unless a search is active; a parent with subagents carries one trailing chip (most-urgent glyph attention > failed > running, or delegated when the parent is idle with live subagents; live/total text such as 3/10 while any is live, the total alone beside the failed glyph when none is live but a failure remains; aria "3 of 10 subagents running" / "6 subagents, 2 failed") whose hover lists up to 5 subagents then +N more and whose click opens the inspector Subagents section; the chip hides once every subagent settled cleanly; viewing a subagent reveals only it under its parent row; search includes matching subagents nested under their parent; plain spawn, provenance, and recovery children keep their nesting.
+entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1; SubagentChip and session inspector Subagents section; GET /api/workspaces/{workspace_id}/sessions?subagents=exclude; docs/design/opendesign/subagents/subagents-navigation.html (VC-01…03)
+qa_status: untested
 bug_ids: compozy/compozy#416
 fix_status: fixed
 retest_status: pass
 fix_commits: ea021855; 49601716
 evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b2/sidebar-threads.png; docs/qa/evidence/2026-09-28-session-continue-fork-b2/journey-log.jsonl
 last_report: docs/qa/reports/2026-10-02-untested.md
-overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle
+overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle; ET-web-subagent-card; ET-web-native-subagent
 ---
 
 Added by the session sidebar + parent provenance feature (2026-08-06), implementing
@@ -56,3 +56,16 @@ report's session matrix in a future QA cycle.
 
 qa-impact: 2026-10-06 (BUG-20261006-derived-child-nested-under-source) — continued and forked sessions no longer nest: they render as
 top-level rows while spawned, provenance, and recovery children keep nesting. Flag only.
+
+qa-impact: 2026-10-08 (subagents, ADR-005) — subagent sessions leave the sidebar list; the parent row
+gains a subagent chip and the session inspector gains a Subagents roster. Reset from `skipped` to
+`untested` for a walk that proves (E2E-009, nav VC-01…03): a parent that delegated 10 subagents shows
+one row with chip `10/10` and no subagent rows, and the page of 100 sessions is not consumed by
+subagents; hovering the chip lists 5 subagents and `+5 more`; clicking it opens the inspector
+Subagents section with 6 rows and `Show N more`, failed rows pinned on top and settled ones under
+`Previous subagents (N)`, and `Stop subagent` on a live row (toast `Could not stop subagent` on
+failure); after all settle without failure the chip hides; opening one subagent reveals only it under
+the parent; a search that matches a subagent shows it nested under its parent; a plain spawned child of
+another session still nests with its count toggle; archiving the parent archives its subagents, and a
+subagent session offers no archive action. Automated owners: UT-053, UT-W17…UT-W19, IT-029, IT-030,
+IT-032.
