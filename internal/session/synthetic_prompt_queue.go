@@ -14,6 +14,7 @@ func (m *Manager) enqueueDurableSyntheticPrompt(
 	ctx context.Context,
 	session *Session,
 	req promptRequest,
+	opts SyntheticPromptOpts,
 ) (store.SessionInputQueueEntry, error) {
 	generation, err := m.currentInputGeneration(ctx, session.ID)
 	if err != nil {
@@ -24,6 +25,7 @@ func (m *Manager) enqueueDurableSyntheticPrompt(
 		return store.SessionInputQueueEntry{}, fmt.Errorf("session: encode synthetic input: %w", err)
 	}
 	return m.inputQueue.EnqueueSynthetic(ctx, inputqueue.InputRequest{
+		MessageID: opts.MessageID, Priority: opts.Priority,
 		SessionID: session.ID, Text: req.message, TargetTurnID: session.CurrentTurnID(), Generation: generation,
 	}, req.turnID, &store.SessionInputSyntheticPrompt{
 		RunID: req.runID, Metadata: metadata, Delivery: string(req.delivery),

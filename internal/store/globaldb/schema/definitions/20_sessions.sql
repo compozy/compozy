@@ -104,7 +104,7 @@ CREATE TABLE session_health (
 			updated_at TEXT NOT NULL
 		, loop_run_id TEXT, owner_kind TEXT, owner_epoch INTEGER, binding_epoch INTEGER, prompt_id TEXT, prompt_kind TEXT, operation_usage_base_tokens INTEGER, prompt_attempt INTEGER NOT NULL DEFAULT 0 CHECK (prompt_attempt >= 0), dispatchable INTEGER NOT NULL DEFAULT 1 CHECK (dispatchable IN (0,1)), activated_at TIMESTAMP, dispatch_token_hash TEXT, fence_kind TEXT, fence_disposition TEXT, fence_reason_code TEXT, fenced_at TIMESTAMP, terminal_event_start_seq INTEGER, terminal_event_end_seq INTEGER, terminal_kind TEXT, terminal_stop_reason TEXT, terminal_disposition TEXT, terminal_reason_code TEXT, terminal_tokens_reported INTEGER NOT NULL DEFAULT 0
 				CHECK (terminal_tokens_reported IN (0,1)), terminal_tokens_used INTEGER
-				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP);
+				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP, priority INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
@@ -259,7 +259,7 @@ CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
 	CREATE INDEX idx_session_input_queue_pending
-			ON session_input_queue(session_id, status, delivery DESC, enqueued_at ASC, id ASC);
+			ON session_input_queue(session_id, status, delivery DESC, priority DESC, enqueued_at ASC, id ASC);
 
 	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
 			ON session_input_queue(prompt_admission_id)
@@ -420,3 +420,65 @@ CREATE UNIQUE INDEX uq_session_input_queue_active_steer
 CREATE UNIQUE INDEX uq_session_input_queue_goal_prompt
 			ON session_input_queue(loop_run_id, prompt_id)
 			WHERE prompt_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_session_input_queue_synthetic_message
+ ON session_input_queue(session_id, message_id)
+ WHERE owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
+
+CREATE TABLE session_subagent_wakes (
+ wake_message_id TEXT PRIMARY KEY,
+ workspace_id TEXT NOT NULL,
+ parent_session_id TEXT NOT NULL,
+ state TEXT NOT NULL CHECK (state IN ('open','dispatched','settled','canceled')),
+ route TEXT NOT NULL CHECK (route IN ('queue','steer')),
+ input_entry_id TEXT NOT NULL DEFAULT '',
+ steer_requeued INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ FOREIGN KEY (workspace_id, parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX uq_session_subagent_wakes_open ON session_subagent_wakes(parent_session_id) WHERE state = 'open';
+
+CREATE TABLE session_subagents (
+ id TEXT PRIMARY KEY,
+ workspace_id TEXT NOT NULL,
+ parent_session_id TEXT NOT NULL,
+ parent_turn_id TEXT NOT NULL,
+ parent_tool_call_id TEXT NOT NULL DEFAULT '',
+ child_session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL,
+ origin TEXT NOT NULL CHECK (origin IN ('delegated','provider_native')),
+ provider_tool_call_id TEXT NOT NULL DEFAULT '',
+ idempotency_key TEXT NOT NULL,
+ request_fingerprint TEXT NOT NULL,
+ title TEXT NOT NULL CHECK (length(title) <= 512),
+ role TEXT NOT NULL DEFAULT 'general',
+ task_chars INTEGER NOT NULL,
+ pending_task TEXT,
+ runtime_agent TEXT NOT NULL DEFAULT '',
+ runtime_provider TEXT NOT NULL DEFAULT '',
+ runtime_model TEXT NOT NULL DEFAULT '',
+ runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
+ runtime_speed TEXT NOT NULL DEFAULT '',
+ depth INTEGER NOT NULL CHECK (depth >= 1),
+ status TEXT NOT NULL CHECK (status IN ('queued','running','waiting','completed','failed','canceled','interrupted')),
+ work_state TEXT NOT NULL CHECK (work_state IN ('working','waiting_for_children','result_available')),
+ progress TEXT NOT NULL DEFAULT '' CHECK (length(progress) <= 280),
+ result TEXT,
+ result_truncated INTEGER NOT NULL DEFAULT 0,
+ error TEXT,
+ wake_policy TEXT NOT NULL CHECK (wake_policy IN ('always','settled_only')),
+ delivery TEXT NOT NULL DEFAULT 'none' CHECK (delivery IN ('none','pending','claimed','delivered','acknowledged','disposed')),
+ wake_message_id TEXT REFERENCES session_subagent_wakes(wake_message_id) ON DELETE SET NULL,
+ acknowledged_turn_id TEXT NOT NULL DEFAULT '',
+ started_at TEXT,
+ settled_at TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ FOREIGN KEY (workspace_id,parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE,
+ UNIQUE (parent_session_id,idempotency_key)
+);
+CREATE INDEX idx_session_subagents_parent_created ON session_subagents(parent_session_id,created_at);
+CREATE INDEX idx_session_subagents_workspace_status ON session_subagents(workspace_id,status);
+CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_session_id,delivery) WHERE delivery IN ('pending','claimed');
+CREATE INDEX idx_session_subagents_child ON session_subagents(child_session_id);
+CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';

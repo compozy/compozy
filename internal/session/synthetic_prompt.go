@@ -11,6 +11,8 @@ import (
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
 // wake-up metadata required for persistence and later reentry handling.
 type SyntheticPromptOpts struct {
+	MessageID               string
+	Priority                int
 	Delivery                PromptDelivery
 	Message                 string
 	Metadata                acp.PromptSyntheticMeta
@@ -52,7 +54,7 @@ func (m *Manager) PromptSynthetic(
 	if err != nil {
 		return nil, err
 	}
-	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req)
+	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req, opts)
 	if err != nil {
 		delivery.cancel()
 		return nil, err

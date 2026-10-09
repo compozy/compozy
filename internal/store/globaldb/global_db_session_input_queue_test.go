@@ -2413,3 +2413,209 @@ func requireSQLiteConstraintError(t *testing.T, err error) {
 		t.Fatalf("error = %v, want sqlite constraint failure", err)
 	}
 }
+
+// UT-058, IT-007: synthetic message replay and priority belong to the durable queue.
+func TestGlobalDBSubagentQueuePriority(t *testing.T) {
+	t.Run("Should replay synthetic messages and dispatch priority ahead of FIFO peers", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+		if _, _, err := db.EnqueueSessionInput(
+			ctx,
+			store.SessionInputQueueInsert{ID: "user", SessionID: sessionID, Text: "user", QueueCap: 10, Now: now},
+		); err != nil {
+			t.Fatal(err)
+		}
+		req := store.SessionInputQueueInsert{
+			ID:        "wake",
+			SessionID: sessionID,
+			MessageID: "wake-message",
+			TurnID:    "wake-turn",
+			Priority:  1,
+			Text:      "wake",
+			OwnerKind: store.SessionInputOwnerSynthetic,
+			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+				RunID:    "run",
+				Metadata: []byte(`{"reason":"subagent"}`),
+			},
+			QueueCap: 10,
+			Now:      now.Add(time.Second),
+		}
+		first, _, err := db.EnqueueSessionInput(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.ID = "retry"
+		req.QueueCap = 1
+		replay, _, err := db.EnqueueSessionInput(ctx, req)
+		if err != nil || replay.ID != first.ID {
+			t.Fatalf("replay while full=%#v %v", replay, err)
+		}
+		pending, err := db.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil || len(pending) != 2 || pending[0].ID != "wake" || pending[0].Priority != 1 {
+			t.Fatalf("order=%v %v", pending, err)
+		}
+		peek, ok, err := db.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !ok || peek.ID != "wake" {
+			t.Fatalf("peek=%#v %v %v", peek, ok, err)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+		if err != nil || !ok || claimed.ID != "wake" {
+			t.Fatalf("claim=%#v %v %v", claimed, ok, err)
+		}
+		replay, _, err = db.EnqueueSessionInput(ctx, req)
+		if err != nil || replay.ID != "wake" {
+			t.Fatalf("dispatch replay=%#v %v", replay, err)
+		}
+		if err = db.MarkSessionInputSent(ctx, sessionID, "wake", now.Add(3*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		req.QueueCap = 10
+		if again, _, err := db.EnqueueSessionInput(ctx, req); err != nil || again.ID != "retry" {
+			t.Fatalf("reoffer terminal=%#v %v", again, err)
+		}
+		req.MessageID = ""
+		req.ID = "empty-a"
+		if _, _, err = db.EnqueueSessionInput(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+		req.ID = "empty-b"
+		if _, _, err = db.EnqueueSessionInput(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err = db.EnqueueSessionInput(
+			ctx,
+			store.SessionInputQueueInsert{
+				ID:           "interrupt",
+				SessionID:    sessionID,
+				Text:         "interrupt",
+				Mode:         store.SessionInputQueueModeInterrupt,
+				Delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+				TargetTurnID: "current",
+				QueueCap:     10,
+				Now:          now.Add(4 * time.Second),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		peek, ok, err = db.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !ok || peek.ID != "interrupt" {
+			t.Fatalf("delivery precedence=%#v %v %v", peek, ok, err)
+		}
+	})
+}
+
+// IT-021: upgrading 00130 preserves existing queue entries, including shared user message IDs.
+func TestGlobalDBSubagentMigration(t *testing.T) {
+	t.Run("Should upgrade populated 00130 without changing user queue identity or order", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixThrough(t, "00130_retire_memory.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
+		old.initializeRepositories(openConfig{})
+		id := registerInputQueueSession(t, old)
+		for _, entry := range []string{"a", "b"} {
+			if _, err = prefix.ExecContext(
+				ctx,
+				`INSERT INTO session_input_queue(id,session_id,message_id,status,mode,text,enqueued_at,updated_at) VALUES(?,?,'shared','queued','queue',?,?,?)`,
+				entry,
+				id,
+				entry,
+				store.FormatTimestamp(now),
+				store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err = prefix.ExecContext(
+			ctx,
+			`INSERT INTO session_input_clear_traces(entry_id,session_id,turn_id,actor_kind,actor_id,queue_generation,created_at) VALUES('a',?,'clear','human','operator',0,?)`,
+			id,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err = prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db := openGlobalDBForTest(t, path)
+		items, err := db.ListPendingSessionInputs(ctx, id)
+		if err != nil || len(items) != 2 || items[0].ID != "a" || items[1].ID != "b" {
+			t.Fatalf("preserved=%v %v", items, err)
+		}
+		for _, item := range items {
+			if item.Priority != 0 || item.MessageID != "shared" {
+				t.Fatalf("changed user identity=%#v", item)
+			}
+		}
+		if _, _, err = db.ReplaceSessionInput(
+			ctx,
+			id,
+			"a",
+			store.SessionInputQueueInsert{ID: "replacement", SessionID: id, Text: "edited", QueueCap: 10, Now: now},
+		); err != nil {
+			t.Fatal(err)
+		}
+		var traceCount int
+		if err = db.db.QueryRowContext(ctx, `SELECT count(*) FROM session_input_clear_traces WHERE entry_id='a'`).
+			Scan(&traceCount); err != nil ||
+			traceCount != 1 {
+			t.Fatalf("preserved clear trace = %d, %v", traceCount, err)
+		}
+		status, err := store.Status(ctx, db.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		var workspace string
+		if err = db.db.QueryRowContext(ctx, `SELECT workspace_id FROM sessions WHERE id=?`, id).
+			Scan(&workspace); err != nil {
+			t.Fatal(err)
+		}
+		row := reserveSubagent(t, db.SessionRepo, workspace, id, "migrated", now)
+		if row.PendingTask == nil {
+			t.Fatal("pending task missing")
+		}
+		if _, _, err = db.ReserveSubagent(
+			ctx,
+			store.SessionSubagent{
+				ID:              "invalid",
+				WorkspaceID:     workspace,
+				ParentSessionID: id,
+				ParentTurnID:    "turn",
+				IdempotencyKey:  "invalid",
+				Origin:          "invalid",
+				Depth:           1,
+				WakePolicy:      "always",
+			},
+		); err == nil {
+			t.Fatal("missing origin check")
+		}
+		if _, _, err = db.ReserveSubagent(
+			ctx,
+			store.SessionSubagent{
+				ID:              "foreign",
+				WorkspaceID:     "foreign",
+				ParentSessionID: id,
+				ParentTurnID:    "turn",
+				IdempotencyKey:  "foreign",
+				Origin:          "delegated",
+				Depth:           1,
+				WakePolicy:      "always",
+			},
+		); err == nil {
+			t.Fatal("missing scoped parent foreign key")
+		}
+	})
+}
