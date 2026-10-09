@@ -433,6 +433,7 @@ CREATE TABLE session_subagent_wakes (
  route TEXT NOT NULL CHECK (route IN ('queue','steer')),
  input_entry_id TEXT NOT NULL DEFAULT '',
  steer_requeued INTEGER NOT NULL DEFAULT 0,
+ attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL,
  FOREIGN KEY (workspace_id, parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE

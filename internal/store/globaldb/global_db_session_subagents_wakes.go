@@ -48,6 +48,11 @@ func (g *SessionRepo) OpenOrJoinWake(
 		if e != nil {
 			return e
 		}
+		if e := q.InheritSubagentWakeAttempts(ctx, sqlcgen.InheritSubagentWakeAttemptsParams{
+			WakeID: row.WakeMessageID, ParentID: parentID, Ids: encoded,
+		}); e != nil {
+			return e
+		}
 		if e := q.ClaimSubagentWakeRows(
 			ctx,
 			sqlcgen.ClaimSubagentWakeRowsParams{
@@ -59,7 +64,7 @@ func (g *SessionRepo) OpenOrJoinWake(
 		); e != nil {
 			return e
 		}
-		out, e = subagentWakeFromSQL(row)
+		out, e = readSubagentWake(ctx, q, row.WakeMessageID)
 		return e
 	})
 	return out, err
@@ -158,7 +163,7 @@ func (g *SessionRepo) SettleWake(
 			sqlcgen.SettleSubagentWakeRowsParams{
 				Delivery: delivery,
 				Now:      now,
-				WakeID:   sql.NullString{String: id, Valid: true},
+				WakeID:   id,
 			},
 		)
 		if e != nil {
@@ -215,4 +220,35 @@ func (g *SessionRepo) RewriteSubagentWakeInput(
 		}
 		return nil
 	})
+}
+
+func (g *SessionRepo) FailWake(
+	ctx context.Context,
+	id string,
+) (wake store.SessionSubagentWake, rows []store.SessionSubagent, err error) {
+	err = g.withImmediateTransaction(ctx, "fail subagent wake", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		now := store.FormatTimestamp(g.now())
+		changed, e := q.FailSubagentWake(ctx, sqlcgen.FailSubagentWakeParams{UpdatedAt: now, WakeMessageID: id})
+		if e != nil {
+			return e
+		}
+		wake, e = readSubagentWake(ctx, q, id)
+		if e != nil || changed == 0 {
+			return e
+		}
+		delivery := store.SubagentDeliveryPending
+		if wake.Attempts >= 3 {
+			delivery = store.SubagentDeliveryDisposed
+		}
+		updated, e := q.SettleSubagentWakeRows(ctx, sqlcgen.SettleSubagentWakeRowsParams{
+			Delivery: delivery, Now: now, WakeID: id,
+		})
+		if e != nil {
+			return e
+		}
+		rows, e = subagentsFromSQL(updated)
+		return e
+	})
+	return wake, rows, err
 }

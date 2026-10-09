@@ -4189,3 +4189,131 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: a rejected synthetic dispatch releases claimed results instead of leaving an open wake on a failed input.
+// Owner: manager input dispatch; canonical busy-input suite.
+func TestSubagentDispatchFailure(t *testing.T) {
+	t.Run("Should cancel the wake after a prompt submission error", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		parent := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, parent)
+		s, db, _ := newSubagentTestService(t)
+		h.manager.SetSubagentService(s)
+		db.rows["result"] = store.SessionSubagent{
+			ID:              "result",
+			ParentSessionID: parent.ID,
+			Status:          store.SubagentStatusCompleted,
+			Delivery:        store.SubagentDeliveryClaimed,
+			WakeMessageID:   new("failed-wake"),
+		}
+		db.wakes["failed-wake"] = store.SessionSubagentWake{
+			WakeMessageID:   "failed-wake",
+			ParentSessionID: parent.ID,
+			State:           store.SubagentWakeStateOpen,
+		}
+		entry, _, err := database.EnqueueSessionInput(
+			t.Context(),
+			store.SessionInputQueueInsert{
+				ID:        "failed-input",
+				SessionID: parent.ID,
+				Text:      "wake",
+				QueueCap:  3,
+				Now:       time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok, err := h.manager.inputQueue.ClaimNext(t.Context(), parent.ID); err != nil || !ok {
+			t.Fatal(ok, err)
+		}
+		entry.SyntheticPrompt = &store.SessionInputSyntheticPrompt{
+			RunID: "failed-wake", Delivery: store.SessionInputDeliveryAfterTurn,
+			Metadata: json.RawMessage(`{"kind":"subagent_wake","reason":"subagent_settled","subagent_ids":["result"]}`),
+		}
+		injected := errors.New("provider submission refused")
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return nil, injected
+		}
+		dispatchCtx, unlock := h.manager.lockSubagentInputDispatch(t.Context(), &entry)
+		defer unlock()
+		h.manager.dispatchQueuedInput(dispatchCtx, unlock, parent.ID, parent, queuedInput{
+			id: entry.ID, messageID: "failed-wake", text: "wake", turnID: "wake-turn",
+			syntheticPrompt: entry.SyntheticPrompt,
+		})
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), parent.ID, entry.ID)
+		if err != nil || stored.Status != store.SessionInputQueueStatusFailed ||
+			!strings.Contains(stored.FailureSummary, injected.Error()) {
+			t.Fatal(stored, err)
+		}
+		if db.rows["result"].Delivery != store.SubagentDeliveryPending ||
+			db.wakes["failed-wake"].State != store.SubagentWakeStateCanceled {
+			t.Fatal(db.rows, db.wakes)
+		}
+	})
+}
+
+// m8: only accepted provider steering produces a prompt-steered marker.
+// Owner: session runtime steering boundary; canonical busy-input suite.
+func TestSubagentSteerMarkers(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		attempt acp.SteerAttempt
+		err     error
+		want    int
+	}{
+		{"Should record injected steering", acp.SteerAttemptInjected, nil, 1},
+		{"Should record accepted pending steering", acp.SteerAttemptPendingInjection, nil, 1},
+		{"Should omit unsupported steering", acp.SteerAttemptUnsupported, nil, 0},
+		{"Should omit failed steering", acp.SteerAttemptInjected, errors.New("provider rejected"), 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			entered, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(unblock)
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				go func() {
+					defer close(events)
+					close(entered)
+					<-release
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
+			h.manager.driver = &steeringTestDriver{fakeDriver: h.driver,
+				steer: func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error) {
+					return tc.attempt, tc.err
+				},
+			}
+			active, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "active"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-entered
+			_, err = (managerSubagentRuntime{m: h.manager}).Steer(
+				t.Context(),
+				sess.ID,
+				sess.CurrentTurnID(),
+				"wake",
+				"result",
+			)
+			if !errors.Is(err, tc.err) {
+				t.Fatal(err)
+			}
+			unblock()
+			for range active.Events {
+				continue
+			}
+			if got := countTranscriptMarkers(t, h.manager, sess.ID, transcript.MarkerPromptSteered); got != tc.want {
+				t.Fatalf("prompt-steered markers = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

@@ -1608,6 +1608,7 @@ type SessionSubagentWake struct {
 	Route           string `json:"route"`
 	InputEntryID    string `json:"input_entry_id"`
 	SteerRequeued   int64  `json:"steer_requeued"`
+	Attempts        int64  `json:"attempts"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 }

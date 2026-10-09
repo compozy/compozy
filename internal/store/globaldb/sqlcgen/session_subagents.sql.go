@@ -93,7 +93,7 @@ func (q *Queries) DeleteReservedSubagent(ctx context.Context, id string) (int64,
 }
 
 const disposeSubagents = `-- name: DisposeSubagents :many
-UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = ?1 WHERE parent_session_id = ?2 AND (?3 = '' OR parent_turn_id = ?3) AND (?4 = '[]' OR id IN (SELECT value FROM json_each(?4))) AND delivery IN ('none','pending','claimed') RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
+UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = ?1 WHERE origin = 'delegated' AND parent_session_id = ?2 AND (?3 = '' OR parent_turn_id = ?3) AND (?4 = '[]' OR id IN (SELECT value FROM json_each(?4))) AND delivery IN ('none','pending','claimed') RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
 `
 
 type DisposeSubagentsParams struct {
@@ -166,6 +166,23 @@ func (q *Queries) DisposeSubagents(ctx context.Context, arg DisposeSubagentsPara
 	return items, nil
 }
 
+const failSubagentWake = `-- name: FailSubagentWake :execrows
+UPDATE session_subagent_wakes SET attempts = attempts + 1,state = 'canceled',updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched')
+`
+
+type FailSubagentWakeParams struct {
+	UpdatedAt     string `json:"updated_at"`
+	WakeMessageID string `json:"wake_message_id"`
+}
+
+func (q *Queries) FailSubagentWake(ctx context.Context, arg FailSubagentWakeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failSubagentWake, arg.UpdatedAt, arg.WakeMessageID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const finalizeSubagent = `-- name: FinalizeSubagent :execrows
 UPDATE session_subagents SET status = ?1, work_state = ?2, result = ?3, error = ?4, result_truncated = ?5, settled_at = ?6, updated_at = ?6 WHERE id = ?7 AND status IN ('queued','running','waiting')
 `
@@ -197,7 +214,7 @@ func (q *Queries) FinalizeSubagent(ctx context.Context, arg FinalizeSubagentPara
 }
 
 const getOpenSubagentWake = `-- name: GetOpenSubagentWake :one
-SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, created_at, updated_at FROM session_subagent_wakes WHERE parent_session_id = ? AND state = 'open'
+SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, attempts, created_at, updated_at FROM session_subagent_wakes WHERE parent_session_id = ? AND state = 'open'
 `
 
 func (q *Queries) GetOpenSubagentWake(ctx context.Context, parentSessionID string) (SessionSubagentWake, error) {
@@ -211,6 +228,7 @@ func (q *Queries) GetOpenSubagentWake(ctx context.Context, parentSessionID strin
 		&i.Route,
 		&i.InputEntryID,
 		&i.SteerRequeued,
+		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -361,7 +379,7 @@ func (q *Queries) GetSubagentByKey(ctx context.Context, arg GetSubagentByKeyPara
 }
 
 const getSubagentWake = `-- name: GetSubagentWake :one
-SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, created_at, updated_at FROM session_subagent_wakes WHERE wake_message_id = ?
+SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, attempts, created_at, updated_at FROM session_subagent_wakes WHERE wake_message_id = ?
 `
 
 func (q *Queries) GetSubagentWake(ctx context.Context, wakeMessageID string) (SessionSubagentWake, error) {
@@ -375,10 +393,29 @@ func (q *Queries) GetSubagentWake(ctx context.Context, wakeMessageID string) (Se
 		&i.Route,
 		&i.InputEntryID,
 		&i.SteerRequeued,
+		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const inheritSubagentWakeAttempts = `-- name: InheritSubagentWakeAttempts :exec
+UPDATE session_subagent_wakes SET attempts = MAX(attempts, COALESCE((
+ SELECT MAX(prior.attempts) FROM session_subagents child JOIN session_subagent_wakes prior ON prior.wake_message_id = child.wake_message_id
+ WHERE child.parent_session_id = ?1 AND child.id IN (SELECT value FROM json_each(?2))
+),0)) WHERE session_subagent_wakes.wake_message_id = ?3
+`
+
+type InheritSubagentWakeAttemptsParams struct {
+	ParentID string `json:"parent_id"`
+	Ids      any    `json:"ids"`
+	WakeID   string `json:"wake_id"`
+}
+
+func (q *Queries) InheritSubagentWakeAttempts(ctx context.Context, arg InheritSubagentWakeAttemptsParams) error {
+	_, err := q.db.ExecContext(ctx, inheritSubagentWakeAttempts, arg.ParentID, arg.Ids, arg.WakeID)
+	return err
 }
 
 const insertSubagentWake = `-- name: InsertSubagentWake :exec
@@ -415,7 +452,7 @@ func (q *Queries) LinkSubagentChild(ctx context.Context, arg LinkSubagentChildPa
 }
 
 const listOpenSubagentWakes = `-- name: ListOpenSubagentWakes :many
-SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, created_at, updated_at FROM session_subagent_wakes WHERE state = 'open' ORDER BY created_at,wake_message_id
+SELECT wake_message_id, workspace_id, parent_session_id, state, route, input_entry_id, steer_requeued, attempts, created_at, updated_at FROM session_subagent_wakes WHERE state IN ('open','dispatched') ORDER BY created_at,wake_message_id
 `
 
 func (q *Queries) ListOpenSubagentWakes(ctx context.Context) ([]SessionSubagentWake, error) {
@@ -435,6 +472,7 @@ func (q *Queries) ListOpenSubagentWakes(ctx context.Context) ([]SessionSubagentW
 			&i.Route,
 			&i.InputEntryID,
 			&i.SteerRequeued,
+			&i.Attempts,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -855,6 +893,68 @@ func (q *Queries) ListUnfinalizedDelegatedSubagents(ctx context.Context) ([]Sess
 	return items, nil
 }
 
+const listUnfinalizedNativeSubagents = `-- name: ListUnfinalizedNativeSubagents :many
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'provider_native' AND status IN ('queued','running','waiting') ORDER BY parent_session_id,id
+`
+
+func (q *Queries) ListUnfinalizedNativeSubagents(ctx context.Context) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listUnfinalizedNativeSubagents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagent{}
+	for rows.Next() {
+		var i SessionSubagent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.ParentTurnID,
+			&i.ParentToolCallID,
+			&i.ChildSessionID,
+			&i.Origin,
+			&i.ProviderToolCallID,
+			&i.IdempotencyKey,
+			&i.RequestFingerprint,
+			&i.Title,
+			&i.Role,
+			&i.TaskChars,
+			&i.PendingTask,
+			&i.RuntimeAgent,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.Depth,
+			&i.Status,
+			&i.WorkState,
+			&i.Progress,
+			&i.Result,
+			&i.ResultTruncated,
+			&i.Error,
+			&i.WakePolicy,
+			&i.Delivery,
+			&i.WakeMessageID,
+			&i.AcknowledgedTurnID,
+			&i.StartedAt,
+			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markSubagentFirstPromptAdmitted = `-- name: MarkSubagentFirstPromptAdmitted :execrows
 UPDATE session_subagents SET pending_task = NULL, updated_at = ? WHERE id = ?
 `
@@ -890,7 +990,7 @@ func (q *Queries) MarkSubagentWakeDispatched(ctx context.Context, arg MarkSubage
 }
 
 const markSubagentWakeSteerRequeued = `-- name: MarkSubagentWakeSteerRequeued :execrows
-UPDATE session_subagent_wakes SET steer_requeued = 1,updated_at = ? WHERE wake_message_id = ? AND state = 'open'
+UPDATE session_subagent_wakes SET steer_requeued = 1,state = 'open',route = 'queue',updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched') AND steer_requeued = 0
 `
 
 type MarkSubagentWakeSteerRequeuedParams struct {
@@ -1104,17 +1204,17 @@ func (q *Queries) SettleSubagentWake(ctx context.Context, arg SettleSubagentWake
 }
 
 const settleSubagentWakeRows = `-- name: SettleSubagentWakeRows :many
-UPDATE session_subagents SET delivery = ?1,wake_message_id = CASE WHEN ?1 = 'pending' THEN NULL ELSE wake_message_id END,updated_at = ?2 WHERE wake_message_id = ?3 AND delivery = 'claimed' RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
+UPDATE session_subagents SET delivery = ?1,wake_message_id = CASE WHEN ?1 = 'pending' AND (SELECT attempts FROM session_subagent_wakes WHERE session_subagent_wakes.wake_message_id = ?2) = 0 THEN NULL ELSE wake_message_id END,updated_at = ?3 WHERE wake_message_id = ?2 AND delivery = 'claimed' RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
 `
 
 type SettleSubagentWakeRowsParams struct {
-	Delivery string         `json:"delivery"`
-	Now      string         `json:"now"`
-	WakeID   sql.NullString `json:"wake_id"`
+	Delivery string `json:"delivery"`
+	WakeID   string `json:"wake_id"`
+	Now      string `json:"now"`
 }
 
 func (q *Queries) SettleSubagentWakeRows(ctx context.Context, arg SettleSubagentWakeRowsParams) ([]SessionSubagent, error) {
-	rows, err := q.db.QueryContext(ctx, settleSubagentWakeRows, arg.Delivery, arg.Now, arg.WakeID)
+	rows, err := q.db.QueryContext(ctx, settleSubagentWakeRows, arg.Delivery, arg.WakeID, arg.Now)
 	if err != nil {
 		return nil, err
 	}

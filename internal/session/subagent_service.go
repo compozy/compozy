@@ -27,10 +27,12 @@ type subagentRuntime interface {
 	Spawn(context.Context, SpawnOpts) (string, error)
 	Admit(context.Context, store.SessionSubagent, string) error
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
+	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
 	Result(context.Context, string) (string, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
+	WakeInputStatus(context.Context, store.SessionSubagentWake) (string, error)
 	Steer(context.Context, string, string, string, string) (acp.SteerResult, error)
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error
@@ -81,6 +83,8 @@ type subagentService struct {
 	subscribers  map[string]map[*subagentSubscription]struct{}
 	progress     map[string]*subagentProgress
 	nativeMisses map[string]bool
+	nativeKnown  map[string]map[string]bool
+	steerTurns   map[string]string
 }
 
 var _ SubagentService = (*subagentService)(nil)

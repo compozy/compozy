@@ -154,3 +154,14 @@ func (g *SessionRepo) ListOrphanSubagentSessions(ctx context.Context) ([]string,
 	}
 	return g.queries.ListOrphanSubagentSessions(ctx)
 }
+
+func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.SessionSubagent, error) {
+	if err := g.checkReady(ctx, "list unfinalized native subagents"); err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListUnfinalizedNativeSubagents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return subagentsFromSQL(rows)
+}

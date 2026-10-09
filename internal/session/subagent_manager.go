@@ -61,14 +61,16 @@ func (m *Manager) publishSubagentWakeCanceled(ctx context.Context, entry *store.
 		}
 	}
 }
-func (m *Manager) drainSubagentInputEvents(events <-chan acp.AgentEvent) bool {
-	canceled := false
+func (m *Manager) drainSubagentInputEvents(events <-chan acp.AgentEvent) (canceled, failed bool) {
 	for event := range events {
-		if event.Type == acp.EventTypeError || event.PromptStopReason == acp.PromptStopReasonCancelled {
+		if event.Type == acp.EventTypeError {
+			failed = true
+		}
+		if event.PromptStopReason == acp.PromptStopReasonCancelled {
 			canceled = true
 		}
 	}
-	return canceled
+	return canceled, failed
 }
 
 type subagentDispatchLockKey struct{}

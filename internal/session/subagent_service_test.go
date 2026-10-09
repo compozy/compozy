@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -754,7 +756,8 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 			id := subagentID("parent", ev.ProviderToolCallID)
 			row := db.rows[id]
-			if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
+			if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil ||
+				row.Title != ev.Title ||
 				row.RuntimeModel != ev.Model ||
 				row.ProviderToolCallID != ev.ProviderToolCallID {
 				t.Fatal(row)
@@ -1045,5 +1048,331 @@ func TestSubagentObserveHook(t *testing.T) {
 			close(hook.release)
 			synctest.Wait()
 		})
+	})
+}
+
+// Invariant: an in-flight steer owns an immutable batch, and channel-less acceptance completes at turn settlement.
+// Owner: service delivery; canonical UT-057 and IT-025 service suite.
+func TestSubagentPendingSteerBatch(t *testing.T) {
+	for _, withCompletion := range []bool{true, false} {
+		name := "Should isolate a later result until completion"
+		if !withCompletion {
+			name = "Should settle channel-less injection at turn completion without a duplicate"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, r := newSubagentTestService(t)
+				snap := r.snapshots["parent"]
+				snap.CanSteer = true
+				r.snapshots["parent"] = snap
+				completion := make(chan error, 1)
+				r.steer = acp.SteerResult{Attempt: acp.SteerAttemptPendingInjection}
+				if withCompletion {
+					r.steer.Completion = completion
+				}
+				first := requireSubagent(t, s, subagentTestRequest())
+				req := subagentTestRequest()
+				req.IdempotencyKey = "second"
+				second := requireSubagent(t, s, req)
+				settleTestChild(t, s, r, &first)
+				firstWake := *db.rows[first.ID].WakeMessageID
+				settleTestChild(t, s, r, &second)
+				if db.rows[second.ID].Delivery != store.SubagentDeliveryPending || len(r.queues) != 0 {
+					t.Fatal(db.rows, r.queues)
+				}
+				if db.wakes[firstWake].State != store.SubagentWakeStateDispatched {
+					t.Fatal(db.wakes)
+				}
+				snap.Active = false
+				r.snapshots["parent"] = snap
+				if withCompletion {
+					completion <- nil
+					close(completion)
+					synctest.Wait()
+				} else if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+					t.Fatal(err)
+				}
+				if db.rows[first.ID].Delivery != store.SubagentDeliveryDelivered {
+					t.Fatal(db.rows[first.ID])
+				}
+				if db.rows[second.ID].WakeMessageID == nil || *db.rows[second.ID].WakeMessageID == firstWake ||
+					len(r.queues) != 1 {
+					t.Fatal(db.rows[second.ID], r.queues)
+				}
+			})
+		})
+	}
+}
+
+// Invariant: provider errors are bounded across batches; cancellation waits for the next settled turn.
+// Owner: session wake state machine.
+func TestSubagentWakeFailureLimit(t *testing.T) {
+	t.Run("Should abandon after three failures without immediately retrying", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		var logs strings.Builder
+		s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, r, &row)
+		for attempt := 1; attempt <= 3; attempt++ {
+			wake := *db.rows[row.ID].WakeMessageID
+			if err := s.OnWakeDispatched(t.Context(), "parent", wake); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnWakeFailed(t.Context(), "parent", wake); err != nil {
+				t.Fatal(err)
+			}
+			want := store.SubagentDeliveryPending
+			if attempt == 3 {
+				want = store.SubagentDeliveryDisposed
+			}
+			if db.rows[row.ID].Delivery != want || len(r.queues) != attempt {
+				t.Fatal(db.rows[row.ID], r.queues)
+			}
+			if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(r.queues) != 3 || strings.Count(logs.String(), "subagent.wake_abandoned") != 1 {
+			t.Fatal(r.queues, logs.String())
+		}
+	})
+}
+
+// Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
+// Owner: session native lifecycle and recovery.
+func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	for _, edge := range []string{"settled", "interrupted", "stopped", "recovery", "terminal-first"} {
+		t.Run("Should finalize native work at "+edge, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			ev := NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ProviderToolCallID: "native",
+				ToolName:           "Agent",
+				Status:             "in_progress",
+			}
+			if edge == "terminal-first" {
+				ev.Status = "completed"
+				ev.Result = "answer"
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+			snap := r.snapshots["parent"]
+			snap.Active = false
+			r.snapshots["parent"] = snap
+			var err error
+			switch edge {
+			case "settled":
+				err = s.OnParentTurnSettled(t.Context(), "parent", "turn")
+			case "interrupted":
+				err = s.OnParentTurnInterrupted(t.Context(), "parent", "turn")
+			case "stopped":
+				err = s.OnParentStopped(t.Context(), "parent")
+			case "recovery":
+				err = s.Recover(t.Context())
+			}
+			row := db.rows[subagentID("parent", "native")]
+			want := store.SubagentStatusInterrupted
+			if edge == "terminal-first" {
+				want = store.SubagentStatusCompleted
+			}
+			if err != nil || row.Status != want || row.Delivery != store.SubagentDeliveryNone || len(r.queues) != 0 {
+				t.Fatal(row, err, r.queues)
+			}
+		})
+	}
+}
+
+func TestSubagentRecoveryIsolation(t *testing.T) {
+	t.Run("Should keep sent wake inputs and continue after orphan failures", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, r, &row)
+		wake := db.wakes[*db.rows[row.ID].WakeMessageID]
+		r.inputStatuses = map[string]string{wake.InputEntryID: store.SessionInputQueueStatusSent}
+		db.orphans = []string{"bad-orphan", "another-orphan"}
+		r.errorStop = testSubagentError()
+		snap := r.snapshots["parent"]
+		snap.Active = false
+		r.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(r.stopped) != 2 || len(r.queues) != 1 || db.rows[row.ID].Delivery != store.SubagentDeliveryDelivered {
+			t.Fatal(r.stopped, r.queues, db.rows[row.ID])
+		}
+	})
+	for _, status := range []string{store.SessionInputQueueStatusFailed, store.SessionInputQueueStatusCanceled} {
+		t.Run("Should release a recovered "+status+" wake", func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, r, &row)
+			wake := db.wakes[*db.rows[row.ID].WakeMessageID]
+			if err := s.OnWakeDispatched(t.Context(), "parent", wake.WakeMessageID); err != nil {
+				t.Fatal(err)
+			}
+			r.inputStatuses = map[string]string{wake.InputEntryID: status}
+			if err := s.recoverWake(t.Context(), wake); err != nil {
+				t.Fatal(err)
+			}
+			if status == store.SessionInputQueueStatusFailed {
+				if db.rows[row.ID].Delivery != store.SubagentDeliveryPending ||
+					db.wakes[wake.WakeMessageID].Attempts != 1 ||
+					len(r.queues) != 1 {
+					t.Fatal(db.rows, db.wakes, r.queues)
+				}
+			} else if db.rows[row.ID].WakeMessageID == nil || *db.rows[row.ID].WakeMessageID == wake.WakeMessageID || len(r.queues) != 2 {
+				t.Fatal(db.rows, r.queues)
+			}
+		})
+	}
+}
+
+func TestSubagentUserSteerSlot(t *testing.T) {
+	t.Run("Should queue without displacing user steer UT-057", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		var logs strings.Builder
+		s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		snap := r.snapshots["parent"]
+		snap.CanSteer = true
+		snap.UserSteer = true
+		r.snapshots["parent"] = snap
+		r.steer = acp.SteerResult{Attempt: acp.SteerAttemptInjected}
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, r, &row)
+		wake := db.wakes[*db.rows[row.ID].WakeMessageID]
+		if wake.Route != store.SubagentWakeRouteQueue || len(r.queues) != 1 ||
+			!strings.Contains(logs.String(), "steer_slot_taken") {
+			t.Fatal(wake, r.queues, logs.String())
+		}
+	})
+}
+
+type countingNativeSubagentStore struct {
+	store.SubagentStore
+	lookups int
+}
+
+func (s *countingNativeSubagentStore) GetSubagent(ctx context.Context, ws, id string) (store.SessionSubagent, error) {
+	s.lookups++
+	return s.SubagentStore.GetSubagent(ctx, ws, id)
+}
+
+func (s *countingNativeSubagentStore) GetSubagentByChild(
+	ctx context.Context,
+	id string,
+) (store.SessionSubagent, error) {
+	s.lookups++
+	return s.SubagentStore.GetSubagentByChild(ctx, id)
+}
+
+// Invariant: inner native chunks do not hit the store or recursively finalize, and diagnostic deduplication is bounded.
+// Owner: native ingest hot path.
+func TestSubagentNativeInnerEvents(t *testing.T) {
+	t.Run("Should process inner chunks without database reads and bound stitch misses", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		counted := &countingNativeSubagentStore{SubagentStore: db}
+		s.store = counted
+		if err := s.OnNativeToolEvent(
+			t.Context(),
+			"parent",
+			NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ToolName:           "Agent",
+				ProviderToolCallID: "known",
+				Status:             "in_progress",
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		before := counted.lookups
+		for range 2048 {
+			if err := s.OnNativeToolEvent(
+				t.Context(),
+				"parent",
+				NativeSubagentEvent{WorkspaceID: "ws", ProviderToolCallID: "known"},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := range 2048 {
+			if err := s.OnNativeToolEvent(
+				t.Context(),
+				"parent",
+				NativeSubagentEvent{WorkspaceID: "ws", ProviderToolCallID: fmt.Sprintf("unknown-%d", i)},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if counted.lookups != before || len(s.nativeMisses) > 1024 {
+			t.Fatal(counted.lookups, before, len(s.nativeMisses))
+		}
+	})
+}
+
+type faultySubagentAdmission struct {
+	*subagentTestRuntime
+	bad string
+}
+
+func (r faultySubagentAdmission) HasAdmission(ctx context.Context, row store.SessionSubagent) (bool, error) {
+	if row.ID == r.bad {
+		return false, errors.New("corrupt child transcript")
+	}
+	return r.subagentTestRuntime.HasAdmission(ctx, row)
+}
+
+func TestSubagentRecoveryCorruptChild(t *testing.T) {
+	t.Run("Should recover healthy children despite one corrupt transcript", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		bad := requireSubagent(t, s, subagentTestRequest())
+		req := subagentTestRequest()
+		req.IdempotencyKey = "healthy"
+		healthy := requireSubagent(t, s, req)
+		for _, row := range []Subagent{bad, healthy} {
+			snap := r.snapshots[*row.ChildSessionID]
+			snap.Active = false
+			r.snapshots[*row.ChildSessionID] = snap
+		}
+		s.runtime = faultySubagentAdmission{subagentTestRuntime: r, bad: bad.ID}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if db.rows[healthy.ID].Status != store.SubagentStatusCompleted ||
+			db.rows[bad.ID].Status != store.SubagentStatusRunning {
+			t.Fatal(db.rows)
+		}
+	})
+	t.Run("Should interrupt an unresumable shutdown child without disposing its result", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		r.snapshots[*row.ChildSessionID] = subagentSnapshot{
+			Info: &Info{ID: *row.ChildSessionID, State: StateStopped, StopReason: store.StopShutdown},
+		}
+		r.errorResume = errors.New("provider cannot resume")
+		if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+			t.Fatal(err)
+		}
+		if db.rows[row.ID].Status != store.SubagentStatusRunning {
+			t.Fatal(db.rows[row.ID])
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if db.rows[row.ID].Status != store.SubagentStatusInterrupted ||
+			db.rows[row.ID].Delivery != store.SubagentDeliveryClaimed {
+			t.Fatal(db.rows[row.ID])
+		}
 	})
 }

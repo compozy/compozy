@@ -543,3 +543,115 @@ func TestGlobalDBSubagentWakeInputRewrite(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: wake failure attempts survive successor batches and abandon only claimed results at three failures.
+// Owner: globaldb transactions; canonical subagent persistence suite.
+func TestGlobalDBSubagentWakeFailures(t *testing.T) {
+	t.Run("Should carry attempts across successors and dispose after three failures", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		row := reserveSubagent(t, s, workspace, parent, "retry", now)
+		finalizeSubagent(t, s, row.ID, now)
+		for attempt := 1; attempt <= 3; attempt++ {
+			id := fmt.Sprintf("wake-%d", attempt)
+			wake, err := s.OpenOrJoinWake(t.Context(), parent, []string{row.ID}, id)
+			if err != nil || wake.Attempts != attempt-1 {
+				t.Fatal(wake, err)
+			}
+			if err := s.MarkWakeDispatched(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			wake, rows, err := s.FailWake(t.Context(), id)
+			want := store.SubagentDeliveryPending
+			if attempt == 3 {
+				want = store.SubagentDeliveryDisposed
+			}
+			if err != nil || wake.Attempts != attempt || len(rows) != 1 || rows[0].Delivery != want {
+				t.Fatal(wake, rows, err)
+			}
+			// Reopen real SQLite between attempts: retry history must survive daemon replacement.
+			path := db.Path()
+			if err := db.Close(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			db = openGlobalDBForTest(t, path)
+			s = db.SessionRepo
+			repeated, again, err := s.FailWake(t.Context(), id)
+			if err != nil || repeated.Attempts != attempt || len(again) != 0 {
+				t.Fatal(repeated, again, err)
+			}
+		}
+		pending, err := s.ListPending(t.Context())
+		if err != nil || len(pending) != 0 {
+			t.Fatal(pending, err)
+		}
+	})
+	t.Run("Should retain failed attempt history through cancellation", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		row := reserveSubagent(t, s, ws, parent, "retry", now)
+		finalizeSubagent(t, s, row.ID, now)
+		if _, err := s.OpenOrJoinWake(t.Context(), parent, []string{row.ID}, "failed"); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := s.FailWake(t.Context(), "failed"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.OpenOrJoinWake(t.Context(), parent, []string{row.ID}, "cancel"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.SettleWake(t.Context(), "cancel", true); err != nil {
+			t.Fatal(err)
+		}
+		wake, err := s.OpenOrJoinWake(t.Context(), parent, []string{row.ID}, "successor")
+		if err != nil || wake.Attempts != 1 {
+			t.Fatal(wake, err)
+		}
+	})
+}
+
+// Invariant: native recovery selects only unfinished provider-owned work without crossing delivery ownership.
+// Owner: globaldb read and transition boundary.
+func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
+	t.Run("Should return only unfinalized native rows and preserve no delivery on dispose", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		reserveSubagent(t, s, ws, parent, "delegated", now)
+		for _, id := range []string{"native-live", "native-done"} {
+			row := store.SessionSubagent{
+				ID:                 id,
+				WorkspaceID:        ws,
+				ParentSessionID:    parent,
+				ParentTurnID:       "turn",
+				Origin:             store.SubagentOriginProviderNative,
+				ProviderToolCallID: id,
+				IdempotencyKey:     id,
+				RequestFingerprint: id,
+				Title:              id,
+				Depth:              1,
+				Status:             store.SubagentStatusRunning,
+				WakePolicy:         store.SubagentWakePolicySettledOnly,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+			if _, _, err := s.ReserveSubagent(t.Context(), row); err != nil {
+				t.Fatal(err)
+			}
+		}
+		finalizeSubagent(t, s, "native-done", now)
+		rows, err := s.ListUnfinalizedNative(t.Context())
+		if err != nil || len(rows) != 1 || rows[0].ID != "native-live" {
+			t.Fatal(rows, err)
+		}
+		if _, err := s.Dispose(t.Context(), store.SubagentDisposeFilter{ParentSessionID: parent}); err != nil {
+			t.Fatal(err)
+		}
+		row, err := s.GetSubagent(t.Context(), ws, "native-live")
+		if err != nil || row.Delivery != store.SubagentDeliveryNone {
+			t.Fatal(row, err)
+		}
+	})
+}

@@ -121,6 +121,7 @@ type SessionSubagentWake struct {
 	Route           string
 	InputEntryID    string
 	SteerRequeued   bool
+	Attempts        int
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -192,6 +193,7 @@ type SubagentStore interface {
 	RewriteSubagentWakeInput(ctx context.Context, wakeID, text string, metadata json.RawMessage) error
 	MarkWakeSteerRequeued(ctx context.Context, wakeID string) error
 	MarkWakeDispatched(ctx context.Context, wakeID string) error
+	FailWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
 	SettleWake(ctx context.Context, wakeID string, canceled bool) ([]SessionSubagent, error)
 	SetPending(ctx context.Context, ids []string) error
 	Acknowledge(ctx context.Context, id, observedTurnID string) (SessionSubagent, *SessionSubagentWake, error)
@@ -200,6 +202,7 @@ type SubagentStore interface {
 
 	ListStaleReserved(ctx context.Context, olderThan time.Time) ([]SessionSubagent, error)
 	ListUnfinalizedDelegated(ctx context.Context) ([]SessionSubagent, error)
+	ListUnfinalizedNative(ctx context.Context) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
 	ListPending(ctx context.Context) ([]SessionSubagent, error)
 	ListOrphanSubagentSessions(ctx context.Context) ([]string, error)

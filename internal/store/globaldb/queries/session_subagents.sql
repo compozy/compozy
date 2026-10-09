@@ -56,7 +56,7 @@ SELECT * FROM session_subagents WHERE wake_message_id = ? ORDER BY created_at,id
 UPDATE session_subagent_wakes SET route = ?,input_entry_id = ?,updated_at = ? WHERE wake_message_id = ? AND state = 'open';
 
 -- name: MarkSubagentWakeSteerRequeued :execrows
-UPDATE session_subagent_wakes SET steer_requeued = 1,updated_at = ? WHERE wake_message_id = ? AND state = 'open';
+UPDATE session_subagent_wakes SET steer_requeued = 1,state = 'open',route = 'queue',updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched') AND steer_requeued = 0;
 
 -- name: MarkSubagentWakeDispatched :execrows
 UPDATE session_subagent_wakes SET state = 'dispatched',updated_at = ? WHERE wake_message_id = ? AND state = 'open';
@@ -65,7 +65,7 @@ UPDATE session_subagent_wakes SET state = 'dispatched',updated_at = ? WHERE wake
 UPDATE session_subagent_wakes SET state = ?,updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched');
 
 -- name: SettleSubagentWakeRows :many
-UPDATE session_subagents SET delivery = sqlc.arg(delivery),wake_message_id = CASE WHEN sqlc.arg(delivery) = 'pending' THEN NULL ELSE wake_message_id END,updated_at = sqlc.arg(now) WHERE wake_message_id = sqlc.arg(wake_id) AND delivery = 'claimed' RETURNING *;
+UPDATE session_subagents SET delivery = sqlc.arg(delivery),wake_message_id = CASE WHEN sqlc.arg(delivery) = 'pending' AND (SELECT attempts FROM session_subagent_wakes WHERE session_subagent_wakes.wake_message_id = sqlc.arg(wake_id)) = 0 THEN NULL ELSE wake_message_id END,updated_at = sqlc.arg(now) WHERE wake_message_id = sqlc.arg(wake_id) AND delivery = 'claimed' RETURNING *;
 
 -- name: SetSubagentsPending :exec
 UPDATE session_subagents SET delivery = 'pending',wake_message_id = NULL,updated_at = ? WHERE id IN (SELECT value FROM json_each(sqlc.arg(ids))) AND status IN ('completed','failed','canceled','interrupted') AND delivery = 'none';
@@ -77,7 +77,7 @@ UPDATE session_subagents SET delivery = 'acknowledged',acknowledged_turn_id = sq
 UPDATE session_subagent_wakes SET state = 'canceled',updated_at = ? WHERE session_subagent_wakes.wake_message_id = sqlc.arg(wake_id) AND state = 'open' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE wake_message_id = sqlc.arg(wake_id) AND delivery = 'claimed');
 
 -- name: DisposeSubagents :many
-UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = sqlc.arg(now) WHERE parent_session_id = sqlc.arg(parent_id) AND (sqlc.arg(turn_id) = '' OR parent_turn_id = sqlc.arg(turn_id)) AND (sqlc.arg(ids) = '[]' OR id IN (SELECT value FROM json_each(sqlc.arg(ids)))) AND delivery IN ('none','pending','claimed') RETURNING *;
+UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = sqlc.arg(now) WHERE origin = 'delegated' AND parent_session_id = sqlc.arg(parent_id) AND (sqlc.arg(turn_id) = '' OR parent_turn_id = sqlc.arg(turn_id)) AND (sqlc.arg(ids) = '[]' OR id IN (SELECT value FROM json_each(sqlc.arg(ids)))) AND delivery IN ('none','pending','claimed') RETURNING *;
 
 -- name: CancelEmptyParentSubagentWakes :exec
 UPDATE session_subagent_wakes SET state = 'canceled',updated_at = ? WHERE session_subagent_wakes.parent_session_id = ? AND state = 'open' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE session_subagents.wake_message_id = session_subagent_wakes.wake_message_id AND delivery = 'claimed');
@@ -92,7 +92,7 @@ SELECT * FROM session_subagents WHERE status = 'queued' AND created_at < ? ORDER
 SELECT * FROM session_subagents WHERE origin = 'delegated' AND status IN ('queued','running','waiting') ORDER BY created_at,id;
 
 -- name: ListOpenSubagentWakes :many
-SELECT * FROM session_subagent_wakes WHERE state = 'open' ORDER BY created_at,wake_message_id;
+SELECT * FROM session_subagent_wakes WHERE state IN ('open','dispatched') ORDER BY created_at,wake_message_id;
 
 -- name: ListPendingSubagents :many
 SELECT * FROM session_subagents WHERE delivery = 'pending' ORDER BY created_at,id;
@@ -134,3 +134,15 @@ SET text = sqlc.arg(text),
 WHERE id = sqlc.arg(input_id) AND session_id = sqlc.arg(parent_id)
  AND status = 'queued' AND owner_kind = 'synthetic'
  AND json_type(synthetic_prompt_json) = 'object';
+
+-- name: ListUnfinalizedNativeSubagents :many
+SELECT * FROM session_subagents WHERE origin = 'provider_native' AND status IN ('queued','running','waiting') ORDER BY parent_session_id,id;
+
+-- name: InheritSubagentWakeAttempts :exec
+UPDATE session_subagent_wakes SET attempts = MAX(attempts, COALESCE((
+ SELECT MAX(prior.attempts) FROM session_subagents child JOIN session_subagent_wakes prior ON prior.wake_message_id = child.wake_message_id
+ WHERE child.parent_session_id = sqlc.arg(parent_id) AND child.id IN (SELECT value FROM json_each(sqlc.arg(ids)))
+),0)) WHERE session_subagent_wakes.wake_message_id = sqlc.arg(wake_id);
+
+-- name: FailSubagentWake :execrows
+UPDATE session_subagent_wakes SET attempts = attempts + 1,state = 'canceled',updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched');

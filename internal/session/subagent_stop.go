@@ -75,6 +75,10 @@ func (s *subagentService) Cancel(
 }
 func (s *subagentService) OnParentStopped(ctx context.Context, parent string) error {
 	unlock := s.lock(parent)
+	if err := s.interruptNative(ctx, parent, ""); err != nil {
+		unlock()
+		return err
+	}
 	rows, err := s.parentRows(ctx, parent)
 	if err != nil {
 		unlock()
@@ -108,6 +112,9 @@ func (s *subagentService) OnParentStopped(ctx context.Context, parent string) er
 func (s *subagentService) OnParentTurnInterrupted(ctx context.Context, parent, turn string) error {
 	unlock := s.lock(parent)
 	defer unlock()
+	if err := s.interruptNative(ctx, parent, turn); err != nil {
+		return err
+	}
 	wakes, err := s.parentWakes(ctx, parent)
 	if err != nil {
 		return err
