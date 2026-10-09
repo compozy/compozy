@@ -67,12 +67,12 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		return s.replay(ctx, row)
 	}
 	s.mu.Lock()
-	done := make(chan struct{})
-	s.flights[id] = done
+	flight := &subagentFlight{done: make(chan struct{})}
+	s.flights[id] = flight
 	s.mu.Unlock()
 	s.publish(ctx, row)
 	unlock()
-	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(done); s.mu.Unlock() })
+	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(flight.done); s.mu.Unlock() })
 	defer finishFlight()
 	opts := SpawnOpts{
 		ParentSessionID:  row.ParentSessionID,
@@ -109,6 +109,11 @@ func (s *subagentService) startDelegation(
 			if deleteErr := s.store.DeleteReserved(context.WithoutCancel(ctx), id); deleteErr != nil {
 				return Subagent{}, errors.Join(err, deleteErr)
 			}
+			s.mu.Lock()
+			if flight := s.flights[id]; flight != nil {
+				flight.err = err
+			}
+			s.mu.Unlock()
 			s.runtime.PublishParent(ctx, row.ParentSessionID)
 			return Subagent{}, err
 		}
@@ -197,9 +202,9 @@ func (s *subagentService) replay(ctx context.Context, row store.SessionSubagent)
 		return presentSubagent(row), nil
 	}
 	s.mu.Lock()
-	done := s.flights[row.ID]
+	flight := s.flights[row.ID]
 	s.mu.Unlock()
-	if done == nil {
+	if flight == nil {
 		return presentSubagent(row), nil
 	}
 	timer := time.NewTimer(defaultLifecycleTimeout)
@@ -208,7 +213,10 @@ func (s *subagentService) replay(ctx context.Context, row store.SessionSubagent)
 	case <-ctx.Done():
 		return Subagent{}, ctx.Err()
 	case <-timer.C:
-	case <-done:
+	case <-flight.done:
+		if flight.err != nil {
+			return Subagent{}, flight.err
+		}
 	}
 	return s.Get(ctx, row.WorkspaceID, row.ID)
 }

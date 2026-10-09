@@ -550,8 +550,8 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 		now:         func() time.Time { return time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC) },
 		resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
 		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		parents:     make(map[string]*sync.Mutex),
-		flights:     make(map[string]chan struct{}),
+		parents:     make(map[string]*subagentParentLock),
+		flights:     make(map[string]*subagentFlight),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}),
 		progress:    make(map[string]*subagentProgress),
 	}

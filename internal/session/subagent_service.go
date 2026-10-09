@@ -55,6 +55,16 @@ func WithSubagentSettledDispatcher(d SubagentSettledDispatcher) SubagentOption {
 	return func(s *subagentService) { s.settled = d }
 }
 
+type subagentParentLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+type subagentFlight struct {
+	done chan struct{}
+	err  error
+}
+
 type subagentService struct {
 	store        store.SubagentStore
 	runtime      subagentRuntime
@@ -66,8 +76,8 @@ type subagentService struct {
 	resultLimit  func(context.Context, string) (int, error)
 	settled      SubagentSettledDispatcher
 	mu           sync.Mutex
-	parents      map[string]*sync.Mutex
-	flights      map[string]chan struct{}
+	parents      map[string]*subagentParentLock
+	flights      map[string]*subagentFlight
 	subscribers  map[string]map[*subagentSubscription]struct{}
 	progress     map[string]*subagentProgress
 	nativeMisses map[string]bool
@@ -84,7 +94,7 @@ func NewSubagentService(db store.SubagentStore, manager *Manager, opts ...Subage
 		store: db, runtime: managerSubagentRuntime{manager}, ctx: manager.fallbackLifecycleContext(),
 		now: manager.now, newID: newULIDGenerator("wake"), launch: manager.startTrackedPromptTask,
 		logger: manager.logger, resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
-		parents: make(map[string]*sync.Mutex), flights: make(map[string]chan struct{}),
+		parents: make(map[string]*subagentParentLock), flights: make(map[string]*subagentFlight),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}), progress: make(map[string]*subagentProgress),
 	}
 	if s.logger == nil {
@@ -107,12 +117,21 @@ func (s *subagentService) lock(parent string) func() {
 	s.mu.Lock()
 	lock := s.parents[parent]
 	if lock == nil {
-		lock = new(sync.Mutex)
+		lock = new(subagentParentLock)
 		s.parents[parent] = lock
 	}
+	lock.refs++
 	s.mu.Unlock()
-	lock.Lock()
-	return lock.Unlock
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+		s.mu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(s.parents, parent)
+		}
+		s.mu.Unlock()
+	}
 }
 
 func (s *subagentService) caller(ctx context.Context, caller SubagentCaller) (subagentSnapshot, error) {

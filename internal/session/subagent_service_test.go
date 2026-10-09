@@ -977,3 +977,32 @@ func TestSubagentRecoveryStoppedParent(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: concurrent denial replays preserve the same capability error and release serialization state.
+// Owner: session delegation lifecycle; canonical service suite.
+func TestSubagentConcurrentDenial(t *testing.T) {
+	t.Run("Should return capability denial to every waiting replay", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			runtime.spawnBlock = make(chan struct{})
+			runtime.spawnErr = ErrSubagentCapabilityDenied
+			results := make(chan error, 2)
+			go func() { _, err := s.Delegate(t.Context(), subagentTestRequest()); results <- err }()
+			synctest.Wait()
+			go func() { _, err := s.Delegate(t.Context(), subagentTestRequest()); results <- err }()
+			synctest.Wait()
+			close(runtime.spawnBlock)
+			synctest.Wait()
+			for range 2 {
+				if err := <-results; !errors.Is(err, ErrSubagentCapabilityDenied) {
+					t.Fatal(err)
+				}
+			}
+			if len(db.rows) != 0 || len(s.parents) != 0 || len(s.flights) != 0 {
+				t.Fatal("denied delegation retained state")
+			}
+		})
+	})
+}
+
