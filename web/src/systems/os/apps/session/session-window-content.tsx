@@ -16,6 +16,7 @@ import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
+import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
 import {
   type SessionPayload,
   SessionEnvironmentControl,
@@ -345,7 +346,8 @@ export function SessionWindowContent({
               promptEmbeddedContextCapability={promptEmbeddedContextCapability}
               subagentNavigation={{
                 openSession: sidebar.openSession,
-                showSubagents: () => inspector.setOpen(true),
+                // "and N more" lands on the inspector's Subagents section, as the chip does.
+                showSubagents: () => requestSessionInspectorSection(sessionId, "subagents"),
               }}
               subagentOrigin={
                 derive.subagentOrigin && {

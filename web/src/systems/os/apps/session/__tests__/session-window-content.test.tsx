@@ -121,6 +121,7 @@ vi.mock("@/systems/session", async () => ({
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 import { SessionWindowContent } from "../session-window-content";
+import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
 
 const deadSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
@@ -231,6 +232,38 @@ describe("SessionWindowContent", () => {
     mocks.selectSession.mockReset();
     mocks.sessionThreadProps.mockReset();
     mocks.toastError.mockReset();
+  });
+
+  it("Should land the waiting banner's show-all on the inspector's Subagents section (m19)", async () => {
+    const session = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: { effective: { provider: "codex" }, selection_revision: 0, status: "ready" },
+      state: "active",
+    } satisfies SessionPayload;
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={session}
+          sessionId={session.id}
+          windowId={`session:${session.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    const props = mocks.sessionThreadProps.mock.lastCall?.[0] as {
+      subagentNavigation: { showSubagents: () => void };
+    };
+    act(() => props.subagentNavigation.showSubagents());
+    expect(sessionInspectorFocusStore.getSnapshot().context.request).toEqual({
+      sessionId: session.id,
+      section: "subagents",
+    });
   });
 
   it("Should bind Stop generation to prompt cancellation instead of session stopping", async () => {
