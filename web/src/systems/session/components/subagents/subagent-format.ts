@@ -390,11 +390,11 @@ export function subagentChipState(
           ? "running"
           : "delegated";
   if (live > 0) {
-    const needsYou = attention > 0 ? `, ${attention} needs you` : "";
     return {
       glyph,
       text: `${live}/${total}`,
-      ariaLabel: `${live} of ${total} ${plural(total, "subagent")} running${needsYou}`,
+      // COPY.md "Subagent Terms" fixes this label; the attention glyph carries "needs you".
+      ariaLabel: `${live} of ${total} ${plural(total, "subagent")} running`,
     };
   }
   return {

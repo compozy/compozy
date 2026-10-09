@@ -290,7 +290,7 @@ describe("subagentChipState (UT-W17)", () => {
     expect(subagentChipState({ live: 3, total: 10, failed: 1, attention: 1 }, true)).toEqual({
       glyph: "attention",
       text: "3/10",
-      ariaLabel: "3 of 10 subagents running, 1 needs you",
+      ariaLabel: "3 of 10 subagents running",
     });
     expect(subagentChipState({ live: 2, total: 10, failed: 0, attention: 0 }, true)?.glyph).toBe(
       "running"
