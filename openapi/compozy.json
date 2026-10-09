@@ -78020,6 +78020,7 @@
             "name": "event",
             "schema": {
               "enum": [
+                "subagent.settled",
                 "session.pre_create",
                 "session.post_create",
                 "session.pre_resume",
@@ -124828,6 +124829,7 @@
                               },
                               "event": {
                                 "enum": [
+                                  "subagent.settled",
                                   "session.pre_create",
                                   "session.post_create",
                                   "session.pre_resume",
@@ -125488,6 +125490,7 @@
                               },
                               "event": {
                                 "enum": [
+                                  "subagent.settled",
                                   "session.pre_create",
                                   "session.post_create",
                                   "session.pre_resume",
@@ -127310,6 +127313,7 @@
                       },
                       "event": {
                         "enum": [
+                          "subagent.settled",
                           "session.pre_create",
                           "session.post_create",
                           "session.pre_resume",
@@ -212199,6 +212203,7 @@
             "name": "event",
             "schema": {
               "enum": [
+                "subagent.settled",
                 "session.pre_create",
                 "session.post_create",
                 "session.pre_resume",

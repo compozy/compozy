@@ -33089,6 +33089,7 @@ export interface operations {
         agent?: string;
         /** @description Hook event name */
         event?:
+          | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"
           | "session.pre_resume"
@@ -50769,6 +50770,7 @@ export interface operations {
                 };
                 /** @enum {string} */
                 event:
+                  | "subagent.settled"
                   | "session.pre_create"
                   | "session.post_create"
                   | "session.pre_resume"
@@ -51069,6 +51071,7 @@ export interface operations {
                 };
                 /** @enum {string} */
                 event:
+                  | "subagent.settled"
                   | "session.pre_create"
                   | "session.post_create"
                   | "session.pre_resume"
@@ -51635,6 +51638,7 @@ export interface operations {
             };
             /** @enum {string} */
             event:
+              | "subagent.settled"
               | "session.pre_create"
               | "session.post_create"
               | "session.pre_resume"
@@ -86858,6 +86862,7 @@ export interface operations {
         session: string;
         /** @description Hook event name */
         event?:
+          | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"
           | "session.pre_resume"
