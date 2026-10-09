@@ -178,9 +178,9 @@ export function summarizeToolGroup(
 }
 
 /**
- * Subagent tools speak per tool, in their own verb (S6, UT-W09): "Checked
- * subagent capabilities 2 times"; a tool whose every call failed reads "Tried
- * to check subagent capabilities".
+ * Subagent tools speak per tool, in their own verb (S6, UT-W09, COPY.md
+ * "Subagent Terms"): repeats add "… 2 times"; a tool whose every call failed
+ * reads "Tried to check subagent capabilities".
  */
 function subagentSummaryParts(
   parts: readonly SessionTimelineToolPart[]
@@ -200,7 +200,9 @@ function subagentSummaryParts(
     label:
       succeeded === 0
         ? `Tried to ${getToolLabel(name, "failure")}`
-        : `${getToolLabel(name, "past")} ${count} ${pluralNoun(count, "time")}`,
+        : count === 1
+          ? getToolLabel(name, "past")
+          : `${getToolLabel(name, "past")} ${count} times`,
   }));
 }
 

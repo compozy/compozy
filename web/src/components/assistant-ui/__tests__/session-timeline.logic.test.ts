@@ -1547,5 +1547,12 @@ describe("session timeline subagent cards", () => {
     const [tried] = deriveSessionRows([capabilities(1, true), capabilities(2, true)]);
     if (tried?.kind !== "work") throw new Error("expected a summary");
     expect(tried.summary?.label).toBe("Tried to check subagent capabilities");
+
+    const [mixed] = deriveSessionRows([
+      capabilities(1),
+      tool(2, { toolName: "compozy__subagent_status", args: {} }),
+    ]);
+    if (mixed?.kind !== "work") throw new Error("expected a summary");
+    expect(mixed.summary?.label).toBe("Checked subagent capabilities, read subagent status");
   });
 });
