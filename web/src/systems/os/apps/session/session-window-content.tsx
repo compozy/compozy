@@ -17,6 +17,10 @@ import { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import {
+  SubagentNavigationContext,
+  SubagentOriginContext,
+} from "@/systems/session/contexts/session-subagents-context-value";
+import {
   type SessionPayload,
   SessionEnvironmentControl,
   type SessionEnvironmentControlHandle,
@@ -231,6 +235,8 @@ export function SessionWindowContent({
   );
 
   const quietWarning = sessionQuietWarning(session);
+  const subagentOrigin = derive.subagentOrigin;
+  const subagentParent = subagentOrigin?.parent ?? null;
 
   const handleForkDeadSession = () => {
     forkSession.mutate(
@@ -256,176 +262,201 @@ export function SessionWindowContent({
       openInThisWindow={sidebar.onSelectSession}
     >
       <SessionOriginContext value={derive.originContext}>
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SessionSidebar
-            open={sidebar.open}
-            sessions={sidebar.sessions}
-            disconnected={sidebar.disconnected}
-            collapsedThreadIds={sidebar.collapsedThreadIds}
-            view={sidebar.view}
-            currentSessionId={sessionId}
-            onToggleThread={sidebar.onToggleThread}
-            onSelectSession={sidebar.onSelectSession}
-            onNewSession={sidebar.onNewSession}
-            sessionActions={sidebar.sessionActions}
-          />
-          <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
-          >
-            <SessionWindowNotice
-              agentName={agentName}
-              controls={controls}
-              isForking={forkSession.isPending}
-              onFork={handleForkDeadSession}
-              quietWarning={quietWarning}
-              session={session}
-              sessionId={sessionId}
-            />
-            <SessionThread
-              liveDataEnabled={liveDataEnabled}
-              sessionId={sessionId}
-              workspaceId={workspaceId}
-              agentName={agentName}
-              acpSessionId={session.runtime.acp_session_id}
-              sessionState={session.state}
-              failure={session.failure}
-              statusSession={session}
-              stopCompletionNote={controls.stopCompletionNote}
-              quietWarning={quietWarning}
-              canPrompt={controls.canPrompt}
-              onCancelPrompt={controls.handleCancelPrompt}
-              onQueuePrompt={controls.handleQueuePrompt}
-              onInterruptPrompt={controls.handleInterruptPrompt}
-              onSteerPrompt={controls.handleSteerPrompt}
-              isBusyInputPending={controls.isBusyInputPending}
-              isSessionRunning={controls.isSessionRunning}
-              stopPhase={controls.stopPhase}
-              allowBusyInput={controls.allowBusyInput}
-              busyInputDefaultMode={controls.busyInputDefaultMode}
-              busyInputSteerDelivery={controls.busyInputSteerDelivery}
-              queuedPrompts={controls.queuedPrompts}
-              onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
-              onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
-              onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
-              onClearQueue={controls.handleClearQueue}
-              queueCap={controls.queueCap}
-              unconfirmedSends={controls.unconfirmedSends}
-              onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
-              onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
-              contextControl={
-                <SessionContextControl
-                  context={sessionContext.context}
-                  open={inspector.open}
-                  onOpen={() => inspector.setOpen(true)}
-                />
-              }
-              runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
-              environmentControl={
-                <SessionEnvironmentControl
-                  ref={environmentControl}
-                  binding={worktreeBinding}
-                  sessionId={sessionId}
-                  sessionTitle={session.name ?? sessionId}
-                  workspaceId={workspaceId}
-                  workspaceName={session.workspace_path ?? workspaceId}
-                />
-              }
-              commandCatalog={commandCatalog}
-              commandCatalogStatus={commandCatalogStatus}
-              onCommandCatalogOpen={refreshCommandCatalog}
-              onCommandAction={token => {
-                if (token !== "/worktree") return false;
-                environmentControl.current?.openFork();
-                return true;
-              }}
-              promptImageCapability={promptImageCapability}
-              promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-            />
-          </div>
-          {inspector.open ? (
-            <Suspense fallback={null}>
-              <SessionWindowInspector
-                activitySource={{
-                  session,
-                  running: controls.isSessionRunning,
-                  live: liveDataEnabled,
-                  queued: controls.queuedPrompts.length,
-                  goal: activityGoal,
-                }}
-                context={sessionContext.context}
-                session={session}
-                turns={sessionUsageTurns.data}
-                turnsUnavailable={sessionUsageTurns.isError}
-                usage={inspectorUsage}
-                drawerOpen
-                onDrawerOpenChange={open => {
-                  if (!open) {
-                    inspector.close();
+        <SubagentNavigationContext
+          value={{ openSession: sidebar.openSession, showSubagents: () => inspector.setOpen(true) }}
+        >
+          <SubagentOriginContext
+            value={
+              subagentOrigin
+                ? {
+                    parent: subagentParent,
+                    onOpenParent: subagentParent
+                      ? () =>
+                          sidebar.openSession(
+                            {
+                              sessionId: subagentParent.id,
+                              agentName: subagentParent.agentName,
+                              workspaceId,
+                            },
+                            { newWindow: false }
+                          )
+                      : undefined,
                   }
-                }}
+                : null
+            }
+          >
+            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+              <SessionSidebar
+                open={sidebar.open}
+                sessions={sidebar.sessions}
+                disconnected={sidebar.disconnected}
+                collapsedThreadIds={sidebar.collapsedThreadIds}
+                view={sidebar.view}
+                currentSessionId={sessionId}
+                onToggleThread={sidebar.onToggleThread}
+                onSelectSession={sidebar.onSelectSession}
+                onNewSession={sidebar.onNewSession}
+                sessionActions={sidebar.sessionActions}
               />
-            </Suspense>
-          ) : null}
-          {deleteDialog.open ? (
-            <Suspense fallback={null}>
-              <SessionDeleteDialog
-                open
-                onOpenChange={deleteDialog.setOpen}
-                session={session}
-                isDeleting={controls.isDeleting}
-                onConfirm={deleteDialog.confirmDelete}
-              />
-            </Suspense>
-          ) : null}
-          {renameDialog.open ? (
-            <Suspense fallback={null}>
-              <SessionRenameDialog
-                open
-                onOpenChange={renameDialog.setOpen}
-                session={session}
-                isRenaming={controls.isRenaming}
-                requestError={renameDialog.error}
-                onConfirm={renameDialog.confirmRename}
-              />
-            </Suspense>
-          ) : null}
-          {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
-            <Suspense fallback={null}>
-              <SessionDeleteDialog
-                open
-                onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
-                session={sidebar.rowDeleteDialog.session}
-                sessions={sidebar.rowDeleteDialog.sessions}
-                results={sidebar.rowDeleteDialog.results}
-                onRetry={sidebar.rowDeleteDialog.onRetry}
-                isDeleting={sidebar.rowDeleteDialog.isDeleting}
-                onConfirm={sidebar.rowDeleteDialog.onConfirm}
-              />
-            </Suspense>
-          ) : null}
-          {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (
-            <Suspense fallback={null}>
-              <SessionRenameDialog
-                open
-                onOpenChange={sidebar.rowRenameDialog.onOpenChange}
-                session={sidebar.rowRenameDialog.session}
-                isRenaming={sidebar.rowRenameDialog.isRenaming}
-                onConfirm={sidebar.rowRenameDialog.onConfirm}
-              />
-            </Suspense>
-          ) : null}
-          {clearDialog.open ? (
-            <Suspense fallback={null}>
-              <SessionClearDialog
-                open
-                onOpenChange={clearDialog.setOpen}
-                isClearing={controls.isClearing}
-                onConfirm={clearDialog.confirmClear}
-              />
-            </Suspense>
-          ) : null}
-        </div>
+              <div
+                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
+              >
+                <SessionWindowNotice
+                  agentName={agentName}
+                  controls={controls}
+                  isForking={forkSession.isPending}
+                  onFork={handleForkDeadSession}
+                  quietWarning={quietWarning}
+                  session={session}
+                  sessionId={sessionId}
+                />
+                <SessionThread
+                  liveDataEnabled={liveDataEnabled}
+                  sessionId={sessionId}
+                  workspaceId={workspaceId}
+                  agentName={agentName}
+                  acpSessionId={session.runtime.acp_session_id}
+                  sessionState={session.state}
+                  failure={session.failure}
+                  statusSession={session}
+                  stopCompletionNote={controls.stopCompletionNote}
+                  quietWarning={quietWarning}
+                  canPrompt={controls.canPrompt}
+                  onCancelPrompt={controls.handleCancelPrompt}
+                  onQueuePrompt={controls.handleQueuePrompt}
+                  onInterruptPrompt={controls.handleInterruptPrompt}
+                  onSteerPrompt={controls.handleSteerPrompt}
+                  isBusyInputPending={controls.isBusyInputPending}
+                  isSessionRunning={controls.isSessionRunning}
+                  stopPhase={controls.stopPhase}
+                  allowBusyInput={controls.allowBusyInput}
+                  busyInputDefaultMode={controls.busyInputDefaultMode}
+                  busyInputSteerDelivery={controls.busyInputSteerDelivery}
+                  queuedPrompts={controls.queuedPrompts}
+                  onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
+                  onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
+                  onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+                  onClearQueue={controls.handleClearQueue}
+                  queueCap={controls.queueCap}
+                  unconfirmedSends={controls.unconfirmedSends}
+                  onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
+                  onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+                  contextControl={
+                    <SessionContextControl
+                      context={sessionContext.context}
+                      open={inspector.open}
+                      onOpen={() => inspector.setOpen(true)}
+                    />
+                  }
+                  runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
+                  environmentControl={
+                    <SessionEnvironmentControl
+                      ref={environmentControl}
+                      binding={worktreeBinding}
+                      sessionId={sessionId}
+                      sessionTitle={session.name ?? sessionId}
+                      workspaceId={workspaceId}
+                      workspaceName={session.workspace_path ?? workspaceId}
+                    />
+                  }
+                  commandCatalog={commandCatalog}
+                  commandCatalogStatus={commandCatalogStatus}
+                  onCommandCatalogOpen={refreshCommandCatalog}
+                  onCommandAction={token => {
+                    if (token !== "/worktree") return false;
+                    environmentControl.current?.openFork();
+                    return true;
+                  }}
+                  promptImageCapability={promptImageCapability}
+                  promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+                />
+              </div>
+              {inspector.open ? (
+                <Suspense fallback={null}>
+                  <SessionWindowInspector
+                    activitySource={{
+                      session,
+                      running: controls.isSessionRunning,
+                      live: liveDataEnabled,
+                      queued: controls.queuedPrompts.length,
+                      goal: activityGoal,
+                    }}
+                    context={sessionContext.context}
+                    session={session}
+                    turns={sessionUsageTurns.data}
+                    turnsUnavailable={sessionUsageTurns.isError}
+                    usage={inspectorUsage}
+                    drawerOpen
+                    onDrawerOpenChange={open => {
+                      if (!open) {
+                        inspector.close();
+                      }
+                    }}
+                  />
+                </Suspense>
+              ) : null}
+              {deleteDialog.open ? (
+                <Suspense fallback={null}>
+                  <SessionDeleteDialog
+                    open
+                    onOpenChange={deleteDialog.setOpen}
+                    session={session}
+                    isDeleting={controls.isDeleting}
+                    onConfirm={deleteDialog.confirmDelete}
+                  />
+                </Suspense>
+              ) : null}
+              {renameDialog.open ? (
+                <Suspense fallback={null}>
+                  <SessionRenameDialog
+                    open
+                    onOpenChange={renameDialog.setOpen}
+                    session={session}
+                    isRenaming={controls.isRenaming}
+                    requestError={renameDialog.error}
+                    onConfirm={renameDialog.confirmRename}
+                  />
+                </Suspense>
+              ) : null}
+              {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
+                <Suspense fallback={null}>
+                  <SessionDeleteDialog
+                    open
+                    onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
+                    session={sidebar.rowDeleteDialog.session}
+                    sessions={sidebar.rowDeleteDialog.sessions}
+                    results={sidebar.rowDeleteDialog.results}
+                    onRetry={sidebar.rowDeleteDialog.onRetry}
+                    isDeleting={sidebar.rowDeleteDialog.isDeleting}
+                    onConfirm={sidebar.rowDeleteDialog.onConfirm}
+                  />
+                </Suspense>
+              ) : null}
+              {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (
+                <Suspense fallback={null}>
+                  <SessionRenameDialog
+                    open
+                    onOpenChange={sidebar.rowRenameDialog.onOpenChange}
+                    session={sidebar.rowRenameDialog.session}
+                    isRenaming={sidebar.rowRenameDialog.isRenaming}
+                    onConfirm={sidebar.rowRenameDialog.onConfirm}
+                  />
+                </Suspense>
+              ) : null}
+              {clearDialog.open ? (
+                <Suspense fallback={null}>
+                  <SessionClearDialog
+                    open
+                    onOpenChange={clearDialog.setOpen}
+                    isClearing={controls.isClearing}
+                    onConfirm={clearDialog.confirmClear}
+                  />
+                </Suspense>
+              ) : null}
+            </div>
+          </SubagentOriginContext>
+        </SubagentNavigationContext>
       </SessionOriginContext>
     </SessionDeriveHost>
   );

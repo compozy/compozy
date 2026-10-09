@@ -87,6 +87,8 @@ export interface SessionComposerProps {
   contentInset?: SessionThreadContentInset;
   inactivePlaceholder?: string;
   decisionDock?: ReactNode;
+  /** Docked on the editor's top edge (the subagent waiting banner, S5). */
+  editorBanner?: ReactNode;
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
@@ -126,7 +128,10 @@ function SessionComposerSurface() {
         <div className="group/composer relative flex min-w-0 flex-col gap-2">
           {meta.decisionDock}
           {state.showQueuedStrip ? <SessionComposerQueue /> : null}
-          <SessionComposerEditor />
+          <div className="flex min-w-0 flex-col">
+            {meta.editorBanner}
+            <SessionComposerEditor />
+          </div>
         </div>
       </ThreadContentRail>
     </div>

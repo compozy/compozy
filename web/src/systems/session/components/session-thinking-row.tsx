@@ -38,6 +38,8 @@ export interface SessionThinkingRowProps {
    * folds normally and nothing reads "canceled".
    */
   stopCompletionNote?: boolean;
+  /** The parent's subagent roster: live rows join "N agents running" (S7). */
+  subagents?: SessionWorkingStatusInput["subagents"];
 }
 
 const ROW_CLASS =
@@ -257,9 +259,17 @@ export function SessionThinkingRow({
   reducedMotion = false,
   stopCompletionNote = false,
   stopping = false,
+  subagents,
 }: SessionThinkingRowProps) {
   const now = useSecondClock(false);
-  const status = deriveWorkingStatus({ session, running, thinking, lastTurn, nowMs: now });
+  const status = deriveWorkingStatus({
+    session,
+    running,
+    thinking,
+    lastTurn,
+    nowMs: now,
+    subagents,
+  });
   if (stopping) {
     return (
       <div role="status" data-testid="session-stopping-row" className={ROW_CLASS}>

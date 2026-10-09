@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import {
@@ -30,6 +30,8 @@ export interface SubagentGroupProps {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   stale?: boolean;
+  /** Provider-native inner rows per member (S8); see `SubagentCard.nested`. */
+  nested?: (subagent: SubagentView) => ReactNode;
   className?: string;
 }
 
@@ -53,6 +55,7 @@ export function SubagentGroup({
   defaultOpen = false,
   onOpenChange,
   stale = false,
+  nested,
   className,
 }: SubagentGroupProps) {
   const summary = subagentGroupSummary(subagents);
@@ -124,6 +127,7 @@ export function SubagentGroup({
             key={subagent.id}
             subagent={subagent}
             onOpen={onOpen}
+            nested={nested?.(subagent)}
             stale={stale}
             variant="flush"
           />

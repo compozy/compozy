@@ -7,6 +7,8 @@ import {
   useSessionTransportState,
 } from "@/systems/session";
 
+import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
+
 import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
 import { useThinkingGuardElapsed } from "./hooks/use-thinking-guard-elapsed";
 import {
@@ -57,6 +59,7 @@ export function SessionThreadStatusRow({
   const { messages } = useSessionTranscriptThreadState();
   const transport = useSessionTransportState();
   const dispatch = useSessionPromptDispatch();
+  const { roster } = useSessionSubagents();
   const guardElapsed = useThinkingGuardElapsed(running ? dispatch.pendingSinceMs : null);
 
   // The window's quiet-warning Alert owns a quiet episode (clock + Stop now);
@@ -88,6 +91,7 @@ export function SessionThreadStatusRow({
       pausedAtMs={liveDataEnabled ? null : transport.lastLiveAt}
       reducedMotion={reducedMotion}
       stopCompletionNote={stopCompletionNote}
+      subagents={roster.rows}
     />
   );
 }

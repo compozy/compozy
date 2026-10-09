@@ -20,6 +20,8 @@ import { ThreadScrollStoreContext } from "./hooks/thread-scroll-context";
 import { SteerProvenanceProvider } from "@/systems/session/lib/steer-provenance-context";
 import { SessionTurnOutcomesProvider } from "@/systems/session/lib/session-turn-outcomes-context";
 import { threadScrollLogic } from "./hooks/thread-scroll-store";
+import { SessionSubagentBanner } from "./session-subagent-banner";
+import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import {
   SessionDecisionDock,
   SessionTerminalQuoteSlot,
@@ -164,97 +166,105 @@ export function SessionThread({
       data-thread-root=""
     >
       <ThreadScrollStoreContext.Provider value={scrollStore}>
-        <SessionTurnOutcomesProvider>
-          <SteerProvenanceProvider>
-            <SessionThreadReadOnlyProvider readOnly={readOnly}>
-              <SessionThreadLiveDataProvider liveDataEnabled={liveDataEnabled}>
-                <SessionComposerPrefillProvider setComposerText={thread.composer.prefillComposer}>
-                  {workspaceId && sessionState !== "starting" ? (
-                    <ThreadContentRail inset={contentInset}>
-                      <SessionGoalHeaderContainer
-                        enabled={liveDataEnabled}
-                        onPrefillComposer={readOnly ? undefined : thread.composer.prefillComposer}
-                        sessionId={sessionId}
-                        workspaceId={workspaceId}
+        <SessionSubagentsProvider workspaceId={workspaceId ?? ""} sessionId={sessionId}>
+          <SessionTurnOutcomesProvider>
+            <SteerProvenanceProvider>
+              <SessionThreadReadOnlyProvider readOnly={readOnly}>
+                <SessionThreadLiveDataProvider liveDataEnabled={liveDataEnabled}>
+                  <SessionComposerPrefillProvider setComposerText={thread.composer.prefillComposer}>
+                    {workspaceId && sessionState !== "starting" ? (
+                      <ThreadContentRail inset={contentInset}>
+                        <SessionGoalHeaderContainer
+                          enabled={liveDataEnabled}
+                          onPrefillComposer={readOnly ? undefined : thread.composer.prefillComposer}
+                          sessionId={sessionId}
+                          workspaceId={workspaceId}
+                        />
+                      </ThreadContentRail>
+                    ) : null}
+                    <ThreadViewport
+                      agentName={agentName}
+                      sessionId={sessionId}
+                      isSessionRunning={thread.runtimeRunning}
+                      contentInset={contentInset}
+                      sessionState={sessionState}
+                      failure={failure}
+                      startupFailed={thread.startupFailed}
+                    />
+                    <ThreadContentRail inset={contentInset} className="pt-2">
+                      <SessionGoalCommandErrorNotice sessionId={sessionId} />
+                      {/* End-of-transcript truth about the live view (S4): a stated history reset, or a dead stream with Try again. */}
+                      <SessionTransportHistoryResetNotice />
+                      <LoadedTransportFailureNotice />
+                      <SessionThreadStatusRow
+                        session={statusSession}
+                        stopCompletionNote={stopCompletionNote}
+                        stopping={stopPhase === "stopping" || sessionState === "stopping"}
+                        running={thread.runtimeRunning}
+                        quietWarning={quietWarning}
+                        liveDataEnabled={liveDataEnabled}
+                        reducedMotion={thread.reducedMotion}
                       />
                     </ThreadContentRail>
-                  ) : null}
-                  <ThreadViewport
-                    agentName={agentName}
-                    sessionId={sessionId}
-                    isSessionRunning={thread.runtimeRunning}
-                    contentInset={contentInset}
-                    sessionState={sessionState}
-                    failure={failure}
-                    startupFailed={thread.startupFailed}
-                  />
-                  <ThreadContentRail inset={contentInset} className="pt-2">
-                    <SessionGoalCommandErrorNotice sessionId={sessionId} />
-                    {/* End-of-transcript truth about the live view (S4): a stated history reset, or a dead stream with Try again. */}
-                    <SessionTransportHistoryResetNotice />
-                    <LoadedTransportFailureNotice />
-                    <SessionThreadStatusRow
-                      session={statusSession}
-                      stopCompletionNote={stopCompletionNote}
-                      stopping={stopPhase === "stopping" || sessionState === "stopping"}
-                      running={thread.runtimeRunning}
-                      quietWarning={quietWarning}
-                      liveDataEnabled={liveDataEnabled}
-                      reducedMotion={thread.reducedMotion}
-                    />
-                  </ThreadContentRail>
-                  {readOnly ? null : (
-                    <SessionComposer
-                      sessionId={sessionId}
-                      quoteSlot={<SessionTerminalQuoteSlot sessionId={sessionId} />}
-                      composerState={thread.renderedComposer}
-                      contentInset={contentInset}
-                      decisionDock={
-                        workspaceId ? (
-                          <SessionDecisionDock
-                            enabled={liveDataEnabled}
-                            sessionId={sessionId}
-                            workspaceId={workspaceId}
-                          />
-                        ) : undefined
-                      }
-                      canPrompt={thread.lifecycleCanPrompt}
-                      onCancelPrompt={thread.handleCancelPrompt}
-                      onQueuePrompt={onQueuePrompt}
-                      onInterruptPrompt={onInterruptPrompt}
-                      onSteerPrompt={handleSteerPrompt}
-                      isBusyInputPending={isBusyInputPending}
-                      isSessionRunning={thread.runtimeRunning}
-                      stopPhase={stopPhase}
-                      allowBusyInput={allowBusyInput}
-                      busyInputDefaultMode={busyInputDefaultMode}
-                      busyInputSteerDelivery={busyInputSteerDelivery}
-                      queuedPrompts={queuedPrompts}
-                      onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-                      onReplaceQueuedPrompt={onReplaceQueuedPrompt}
-                      onSteerQueuedPrompt={onSteerQueuedPrompt}
-                      onClearQueue={onClearQueue}
-                      queueCap={queueCap}
-                      unconfirmedSends={unconfirmedSends}
-                      onRetryUnconfirmedSend={onRetryUnconfirmedSend}
-                      onDiscardUnconfirmedSend={onDiscardUnconfirmedSend}
-                      inactivePlaceholder={inactivePlaceholder(sessionState, thread.startupFailed)}
-                      runtimeControl={runtimeControl}
-                      environmentControl={environmentControl}
-                      contextControl={contextControl}
-                      commandCatalog={commandCatalog}
-                      commandCatalogStatus={commandCatalogStatus}
-                      onCommandCatalogOpen={onCommandCatalogOpen}
-                      onCommandAction={onCommandAction}
-                      promptImageCapability={promptImageCapability}
-                      promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-                    />
-                  )}
-                </SessionComposerPrefillProvider>
-              </SessionThreadLiveDataProvider>
-            </SessionThreadReadOnlyProvider>
-          </SteerProvenanceProvider>
-        </SessionTurnOutcomesProvider>
+                    {readOnly ? null : (
+                      <SessionComposer
+                        sessionId={sessionId}
+                        quoteSlot={<SessionTerminalQuoteSlot sessionId={sessionId} />}
+                        composerState={thread.renderedComposer}
+                        contentInset={contentInset}
+                        decisionDock={
+                          workspaceId ? (
+                            <SessionDecisionDock
+                              enabled={liveDataEnabled}
+                              sessionId={sessionId}
+                              workspaceId={workspaceId}
+                            />
+                          ) : undefined
+                        }
+                        editorBanner={
+                          <SessionSubagentBanner parentTurnRunning={thread.runtimeRunning} />
+                        }
+                        canPrompt={thread.lifecycleCanPrompt}
+                        onCancelPrompt={thread.handleCancelPrompt}
+                        onQueuePrompt={onQueuePrompt}
+                        onInterruptPrompt={onInterruptPrompt}
+                        onSteerPrompt={handleSteerPrompt}
+                        isBusyInputPending={isBusyInputPending}
+                        isSessionRunning={thread.runtimeRunning}
+                        stopPhase={stopPhase}
+                        allowBusyInput={allowBusyInput}
+                        busyInputDefaultMode={busyInputDefaultMode}
+                        busyInputSteerDelivery={busyInputSteerDelivery}
+                        queuedPrompts={queuedPrompts}
+                        onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+                        onReplaceQueuedPrompt={onReplaceQueuedPrompt}
+                        onSteerQueuedPrompt={onSteerQueuedPrompt}
+                        onClearQueue={onClearQueue}
+                        queueCap={queueCap}
+                        unconfirmedSends={unconfirmedSends}
+                        onRetryUnconfirmedSend={onRetryUnconfirmedSend}
+                        onDiscardUnconfirmedSend={onDiscardUnconfirmedSend}
+                        inactivePlaceholder={inactivePlaceholder(
+                          sessionState,
+                          thread.startupFailed
+                        )}
+                        runtimeControl={runtimeControl}
+                        environmentControl={environmentControl}
+                        contextControl={contextControl}
+                        commandCatalog={commandCatalog}
+                        commandCatalogStatus={commandCatalogStatus}
+                        onCommandCatalogOpen={onCommandCatalogOpen}
+                        onCommandAction={onCommandAction}
+                        promptImageCapability={promptImageCapability}
+                        promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+                      />
+                    )}
+                  </SessionComposerPrefillProvider>
+                </SessionThreadLiveDataProvider>
+              </SessionThreadReadOnlyProvider>
+            </SteerProvenanceProvider>
+          </SessionTurnOutcomesProvider>
+        </SessionSubagentsProvider>
       </ThreadScrollStoreContext.Provider>
     </ThreadPrimitive.Root>
   );
