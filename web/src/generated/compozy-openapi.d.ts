@@ -46538,6 +46538,8 @@ export interface operations {
         worktree?: string;
         /** @description Filter by exact agent name */
         agent?: string;
+        /** @description Subagent session visibility (default include) */
+        subagents?: "include" | "exclude" | "only";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */

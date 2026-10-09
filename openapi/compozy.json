@@ -113380,6 +113380,19 @@
             }
           },
           {
+            "description": "Subagent session visibility (default include)",
+            "in": "query",
+            "name": "subagents",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude",
+                "only"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by exact parent session id",
             "in": "query",
             "name": "parent",
