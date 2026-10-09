@@ -229,7 +229,12 @@ func (h *BaseHandlers) respondSubagentError(c *gin.Context, err error) {
 			"Provider-native subagents cannot be canceled; stop the parent turn instead.",
 		)
 	case errors.Is(err, session.ErrSubagentParentNotActive):
-		subagentError(c, http.StatusConflict, "parent_not_active", "Subagents require an active turn in the calling session.")
+		subagentError(
+			c,
+			http.StatusConflict,
+			"parent_not_active",
+			"Subagents require an active turn in the calling session.",
+		)
 	case errors.Is(err, session.ErrSubagentCapabilityDenied):
 		subagentError(c, http.StatusForbidden, "capability_denied", err.Error())
 	case errors.Is(err, session.ErrSubagentInvalidRequest), errors.Is(err, listcursor.ErrInvalid):

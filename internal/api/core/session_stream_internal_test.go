@@ -1365,7 +1365,12 @@ func TestSubagentSnapshotCarriesEveryPage(t *testing.T) {
 		}}
 		handlers := &BaseHandlers{Subagents: service}
 		writer := &streamTestFlushWriter{}
-		if err := handlers.writeSubagentsSnapshot(t.Context(), writer, "parent", streamTestSessionInfo("parent")); err != nil {
+		if err := handlers.writeSubagentsSnapshot(
+			t.Context(),
+			writer,
+			"parent",
+			streamTestSessionInfo("parent"),
+		); err != nil {
 			t.Fatal(err)
 		}
 		body := writer.String()

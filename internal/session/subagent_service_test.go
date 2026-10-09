@@ -786,14 +786,23 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			snap := runtime.snapshots["parent"]
 			snap.Active, snap.TurnID = false, ""
 			runtime.snapshots["parent"] = snap
-			foreign := SubagentActor{Kind: "agent", ID: "other", Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "other"}}
+			foreign := SubagentActor{
+				Kind:   "agent",
+				ID:     "other",
+				Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "other"},
+			}
 			if _, err := s.Cancel(t.Context(), foreign, row.ID, ""); err == nil {
 				t.Fatal("foreign caller canceled the row")
 			}
-			owner := SubagentActor{Kind: "agent", ID: "parent", Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "parent"}}
+			owner := SubagentActor{
+				Kind:   "agent",
+				ID:     "parent",
+				Caller: &SubagentCaller{WorkspaceID: "ws", SessionID: "parent"},
+			}
 			got, err := s.Cancel(t.Context(), owner, row.ID, "")
 			synctest.Wait()
-			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Status != store.SubagentStatusCanceled {
+			if err != nil || got.Status != "cancel_requested" ||
+				db.rows[row.ID].Status != store.SubagentStatusCanceled {
 				t.Fatal(got, err, db.rows[row.ID])
 			}
 		})

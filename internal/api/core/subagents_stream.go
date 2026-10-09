@@ -35,7 +35,11 @@ func (h *BaseHandlers) writeSubagentsSnapshot(
 	// The snapshot replaces the client's whole roster, so it carries every row:
 	// a row missing from it would read as an unconfirmed (still running) card.
 	var all store.SubagentPage
-	query := store.SubagentListQuery{WorkspaceID: workspaceID, ParentSessionID: sessionID, Limit: subagentSnapshotPageSize}
+	query := store.SubagentListQuery{
+		WorkspaceID:     workspaceID,
+		ParentSessionID: sessionID,
+		Limit:           subagentSnapshotPageSize,
+	}
 	for {
 		page, err := h.Subagents.List(ctx, query)
 		if err != nil {
