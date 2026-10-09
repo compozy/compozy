@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-07
+## 0.3.0 - 2026-10-09
 
 ### ♻️ Refactoring
 
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unify PRD and TechSpec into a single spec pipeline (#397)
 - Quiet the Context rail and sessions row for everyday use (#649)
 - Retire Network, managed Sandbox, and Bridges (#681)
+- Complete Modern Go adoption across module boundaries (#706)
 
 ### ⚡ Performance Improvements
 
@@ -90,6 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calmer, plain-language web UI for everyday users (#683)
 - Continue and fork sessions across agents, with fallback account routes (#684)
 - Shell rail v2 with light and dark themes (#687)
+- Show nested child runs and a distinct awaiting-child state (#708)
+- Merge Jobs and Triggers into one Automations area (#709)
+- Remove the memory feature family and adopt agent-native session compaction (#710)
+- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
 
 ### 🐛 Bug Fixes
 
@@ -321,6 +326,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wait for terminal command output before detaching
 - Refresh credential assertions context after migration
 - Cover inactive loop routes with automatic approval (#703)
+- Cut duplicated and misplaced tests across the pyramid (#707)
 
 ## 0.2.15 - 2026-07-17
 
