@@ -5520,6 +5520,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a session's subagents */
+    get: operations["listSessionSubagents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/tools": {
     parameters: {
       query?: never;
@@ -5684,6 +5701,40 @@ export interface paths {
     put?: never;
     /** Fork a live session into a worktree */
     post: operations["forkSessionToWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/subagents/{subagent_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one subagent */
+    get: operations["getSubagent"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a delegated subagent */
+    post: operations["cancelSubagent"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11435,6 +11486,13 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                subagent_summary?: {
+                  attention: number;
+                  failed: number;
+                  live: number;
+                  most_urgent: string;
+                  total: number;
+                } | null;
                 supervision: {
                   quiet_warning: {
                     /** Format: date-time */
@@ -45184,6 +45242,8 @@ export interface operations {
         type?: "user" | "system" | "coordinator" | "spawned";
         /** @description Filter by exact agent definition name */
         agent?: string;
+        /** @description Subagent session visibility (default include) */
+        subagents?: "include" | "exclude" | "only";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -45490,6 +45550,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -45985,6 +46052,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -46446,6 +46520,8 @@ export interface operations {
         worktree?: string;
         /** @description Filter by exact agent name */
         agent?: string;
+        /** @description Subagent session visibility (default include) */
+        subagents?: "include" | "exclude" | "only";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -46934,6 +47010,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -48004,6 +48087,82 @@ export interface operations {
               /** Format: int64 */
               sequence: number;
               turn_id?: string;
+            } | null;
+            subagent_updated?: {
+              session_id: string;
+              subagent: {
+                child_session_id: string | null;
+                delivery: string;
+                depth: number;
+                error: string | null;
+                hint?: string;
+                origin: string;
+                parent_session_id: string;
+                parent_turn_id: string;
+                progress: string;
+                provider_tool_call_id: string | null;
+                result: string | null;
+                result_preview: string;
+                result_truncated: boolean;
+                role: string;
+                runtime: {
+                  agent: string;
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                  speed: string;
+                };
+                /** Format: date-time */
+                settled_at: string | null;
+                /** Format: date-time */
+                started_at: string | null;
+                status: string;
+                subagent_id: string;
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                wait_timed_out: boolean;
+                work_state: string;
+                workspace_id: string;
+              };
+            } | null;
+            subagents_snapshot?: {
+              session_id: string;
+              subagents: {
+                child_session_id: string | null;
+                delivery: string;
+                depth: number;
+                error: string | null;
+                hint?: string;
+                origin: string;
+                parent_session_id: string;
+                parent_turn_id: string;
+                progress: string;
+                provider_tool_call_id: string | null;
+                result: string | null;
+                result_preview: string;
+                result_truncated: boolean;
+                role: string;
+                runtime: {
+                  agent: string;
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                  speed: string;
+                };
+                /** Format: date-time */
+                settled_at: string | null;
+                /** Format: date-time */
+                started_at: string | null;
+                status: string;
+                subagent_id: string;
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                wait_timed_out: boolean;
+                work_state: string;
+                workspace_id: string;
+              }[];
             } | null;
             transcript_delta?: {
               /** Format: int64 */
@@ -85433,6 +85592,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -102879,6 +103045,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -103363,6 +103536,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -103944,6 +104124,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -104411,6 +104598,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -105667,6 +105861,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -106457,6 +106658,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -106792,6 +107000,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -107720,6 +107935,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -108055,6 +108277,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -113336,6 +113565,13 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                subagent_summary?: {
+                  attention: number;
+                  failed: number;
+                  live: number;
+                  most_urgent: string;
+                  total: number;
+                } | null;
                 supervision: {
                   quiet_warning: {
                     /** Format: date-time */
@@ -113940,6 +114176,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -114441,6 +114684,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -114895,6 +115145,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -116306,6 +116563,82 @@ export interface operations {
               sequence: number;
               turn_id?: string;
             } | null;
+            subagent_updated?: {
+              session_id: string;
+              subagent: {
+                child_session_id: string | null;
+                delivery: string;
+                depth: number;
+                error: string | null;
+                hint?: string;
+                origin: string;
+                parent_session_id: string;
+                parent_turn_id: string;
+                progress: string;
+                provider_tool_call_id: string | null;
+                result: string | null;
+                result_preview: string;
+                result_truncated: boolean;
+                role: string;
+                runtime: {
+                  agent: string;
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                  speed: string;
+                };
+                /** Format: date-time */
+                settled_at: string | null;
+                /** Format: date-time */
+                started_at: string | null;
+                status: string;
+                subagent_id: string;
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                wait_timed_out: boolean;
+                work_state: string;
+                workspace_id: string;
+              };
+            } | null;
+            subagents_snapshot?: {
+              session_id: string;
+              subagents: {
+                child_session_id: string | null;
+                delivery: string;
+                depth: number;
+                error: string | null;
+                hint?: string;
+                origin: string;
+                parent_session_id: string;
+                parent_turn_id: string;
+                progress: string;
+                provider_tool_call_id: string | null;
+                result: string | null;
+                result_preview: string;
+                result_truncated: boolean;
+                role: string;
+                runtime: {
+                  agent: string;
+                  model: string;
+                  provider: string;
+                  reasoning_effort: string;
+                  speed: string;
+                };
+                /** Format: date-time */
+                settled_at: string | null;
+                /** Format: date-time */
+                started_at: string | null;
+                status: string;
+                subagent_id: string;
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                wait_timed_out: boolean;
+                work_state: string;
+                workspace_id: string;
+              }[];
+            } | null;
             transcript_delta?: {
               /** Format: int64 */
               cursor: number;
@@ -116488,6 +116821,197 @@ export interface operations {
         };
       };
       /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listSessionSubagents: {
+    parameters: {
+      query?: {
+        /** @description Subagent origin */
+        origin?: "delegated" | "provider_native";
+        /** @description Comma-separated subagent statuses */
+        status?: string;
+        /** @description Subagents per page (default 50, maximum 200) */
+        limit?: number;
+        /** @description Opaque next_cursor from the previous page */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Parent session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            next_cursor: string | null;
+            subagents: {
+              child_session_id: string | null;
+              delivery: string;
+              depth: number;
+              error: string | null;
+              hint?: string;
+              origin: string;
+              parent_session_id: string;
+              parent_turn_id: string;
+              progress: string;
+              provider_tool_call_id: string | null;
+              result: string | null;
+              result_preview: string;
+              result_truncated: boolean;
+              role: string;
+              runtime: {
+                agent: string;
+                model: string;
+                provider: string;
+                reasoning_effort: string;
+                speed: string;
+              };
+              /** Format: date-time */
+              settled_at: string | null;
+              /** Format: date-time */
+              started_at: string | null;
+              status: string;
+              subagent_id: string;
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              wait_timed_out: boolean;
+              work_state: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or subagent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subagents unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -118682,6 +119206,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -119693,6 +120224,13 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              subagent_summary?: {
+                attention: number;
+                failed: number;
+                live: number;
+                most_urgent: string;
+                total: number;
+              } | null;
               supervision: {
                 quiet_warning: {
                   /** Format: date-time */
@@ -119864,6 +120402,370 @@ export interface operations {
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSubagent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Subagent id */
+        subagent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            child_session_id: string | null;
+            delivery: string;
+            depth: number;
+            error: string | null;
+            hint?: string;
+            origin: string;
+            parent_session_id: string;
+            parent_turn_id: string;
+            progress: string;
+            provider_tool_call_id: string | null;
+            result: string | null;
+            result_preview: string;
+            result_truncated: boolean;
+            role: string;
+            runtime: {
+              agent: string;
+              model: string;
+              provider: string;
+              reasoning_effort: string;
+              speed: string;
+            };
+            /** Format: date-time */
+            settled_at: string | null;
+            /** Format: date-time */
+            started_at: string | null;
+            status: string;
+            subagent_id: string;
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+            wait_timed_out: boolean;
+            work_state: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or subagent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subagents unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelSubagent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Subagent id */
+        subagent_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            status: string;
+            subagent_id: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or subagent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subagent is not cancelable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subagents unavailable */
       503: {
         headers: {
           [name: string]: unknown;

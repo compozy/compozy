@@ -59,6 +59,7 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
+	SubagentSummary     *SubagentSummaryPayload     `json:"subagent_summary,omitzero"`
 	Queue               *SessionQueueSummaryPayload `json:"queue,omitzero"`
 	Supervision         *session.SupervisionState   `json:"supervision"`
 	BusyInput           *session.BusyInputState     `json:"busy_input,omitzero"`

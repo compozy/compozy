@@ -66,6 +66,8 @@ type SessionCommandsChangedPayload struct {
 
 // SessionStreamPayload documents the possible SSE frame payloads.
 type SessionStreamPayload struct {
+	SubagentsSnapshot   *SubagentsSnapshotEvent         `json:"subagents_snapshot,omitzero"`
+	SubagentUpdated     *SubagentUpdatedEvent           `json:"subagent_updated,omitzero"`
 	UsageChanged        *SessionUsageChangedPayload     `json:"session_usage_changed,omitzero"`
 	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitzero"`
 	Raw                 *SessionEventPayload            `json:"raw,omitempty"`
