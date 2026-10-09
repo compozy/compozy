@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatSubagentElapsed,
   subagentCardLines,
   subagentChipPreview,
   subagentChipState,
@@ -131,13 +130,6 @@ describe("subagentCardLines (UT-W05)", () => {
 });
 
 describe("subagent elapsed (UT-W06)", () => {
-  it("Should format compact elapsed with a padded second unit", () => {
-    expect(formatSubagentElapsed(45_000)).toBe("45s");
-    expect(formatSubagentElapsed(725_000)).toBe("12m 05s");
-    expect(formatSubagentElapsed(3_780_000)).toBe("1h 03m");
-    expect(formatSubagentElapsed(-5)).toBe("0s");
-  });
-
   it("Should freeze at settled_at and tick from started_at only while live", () => {
     expect(subagentElapsedClock(subagent({ status: "completed", settled_at: at(52) }))).toEqual({
       kind: "frozen",

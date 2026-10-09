@@ -22,6 +22,7 @@ export {
   formatAbsoluteTime,
   formatDuration,
   formatRelativeTime,
+  type FormatDurationOptions,
 } from "../lib/format-time";
 export {
   WIDTH_DETAIL_INSPECTOR_INLINE,

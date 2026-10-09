@@ -122,22 +122,6 @@ function parseMs(iso: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-const pad2 = (value: number) => String(value).padStart(2, "0");
-
-/**
- * Compact elapsed (UT-W06): `45s`, `12m 05s`, `1h 03m`, `2d 04h`. The second
- * unit is zero-padded so a ticking value keeps its width.
- */
-export function formatSubagentElapsed(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1_000));
-  if (total < 60) return `${total}s`;
-  const minutes = Math.floor(total / 60);
-  if (minutes < 60) return `${minutes}m ${pad2(total % 60)}s`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ${pad2(minutes % 60)}m`;
-  return `${Math.floor(hours / 24)}d ${pad2(hours % 24)}h`;
-}
-
 /**
  * The clock behind one elapsed label: `ticking` counts from `startMs` on the
  * shared ticker; `frozen` is a fixed server-side span; `none` shows nothing.
