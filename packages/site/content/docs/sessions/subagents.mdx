@@ -35,7 +35,7 @@ biggest risks. Keep working on the edge cases while it does that.
 The agent first checks who it can delegate to. A row appears in the transcript:
 
 ```text
-⚒  Checked subagent capabilities 1 time
+⚒  Checked subagent capabilities
 ```
 
 ## Step 2: Watch the subagent card
@@ -156,8 +156,11 @@ compozy session list --subagents exclude
   `compozy session subagents show`.
 - **Approvals stay with the subagent.** When a subagent needs your approval, its card reads "Waiting
   for you". Open it and answer there.
-- **Restarts are safe.** Results and pending wake-ups survive a CompozyOS restart. A subagent that
-  finished while CompozyOS was off wakes the parent once when it comes back.
+- **Restarts are safe.** Results and pending wake-ups survive a CompozyOS restart. Stopping CompozyOS
+  doesn't cancel a working subagent: it picks up again after the restart and wakes the parent once
+  when it finishes. If it can't pick up again, it's marked interrupted and the parent still hears
+  about it. A subagent that finished while CompozyOS was off wakes the parent once when it comes back.
+  If CompozyOS crashes, a subagent that was working is marked failed.
 - **Archiving follows the parent.** Archive or unarchive the parent and its subagents follow.
   Subagent sessions have no archive action of their own.
 
@@ -224,8 +227,11 @@ The intended loop is: check capabilities, delegate with `mode: "async"`, end the
 
 ```text
 Subagent "Sol: diff panel default and base diff design" (sub-3c9e1f0a7b2d4e61) finished: completed.
-Call compozy__subagent_status to read each result.
+Call compozy__subagent_status to read its result.
 ```
+
+When several subagents settle in the same batch, the wake lists one line per subagent and ends with
+`Call compozy__subagent_status to read each result.`
 
 `mode: "wait"` blocks until the answer or `timeout_ms` (default 10 minutes, at most 60). A timeout
 doesn't cancel the subagent; the agent is woken later instead. Use
