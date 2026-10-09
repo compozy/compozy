@@ -45,7 +45,6 @@ export function sessionFacetsOptions(filters: SessionListFilters = {}) {
     sort: _sort,
     include_health: _health,
     search_fields: _fields,
-    subagents: _subagents,
     ...scope
   } = normalizeSessionListFilters(filters);
   return queryOptions({
