@@ -125,6 +125,8 @@ type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 
 interface PartMetadata {
   turnId?: string;
+  /** Provider-native subagent attribution (S8); text parts would otherwise join the parent flow. */
+  parentToolCallId?: string;
   timestamp?: string;
   bytes?: number;
   width?: number;
@@ -294,6 +296,10 @@ function capturePartMetadata(messages: unknown): PartMetadata[][] {
       if (timestamp) {
         metadata.timestamp = timestamp;
       }
+      const parentToolCallId = stringField(part, "parentToolCallId");
+      if (parentToolCallId) {
+        metadata.parentToolCallId = parentToolCallId;
+      }
       const bytes = numberField(part, "bytes");
       if (bytes !== undefined) {
         metadata.bytes = bytes;
@@ -328,6 +334,7 @@ function reattachPartMetadata(
         !meta ||
         (!meta.turnId &&
           !meta.timestamp &&
+          !meta.parentToolCallId &&
           meta.bytes === undefined &&
           meta.width === undefined &&
           meta.height === undefined)
@@ -339,6 +346,7 @@ function reattachPartMetadata(
         ...part,
         ...(meta.turnId ? { turnId: meta.turnId } : {}),
         ...(meta.timestamp ? { timestamp: meta.timestamp } : {}),
+        ...(meta.parentToolCallId ? { parentToolCallId: meta.parentToolCallId } : {}),
         ...(meta.bytes !== undefined ? { bytes: meta.bytes } : {}),
         ...(meta.width !== undefined ? { width: meta.width } : {}),
         ...(meta.height !== undefined ? { height: meta.height } : {}),

@@ -54,8 +54,9 @@ export function findSubagent(roster: SubagentRoster, id: string): SubagentView |
   return roster.rows.find(row => row.id === id);
 }
 
-export function liveSubagentIds(roster: SubagentRoster): ReadonlySet<string> {
-  const live = new Set<string>();
-  for (const row of roster.rows) if (isSubagentLive(row.status)) live.add(row.id);
-  return live;
+/** Rows the stream reported settled: the only cards a turn fold may hide. */
+export function settledSubagentIds(roster: SubagentRoster): ReadonlySet<string> {
+  const settled = new Set<string>();
+  for (const row of roster.rows) if (!isSubagentLive(row.status)) settled.add(row.id);
+  return settled;
 }

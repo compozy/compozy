@@ -22,7 +22,7 @@ import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import type { SessionTurnOutcomes } from "@/systems/session/lib/session-turn-outcomes";
 import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
-import { liveSubagentIds } from "@/systems/session/lib/subagent-roster";
+import { settledSubagentIds } from "@/systems/session/lib/subagent-roster";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
 // A turn is "working" while it streams: assistant-ui marks the message status
@@ -313,7 +313,7 @@ export function useAssistantMessageTimeline() {
   const workGroupAnchors = useSelector(timelineStore, state => state.context.workGroupAnchors);
   const { roster } = useSessionSubagents();
   const rows = deriveSessionRows(parts, {
-    liveSubagentIds: liveSubagentIds(roster),
+    settledSubagentIds: settledSubagentIds(roster),
     activeTurnId: workingPart?.turnId,
     foldSettledTurns: true,
     interruptedTurnIds: endings.interrupted,

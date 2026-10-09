@@ -205,8 +205,11 @@ export interface DeriveSessionRowsOptions {
    * reaches to it instead of stopping at the last call this message holds.
    */
   turnEndedAtMs?: ReadonlyMap<string, number>;
-  /** Roster ids still live; their cards stay out of turn folds (UT-W04). */
-  liveSubagentIds?: ReadonlySet<string>;
+  /**
+   * Roster ids the stream reported settled; only their cards may fold (UT-W04).
+   * A card the roster has not confirmed reads as running, so it stays in view.
+   */
+  settledSubagentIds?: ReadonlySet<string>;
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 

@@ -1474,7 +1474,7 @@ describe("session timeline subagent cards", () => {
     expect(expanded[0]).toMatchObject({ kind: "subagents", expanded: true });
   });
 
-  it("UT-W04: Should keep live cards outside the settled turn fold and fold settled ones", () => {
+  it("UT-W04: Should keep live and unconfirmed cards outside the settled turn fold and fold settled ones", () => {
     const parts: SessionTimelinePart[] = [
       tool(1),
       tool(2),
@@ -1485,7 +1485,7 @@ describe("session timeline subagent cards", () => {
     ];
     const rows = deriveSessionRows(parts, {
       foldSettledTurns: true,
-      liveSubagentIds: new Set(["sub-live"]),
+      settledSubagentIds: new Set(["sub-done"]),
     });
     expect(rows.map(row => row.kind)).toEqual(["turn-fold", "subagents", "text"]);
     expect(rows[1]).toMatchObject({ id: "subagent:sub-live", live: true });
@@ -1493,8 +1493,19 @@ describe("session timeline subagent cards", () => {
     if (fold?.kind !== "turn-fold") throw new Error("expected a fold");
     expect(fold.rows.map(row => row.id)).toContain("subagent:sub-done");
 
-    const settled = deriveSessionRows(parts, { foldSettledTurns: true });
+    const settled = deriveSessionRows(parts, {
+      foldSettledTurns: true,
+      settledSubagentIds: new Set(["sub-live", "sub-done"]),
+    });
     expect(settled.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+    // A card the roster has not confirmed reads as running: it never folds.
+    const unconfirmed = deriveSessionRows(parts, { foldSettledTurns: true });
+    expect(unconfirmed.map(row => row.kind)).toEqual([
+      "turn-fold",
+      "subagents",
+      "subagents",
+      "text",
+    ]);
   });
 
   it("UT-W11: Should nest parts attributed to a native card and leave unknown parents in the flow", () => {

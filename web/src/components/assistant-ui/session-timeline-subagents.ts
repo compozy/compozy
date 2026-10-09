@@ -100,7 +100,7 @@ export function subagentRowId(subagentIds: readonly string[]): string {
 }
 
 export interface SubagentRowOptions {
-  liveSubagentIds?: ReadonlySet<string>;
+  settledSubagentIds?: ReadonlySet<string>;
   expandedWorkGroupIds?: ReadonlySet<string>;
 }
 
@@ -125,7 +125,7 @@ export function subagentRowFromParts(
     timestamp: first.timestamp,
     parts: [...parts],
     subagentIds,
-    live: subagentIds.some(subagentId => options.liveSubagentIds?.has(subagentId) ?? false),
+    live: subagentIds.some(subagentId => !(options.settledSubagentIds?.has(subagentId) ?? false)),
     expanded: options.expandedWorkGroupIds?.has(id) ?? false,
     nested: ownNested,
   };

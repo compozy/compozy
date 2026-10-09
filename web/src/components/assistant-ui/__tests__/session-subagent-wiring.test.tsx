@@ -23,10 +23,13 @@ import {
 } from "@/systems/session/contexts/session-subagents-context-value";
 import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
+import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import type { SubagentRoster } from "@/systems/session/lib/subagent-roster";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionMessage, SessionPayload } from "@/systems/session/types";
 
 import { SessionSubagentBanner } from "../session-subagent-banner";
 import { SessionSubagentRowView } from "../session-subagent-row";
@@ -221,5 +224,45 @@ describe("subagent origin (UT-W12 wiring)", () => {
     const plain = renderHook(() => useSubagentOrigin(child("worker"), WORKSPACE_ID), { wrapper });
     expect(plain.result.current).toBeNull();
     expect(fetchSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("provider-native attribution through the transcript adapters (UT-W11)", () => {
+  // Regression: AI SDK validation dropped `parentToolCallId` from text parts, so a native
+  // subagent's inner text joined the parent's own reply.
+  it("Should keep inner text and tools attributed from the wire message to the card", async () => {
+    const wire = {
+      id: "msg-1",
+      role: "assistant",
+      parts: [
+        { type: "tool-Agent", toolCallId: "toolu_agent", state: "input-available", input: {} },
+        {
+          type: "data-compozy-subagent",
+          id: "sub-native",
+          data: {
+            subagent_id: "sub-native",
+            tool_call_id: "toolu_agent",
+            origin: "provider_native",
+          },
+        },
+        { type: "text", text: "Inspecting the diff.", parentToolCallId: "toolu_agent" },
+        {
+          type: "tool-Read",
+          toolCallId: "toolu_read",
+          state: "input-available",
+          input: { file_path: "/workspace/README.md" },
+          parentToolCallId: "toolu_agent",
+        },
+        { type: "text", text: "The reviewer found no issues." },
+      ],
+    } as unknown as SessionMessage;
+    const [normalized] = await normalizeTranscriptMessages([wire]);
+    const [like] = toThreadMessageLikes([normalized!]);
+    const rows = deriveSessionRows(toTimelineParts(like!));
+    expect(rows.map(row => row.kind)).toEqual(["subagents", "text"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    expect(card.nested.get("sub-native")?.map(part => part.kind)).toEqual(["text", "tool"]);
+    expect(rows[1]).toMatchObject({ part: { text: "The reviewer found no issues." } });
   });
 });
