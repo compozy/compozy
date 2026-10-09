@@ -34,6 +34,15 @@ Terms". QA: new `RT-subagent-delegate`, `RT-subagent-restart`, `ET-web-subagent-
 `ET-web-native-subagent`; `ET-web-session-sidebar-threads` reset to `untested` for the sidebar filter
 and chip (ADR-005).
 
+Follow-up 2026-10-09: acpmock `native_tool_call` executes injected hosted MCP tools from the
+ACP agent process and emits correlated tool/result updates; the fixture and driver docs live in
+`internal/testutil/acpmock/`. Hosted subagent bindings resolve an omitted turn ID only from a
+matching authoritative active run/generation and the parent activity snapshot. No public wire,
+hook, config, migration, or official skill shape changes. The daemon integration reads back the
+parent transcript after a real delegate call, enabling the Web subagent-card E2E fixture without
+operator-side delegation or synthetic tool results.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

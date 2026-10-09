@@ -10,12 +10,13 @@ const FixtureVersion = 2
 type StepKind string
 
 const (
-	StepKindAssistant     StepKind = "assistant"
-	StepKindThought       StepKind = "thought"
-	StepKindToolCall      StepKind = "tool_call"
-	StepKindPermission    StepKind = "permission"
-	StepKindCommand       StepKind = "command_exec"
-	StepKindDriverControl StepKind = "driver_control"
+	StepKindAssistant      StepKind = "assistant"
+	StepKindThought        StepKind = "thought"
+	StepKindToolCall       StepKind = "tool_call"
+	StepKindNativeToolCall StepKind = "native_tool_call"
+	StepKindPermission     StepKind = "permission"
+	StepKindCommand        StepKind = "command_exec"
+	StepKindDriverControl  StepKind = "driver_control"
 )
 
 // Fixture describes one deterministic multi-agent ACP mock scenario.
@@ -153,6 +154,7 @@ type Step struct {
 	// BurstCount repeats Text without delivery pacing to exercise transport pressure.
 	BurstCount int `json:"burst_count,omitzero"`
 
+	ToolID      string          `json:"tool_id,omitempty"`
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
 	Title       string          `json:"title,omitempty"`
 	ToolKind    string          `json:"tool_kind,omitempty"`

@@ -56,3 +56,10 @@ component stories. This scenario is the real-provider walk with visual parity ag
    VC ids; record differences in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
+
+Fixture follow-up 2026-10-09: `internal/testutil/acpmock/testdata/native_tool_delegate_fixture.json`
+provides `subagent-delegator` and `subagent-worker`. Register both and prompt the parent with
+`delegate child work`. Its `native_tool_call` steps execute hosted MCP from the agent process,
+so the delegate result and subagent card marker come from the persisted ACP transcript.
+`TestDaemonE2EAgentDelegatesThroughHostedMCP` owns this backend persistence assertion; the browser
+lane still owns the card rendering and navigation assertions above.
