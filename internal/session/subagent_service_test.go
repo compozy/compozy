@@ -1670,7 +1670,37 @@ func (b cancelReadBarrier) GetSubagentByID(ctx context.Context, id string) (stor
 	return row, err
 }
 
+// admitRaceStore runs onRead once, right after delegation's pre-admission
+// row check, to land a cancel in the window before Admit.
+type admitRaceStore struct {
+	store.SubagentStore
+	onRead func(store.SessionSubagent)
+	once   *sync.Once
+}
+
+func (a admitRaceStore) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
+	row, err := a.SubagentStore.GetSubagentByID(ctx, id)
+	a.once.Do(func() { a.onRead(row) })
+	return row, err
+}
+
 func TestSubagentCancelLifetime(t *testing.T) {
+	t.Run("Should not restart a child canceled between the admission check and Admit", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		s.store = admitRaceStore{SubagentStore: db, once: &sync.Once{}, onRead: func(row store.SessionSubagent) {
+			canceled := db.rows[row.ID]
+			canceled.Status, canceled.Delivery = store.SubagentStatusCanceled, store.SubagentDeliveryDisposed
+			db.rows[row.ID] = canceled
+			runtime.mu.Lock()
+			runtime.stopped = append(runtime.stopped, *row.ChildSessionID)
+			runtime.mu.Unlock()
+		}}
+		got, err := s.Delegate(t.Context(), subagentTestRequest())
+		if err != nil || got.Status != store.SubagentStatusCanceled || len(runtime.admitted) != 0 {
+			t.Fatal(got, err, runtime.admitted)
+		}
+	})
 	t.Run("Should stop a child linked while cancel waits for the parent lock", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

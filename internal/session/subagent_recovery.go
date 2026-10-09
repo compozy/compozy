@@ -99,7 +99,7 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 		if row.PendingTask == nil {
 			return s.failRecovered(ctx, row, *row.ChildSessionID)
 		}
-		if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask)); err != nil {
+		if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask), true); err != nil {
 			return errors.Join(err, s.failRecovered(ctx, row, *row.ChildSessionID))
 		}
 	}

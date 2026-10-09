@@ -463,11 +463,14 @@ func (r *subagentTestRuntime) Spawn(_ context.Context, opts SpawnOpts) (string, 
 	}
 	return id, nil
 }
-func (r *subagentTestRuntime) Admit(_ context.Context, row store.SessionSubagent, text string) error {
+func (r *subagentTestRuntime) Admit(_ context.Context, row store.SessionSubagent, text string, resume bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.errorAdmit != nil {
 		return r.errorAdmit
+	}
+	if row.ChildSessionID != nil && !resume && slices.Contains(r.stopped, *row.ChildSessionID) {
+		return ErrSessionNotActive
 	}
 	r.admitted[row.ID] = text
 	return nil

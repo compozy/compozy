@@ -151,12 +151,18 @@ func (s *subagentService) startDelegation(
 		return s.failDelegation(ctx, row, child, err)
 	}
 	// Cancel can win between link and admission; it owns the child stop then.
+	// Admission never resumes the child, so a cancel that finishes stopping it
+	// after this check makes Admit fail instead of restarting canceled work.
 	if current, err := s.store.GetSubagentByID(ctx, id); err != nil {
 		return s.failDelegation(ctx, row, child, err)
 	} else if store.IsSubagentStatusTerminal(current.Status) {
 		return presentSubagent(current), nil
 	}
-	if err = s.runtime.Admit(ctx, row, subagentPrompt(row.Role, req.Task)); err != nil {
+	if err = s.runtime.Admit(ctx, row, subagentPrompt(row.Role, req.Task), false); err != nil {
+		if current, readErr := s.store.GetSubagentByID(ctx, id); readErr == nil &&
+			store.IsSubagentStatusTerminal(current.Status) {
+			return presentSubagent(current), nil
+		}
 		return s.failDelegation(ctx, row, child, err)
 	}
 	if err := s.store.MarkFirstPromptAdmitted(ctx, id); err != nil {

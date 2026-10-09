@@ -55,13 +55,21 @@ func (r managerSubagentRuntime) Spawn(ctx context.Context, opts SpawnOpts) (stri
 	}
 	return child.ID, err
 }
-func (r managerSubagentRuntime) Admit(ctx context.Context, row store.SessionSubagent, text string) error {
+func (r managerSubagentRuntime) Admit(
+	ctx context.Context,
+	row store.SessionSubagent,
+	text string,
+	resume bool,
+) error {
 	if row.ChildSessionID == nil {
 		return errors.New("session: subagent child is missing")
 	}
 	// Explicit queue mode does not resume retained sessions. Recovery owns the
 	// missing first admission, including children accepted before runtime binding.
 	if _, active := r.m.Get(*row.ChildSessionID); !active {
+		if !resume {
+			return ErrSessionNotActive
+		}
 		if _, err := r.m.Resume(ctx, *row.ChildSessionID); err != nil {
 			return err
 		}

@@ -25,7 +25,9 @@ type subagentRuntime interface {
 	Resolve(context.Context, *Info, SubagentTarget) (SubagentTarget, error)
 	Capabilities(context.Context, *Info) ([]SubagentAgentOption, []SubagentProviderOption, error)
 	Spawn(context.Context, SpawnOpts) (string, error)
-	Admit(context.Context, store.SessionSubagent, string) error
+	// Admit sends the first prompt. resume revives a stopped child (recovery
+	// only); delegation never resumes one, since only a cancel can stop it.
+	Admit(ctx context.Context, row store.SessionSubagent, text string, resume bool) error
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
 	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
