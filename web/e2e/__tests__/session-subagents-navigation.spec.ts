@@ -12,8 +12,9 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
  * keeps one sidebar row with a chip, its inspector lists the roster, opening a
  * subagent reveals only that row under the parent, and plain spawned children
  * keep their nesting. Runtime truth comes from acpmock agents: the parent turn
- * delegates through `compozy tool invoke compozy__subagent_delegate`, each child
- * works for 30 s and then completes.
+ * calls `compozy__subagent_delegate` ten times through its hosted MCP server
+ * (`native_tool_call`, like a real agent), and each child works for 30 s and
+ * then completes.
  */
 
 const fixturePath = path.resolve(
