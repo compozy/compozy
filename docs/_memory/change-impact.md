@@ -43,6 +43,14 @@ parent transcript after a real delegate call, enabling the Web subagent-card E2E
 operator-side delegation or synthetic tool results.
 
 
+Fix round 1 (sa-fix-core, partial): `subagent.settled` observers execute asynchronously on the
+manager-owned task lifetime, so a slow hook cannot block parent status or delivery. Concurrent
+replays of a denied `compozy__subagent_delegate` receive the same `capability_denied` error. Parent
+serialization locks are released when their last holder or waiter leaves. No wire/schema/config,
+workspace-isolation, Web, or official-skill changes. The existing RT-subagent-delegate hooks and
+idempotency checks gain these cases; its real-provider verdict remains fail pending the QA re-walk.
+
+
 ## Memory removal — 2026-10-07
 
 CI Web layout-upgrade follow-up: E2E-008 now seeds the retired Knowledge window directly through the

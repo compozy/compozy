@@ -358,21 +358,24 @@ func TestSubagentLifecycle(t *testing.T) {
 	t.Parallel()
 	t.Run("Should finalize once and retain result limit UT-020 UT-032 UT-043", func(t *testing.T) {
 		t.Parallel()
-		s, db, runtime := newSubagentTestService(t)
-		s.resultLimit = func(context.Context, string) (int, error) { return 3, nil }
-		hook := &subagentTestHook{}
-		s.settled = hook
-		row := requireSubagent(t, s, subagentTestRequest())
-		runtime.results[*row.ChildSessionID] = "界界界界"
-		settleTestChild(t, s, runtime, &row)
-		if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
-			t.Fatal(err)
-		}
-		got, err := s.Get(t.Context(), "ws", row.ID)
-		if err != nil || !got.ResultTruncated || *got.Result != "界界界" || got.Hint == "" || hook.calls != 1 ||
-			db.rows[row.ID].Delivery != "claimed" {
-			t.Fatal(got, err, hook.calls)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			s.resultLimit = func(context.Context, string) (int, error) { return 3, nil }
+			hook := &subagentTestHook{}
+			s.settled = hook
+			row := requireSubagent(t, s, subagentTestRequest())
+			runtime.results[*row.ChildSessionID] = "界界界界"
+			settleTestChild(t, s, runtime, &row)
+			if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			got, err := s.Get(t.Context(), "ws", row.ID)
+			if err != nil || !got.ResultTruncated || *got.Result != "界界界" || got.Hint == "" || hook.calls != 1 ||
+				db.rows[row.ID].Delivery != "claimed" {
+				t.Fatal(got, err, hook.calls)
+			}
+		})
 	})
 	t.Run("Should join queued wakes then claim successor UT-023 UT-024", func(t *testing.T) {
 		t.Parallel()
@@ -731,53 +734,56 @@ func TestSubagentModelValidation(t *testing.T) {
 func TestSubagentNativeLifecycle(t *testing.T) {
 	t.Run("Should settle native work once without a wake", func(t *testing.T) {
 		t.Parallel()
-		s, db, runtime := newSubagentTestService(t)
-		hook := &subagentTestHook{}
-		s.settled = hook
-		ev := NativeSubagentEvent{
-			WorkspaceID:        "ws",
-			ParentTurnID:       "turn",
-			ProviderToolCallID: "native-tool",
-			ToolName:           "Agent",
-			Title:              "Review the diff (high effort)",
-			Model:              "sonnet-5.5",
-			Status:             "in_progress",
-		}
-		for range 2 {
-			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-				t.Fatal(err)
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			ev := NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ProviderToolCallID: "native-tool",
+				ToolName:           "Agent",
+				Title:              "Review the diff (high effort)",
+				Model:              "sonnet-5.5",
+				Status:             "in_progress",
 			}
-		}
-		id := subagentID("parent", ev.ProviderToolCallID)
-		row := db.rows[id]
-		if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
-			row.RuntimeModel != ev.Model ||
-			row.ProviderToolCallID != ev.ProviderToolCallID {
-			t.Fatal(row)
-		}
-		ev.Status = "completed"
-		ev.Result = "native answer"
-		for range 2 {
-			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-				t.Fatal(err)
+			for range 2 {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
 			}
-		}
-		row = db.rows[id]
-		if row.Status != "completed" || row.Result == nil || *row.Result != ev.Result || row.Delivery != "none" ||
-			len(runtime.queues) != 0 ||
-			hook.calls != 1 {
-			t.Fatal(row, hook.calls)
-		}
-		ev.ProviderToolCallID = "missing"
-		ev.ToolName = ""
-		for range 2 {
-			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
-				t.Fatal(err)
+			id := subagentID("parent", ev.ProviderToolCallID)
+			row := db.rows[id]
+			if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
+				row.RuntimeModel != ev.Model ||
+				row.ProviderToolCallID != ev.ProviderToolCallID {
+				t.Fatal(row)
 			}
-		}
-		if len(db.rows) != 1 || len(s.nativeMisses) != 1 {
-			t.Fatal(db.rows, s.nativeMisses)
-		}
+			ev.Status = "completed"
+			ev.Result = "native answer"
+			for range 2 {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			synctest.Wait()
+			row = db.rows[id]
+			if row.Status != "completed" || row.Result == nil || *row.Result != ev.Result || row.Delivery != "none" ||
+				len(runtime.queues) != 0 ||
+				hook.calls != 1 {
+				t.Fatal(row, hook.calls)
+			}
+			ev.ProviderToolCallID = "missing"
+			ev.ToolName = ""
+			for range 2 {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(db.rows) != 1 || len(s.nativeMisses) != 1 {
+				t.Fatal(db.rows, s.nativeMisses)
+			}
+		})
 	})
 }
 
@@ -1006,3 +1012,38 @@ func TestSubagentConcurrentDenial(t *testing.T) {
 	})
 }
 
+type blockingSubagentSettledHook struct{ entered, release chan struct{} }
+
+var _ SubagentSettledDispatcher = (*blockingSubagentSettledHook)(nil)
+
+func (h *blockingSubagentSettledHook) DispatchSubagentSettled(ctx context.Context, _ store.SessionSubagent) error {
+	close(h.entered)
+	select {
+	case <-h.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Invariant: observe-only hooks cannot serialize parent delivery or status reads.
+// Owner: session publication; canonical service suite.
+func TestSubagentObserveHook(t *testing.T) {
+	t.Run("Should allow status while the settled hook is blocked", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, _, runtime := newSubagentTestService(t)
+			hook := &blockingSubagentSettledHook{entered: make(chan struct{}), release: make(chan struct{})}
+			s.settled = hook
+			row := requireSubagent(t, s, subagentTestRequest())
+			settleTestChild(t, s, runtime, &row)
+			<-hook.entered
+			status, err := s.Status(t.Context(), subagentTestRequest().Caller, row.ID)
+			if err != nil || status.Delivery != store.SubagentDeliveryAcknowledged {
+				t.Fatal(status, err)
+			}
+			close(hook.release)
+			synctest.Wait()
+		})
+	})
+}
