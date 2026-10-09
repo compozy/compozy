@@ -96,10 +96,15 @@ func (s *subagentService) finalizeAvailable(
 			status = store.SubagentStatusInterrupted
 		}
 	}
-	result, err := s.runtime.Result(ctx, *row.ChildSessionID)
+	turn, err := s.runtime.Result(ctx, *row.ChildSessionID)
 	if err != nil {
 		return err
 	}
+	if status == store.SubagentStatusCompleted && turn.Error != "" {
+		status = store.SubagentStatusFailed
+		failure = &turn.Error
+	}
+	result := turn.Text
 	runes := []rune(result)
 	limit, err := s.resultLimit(ctx, row.WorkspaceID)
 	if err != nil {

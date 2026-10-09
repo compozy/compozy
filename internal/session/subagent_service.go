@@ -29,13 +29,20 @@ type subagentRuntime interface {
 	HasAdmission(context.Context, store.SessionSubagent) (bool, error)
 	ResumeChild(context.Context, store.SessionSubagent) error
 	Stop(context.Context, string) error
-	Result(context.Context, string) (string, error)
+	Result(context.Context, string) (subagentTurnResult, error)
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
 	WakeInputStatus(context.Context, store.SessionSubagentWake) (string, error)
 	Steer(context.Context, string, string, string, string) (acp.SteerResult, error)
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error
+}
+
+// subagentTurnResult is what the child's settling turn left behind: its last
+// assistant answer and, when the turn ended in an error, that error's text.
+type subagentTurnResult struct {
+	Text  string
+	Error string
 }
 
 // SubagentSettledDispatcher observes the one successful terminal transition.

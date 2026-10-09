@@ -8,3 +8,17 @@ export function useSubagentRoster(workspaceId: string, sessionId: string): Subag
   const { data } = useQuery(sessionSubagentRosterOptions(workspaceId, sessionId));
   return data ?? EMPTY_SUBAGENT_ROSTER;
 }
+
+/**
+ * One slice of the roster. The query's structural sharing keeps the slice's
+ * identity while its content is unchanged, so a consumer re-renders only when
+ * what it shows changed.
+ */
+export function useSubagentRosterSelect<T>(
+  workspaceId: string,
+  sessionId: string,
+  select: (roster: SubagentRoster) => T
+): T {
+  const { data } = useQuery({ ...sessionSubagentRosterOptions(workspaceId, sessionId), select });
+  return data ?? select(EMPTY_SUBAGENT_ROSTER);
+}

@@ -699,16 +699,19 @@ func transcriptProjectionEvent(
 }
 
 // UT-019: result is the last non-empty assistant message in the newest turn, never an older turn.
+// UT-021: a settling turn that ended in an error reports that error beside its answer.
 // Owner: session transcript adapter; canonical suite: transcript_test.go, real SQLite projection.
 func TestSubagentTranscriptResult(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name     string
-		messages []string
-		want     string
+		name      string
+		messages  []string
+		turnError string
+		want      string
 	}{
-		{"Should extract last nonempty answer", []string{"draft", "", "final answer"}, "final answer"},
-		{"Should not reuse prior turn answer", nil, ""},
+		{"Should extract last nonempty answer", []string{"draft", "", "final answer"}, "", "final answer"},
+		{"Should not reuse prior turn answer", nil, "", ""},
+		{"Should report the error that ended the turn", []string{"partial"}, "provider rate limited", "partial"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -748,7 +751,12 @@ func TestSubagentTranscriptResult(t *testing.T) {
 			record("current", acp.EventTypeUserMessage, "task")
 			for _, message := range tc.messages {
 				record("current", acp.EventTypeAgentMessage, message)
-				record("current", acp.EventTypeDone, "")
+				if tc.turnError == "" {
+					record("current", acp.EventTypeDone, "")
+				}
+			}
+			if tc.turnError != "" {
+				record("current", acp.EventTypeError, tc.turnError)
 			}
 			// Provider-native inner output must not become the parent's delegated result.
 			sequence++
@@ -766,8 +774,8 @@ func TestSubagentTranscriptResult(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := (managerSubagentRuntime{h.manager}).Result(t.Context(), child.ID)
-			if err != nil || got != tc.want {
-				t.Fatalf("got %q want %q err %v", got, tc.want, err)
+			if err != nil || got.Text != tc.want || got.Error != tc.turnError {
+				t.Fatalf("got %#v want %q / %q err %v", got, tc.want, tc.turnError, err)
 			}
 		})
 	}

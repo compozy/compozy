@@ -150,13 +150,13 @@ export function SubagentCard({
   const panelId = useId();
   const mode = subagentCardMode(subagent, onOpen !== undefined, nested != null);
   const open = mode === "disclosure" && expanded;
+  const word = SUBAGENT_STATUS_WORD[subagent.status];
   const props = {
     "data-slot": "subagent-card",
     "data-status": subagent.status,
     "data-origin": subagent.origin,
     "data-settled": isSubagentLive(subagent.status) ? undefined : "true",
     "data-stale": stale ? "true" : undefined,
-    "aria-description": SUBAGENT_STATUS_WORD[subagent.status],
     className: cn(cardClassName(mode, variant, open), className),
   };
 
@@ -166,17 +166,25 @@ export function SubagentCard({
 
   const trigger =
     mode === "drill" ? (
-      <button type="button" aria-label={`Open ${subagent.title}`} onClick={handleOpen} {...props} />
+      <button
+        type="button"
+        aria-label={`Open ${subagent.title}`}
+        aria-description={word}
+        onClick={handleOpen}
+        {...props}
+      />
     ) : mode === "disclosure" ? (
       <button
         type="button"
         aria-expanded={expanded}
         aria-controls={panelId}
+        aria-description={word}
         onClick={() => setExpanded(current => !current)}
         {...props}
       />
     ) : (
-      <div {...props} />
+      // No child to open and nothing to expand, still reachable: focus opens the hover card (S3).
+      <div role="group" tabIndex={0} aria-label={`${subagent.title}, ${word}`} {...props} />
     );
   const body = (
     <SubagentCardBody

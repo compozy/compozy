@@ -113,14 +113,14 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
-func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, error) {
+func (r managerSubagentRuntime) Result(ctx context.Context, id string) (subagentTurnResult, error) {
 	query := store.EventQuery{Limit: 200}
 	var turn string
 	var events []store.SessionEvent
 	for {
 		page, err := r.m.Events(ctx, id, query)
 		if err != nil {
-			return "", err
+			return subagentTurnResult{}, err
 		}
 		finished := len(page) < query.Limit
 		for _, event := range slices.Backward(page) {
@@ -129,7 +129,7 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 			}
 			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
 			if err != nil {
-				return "", err
+				return subagentTurnResult{}, err
 			}
 			if decoded.ParentToolCallID() != "" {
 				continue
@@ -151,16 +151,29 @@ func (r managerSubagentRuntime) Result(ctx context.Context, id string) (string, 
 	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool { return event.TurnID != turn })
 	// Canonical assembly preserves chunk boundaries and complete assistant messages.
 	// The UI projection merges a turn's assistant segments and has no turn metadata.
+	var result subagentTurnResult
+	for _, event := range events {
+		if event.Type != acp.EventTypeError {
+			continue
+		}
+		// The settling turn ended in an error (a provider failure that left the
+		// session itself alive): the subagent failed with that error (UT-021).
+		if decoded, err := transcript.UnmarshalAgentEvent(event.Content); err == nil {
+			result.Error = firstTrimmedNonEmpty(decoded.Error, decoded.Text, "turn failed")
+		}
+		break
+	}
 	messages, err := transcript.Assemble(events)
 	if err != nil {
-		return "", err
+		return subagentTurnResult{}, err
 	}
 	for _, message := range slices.Backward(messages) {
 		if message.Role == transcript.RoleAssistant && strings.TrimSpace(message.Content) != "" {
-			return message.Content, nil
+			result.Text = message.Content
+			break
 		}
 	}
-	return "", nil
+	return result, nil
 }
 
 func (r managerSubagentRuntime) walkTranscript(

@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func (e *PromptStreamEncoder) emitAgentMessage(writer FlushWriter, event acp.AgentEvent) error {
-	if err := e.ensureTextStarted(writer); err != nil {
+	if err := e.ensureTextStarted(writer, event.ParentToolCallID()); err != nil {
 		return err
 	}
 	return WriteSSE(writer, SSEMessage{
@@ -37,8 +39,33 @@ func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEv
 	if err := e.ensureToolInputAvailable(writer, toolCallID, event, false); err != nil {
 		return err
 	}
-	return WriteSSE(writer, SSEMessage{
+	if err := WriteSSE(writer, SSEMessage{
 		Data: promptDataEventEnvelope{Type: "data-compozy-event", Data: promptAgentEventPayloadFromEvent(event)},
+	}); err != nil {
+		return err
+	}
+	return e.emitSubagentPart(writer, event)
+}
+
+// emitSubagentPart writes the card the transcript projection derives from this
+// event (a provider-native Agent/Task call, a successful delegate result).
+func (e *PromptStreamEncoder) emitSubagentPart(writer FlushWriter, event acp.AgentEvent) error {
+	content, err := transcript.MarshalAgentEvent(event)
+	if err != nil {
+		return nil
+	}
+	payload, ok := transcript.SubagentPartForStoredEvent(store.SessionEvent{
+		SessionID: e.sessionID,
+		TurnID:    event.TurnID,
+		Type:      event.Type,
+		Content:   content,
+	})
+	if !ok {
+		return nil
+	}
+	payload.Title = promptRedactString(payload.Title)
+	return WriteSSE(writer, SSEMessage{
+		Data: promptSubagentDataPayload{Type: "data-compozy-subagent", ID: payload.SubagentID, Data: payload},
 	})
 }
 
@@ -63,7 +90,7 @@ func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.Agent
 		return err
 	}
 	e.toolCompleted[toolCallID] = struct{}{}
-	return nil
+	return e.emitSubagentPart(writer, event)
 }
 
 func (e *PromptStreamEncoder) emitUnresolvedToolResults(writer FlushWriter, event acp.AgentEvent) error {
@@ -169,9 +196,10 @@ func (e *PromptStreamEncoder) ensureToolCallStarted(
 
 	return WriteSSE(writer, SSEMessage{
 		Data: promptToolInputStartPayload{
-			Type:       "tool-input-start",
-			ToolCallID: toolCallID,
-			ToolName:   e.toolNameByID(toolCallID),
+			Type:             "tool-input-start",
+			ToolCallID:       toolCallID,
+			ToolName:         e.toolNameByID(toolCallID),
+			ProviderMetadata: promptAttribution(event.ParentToolCallID()),
 		},
 	})
 }

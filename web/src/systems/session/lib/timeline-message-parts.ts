@@ -64,6 +64,17 @@ function partTimestamp(part: Record<string, unknown>): string | undefined {
   return isRecord(data) ? stringField(data, "timestamp") : undefined;
 }
 
+// Provider-native attribution (S8): the transcript projection names it on the
+// part (`parentToolCallId`); the live prompt stream carries it in the AI SDK
+// provider metadata (`providerMetadata.compozy.parentToolCallId`).
+function partParentToolCallId(part: Record<string, unknown>): string | undefined {
+  const own = stringField(part, "parentToolCallId");
+  if (own) return own;
+  const metadata = part.providerMetadata;
+  if (!isRecord(metadata) || !isRecord(metadata.compozy)) return undefined;
+  return stringField(metadata.compozy, "parentToolCallId") || undefined;
+}
+
 /** Projects thread parts without discarding provider titles or original tool inputs. */
 export function toTimelineParts(message: {
   id?: string;
@@ -82,7 +93,7 @@ export function toTimelineParts(message: {
     const timestamp = partTimestamp(part);
     const state = stringField(part, "state");
     const partIndex = partIndexOf(part);
-    const parentToolCallId = stringField(part, "parentToolCallId") || undefined;
+    const parentToolCallId = partParentToolCallId(part);
     const attribution = parentToolCallId ? { parentToolCallId } : {};
     const type = stringField(part, "type");
     if (type === "text") {

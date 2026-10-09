@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/subagentid"
 )
 
 func TestDeliverPromptEventStream(t *testing.T) {
@@ -378,6 +379,101 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 		want := []string{"tool-output-available:tool-completed", "finish"}
 		if !reflect.DeepEqual(terminal, want) {
 			t.Fatalf("terminal frame signatures = %#v, want %#v", terminal, want)
+		}
+	})
+}
+
+func TestPromptStreamEncoderSubagentParts(t *testing.T) {
+	// Live parity with the transcript projection (UT-038 / S1, S8): the prompt stream emits the
+	// same `data-compozy-subagent` cards and keeps provider-native subagent work attributed, so
+	// a running turn renders cards and nesting before its transcript entry reconciles.
+	t.Run("Should stream subagent cards and attribute native subagent work", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC)
+		})
+		encoder.SetSessionID("sess-parent")
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolCall, TurnID: "turn-1", ToolCallID: "toolu_agent", Title: "Review the diff",
+		}.WithProviderToolMetadata("", "Agent", "pending"))
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "turn-1", Text: "Inside",
+		}.WithProviderToolMetadata("toolu_agent", "", ""))
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "turn-1", Text: "Outside",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolResult, TurnID: "turn-1", ToolCallID: "delegate",
+			Raw: json.RawMessage(`{"rawOutput":{"subagent_id":"sub-delegated"}}`),
+		}.WithTool("compozy__subagent_delegate", nil, false))
+
+		type frame struct {
+			Type             string `json:"type"`
+			ID               string `json:"id"`
+			ToolCallID       string `json:"toolCallId"`
+			Delta            string `json:"delta"`
+			ProviderMetadata *struct {
+				Compozy struct {
+					ParentToolCallID string `json:"parentToolCallId"`
+				} `json:"compozy"`
+			} `json:"providerMetadata"`
+			Data struct {
+				SubagentID string `json:"subagent_id"`
+				ToolCallID string `json:"tool_call_id"`
+				TurnID     string `json:"turn_id"`
+				Origin     string `json:"origin"`
+			} `json:"data"`
+		}
+		var frames []frame
+		for record := range strings.SplitSeq(writer.String(), "\n\n") {
+			data := promptSSEData(strings.TrimSpace(record))
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+			var decoded frame
+			if err := json.Unmarshal([]byte(data), &decoded); err != nil {
+				t.Fatalf("decode frame: %v", err)
+			}
+			frames = append(frames, decoded)
+		}
+		var cards []frame
+		textParents := map[string]string{}
+		blockText := map[string]string{}
+		for _, decoded := range frames {
+			switch decoded.Type {
+			case "data-compozy-subagent":
+				cards = append(cards, decoded)
+			case "text-start":
+				parent := ""
+				if decoded.ProviderMetadata != nil {
+					parent = decoded.ProviderMetadata.Compozy.ParentToolCallID
+				}
+				textParents[decoded.ID] = parent
+			case "text-delta":
+				blockText[decoded.Delta] = decoded.ID
+			}
+		}
+		if len(cards) != 2 {
+			t.Fatalf("cards = %#v, want native and delegated", cards)
+		}
+		native, delegated := cards[0], cards[1]
+		if native.ID != subagentid.Derive("sess-parent", "toolu_agent") || native.ID != native.Data.SubagentID ||
+			native.Data.Origin != "provider_native" || native.Data.TurnID != "turn-1" ||
+			native.Data.ToolCallID != "toolu_agent" {
+			t.Fatalf("native card = %#v", native)
+		}
+		if delegated.ID != "sub-delegated" || delegated.Data.Origin != "delegated" ||
+			delegated.Data.ToolCallID != "delegate" {
+			t.Fatalf("delegated card = %#v", delegated)
+		}
+		inside, outside := blockText["Inside"], blockText["Outside"]
+		if inside == outside || textParents[inside] != "toolu_agent" || textParents[outside] != "" {
+			t.Fatalf(
+				"text blocks inside=%q(%q) outside=%q(%q)",
+				inside, textParents[inside], outside, textParents[outside],
+			)
 		}
 	})
 }

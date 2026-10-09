@@ -22,6 +22,7 @@ import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import type { SessionTurnOutcomes } from "@/systems/session/lib/session-turn-outcomes";
 import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
 import { useSubagentRosterContext } from "@/systems/session/hooks/use-subagent-roster-context";
+import { useSubagentRosterSelect } from "@/systems/session/hooks/use-subagent-roster";
 import { settledSubagentIds } from "@/systems/session/lib/subagent-roster";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
@@ -311,9 +312,15 @@ export function useAssistantMessageTimeline() {
     state => state.context.expandedChangedFiles
   );
   const workGroupAnchors = useSelector(timelineStore, state => state.context.workGroupAnchors);
-  const { roster } = useSubagentRosterContext();
+  // Only the settled set: a progress tick on a live card never re-derives this message.
+  const subagents = useSubagentRosterContext();
+  const settledIds = useSubagentRosterSelect(
+    subagents.workspaceId,
+    subagents.sessionId,
+    settledSubagentIds
+  );
   const rows = deriveSessionRows(parts, {
-    settledSubagentIds: settledSubagentIds(roster),
+    settledSubagentIds: new Set(settledIds),
     activeTurnId: workingPart?.turnId,
     foldSettledTurns: true,
     interruptedTurnIds: endings.interrupted,
