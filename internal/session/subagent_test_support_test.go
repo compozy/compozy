@@ -36,13 +36,13 @@ func (d *memorySubagents) ReserveSubagent(
 	for _, old := range d.rows {
 		if old.ParentSessionID == row.ParentSessionID && old.IdempotencyKey == row.IdempotencyKey {
 			if old.RequestFingerprint != row.RequestFingerprint {
-				return old, true, store.ErrSubagentIdempotencyConflict
+				return old, false, store.ErrSubagentIdempotencyConflict
 			}
-			return old, true, nil
+			return old, false, nil
 		}
 	}
 	d.rows[row.ID] = row
-	return row, false, nil
+	return row, true, nil
 }
 func (d *memorySubagents) LinkChild(_ context.Context, id, child string, at time.Time) (store.SessionSubagent, error) {
 	d.mu.Lock()
@@ -541,7 +541,7 @@ func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *
 		runtime:     runtime,
 		ctx:         ctx,
 		now:         func() time.Time { return time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC) },
-		resultLimit: func() int { return 60000 },
+		resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
 		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 		parents:     make(map[string]*sync.Mutex),
 		flights:     make(map[string]chan struct{}),

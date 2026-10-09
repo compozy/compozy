@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -19,18 +20,12 @@ func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
 		return errors.New("daemon: registry does not implement the subagent store")
 	}
 	service, err := session.NewSubagentService(db, manager,
-		session.WithSubagentResultLimit(func() int {
-			d.mu.Lock()
-			cfg := d.config
-			booting := d.booting
-			d.mu.Unlock()
-			if booting {
-				cfg = state.cfg
+		session.WithSubagentResultLimit(func(ctx context.Context, workspaceID string) (int, error) {
+			workspace, err := state.workspaceResolver.Resolve(ctx, workspaceID)
+			if err != nil {
+				return 0, err
 			}
-			if source, ok := any(cfg).(interface{ SubagentResultMaxChars() int }); ok {
-				return source.SubagentResultMaxChars()
-			}
-			return 60000
+			return workspace.Config.SubagentResultMaxChars(), nil
 		}),
 		session.WithSubagentSettledDispatcher(subagentSettledBridge{state: state}),
 	)
@@ -50,13 +45,41 @@ type subagentSettledBridge struct{ state *bootState }
 var _ session.SubagentSettledDispatcher = subagentSettledBridge{}
 
 func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row store.SessionSubagent) error {
-	if b.state.notifier == nil {
+	if b.state.hooks == nil {
 		return nil
 	}
-	if dispatcher, ok := any(b.state.notifier).(session.SubagentSettledDispatcher); ok {
-		return dispatcher.DispatchSubagentSettled(ctx, row)
+	dispatcher, ok := b.state.hooks.(interface {
+		DispatchSubagentSettled(context.Context, hooks.SubagentSettledPayload) (hooks.SubagentSettledPayload, error)
+	})
+	if !ok {
+		return errors.New("daemon: hook runtime lacks subagent dispatch")
 	}
-	return errors.New("daemon: subagent settled hook adapter is not installed")
+	payload := hooks.SubagentSettledPayload{
+		WorkspaceID:     row.WorkspaceID,
+		SubagentID:      row.ID,
+		ParentSessionID: row.ParentSessionID,
+		ChildSessionID:  row.ChildSessionID,
+		Origin:          row.Origin,
+		Status:          row.Status,
+		Runtime:         hooks.SubagentRuntimePayload{Provider: row.RuntimeProvider, Model: row.RuntimeModel},
+	}
+	payload.Event = hooks.HookSubagentSettled
+	payload.Timestamp = row.UpdatedAt
+	if row.SettledAt != nil {
+		payload.Timestamp = *row.SettledAt
+	}
+	if row.StartedAt != nil && row.SettledAt != nil {
+		payload.DurationMS = row.SettledAt.Sub(*row.StartedAt).Milliseconds()
+	}
+	if b.state.notifier != nil {
+		profile, err := b.state.notifier.sessionProfile(ctx, row.ParentSessionID)
+		if err != nil {
+			return err
+		}
+		payload.ProfileID = profile
+	}
+	_, err := dispatcher.DispatchSubagentSettled(ctx, payload)
+	return err
 }
 
 func (d *Daemon) SubagentService() session.SubagentService {

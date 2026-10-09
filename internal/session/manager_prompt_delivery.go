@@ -187,6 +187,7 @@ func (m *Manager) deliverPersistedPromptEvent(
 		return true, true
 	}
 	m.publishSubagentActivity(ctx, session, event)
+	m.publishNativeSubagentEvent(ctx, session, persisted, event)
 	if event.Usage != nil {
 		event.Usage.Sequence = persisted.Sequence
 	}

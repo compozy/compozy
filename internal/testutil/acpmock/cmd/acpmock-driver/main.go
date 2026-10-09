@@ -137,6 +137,7 @@ func (a *mockAgent) Initialize(
 ) (acpsdk.InitializeResponse, error) {
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
+		Meta:            map[string]any{"steering": map[string]any{"supported": a.agent.SteerOutcome != ""}},
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession:         a.agent.SupportsLoadSession(),
 			SessionCapabilities: a.sessionCapabilities(),

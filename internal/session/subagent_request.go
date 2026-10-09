@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subagentid"
 )
 
 const subagentRoleGeneral = "general"
@@ -65,10 +66,8 @@ func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
 func invalidSubagent(message string) error {
 	return &SubagentError{Code: "invalid_request", Message: message, Err: ErrSubagentInvalidRequest}
 }
-func subagentID(parent, key string) string {
-	sum := sha256.Sum256([]byte(parent + key))
-	return "sub-" + hex.EncodeToString(sum[:8])
-}
+func subagentID(parent, key string) string { return subagentid.Derive(parent, key) }
+
 func subagentFingerprint(req SubagentRequest) (string, error) {
 	// Invocation identity is outside the request semantics, allowing retries from another tool call.
 	req.Caller = SubagentCaller{}

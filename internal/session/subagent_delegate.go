@@ -54,7 +54,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		unlock()
 		return Subagent{}, err
 	}
-	row, reused, err := s.reserveDelegation(ctx, req, target, depth, fingerprint)
+	row, created, err := s.reserveDelegation(ctx, req, target, depth, fingerprint)
 	if err != nil {
 		unlock()
 		if errors.Is(err, store.ErrSubagentIdempotencyConflict) {
@@ -62,7 +62,7 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		}
 		return Subagent{}, err
 	}
-	if reused {
+	if !created {
 		unlock()
 		return s.replay(ctx, row)
 	}

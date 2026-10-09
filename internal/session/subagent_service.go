@@ -43,7 +43,7 @@ type SubagentSettledDispatcher interface {
 
 type SubagentOption func(*subagentService)
 
-func WithSubagentResultLimit(get func() int) SubagentOption {
+func WithSubagentResultLimit(get func(context.Context, string) (int, error)) SubagentOption {
 	return func(s *subagentService) {
 		if get != nil {
 			s.resultLimit = get
@@ -56,20 +56,21 @@ func WithSubagentSettledDispatcher(d SubagentSettledDispatcher) SubagentOption {
 }
 
 type subagentService struct {
-	store       store.SubagentStore
-	runtime     subagentRuntime
-	ctx         context.Context
-	now         func() time.Time
-	newID       IDGenerator
-	launch      func(func())
-	logger      *slog.Logger
-	resultLimit func() int
-	settled     SubagentSettledDispatcher
-	mu          sync.Mutex
-	parents     map[string]*sync.Mutex
-	flights     map[string]chan struct{}
-	subscribers map[string]map[*subagentSubscription]struct{}
-	progress    map[string]*subagentProgress
+	store        store.SubagentStore
+	runtime      subagentRuntime
+	ctx          context.Context
+	now          func() time.Time
+	newID        IDGenerator
+	launch       func(func())
+	logger       *slog.Logger
+	resultLimit  func(context.Context, string) (int, error)
+	settled      SubagentSettledDispatcher
+	mu           sync.Mutex
+	parents      map[string]*sync.Mutex
+	flights      map[string]chan struct{}
+	subscribers  map[string]map[*subagentSubscription]struct{}
+	progress     map[string]*subagentProgress
+	nativeMisses map[string]bool
 }
 
 var _ SubagentService = (*subagentService)(nil)
@@ -82,7 +83,7 @@ func NewSubagentService(db store.SubagentStore, manager *Manager, opts ...Subage
 	s := &subagentService{
 		store: db, runtime: managerSubagentRuntime{manager}, ctx: manager.fallbackLifecycleContext(),
 		now: manager.now, newID: newULIDGenerator("wake"), launch: manager.startTrackedPromptTask,
-		logger: manager.logger, resultLimit: func() int { return 60000 },
+		logger: manager.logger, resultLimit: func(context.Context, string) (int, error) { return 60000, nil },
 		parents: make(map[string]*sync.Mutex), flights: make(map[string]chan struct{}),
 		subscribers: make(map[string]map[*subagentSubscription]struct{}), progress: make(map[string]*subagentProgress),
 	}
@@ -176,13 +177,6 @@ func (s *subagentService) List(ctx context.Context, q store.SubagentListQuery) (
 }
 func (s *subagentService) Summaries(ctx context.Context, ids []string) (map[string]store.SubagentSummary, error) {
 	return s.store.Summaries(ctx, ids)
-}
-
-func (s *subagentService) OnNativeToolEvent(_ context.Context, _ string, ev NativeSubagentEvent) error {
-	if ev.ProviderToolCallID == "" {
-		return nil
-	}
-	return errors.New("session: provider-native subagent event adapter is not installed")
 }
 
 func (s *subagentService) logError(ctx context.Context, operation string, err error) {

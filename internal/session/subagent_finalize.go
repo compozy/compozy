@@ -44,6 +44,9 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 	if err != nil {
 		return err
 	}
+	if child.Info.State == StateStopping || child.Info.State == StateStarting {
+		return nil
+	}
 	if row.PendingTask != nil && child.Info.State != StateStopped {
 		return nil
 	}
@@ -94,7 +97,10 @@ func (s *subagentService) finalizeAvailable(
 		return err
 	}
 	runes := []rune(result)
-	limit := s.resultLimit()
+	limit, err := s.resultLimit(ctx, row.WorkspaceID)
+	if err != nil {
+		return err
+	}
 	truncated := limit > 0 && len(runes) > limit
 	if truncated {
 		result = string(runes[:limit])

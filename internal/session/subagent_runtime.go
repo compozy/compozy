@@ -213,6 +213,7 @@ func (r managerSubagentRuntime) QueueWake(
 		QueueCap:          r.m.busyInput.QueueCap,
 		SyntheticPrompt: &store.SessionInputSyntheticPrompt{
 			RunID:    wake.WakeMessageID,
+			Delivery: store.SessionInputDeliveryAfterTurn,
 			Metadata: metadata,
 		},
 		Now: r.m.now(),

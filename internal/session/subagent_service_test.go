@@ -359,7 +359,7 @@ func TestSubagentLifecycle(t *testing.T) {
 	t.Run("Should finalize once and retain result limit UT-020 UT-032 UT-043", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)
-		s.resultLimit = func() int { return 3 }
+		s.resultLimit = func(context.Context, string) (int, error) { return 3, nil }
 		hook := &subagentTestHook{}
 		s.settled = hook
 		row := requireSubagent(t, s, subagentTestRequest())
@@ -725,4 +725,104 @@ func TestSubagentModelValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
+func TestSubagentNativeLifecycle(t *testing.T) {
+	t.Parallel()
+	s, db, runtime := newSubagentTestService(t)
+	hook := &subagentTestHook{}
+	s.settled = hook
+	ev := NativeSubagentEvent{
+		WorkspaceID:        "ws",
+		ParentTurnID:       "turn",
+		ProviderToolCallID: "native-tool",
+		ToolName:           "Agent",
+		Title:              "Review the diff (high effort)",
+		Model:              "sonnet-5.5",
+		Status:             "in_progress",
+	}
+	for range 2 {
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	id := subagentID("parent", ev.ProviderToolCallID)
+	row := db.rows[id]
+	if len(db.rows) != 1 || row.Origin != "provider_native" || row.ChildSessionID != nil || row.Title != ev.Title ||
+		row.RuntimeModel != ev.Model ||
+		row.ProviderToolCallID != ev.ProviderToolCallID {
+		t.Fatal(row)
+	}
+	ev.Status = "completed"
+	ev.Result = "native answer"
+	for range 2 {
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row = db.rows[id]
+	if row.Status != "completed" || row.Result == nil || *row.Result != ev.Result || row.Delivery != "none" ||
+		len(runtime.queues) != 0 ||
+		hook.calls != 1 {
+		t.Fatal(row, hook.calls)
+	}
+	ev.ProviderToolCallID = "missing"
+	ev.ToolName = ""
+	for range 2 {
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(db.rows) != 1 || len(s.nativeMisses) != 1 {
+		t.Fatal(db.rows, s.nativeMisses)
+	}
+}
+
+// UT-032/UT-057 and IT-025 service half: asynchronous injection completion owns the single fallback.
+func TestSubagentSteerCompletion(t *testing.T) {
+	t.Parallel()
+	for _, injected := range []bool{true, false} {
+		name := "Should deliver successful pending injection"
+		if !injected {
+			name = "Should queue failed pending injection once"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				snap := runtime.snapshots["parent"]
+				snap.CanSteer = true
+				runtime.snapshots["parent"] = snap
+				completion := make(chan error, 1)
+				runtime.steer = acp.SteerResult{Attempt: acp.SteerAttemptPendingInjection, Completion: completion}
+				row := requireSubagent(t, s, subagentTestRequest())
+				settleTestChild(t, s, runtime, &row)
+				if injected {
+					completion <- nil
+				} else {
+					completion <- testSubagentError()
+				}
+				close(completion)
+				synctest.Wait()
+				current := db.rows[row.ID]
+				wake := db.wakes[*current.WakeMessageID]
+				if injected {
+					if current.Delivery != "delivered" || len(runtime.queues) != 0 {
+						t.Fatal(current)
+					}
+				} else {
+					if !wake.SteerRequeued || wake.Route != "queue" || len(runtime.queues) != 1 {
+						t.Fatal(wake)
+					}
+					if err := s.OnSteerOutcome(t.Context(), "parent", wake.WakeMessageID, false); err != nil {
+						t.Fatal(err)
+					}
+					if len(runtime.queues) != 1 {
+						t.Fatal(runtime.queues)
+					}
+				}
+			})
+		})
+	}
 }

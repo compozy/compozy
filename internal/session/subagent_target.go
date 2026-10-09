@@ -139,7 +139,11 @@ func (r managerSubagentRuntime) providerOption(
 	}
 	provider, err := cfg.ResolveProvider(name)
 	if err != nil {
-		return option, fmt.Errorf("%w: %w", ErrSubagentTargetUnavailable, err)
+		return option, &SubagentError{
+			Code:    "provider_unavailable",
+			Message: err.Error(),
+			Err:     ErrSubagentTargetUnavailable,
+		}
 	}
 	option.DisplayName = provider.DisplayName
 	probeCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
