@@ -45,6 +45,7 @@ export function useWorkspaceSessionGroups({
   const facets = useQuery({
     ...sessionFacetsOptions({
       all_workspaces: true,
+      subagents: sessionListSubagentsParam(search),
       ...(archived ? { archive: "only" as const } : {}),
       ...params,
     }),
