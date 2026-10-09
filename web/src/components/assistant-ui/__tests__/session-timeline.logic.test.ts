@@ -1536,6 +1536,38 @@ describe("session timeline subagent cards", () => {
     expect(flow.entries).toEqual([orphan]);
   });
 
+  it("Should keep prose blocks apart when a card-owned call between them leaves the flow", () => {
+    const tick: SessionTimelinePart = {
+      kind: "data",
+      id: "tick",
+      name: "data-compozy-event",
+      data: { type: "tool_call", tool_call_id: "tool-call-1" },
+      turnId: "turn-1",
+    };
+    const rows = deriveSessionRows([
+      text("t1", "I'll pick this up when they wake me.", "turn-1"),
+      delegate(1),
+      tick,
+      text("t2", "The three subagents are still running.", "turn-1"),
+      subagentPart("sub-1", "tool-call-1"),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
+    expect(rows[0]).toMatchObject({ part: { text: "I'll pick this up when they wake me." } });
+
+    // Inner parts of a native card leave the flow the same way.
+    const native = deriveSessionRows([
+      text("t1", "Reviewing.", "turn-1"),
+      subagentPart("sub-n", "toolu", { origin: "provider_native" }),
+      { ...text("inner", "inside", "turn-1"), parentToolCallId: "toolu" },
+      tick,
+      text("t2", "Done.", "turn-1"),
+    ]);
+    expect(native.filter(row => row.kind === "text").map(row => row.part.text)).toEqual([
+      "Reviewing.",
+      "Done.",
+    ]);
+  });
+
   it("UT-W09: Should summarize subagent tools in their own verbs", () => {
     const capabilities = (index: number, isError = false) =>
       tool(index, { toolName: "compozy__subagent_capabilities", args: {}, isError });

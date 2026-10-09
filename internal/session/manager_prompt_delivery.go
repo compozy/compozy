@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -185,6 +186,14 @@ func (m *Manager) deliverPersistedPromptEvent(
 		)
 		m.deliverPromptProjectionFailure(ctx, turnID, out)
 		return true, true
+	}
+	// The decoded event drops the persisted tool result; carry the card the
+	// projection derives from the persisted form so the live prompt stream can
+	// show it before the transcript reconciles (D-04, composer path).
+	if card, ok := transcript.SubagentPartForStoredEvent(persisted); ok {
+		if data, err := json.Marshal(card); err == nil {
+			event = event.WithSubagentCard(data)
+		}
 	}
 	m.publishSubagentActivity(ctx, session, event)
 	// Keep native terminal ingestion inline before turn settlement: interruptNative

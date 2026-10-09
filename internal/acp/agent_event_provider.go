@@ -1,5 +1,7 @@
 package acp
 
+import "encoding/json"
+
 // WithProviderToolMetadata preserves provider attribution independently of tool display names.
 func (e AgentEvent) WithProviderToolMetadata(parentToolCallID, providerToolName, status string) AgentEvent {
 	payload := e.clonePayload()
@@ -32,4 +34,22 @@ func (e AgentEvent) ToolStatus() string {
 		return ""
 	}
 	return e.payload.toolStatus
+}
+
+// WithSubagentCard carries the subagent card (`data-compozy-subagent` payload)
+// the transcript projection derives from this event's persisted form, for live
+// surfaces that only see the decoded event (the prompt stream).
+func (e AgentEvent) WithSubagentCard(card json.RawMessage) AgentEvent {
+	payload := e.clonePayload()
+	payload.subagentCard = CloneRawMessage(card)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// SubagentCard returns the projected subagent card, when the event has one.
+func (e AgentEvent) SubagentCard() json.RawMessage {
+	if e.payload == nil {
+		return nil
+	}
+	return CloneRawMessage(e.payload.subagentCard)
 }

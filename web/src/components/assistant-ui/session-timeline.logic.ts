@@ -136,11 +136,7 @@ export interface SessionLiveToolRow extends SessionBaseRow {
   expanded: boolean;
 }
 
-/**
- * One subagent card, or a group of adjacent same-turn cards (S1, S2). State
- * lives in the roster; the row carries ids, the daemon's hints and, for a
- * provider-native card, the inner parts that render only inside it (S8).
- */
+/** A subagent card or same-turn group (S1, S2); state lives in the roster, native inner parts nest (S8). */
 export interface SessionSubagentRow extends SessionBaseRow {
   kind: "subagents";
   parts: SessionTimelineDataPart[];
@@ -205,10 +201,7 @@ export interface DeriveSessionRowsOptions {
    * reaches to it instead of stopping at the last call this message holds.
    */
   turnEndedAtMs?: ReadonlyMap<string, number>;
-  /**
-   * Roster ids the stream reported settled; only their cards may fold (UT-W04).
-   * A card the roster has not confirmed reads as running, so it stays in view.
-   */
+  /** Roster ids reported settled: only their cards fold; unconfirmed ones read as running (UT-W04). */
   settledSubagentIds?: ReadonlySet<string>;
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
@@ -225,8 +218,8 @@ export function deriveSessionRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions = {}
 ): SessionRow[] {
-  const { flow, nested } = partitionSubagentParts(markInterruptedCalls(parts, options));
-  const rows = deriveBaseRows(flow, nested, options);
+  const { flow, nested, boundaries } = partitionSubagentParts(markInterruptedCalls(parts, options));
+  const rows = deriveBaseRows(flow, nested, boundaries, options);
   return options.foldSettledTurns
     ? foldSettledTurns(rows, options, turnRecordedTimes(parts, options.turnEndedAtMs))
     : rows;
@@ -288,6 +281,7 @@ function markInterruptedCalls(
 function deriveBaseRows(
   parts: readonly SessionTimelinePart[],
   nested: ReadonlyMap<string, readonly SessionTimelinePart[]>,
+  boundaries: ReadonlySet<SessionTimelinePart>,
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const rows: SessionRow[] = [];
@@ -311,13 +305,17 @@ function deriveBaseRows(
   };
 
   let hiddenProgress = false;
+  // A part that left the flow (card-owned call, native inner work) separates prose like its row would.
+  let separated = false;
   for (const part of parts) {
+    if (boundaries.has(part)) separated = true;
     if (part.kind === "data" && isProgressTick(part)) {
       hiddenProgress = true;
       continue;
     }
-    const joinsProse = hiddenProgress;
+    const joinsProse = hiddenProgress && !separated;
     hiddenProgress = false;
+    separated = false;
     if (part.kind === "tool" || part.kind === "reasoning") {
       flushMarkerCluster();
       const previous = workCluster.at(-1);

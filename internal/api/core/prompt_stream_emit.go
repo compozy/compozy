@@ -50,22 +50,35 @@ func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEv
 // emitSubagentPart writes the card the transcript projection derives from this
 // event (a provider-native Agent/Task call, a successful delegate result).
 func (e *PromptStreamEncoder) emitSubagentPart(writer FlushWriter, event acp.AgentEvent) error {
-	content, err := transcript.MarshalAgentEvent(event)
-	if err != nil {
-		return nil
-	}
-	payload, ok := transcript.SubagentPartForStoredEvent(store.SessionEvent{
-		SessionID: e.sessionID,
-		TurnID:    event.TurnID,
-		Type:      event.Type,
-		Content:   content,
-	})
+	payload, ok := e.subagentCard(event)
 	if !ok {
 		return nil
 	}
 	payload.Title = promptRedactString(payload.Title)
 	return WriteSSE(writer, SSEMessage{
 		Data: promptSubagentDataPayload{Type: "data-compozy-subagent", ID: payload.SubagentID, Data: payload},
+	})
+}
+
+// subagentCard prefers the card the session derived from the persisted event
+// (the decoded event no longer holds the tool result) and derives one from the
+// event itself only when it arrived without that annotation.
+func (e *PromptStreamEncoder) subagentCard(event acp.AgentEvent) (transcript.UISubagentPayload, bool) {
+	if card := event.SubagentCard(); len(card) > 0 {
+		var payload transcript.UISubagentPayload
+		if json.Unmarshal(card, &payload) == nil && payload.SubagentID != "" {
+			return payload, true
+		}
+	}
+	content, err := transcript.MarshalAgentEvent(event)
+	if err != nil {
+		return transcript.UISubagentPayload{}, false
+	}
+	return transcript.SubagentPartForStoredEvent(store.SessionEvent{
+		SessionID: e.sessionID,
+		TurnID:    event.TurnID,
+		Type:      event.Type,
+		Content:   content,
 	})
 }
 

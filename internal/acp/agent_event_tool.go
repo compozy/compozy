@@ -12,6 +12,7 @@ type agentEventPayload struct {
 	parentToolCallID  string
 	providerToolName  string
 	toolStatus        string
+	subagentCard      json.RawMessage
 	goal              *GoalPromptMeta
 	delivery          *DeliveryManifest
 	eventID           string
@@ -51,6 +52,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	cloned.goal = CloneGoalPromptMeta(e.payload.goal)
 	cloned.delivery = cloneDeliveryManifest(e.payload.delivery)
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
+	cloned.subagentCard = CloneRawMessage(e.payload.subagentCard)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
 	if e.payload.availableCommands != nil {
 		cloned.availableCommands = NewAvailableCommandSet(e.payload.availableCommands.Values())
@@ -63,7 +65,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
 		payload.resolvedBy == "" && payload.parentToolCallID == "" &&
-		payload.providerToolName == "" && payload.toolStatus == "" &&
+		payload.providerToolName == "" && payload.toolStatus == "" && len(payload.subagentCard) == 0 &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
 		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
