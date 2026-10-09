@@ -50,32 +50,46 @@ const CARD_FRAME = {
   flush: "min-h-10.5 rounded-md border border-transparent",
 } as const;
 
-/**
- * One delegation in the parent transcript (transcript VC-01/02): avatar, title
- * with the status word, line 2, elapsed, and a chevron when there is a child
- * session to open.
- */
-export function SubagentCard({
-  subagent,
-  onOpen,
-  nested,
-  defaultExpanded = false,
-  stale = false,
-  variant = "framed",
-  location,
-  parentLocation,
-  className,
-}: SubagentCardProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const panelId = useId();
-  const lines = subagentCardLines(subagent);
-  const word = SUBAGENT_STATUS_WORD[subagent.status];
-  const drillable = subagent.child_session_id !== null && onOpen !== undefined;
-  const expandable = !drillable && subagent.child_session_id === null && nested != null;
-  const interactive = drillable || expandable;
-  const settled = !isSubagentLive(subagent.status);
+type SubagentCardMode = "drill" | "disclosure" | "static";
 
-  const body = (
+/** Drill into a child session; expand provider-native rows inline; otherwise a static row. */
+function subagentCardMode(
+  subagent: SubagentView,
+  canOpen: boolean,
+  hasNested: boolean
+): SubagentCardMode {
+  if (subagent.child_session_id !== null) return canOpen ? "drill" : "static";
+  return hasNested ? "disclosure" : "static";
+}
+
+function cardClassName(mode: SubagentCardMode, variant: "framed" | "flush", open: boolean): string {
+  const interactive = mode !== "static";
+  return cn(
+    "group/subagent-card grid w-full items-center gap-2.5 py-1.75 pr-2.5 pl-2.25 text-left text-fg",
+    interactive
+      ? "grid-cols-[24px_minmax(0,1fr)_auto_14px] transition-colors duration-fast ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
+      : "grid-cols-[24px_minmax(0,1fr)_auto]",
+    CARD_FRAME[variant],
+    variant === "framed" && interactive && "hover:border-line",
+    open && "rounded-b-none"
+  );
+}
+
+interface SubagentCardBodyProps {
+  subagent: SubagentView;
+  stale: boolean;
+  /** `null` = no chevron (not interactive); `open` rotates it for an expanded disclosure. */
+  chevron: "open" | "closed" | null;
+}
+
+/** Card anatomy: avatar · title + status word / line 2 · elapsed · chevron. */
+function SubagentCardBody({ subagent, stale, chevron }: SubagentCardBodyProps) {
+  const lines = subagentCardLines(subagent);
+  const lineTwoTone =
+    subagent.status === "waiting" && lines.lineTwoTone === "word"
+      ? "text-fg"
+      : LINE_TWO_TONE[lines.lineTwoTone];
+  return (
     <>
       <SubagentAvatar provider={subagent.runtime.provider} status={subagent.status} still={stale} />
       <span className="flex min-w-0 flex-col gap-px">
@@ -95,72 +109,81 @@ export function SubagentCard({
           ) : null}
         </span>
         <span
-          className={cn(
-            "min-w-0 truncate text-transcript-caption",
-            subagent.status === "waiting" && lines.lineTwoTone === "word"
-              ? "text-fg"
-              : LINE_TWO_TONE[lines.lineTwoTone]
-          )}
+          className={cn("min-w-0 truncate text-transcript-caption", lineTwoTone)}
           data-slot="subagent-card-line-two"
         >
           {lines.lineTwo}
         </span>
       </span>
       <SubagentElapsed clock={subagentElapsedClock(subagent, { stale })} />
-      {interactive ? (
+      {chevron ? (
         <Icon
           as={ChevronRight}
           aria-hidden="true"
           className={cn(
             "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted motion-reduce:transition-none",
-            expandable && expanded && "rotate-90"
+            chevron === "open" && "rotate-90"
           )}
         />
       ) : null}
     </>
   );
+}
 
-  const shared = {
+/**
+ * One delegation in the parent transcript (transcript VC-01/02): avatar, title
+ * with the status word, line 2, elapsed, and a chevron when there is a child
+ * session to open.
+ */
+export function SubagentCard({
+  subagent,
+  onOpen,
+  nested,
+  defaultExpanded = false,
+  stale = false,
+  variant = "framed",
+  location,
+  parentLocation,
+  className,
+}: SubagentCardProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const panelId = useId();
+  const mode = subagentCardMode(subagent, onOpen !== undefined, nested != null);
+  const open = mode === "disclosure" && expanded;
+  const props = {
     "data-slot": "subagent-card",
     "data-status": subagent.status,
     "data-origin": subagent.origin,
-    "data-settled": settled ? "true" : undefined,
+    "data-settled": isSubagentLive(subagent.status) ? undefined : "true",
     "data-stale": stale ? "true" : undefined,
-    className: cn(
-      "group/subagent-card grid w-full items-center gap-2.5 py-1.75 pr-2.5 pl-2.25 text-left text-fg",
-      interactive
-        ? "grid-cols-[24px_minmax(0,1fr)_auto_14px] transition-colors duration-fast ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring"
-        : "grid-cols-[24px_minmax(0,1fr)_auto]",
-      CARD_FRAME[variant],
-      variant === "framed" && interactive && "hover:border-line",
-      expandable && expanded && "rounded-b-none",
-      className
-    ),
+    "aria-description": SUBAGENT_STATUS_WORD[subagent.status],
+    className: cn(cardClassName(mode, variant, open), className),
   };
 
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     onOpen?.(subagent, { newWindow: event.metaKey || event.ctrlKey });
   };
 
-  const trigger = drillable ? (
-    <button
-      type="button"
-      aria-label={`Open ${subagent.title}`}
-      aria-description={word}
-      onClick={handleOpen}
-      {...shared}
+  const trigger =
+    mode === "drill" ? (
+      <button type="button" aria-label={`Open ${subagent.title}`} onClick={handleOpen} {...props} />
+    ) : mode === "disclosure" ? (
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={() => setExpanded(current => !current)}
+        {...props}
+      />
+    ) : (
+      <div {...props} />
+    );
+  const body = (
+    <SubagentCardBody
+      subagent={subagent}
+      stale={stale}
+      chevron={mode === "static" ? null : open ? "open" : "closed"}
     />
-  ) : expandable ? (
-    <button
-      type="button"
-      aria-expanded={expanded}
-      aria-controls={panelId}
-      aria-description={word}
-      onClick={() => setExpanded(open => !open)}
-      {...shared}
-    />
-  ) : (
-    <div aria-description={word} {...shared} />
   );
 
   return (
@@ -176,7 +199,7 @@ export function SubagentCard({
           />
         </HoverCardContent>
       </HoverCard>
-      {expandable ? (
+      {mode === "disclosure" ? (
         <div
           id={panelId}
           hidden={!expanded}
