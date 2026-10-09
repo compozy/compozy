@@ -19,8 +19,6 @@ type TranscriptPart = NonNullable<TranscriptMessage["parts"]>[number];
 
 const LOADED_AT = Date.now();
 const secondsAgo = (seconds: number) => new Date(LOADED_AT - seconds * 1_000).toISOString();
-// The assistant message id is its turn id, as the daemon projects it; data parts
-// take their turn from the message once the runtime normalizes them.
 const TURN = "turn-story-subagents";
 
 export const subagentStoryIdleSession: SessionPayload = {
@@ -71,7 +69,7 @@ function card(subagentId: string, toolCallId: string, origin = "delegated"): Tra
     type: "data-compozy-subagent",
     id: subagentId,
     turnId: TURN,
-    data: { subagent_id: subagentId, tool_call_id: toolCallId, origin },
+    data: { subagent_id: subagentId, tool_call_id: toolCallId, origin, turn_id: TURN },
   } as unknown as TranscriptPart;
 }
 
@@ -100,7 +98,7 @@ export const subagentGroupTranscript: TranscriptMessage[] = [
     "Before we cut v2, check the webhook retries, look for N+1 queries in #812, and draft the release notes."
   ),
   {
-    id: TURN,
+    id: "story_sub_assistant",
     role: "assistant",
     parts: [
       text(
@@ -122,7 +120,7 @@ export const subagentGroupTranscript: TranscriptMessage[] = [
 export const subagentToolsTranscript: TranscriptMessage[] = [
   user("story_tools_user", "Check on the reviewers and cancel the profiling run."),
   {
-    id: TURN,
+    id: "story_tools_assistant",
     role: "assistant",
     parts: [
       tool("compozy__subagent_capabilities", "call-cap-1", {}, { providers: [] }),
@@ -158,7 +156,7 @@ export const subagentToolsTranscript: TranscriptMessage[] = [
 export const subagentNativeTranscript: TranscriptMessage[] = [
   user("story_native_user", "Review the diff with a subagent."),
   {
-    id: TURN,
+    id: "story_native_assistant",
     role: "assistant",
     parts: [
       tool(

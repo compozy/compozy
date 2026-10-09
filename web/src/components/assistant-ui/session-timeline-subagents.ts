@@ -25,6 +25,8 @@ export const SUBAGENT_PART_NAME = "data-compozy-subagent";
 export interface SubagentPartData {
   subagent_id: string;
   tool_call_id: string;
+  /** The spawning parent turn; the card's turn for grouping and folds. */
+  turn_id?: string;
   origin?: string;
   title?: string;
   runtime_provider?: string;

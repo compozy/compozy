@@ -36,7 +36,17 @@ function partTurnId(
     const fromData = stringField(data, "turn_id") ?? stringField(data, "turnId");
     if (fromData) return fromData;
   }
-  return fallbackTurnId;
+  // A subagent card names its spawning turn itself; it never borrows the
+  // message's, which could place it in the wrong turn's group or fold.
+  return isSubagentCardPart(part) ? undefined : fallbackTurnId;
+}
+
+function isSubagentCardPart(part: Record<string, unknown>): boolean {
+  const type = stringField(part, "type");
+  return (
+    type === "data-compozy-subagent" ||
+    (type === "data" && stringField(part, "name") === "compozy-subagent")
+  );
 }
 
 // The daemon's projected part position (search results name it as `part_index`).
