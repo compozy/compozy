@@ -9,7 +9,9 @@ import type {
   SessionLiveToolRow,
   SessionReasoningRow,
   SessionRow,
+  SessionSubagentRow,
   SessionTextRow,
+  SessionTimelinePart,
   SessionTimelineDataPart,
   SessionWorkEntry,
   SessionTurnFoldRow,
@@ -68,11 +70,7 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
     }
     case "live-tool": {
       const other = b as SessionLiveToolRow;
-      return (
-        a.agent === other.agent &&
-        a.expanded === other.expanded &&
-        workEntriesEqual(a.entries, other.entries)
-      );
+      return a.expanded === other.expanded && workEntriesEqual(a.entries, other.entries);
     }
     case "turn-fold": {
       const other = b as SessionTurnFoldRow;
@@ -86,6 +84,16 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
         rowsEqual(a.rows, other.rows)
       );
     }
+    case "subagents": {
+      const other = b as SessionSubagentRow;
+      return (
+        a.live === other.live &&
+        a.expanded === other.expanded &&
+        a.subagentIds.join("\n") === other.subagentIds.join("\n") &&
+        dataPartsEqual(a.parts, other.parts) &&
+        nestedPartsEqual(a.nested, other.nested)
+      );
+    }
     case "changed-files": {
       const other = b as SessionChangedFilesRow;
       return (
@@ -97,6 +105,36 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
       );
     }
   }
+}
+
+// Provider-native inner parts: the same streaming-relevant fields per part.
+function nestedPartsEqual(
+  a: ReadonlyMap<string, readonly SessionTimelinePart[]>,
+  b: ReadonlyMap<string, readonly SessionTimelinePart[]>
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, parts] of a) {
+    const other = b.get(id);
+    if (!other || other.length !== parts.length) return false;
+    const same = parts.every((part, index) => {
+      const peer = other[index]!;
+      if (peer.kind !== part.kind || peer.id !== part.id || peer.state !== part.state) return false;
+      if (part.kind === "text" || part.kind === "reasoning") {
+        return part.text === (peer as typeof part).text;
+      }
+      if (part.kind === "tool") {
+        const tool = peer as typeof part;
+        return (
+          part.status === tool.status &&
+          part.result === tool.result &&
+          part.isError === tool.isError
+        );
+      }
+      return part.kind !== "data" || part.data === (peer as typeof part).data;
+    });
+    if (!same) return false;
+  }
+  return true;
 }
 
 function dataPartsEqual(

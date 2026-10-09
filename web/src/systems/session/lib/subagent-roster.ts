@@ -55,5 +55,7 @@ export function findSubagent(roster: SubagentRoster, id: string): SubagentView |
 }
 
 export function liveSubagentIds(roster: SubagentRoster): ReadonlySet<string> {
-  return new Set(roster.rows.filter(row => isSubagentLive(row.status)).map(row => row.id));
+  const live = new Set<string>();
+  for (const row of roster.rows) if (isSubagentLive(row.status)) live.add(row.id);
+  return live;
 }

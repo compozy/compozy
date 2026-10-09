@@ -46,6 +46,8 @@ const ROW_KIND_ESTIMATE: Record<SessionRow["kind"], number> = {
   "live-tool": 26,
   "turn-fold": 34,
   "changed-files": 26,
+  // A framed subagent card or a collapsed group header (min-h 46px + gap).
+  subagents: 50,
 };
 
 const estimateCache = new WeakMap<object, number>();

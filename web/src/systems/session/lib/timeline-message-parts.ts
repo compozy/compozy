@@ -72,6 +72,8 @@ export function toTimelineParts(message: {
     const timestamp = partTimestamp(part);
     const state = stringField(part, "state");
     const partIndex = partIndexOf(part);
+    const parentToolCallId = stringField(part, "parentToolCallId") || undefined;
+    const attribution = parentToolCallId ? { parentToolCallId } : {};
     const type = stringField(part, "type");
     if (type === "text") {
       return [
@@ -83,6 +85,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }
@@ -96,6 +99,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }
@@ -121,6 +125,7 @@ export function toTimelineParts(message: {
           timestamp,
           state,
           partIndex,
+          ...attribution,
         },
       ];
     }

@@ -9,14 +9,24 @@
 // args the renderers already read.
 
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
-import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
+import {
+  getToolLabel,
+  isSubagentToolName,
+  resolveRegisteredToolName,
+} from "@/systems/session/lib/tool-labels";
 
 import type { SessionTimelineToolPart } from "./session-timeline.logic";
 
 /** A single tool row collapses into nothing useful; only runs of 2+ fold. */
 export const MIN_COLLAPSIBLE_TOOL_GROUP_SIZE = 2;
 
-export type SessionToolSummaryCategory = "command" | "edit" | "read" | "search" | "agent" | "tool";
+export type SessionToolSummaryCategory =
+  | "command"
+  | "edit"
+  | "read"
+  | "search"
+  | "subagent"
+  | "tool";
 
 export interface SessionToolGroupSummaryPart {
   category: SessionToolSummaryCategory;
@@ -37,15 +47,13 @@ const COMMAND_TOOLS = new Set(["Bash"]);
 const EDIT_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
 const READ_TOOLS = new Set(["Read"]);
 const SEARCH_TOOLS = new Set(["Grep", "Glob", "WebSearch", "WebFetch"]);
-const AGENT_TOOLS = new Set(["Task", "Agent"]);
-
-/** Fixed presentation order: Ran → Edited → Read → Searched → agent tasks → Used. */
+/** Fixed presentation order: Ran → Edited → Read → Searched → subagent tools → Used. */
 const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
   "command",
   "edit",
   "read",
   "search",
-  "agent",
+  "subagent",
   "tool",
 ];
 
@@ -72,7 +80,7 @@ export function classifyToolSummaryCategory(
   if (EDIT_TOOLS.has(name)) return "edit";
   if (READ_TOOLS.has(name)) return "read";
   if (SEARCH_TOOLS.has(name)) return "search";
-  if (AGENT_TOOLS.has(name)) return "agent";
+  if (isSubagentToolName(name)) return "subagent";
   return "tool";
 }
 
@@ -99,8 +107,8 @@ function summaryPartLabel(category: SessionToolSummaryCategory, count: number): 
       return `Read ${count} ${pluralNoun(count, "file")}`;
     case "search":
       return `Searched ${count} ${pluralNoun(count, "file")}`;
-    case "agent":
-      return `Ran ${count} agent ${pluralNoun(count, "task")}`;
+    case "subagent":
+      return `Used ${count} subagent ${pluralNoun(count, "tool")}`;
     case "tool":
       return `Used ${count} ${pluralNoun(count, "tool")}`;
   }
@@ -155,12 +163,11 @@ export function summarizeToolGroup(
     countByCategory.set(category, (countByCategory.get(category) ?? 0) + distinctFiles.size);
   }
 
-  const parts = CATEGORY_ORDER.filter(category => (countByCategory.get(category) ?? 0) > 0).map(
-    category => {
-      const count = countByCategory.get(category)!;
-      return { category, count, label: summaryPartLabel(category, count) };
-    }
-  );
+  const parts = CATEGORY_ORDER.flatMap(category => {
+    if (category === "subagent") return subagentSummaryParts(summarizable);
+    const count = countByCategory.get(category) ?? 0;
+    return count > 0 ? [{ category, count, label: summaryPartLabel(category, count) }] : [];
+  });
 
   return {
     label: joinSummaryLabels(parts.map(part => part.label)),
@@ -168,6 +175,33 @@ export function summarizeToolGroup(
     entryCount: summarizable.length,
     failedCount: summarizable.filter(isAbsorbedToolFailure).length,
   };
+}
+
+/**
+ * Subagent tools speak per tool, in their own verb (S6, UT-W09): "Checked
+ * subagent capabilities 2 times"; a tool whose every call failed reads "Tried
+ * to check subagent capabilities".
+ */
+function subagentSummaryParts(
+  parts: readonly SessionTimelineToolPart[]
+): SessionToolGroupSummaryPart[] {
+  const byTool = new Map<string, { count: number; succeeded: number }>();
+  for (const part of parts) {
+    const name = resolveRegisteredToolName(part.toolName);
+    if (!isSubagentToolName(name)) continue;
+    const entry = byTool.get(name) ?? { count: 0, succeeded: 0 };
+    entry.count += 1;
+    if (!isAbsorbedToolFailure(part)) entry.succeeded += 1;
+    byTool.set(name, entry);
+  }
+  return [...byTool].map(([name, { count, succeeded }]) => ({
+    category: "subagent" as const,
+    count,
+    label:
+      succeeded === 0
+        ? `Tried to ${getToolLabel(name, "failure")}`
+        : `${getToolLabel(name, "past")} ${count} ${pluralNoun(count, "time")}`,
+  }));
 }
 
 /** The "· N failed" suffix a group or fold appends after its sentence; `null` when nothing failed. */

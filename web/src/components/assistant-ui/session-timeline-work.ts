@@ -5,11 +5,7 @@ import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal
 
 import { isStreamingState, reasoningRowFromCluster } from "./session-timeline.logic";
 import { workGroupId } from "./session-timeline-group-identity";
-import {
-  classifyToolSummaryCategory,
-  MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
-  summarizeToolGroup,
-} from "./session-timeline-summary";
+import { MIN_COLLAPSIBLE_TOOL_GROUP_SIZE, summarizeToolGroup } from "./session-timeline-summary";
 import type {
   DeriveSessionRowsOptions,
   SessionLiveToolRow,
@@ -18,11 +14,6 @@ import type {
   SessionWorkRow,
   SessionWorkEntry,
 } from "./session-timeline.logic";
-
-/** Tool-only live runs keep each child agent on its own row. */
-export function isAgentToolPart(part: SessionTimelineToolPart): boolean {
-  return classifyToolSummaryCategory(part) === "agent";
-}
 
 /** Stable identity of the turn's one live row so its motion survives tool swaps. */
 export function liveToolRowId(turnId: string | undefined): string {
@@ -133,8 +124,7 @@ function splitTerminalSegments(
 
 /**
  * The live tail: completed calls first (one group when 2+ summarize, otherwise
- * their own rows), then one live row per running child agent, then the single
- * live row for every other running call. Order inside the narrative reads
+ * their own rows), then the single live row for every running call. Order inside the narrative reads
  * "what it already did, what it's doing".
  */
 function liveWorkRows(
@@ -160,19 +150,7 @@ function liveWorkRows(
     }
   }
 
-  const agents = running.filter(isAgentToolPart);
-  const parallel = running.filter(tool => !isAgentToolPart(tool));
-  for (const agent of agents) {
-    rows.push({
-      kind: "live-tool",
-      id: `live-agent:${agent.toolCallId.trim() || agent.id}`,
-      turnId: agent.turnId,
-      timestamp: agent.timestamp,
-      entries: [agent],
-      agent: true,
-      expanded: false,
-    });
-  }
+  const parallel = running;
   if (parallel.length > 0) {
     const id = liveToolRowId(first.turnId);
     rows.push({
@@ -181,7 +159,6 @@ function liveWorkRows(
       turnId: first.turnId,
       timestamp: parallel[0]?.timestamp,
       entries: parallel,
-      agent: false,
       expanded: parallel.length > 1 ? (options.expandedWorkGroupIds?.has(id) ?? false) : false,
     } satisfies SessionLiveToolRow);
   }

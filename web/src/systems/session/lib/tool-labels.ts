@@ -68,6 +68,7 @@ const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   loop: Repeat,
   loops: Repeat,
   agent: Bot,
+  subagent: Bot,
   observe: Activity,
   logs: ScrollText,
   extensions: Blocks,
@@ -195,6 +196,27 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
     past: "Closed terminal",
     failure: "close terminal",
   },
+  // The subagent family (S6): verbs instead of tool ids.
+  compozy__subagent_capabilities: {
+    active: "Checking subagent capabilities",
+    past: "Checked subagent capabilities",
+    failure: "check subagent capabilities",
+  },
+  compozy__subagent_delegate: {
+    active: "Delegating a subagent",
+    past: "Delegated a subagent",
+    failure: "delegate a subagent",
+  },
+  compozy__subagent_status: {
+    active: "Reading subagent status",
+    past: "Read subagent status",
+    failure: "read subagent status",
+  },
+  compozy__subagent_cancel: {
+    active: "Canceling a subagent",
+    past: "Canceled a subagent",
+    failure: "cancel a subagent",
+  },
   compozy__terminal_request_input: {
     active: "Requesting input…",
     past: "Requested input",
@@ -203,6 +225,14 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
 };
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
+
+const SUBAGENT_TOOL_PREFIX = "compozy__subagent_";
+
+/** A `compozy__subagent_*` tool with a catalogued verb (S6). */
+export function isSubagentToolName(toolName: string): boolean {
+  const resolved = resolveRegisteredToolName(toolName);
+  return resolved.startsWith(SUBAGENT_TOOL_PREFIX) && REGISTERED_TOOL_NAMES.has(resolved);
+}
 
 /**
  * Resolve a canonical registry tool id from a streamed or persisted tool name.

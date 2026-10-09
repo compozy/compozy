@@ -32,6 +32,11 @@ import type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
 import { type SessionToolGroupSummary } from "./session-timeline-summary";
 import { workRowsFromCluster } from "./session-timeline-work";
+import {
+  isSubagentPart,
+  partitionSubagentParts,
+  subagentRowFromParts,
+} from "./session-timeline-subagents";
 
 export { markerClusterKey } from "./session-timeline-markers";
 
@@ -47,7 +52,7 @@ export {
   type SessionToolGroupSummaryPart,
   type SessionToolSummaryCategory,
 } from "./session-timeline-summary";
-export { isAgentToolPart, liveToolRowId } from "./session-timeline-work";
+export { liveToolRowId } from "./session-timeline-work";
 
 /** Why a turn ended the way it did; the fold layer derives it from stop markers and failures. */
 export type SessionTurnFoldCause = "settled" | "stopped" | "steer_fallback" | "failed";
@@ -60,7 +65,8 @@ export type SessionRow =
   | SessionWorkRow
   | SessionLiveToolRow
   | SessionTurnFoldRow
-  | SessionChangedFilesRow;
+  | SessionChangedFilesRow
+  | SessionSubagentRow;
 
 interface SessionBaseRow {
   id: string;
@@ -119,17 +125,32 @@ export interface SessionWorkRow extends SessionBaseRow {
 /**
  * The one live tool row of the active turn (ADR-006): the calls still running
  * right now. One call reads "Running {tool} — {preview}"; several read
- * "Running N tools…" and expand to the in-flight list. A running child agent is
- * its own live row (`agent`), never counted into the parallel row.
+ * "Running N tools…" and expand to the in-flight list. A subagent is never a
+ * live tool row: its card replaces the call.
  */
 export interface SessionLiveToolRow extends SessionBaseRow {
   kind: "live-tool";
   /** Running calls, in order; length is the honest parallel count. */
   entries: SessionTimelineToolPart[];
-  /** True when this row is a single running child agent (bot glyph, never grouped). */
-  agent: boolean;
   /** Parallel rows expand to list the in-flight calls. */
   expanded: boolean;
+}
+
+/**
+ * One subagent card, or a group of adjacent same-turn cards (S1, S2). State
+ * lives in the roster; the row carries ids, the daemon's hints and, for a
+ * provider-native card, the inner parts that render only inside it (S8).
+ */
+export interface SessionSubagentRow extends SessionBaseRow {
+  kind: "subagents";
+  parts: SessionTimelineDataPart[];
+  /** Subagent ids in delegation order. */
+  subagentIds: string[];
+  /** A member is live in the roster: the row never folds (UT-W04). */
+  live: boolean;
+  /** Group disclosure state (`subagent-group:<first id>`). */
+  expanded: boolean;
+  nested: ReadonlyMap<string, readonly SessionTimelinePart[]>;
 }
 
 export interface SessionTurnFoldRow extends SessionBaseRow {
@@ -184,6 +205,8 @@ export interface DeriveSessionRowsOptions {
    * reaches to it instead of stopping at the last call this message holds.
    */
   turnEndedAtMs?: ReadonlyMap<string, number>;
+  /** Roster ids still live; their cards stay out of turn folds (UT-W04). */
+  liveSubagentIds?: ReadonlySet<string>;
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 
@@ -199,7 +222,8 @@ export function deriveSessionRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions = {}
 ): SessionRow[] {
-  const rows = deriveBaseRows(markInterruptedCalls(parts, options), options);
+  const { flow, nested } = partitionSubagentParts(markInterruptedCalls(parts, options));
+  const rows = deriveBaseRows(flow, nested, options);
   return options.foldSettledTurns
     ? foldSettledTurns(rows, options, turnRecordedTimes(parts, options.turnEndedAtMs))
     : rows;
@@ -260,6 +284,7 @@ function markInterruptedCalls(
 /** Group same-turn work until a visible narrative or interaction boundary. */
 function deriveBaseRows(
   parts: readonly SessionTimelinePart[],
+  nested: ReadonlyMap<string, readonly SessionTimelinePart[]>,
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const rows: SessionRow[] = [];
@@ -297,6 +322,18 @@ function deriveBaseRows(
         flushWorkCluster();
       }
       workCluster.push(part);
+      continue;
+    }
+
+    if (part.kind === "data" && isSubagentPart(part)) {
+      flushWorkCluster();
+      flushMarkerCluster();
+      const previous = rows.at(-1);
+      const adjacent = previous?.kind === "subagents" && previous.turnId === part.turnId;
+      const members = adjacent ? [...previous.parts, part] : [part];
+      const row = subagentRowFromParts(members, nested, options);
+      if (adjacent) rows[rows.length - 1] = row;
+      else rows.push(row);
       continue;
     }
 

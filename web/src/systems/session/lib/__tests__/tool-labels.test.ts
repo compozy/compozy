@@ -7,6 +7,7 @@ import {
   resolveRegisteredToolName,
 } from "../tool-labels";
 import {
+  Bot,
   FileEdit,
   FileText,
   FolderSearch,
@@ -196,5 +197,18 @@ describe("provider summary presentation", () => {
     expect(getToolCompactSummary("Bash", { command })).toBe(emoji.repeat(79) + "…");
     expect(getToolCompactSummary("Bash", { command: "first\n\tsecond" })).toBe("first second");
     expect(command).toContain("\nraw-tail");
+  });
+});
+
+describe("subagent tool labels (UT-W09)", () => {
+  it("Should speak the subagent family in verbs, per tense", () => {
+    expect(getToolLabel("compozy__subagent_delegate", "active")).toBe("Delegating a subagent");
+    expect(getToolLabel("compozy__subagent_delegate", "past")).toBe("Delegated a subagent");
+    expect(getToolLabel("compozy__subagent_capabilities", "active")).toBe(
+      "Checking subagent capabilities"
+    );
+    expect(getToolLabel("compozy__subagent_status", "past")).toBe("Read subagent status");
+    expect(getToolLabel("compozy__subagent_cancel", "past")).toBe("Canceled a subagent");
+    expect(getToolIcon("compozy__subagent_delegate")).toBe(Bot);
   });
 });

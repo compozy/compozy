@@ -68,7 +68,7 @@ export interface SessionLiveToolRowViewProps {
  * `SessionLiveToolRow` (ADR-006 rule 1): exactly one live row for the calls
  * still running. A single call reads "Running {tool} — {preview}"; several stay
  * one honest row — "Running N tools…" with the `layers` glyph — that expands to
- * the in-flight list. A running child agent is its own row with the bot glyph.
+ * the in-flight list.
  * The shimmer is the only motion in the transcript: it dies under reduced
  * motion and stops while the window is paused (US-018.EC-2) — a view that is
  * not applying frames has no cadence to show.
@@ -87,7 +87,6 @@ export function SessionLiveToolRowView({
     return (
       <div
         data-testid="live-tool"
-        data-agent={row.agent || undefined}
         data-still={still || undefined}
         className="flex min-w-0 flex-col"
       >
