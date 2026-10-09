@@ -615,6 +615,12 @@ esac
 				if (err != nil) != tc.failBuild {
 					t.Fatalf("asset synchronization error = %v, want failure %t; output: %s", err, tc.failBuild, output)
 				}
+				if tc.failBuild {
+					exitErr, ok := err.(*exec.ExitError)
+					if !ok || exitErr.ExitCode() != 23 {
+						t.Fatalf("asset synchronization error = %v, want build exit code 23; output: %s", err, output)
+					}
+				}
 				if checked := strings.Contains(string(output), "checking generated assets"); checked == tc.failBuild {
 					t.Fatalf("asset check ran = %t, want %t; output: %s", checked, !tc.failBuild, output)
 				}
