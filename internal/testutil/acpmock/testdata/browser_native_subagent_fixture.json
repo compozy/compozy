@@ -1,0 +1,121 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "subagent-native",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "Replay the Claude Agent subagent frames.",
+            "turns": [
+                {
+                    "name": "native-subagent-review",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "review the diff with a subagent"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"_meta\":{\"claudeCode\":{\"toolName\":\"Agent\"}},\"toolCallId\":\"toolu_agent\",\"sessionUpdate\":\"tool_call\",\"name\":\"Agent\",\"rawInput\":{\"description\":\"Review the diff (high effort)\",\"prompt\":\"Review the diff\",\"model\":\"sonnet-5.5\"},\"status\":\"pending\",\"title\":\"Review the diff (high effort)\",\"kind\":\"think\",\"content\":[{\"type\":\"content\",\"content\":{\"type\":\"text\",\"text\":\"Review the diff\"}}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"Inspecting the diff.\"},\"_meta\":{\"claudeCode\":{\"parentToolUseId\":\"toolu_agent\"}}}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"_meta\":{\"claudeCode\":{\"toolName\":\"Read\",\"parentToolUseId\":\"toolu_agent\"}},\"toolCallId\":\"toolu_read\",\"sessionUpdate\":\"tool_call\",\"name\":\"Read\",\"rawInput\":{\"file_path\":\"/workspace/README.md\"},\"status\":\"pending\",\"title\":\"Read /workspace/README.md\",\"kind\":\"read\",\"content\":[],\"locations\":[{\"path\":\"/workspace/README.md\",\"line\":1}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"_meta\":{\"claudeCode\":{\"toolName\":\"Read\",\"parentToolUseId\":\"toolu_agent\"}},\"toolCallId\":\"toolu_read\",\"sessionUpdate\":\"tool_call_update\",\"status\":\"completed\",\"rawOutput\":\"Project notes\",\"content\":[{\"type\":\"content\",\"content\":{\"type\":\"text\",\"text\":\"```\\nProject notes\\n```\"}}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 6000
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"_meta\":{\"claudeCode\":{\"toolName\":\"Agent\"}},\"toolCallId\":\"toolu_agent\",\"sessionUpdate\":\"tool_call_update\",\"status\":\"completed\",\"rawOutput\":\"No issues found.\",\"content\":[{\"type\":\"content\",\"content\":{\"type\":\"text\",\"text\":\"No issues found.\"}}]}}}"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "The reviewer found no issues."
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "subagent-parent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "Delegate and wait.",
+            "turns": [
+                {
+                    "name": "parent-delegates",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "start the audit"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "Two subagents are on it."
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "subagent-worker",
+            "provider": "codex",
+            "permissions": "approve-all",
+            "prompt": "Work until stopped.",
+            "turns": [
+                {
+                    "name": "worker-blocks",
+                    "match": {
+                        "user_text_contains": "Audit"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "Auditing."
+                            ]
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
