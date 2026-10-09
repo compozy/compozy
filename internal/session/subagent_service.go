@@ -33,6 +33,7 @@ type subagentRuntime interface {
 	QueueWake(context.Context, store.SessionSubagentWake, []store.SessionSubagent) (string, error)
 	CancelWake(context.Context, store.SessionSubagentWake) error
 	WakeInputStatus(context.Context, store.SessionSubagentWake) (string, error)
+	WakeTurnCompleted(context.Context, store.SessionSubagentWake) (bool, error)
 	Steer(context.Context, string, string, string, string) (acp.SteerResult, error)
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error

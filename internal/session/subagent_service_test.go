@@ -1432,6 +1432,7 @@ func TestSubagentRecoveryIsolation(t *testing.T) {
 		settleTestChild(t, s, r, &row)
 		wake := db.wakes[*db.rows[row.ID].WakeMessageID]
 		r.inputStatuses = map[string]string{wake.InputEntryID: store.SessionInputQueueStatusSent}
+		r.completedWakes = map[string]bool{wake.WakeMessageID: true}
 		db.orphans = []string{"bad-orphan", "another-orphan"}
 		r.errorStop = testSubagentError()
 		snap := r.snapshots["parent"]
@@ -1442,6 +1443,29 @@ func TestSubagentRecoveryIsolation(t *testing.T) {
 		}
 		if len(r.stopped) != 2 || len(r.queues) != 1 || db.rows[row.ID].Delivery != store.SubagentDeliveryDelivered {
 			t.Fatal(r.stopped, r.queues, db.rows[row.ID])
+		}
+	})
+	t.Run("Should keep a sent wake whose turn never completed retryable", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settleTestChild(t, s, r, &row)
+		wakeID := *db.rows[row.ID].WakeMessageID
+		if err := s.OnWakeDispatched(t.Context(), "parent", wakeID); err != nil {
+			t.Fatal(err)
+		}
+		r.inputStatuses = map[string]string{db.wakes[wakeID].InputEntryID: store.SessionInputQueueStatusSent}
+		snap := r.snapshots["parent"]
+		info := *snap.Info
+		info.State, info.StopReason = StateStopped, store.StopAgentCrashed
+		snap.Info, snap.Active, snap.TurnID = &info, false, ""
+		r.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if db.wakes[wakeID].State != store.SubagentWakeStateCanceled ||
+			db.rows[row.ID].Delivery == store.SubagentDeliveryDelivered {
+			t.Fatal(db.wakes[wakeID], db.rows[row.ID])
 		}
 	})
 	for _, status := range []string{store.SessionInputQueueStatusFailed, store.SessionInputQueueStatusCanceled} {
@@ -1698,7 +1722,8 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			unlock()
 			out := <-done
 			synctest.Wait()
-			if out.Status != store.SubagentStatusCompleted || db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
+			if out.Status != store.SubagentStatusCompleted ||
+				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
 				len(runtime.stopped) != 0 {
 				t.Fatal(out, db.rows[row.ID], runtime.stopped)
 			}

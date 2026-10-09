@@ -421,6 +421,7 @@ type subagentTestRuntime struct {
 	steerErr                        error
 	spawnBlock                      chan struct{}
 	queueFull                       int
+	completedWakes                  map[string]bool
 }
 
 var _ subagentRuntime = (*subagentTestRuntime)(nil)
@@ -703,6 +704,11 @@ func (r *subagentTestRuntime) WakeInputStatus(_ context.Context, wake store.Sess
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.inputStatuses[wake.InputEntryID], nil
+}
+func (r *subagentTestRuntime) WakeTurnCompleted(_ context.Context, wake store.SessionSubagentWake) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.completedWakes[wake.WakeMessageID], nil
 }
 func (r *subagentTestRuntime) ResumeChild(_ context.Context, row store.SessionSubagent) error {
 	r.mu.Lock()

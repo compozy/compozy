@@ -341,6 +341,46 @@ func (r managerSubagentRuntime) WakeInputStatus(ctx context.Context, wake store.
 	return entry.Status, err
 }
 
+// WakeTurnCompleted reports whether the turn a wake input started finished
+// without being canceled. Admission (input status sent) alone proves nothing:
+// a crash can end the turn before the agent consumed the wake.
+func (r managerSubagentRuntime) WakeTurnCompleted(ctx context.Context, wake store.SessionSubagentWake) (bool, error) {
+	if wake.InputEntryID == "" {
+		return false, nil
+	}
+	entry, err := r.m.inputQueue.Get(ctx, wake.ParentSessionID, wake.InputEntryID)
+	if errors.Is(err, store.ErrSessionInputQueueEntryNotFound) || (err == nil && entry.TurnID == "") {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	query := store.EventQuery{Limit: 200}
+	var events []store.SessionEvent
+	for {
+		page, err := r.m.Events(ctx, wake.ParentSessionID, query)
+		if err != nil {
+			return false, err
+		}
+		started := false
+		for _, event := range slices.Backward(page) {
+			if event.TurnID != entry.TurnID {
+				continue
+			}
+			events = append(events, event)
+			if event.Type == acp.EventTypeSyntheticReentry || event.Type == acp.EventTypeUserMessage {
+				started = true
+				break
+			}
+		}
+		if started || len(page) < query.Limit {
+			break
+		}
+		query.BeforeSequence = page[0].Sequence
+	}
+	return subagentTurnCompleted(events)
+}
+
 func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.SessionSubagent) error {
 	info, err := r.m.Status(ctx, *row.ChildSessionID)
 	if err != nil {

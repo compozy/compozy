@@ -202,7 +202,13 @@ func (s *subagentService) recoverWake(ctx context.Context, wake store.SessionSub
 		if snap.Active {
 			return s.store.MarkWakeDispatched(ctx, wake.WakeMessageID)
 		}
-		return s.settleWake(ctx, wake.ParentSessionID, wake.WakeMessageID, false)
+		completed, err := s.runtime.WakeTurnCompleted(ctx, current)
+		if err != nil {
+			return err
+		}
+		// An admitted wake whose turn never completed (the daemon died first)
+		// returns its rows to pending for the parent's next resume.
+		return s.settleWake(ctx, wake.ParentSessionID, wake.WakeMessageID, !completed)
 	}
 	if current.State == store.SubagentWakeStateDispatched && current.Route == store.SubagentWakeRouteQueue {
 		return s.failWake(ctx, wake.ParentSessionID, wake.WakeMessageID)
