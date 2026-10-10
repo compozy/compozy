@@ -258,6 +258,18 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
 - Never in this feature's copy: "thread", "worker", "child task", "Click to see all", or a "{N} failed" accessory on the previous-subagents group.
 
+### Session Message Terms
+
+A session message is a prompt one agent session sends to another; a reply wake brings the target's answer back to the sender. The glossary entries **Session Message**, **Reply Wake**, and **Isolated Subagent** are authoritative. Nouns are `session`, `agent`, `subagent`, `branch`, and `pull request` (`PR` in compact slots). Session-message and reply cards read as agent-authored and left-aligned; only the operator's own bubble is right-aligned. The sender header and reply wake text agents receive are fixed English for agents, not UI copy.
+
+- Received message card: "From {title}" (a link), "From a deleted session" (no link), a "Reply requested" chip, and a mode chip only for "Steered", "Interrupted", or "Superseded" (queued and direct sends show none). Long bodies clamp with "Show more" / "Show less". Article name "Message from {title}" (", superseded" when superseded). While the sender's title loads, the label reads "another session".
+- Reply card: "Reply from {title}" or "Reply from a deleted session", with the outcome word Completed · Failed · Canceled · Dropped · Unknown. Fixed bodies: "No reply text." · "The message was removed from the queue before it ran." · "The message may not have been delivered; check the target session." A cut answer ends with "Reply truncated · Read the full turn". Article name "Reply from {title}, {outcome}" (", truncated" when cut).
+- Sent card: "Sending to {title}" · "Sent to {title}" · "Could not send to {title}" (with the error), the state "Sending…", then the reply state "Waiting for reply" → Replied · Failed · Canceled · Dropped · Unknown. No reply state when no reply was requested. The sent card never says "Queued". Tool label: Send / Sending / Sent "a message".
+- Queue row: "From {title}" in the owner slot, the only verb is Remove, aria "Remove message from {title}". Edit refusal (`input_agent_authored`): "This message was sent by another session and can't be edited. Cancel it instead."
+- Errors agents and operators see: "session_prompt cannot target the calling session." · "Message chain limit reached (8 hops). Ask the operator to continue." · "Could not create the subagent worktree: {cause}." · "isolation must be shared or worktree." · "base_ref requires isolation \"worktree\"."
+- Isolated subagent facts follow the Subagent Terms line above: "PR status unknown" when CompozyOS could not check, never "No PR"; "No pull request" only when the forge answered.
+- Never in this feature's copy: "thread", "worker", "inbox", "DM", "chat", or "No PR".
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
