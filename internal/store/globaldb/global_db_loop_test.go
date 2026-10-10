@@ -1699,6 +1699,52 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 // Invariant: amendments are append-only overlays; recorded generation rows never change and every overlay blob remains rooted.
 // The canonical GlobalDB Loop suite owns amendment sequencing, guards, overlay reads, provenance, and blob durability.
 func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
+	t.Run("Should retain nullable goal references and reclaim unreferenced blobs", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
+		run, err := db.CreateLoopRunForStart(
+			ctx, testLoopRun("loop-retained-goal-refs", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refs := make([]string, 3)
+		for index, payload := range []json.RawMessage{[]byte(`"evidence"`), []byte(`"prompt"`), []byte(`"orphan"`)} {
+			refs[index] = looppkg.OutputRefForPayload(payload)
+			if err := storepkg.UpsertLoopOutputBlob(ctx, db.db, refs[index], payload, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_goal_turns (
+			loop_run_id, seq, generation, node_id, turn, session_id, binding_handle, binding_epoch,
+			prompt_id, actor_kind, actor_id, started_at, evidence_ref, prompt_ref
+		) VALUES (?, 1, 1, 'goal', 1, 'session', 'binding', 1, 'prompt-1', 'human', 'operator', ?, ?, NULL),
+			(?, 2, 1, 'goal', 2, 'session', 'binding', 1, 'prompt-2', 'human', 'operator', ?, NULL, ?)`,
+			run.ID, now, refs[0], run.ID, now, refs[1]); err != nil {
+			t.Fatal(err)
+		}
+		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, db.db); err != nil {
+			t.Fatal(err)
+		}
+		for _, ref := range refs[:2] {
+			if _, err := getLoopOutputByRefWithExecutor(ctx, db.db, ref); err != nil {
+				t.Fatalf("retained reference %q: %v", ref, err)
+			}
+		}
+		if _, err := getLoopOutputByRefWithExecutor(
+			ctx,
+			db.db,
+			refs[2],
+		); !errors.Is(
+			err,
+			looppkg.ErrOutputRefNotFound,
+		) {
+			t.Fatalf("orphan lookup = %v, want ErrOutputRefNotFound", err)
+		}
+	})
+
 	t.Parallel()
 
 	globalDB := openLoopTestGlobalDB(t)

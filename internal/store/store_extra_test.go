@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -124,6 +125,67 @@ func TestStoreSQLHelpers(t *testing.T) {
 
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should report a retained reader preventing WAL truncation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "checkpoint-reader.db"))
+		db.SetMaxOpenConns(2)
+		if _, err := db.ExecContext(
+			ctx,
+			`CREATE TABLE items (value INTEGER); INSERT INTO items VALUES (1)`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := Checkpoint(ctx, db); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := reader.QueryRowContext(ctx, `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("reader rows = %d, error = %v, want one", count, err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO items VALUES (2)`); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckpointPassive(ctx, db); err != nil {
+			t.Fatalf("partial passive checkpoint = %v, want success", err)
+		}
+		if err := Checkpoint(ctx, db); !IsSQLiteBusy(err) {
+			t.Errorf("blocked WAL truncation = %v, want incomplete checkpoint busy error", err)
+		}
+		if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout = 5000"); err != nil {
+			t.Fatal(err)
+		}
+		checkpointCtx, cancel := context.WithTimeout(ctx, 25*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		err = Checkpoint(checkpointCtx, db)
+		if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) >= time.Second {
+			t.Errorf("canceled checkpoint = %v after %s, want prompt deadline", err, time.Since(started))
+		}
+		var busyTimeout int
+		if err := db.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&busyTimeout); err != nil || busyTimeout != 5000 {
+			t.Fatalf("busy timeout after checkpoint cancellation = %d, error = %v, want 5000", busyTimeout, err)
+		}
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 2 {
+			t.Fatalf("committed rows after checkpoint failure = %d, error = %v, want two", count, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := Checkpoint(ctx, db); err != nil {
+			t.Fatalf("checkpoint after reader release = %v", err)
+		}
+	})
 
 	dsn := sqliteDSN("/tmp/example.db")
 	parsedDSN, err := url.Parse(dsn)

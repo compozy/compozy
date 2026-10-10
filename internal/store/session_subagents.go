@@ -207,7 +207,7 @@ type SubagentStore interface {
 	ListUnfinalizedDelegated(ctx context.Context) ([]SessionSubagent, error)
 	ListUnfinalizedNative(ctx context.Context) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
-	ListPending(ctx context.Context) ([]SessionSubagent, error)
+	ListPending(ctx context.Context, parentID string) ([]SessionSubagent, error)
 	ListOrphanSubagentSessions(ctx context.Context) ([]string, error)
 }
 

@@ -64,18 +64,18 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 			return store.SubagentPage{}, listcursor.ErrInvalid
 		}
 	}
-	rows, err := g.queries.ListSubagents(
-		ctx,
-		sqlcgen.ListSubagentsParams{
-			Workspace:  q.WorkspaceID,
-			Parent:     q.ParentSessionID,
-			Origins:    origins,
-			Statuses:   statuses,
-			CursorID:   pos.ID,
-			CursorTime: pos.CreatedAt,
-			PageLimit:  int64(q.Limit) + 1,
-		},
-	)
+	var rows []sqlcgen.SessionSubagent
+	if q.ParentSessionID != "" {
+		rows, err = g.queries.ListSubagentsByParent(ctx, sqlcgen.ListSubagentsByParentParams{
+			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
+			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: int64(q.Limit) + 1,
+		})
+	} else {
+		rows, err = g.queries.ListSubagentsByWorkspace(ctx, sqlcgen.ListSubagentsByWorkspaceParams{
+			Workspace: q.WorkspaceID, Origins: origins, Statuses: statuses,
+			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: int64(q.Limit) + 1,
+		})
+	}
 	if err != nil {
 		return store.SubagentPage{}, err
 	}
@@ -146,11 +146,17 @@ func (g *SessionRepo) ListUnfinalizedDelegated(ctx context.Context) ([]store.Ses
 	}
 	return subagentsFromSQL(rows)
 }
-func (g *SessionRepo) ListPending(ctx context.Context) ([]store.SessionSubagent, error) {
+func (g *SessionRepo) ListPending(ctx context.Context, parentID string) ([]store.SessionSubagent, error) {
 	if err := g.checkReady(ctx, "list pending subagents"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListPendingSubagents(ctx)
+	var rows []sqlcgen.SessionSubagent
+	var err error
+	if parentID = strings.TrimSpace(parentID); parentID == "" {
+		rows, err = g.queries.ListPendingSubagents(ctx)
+	} else {
+		rows, err = g.queries.ListPendingSubagentsByParent(ctx, parentID)
+	}
 	if err != nil {
 		return nil, err
 	}

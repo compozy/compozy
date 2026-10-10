@@ -3,15 +3,37 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
+var errSQLiteCheckpointBusy = errors.New("store: sqlite wal checkpoint is busy")
+
 // Checkpoint truncates the WAL for an open SQLite database.
-func Checkpoint(ctx context.Context, db *sql.DB) error {
+func Checkpoint(ctx context.Context, db *sql.DB) (retErr error) {
 	if db == nil {
 		return nil
 	}
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: acquire sqlite checkpoint connection: %w", err)
+	}
+	defer func() {
+		if err := conn.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("store: close sqlite checkpoint connection: %w", err))
+		}
+	}()
+	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+		var busy, frames, checkpointed int
+		if err := conn.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").
+			Scan(&busy, &frames, &checkpointed); err != nil {
+			return err
+		}
+		if busy != 0 {
+			return fmt.Errorf("%w: checkpointed %d of %d frames", errSQLiteCheckpointBusy, checkpointed, frames)
+		}
+		return nil
+	}); err != nil {
 		return fmt.Errorf("store: checkpoint sqlite wal: %w", err)
 	}
 	return nil

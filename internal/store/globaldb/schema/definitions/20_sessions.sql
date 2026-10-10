@@ -12,6 +12,9 @@ CREATE TABLE session_input_clear_traces (
 CREATE INDEX idx_session_input_clear_traces_pending
     ON session_input_clear_traces(session_id, created_at, entry_id) WHERE projected_at IS NULL;
 
+CREATE INDEX idx_session_input_clear_traces_session
+    ON session_input_clear_traces(session_id);
+
 CREATE TABLE session_creation_profiles (
 		profile_ref TEXT PRIMARY KEY CHECK (length(trim(profile_ref)) > 0),
 		profile_json TEXT NOT NULL CHECK (json_valid(profile_json)),
@@ -409,6 +412,8 @@ CREATE TRIGGER trg_sessions_archive_update_guard
 
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 
+CREATE INDEX idx_token_stats_updated ON token_stats(updated_at);
+
 CREATE UNIQUE INDEX idx_token_stats_session_agent ON token_stats(session_id, agent_name);
 
 CREATE INDEX idx_token_usage_daily_workspace ON token_usage_daily(workspace_id, day);
@@ -481,5 +486,7 @@ CREATE TABLE session_subagents (
 );
 CREATE INDEX idx_session_subagents_parent_created ON session_subagents(parent_session_id,created_at);
 CREATE INDEX idx_session_subagents_workspace_status ON session_subagents(workspace_id,status);
+CREATE INDEX idx_session_subagents_workspace_created ON session_subagents(workspace_id,created_at DESC,id DESC);
+CREATE INDEX idx_session_subagents_wake_created ON session_subagents(wake_message_id,created_at,id);
 CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_session_id,delivery) WHERE delivery IN ('pending','claimed');
 CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';

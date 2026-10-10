@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -71,7 +72,7 @@ func seedNonLeasedClaimedObserveRun(
 }
 
 type forbidCountDependenciesRegistry struct {
-	Registry
+	*globaldb.GlobalDB
 }
 
 func (r *forbidCountDependenciesRegistry) CountDependencies(_ context.Context, taskID string) (int, error) {
@@ -367,48 +368,52 @@ func TestObserveTaskDashboardRejectsInvalidScopeWorkspaceBinding(t *testing.T) {
 func TestObserveTaskDashboardLoadsDependencyCountsWithoutPerTaskCalls(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	h.observer.registry = &forbidCountDependenciesRegistry{Registry: h.registry}
+	t.Run("Should count dependency blocked tasks through the shared registry", func(t *testing.T) {
+		t.Parallel()
 
-	createObserveTask(t, h, taskpkg.Task{
-		ID:          "task-dependent",
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: h.workspaceID,
-		Title:       "Dependency blocked task",
-		Status:      taskpkg.TaskStatusBlocked,
-		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-		Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-		CreatedAt:   h.now,
-		UpdatedAt:   h.now,
-	})
-	createObserveTask(t, h, taskpkg.Task{
-		ID:          "task-prerequisite",
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: h.workspaceID,
-		Title:       "Prerequisite task",
-		Status:      taskpkg.TaskStatusReady,
-		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-		Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-		CreatedAt:   h.now.Add(time.Minute),
-		UpdatedAt:   h.now.Add(time.Minute),
-	})
-	createObserveDependency(t, h, taskpkg.Dependency{
-		TaskID:          "task-dependent",
-		DependsOnTaskID: "task-prerequisite",
-		Kind:            taskpkg.DependencyKindBlocks,
-		CreatedAt:       h.now.Add(2 * time.Minute),
-	})
+		h := newHarness(t)
+		h.observer.registry = &forbidCountDependenciesRegistry{GlobalDB: h.registry}
 
-	dashboard, err := h.observer.QueryTaskDashboard(
-		testutil.Context(t),
-		TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
-	)
-	if err != nil {
-		t.Fatalf("QueryTaskDashboard() error = %v", err)
-	}
-	if got, want := dashboard.Totals.DependencyBlockedTasks, 1; got != want {
-		t.Fatalf("dashboard.Totals.DependencyBlockedTasks = %d, want %d", got, want)
-	}
+		createObserveTask(t, h, taskpkg.Task{
+			ID:          "task-dependent",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Dependency blocked task",
+			Status:      taskpkg.TaskStatusBlocked,
+			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			CreatedAt:   h.now,
+			UpdatedAt:   h.now,
+		})
+		createObserveTask(t, h, taskpkg.Task{
+			ID:          "task-prerequisite",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Prerequisite task",
+			Status:      taskpkg.TaskStatusReady,
+			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			CreatedAt:   h.now.Add(time.Minute),
+			UpdatedAt:   h.now.Add(time.Minute),
+		})
+		createObserveDependency(t, h, taskpkg.Dependency{
+			TaskID:          "task-dependent",
+			DependsOnTaskID: "task-prerequisite",
+			Kind:            taskpkg.DependencyKindBlocks,
+			CreatedAt:       h.now.Add(2 * time.Minute),
+		})
+
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
+		if err != nil {
+			t.Fatalf("QueryTaskDashboard() error = %v", err)
+		}
+		if got, want := dashboard.Totals.DependencyBlockedTasks, 1; got != want {
+			t.Fatalf("dashboard.Totals.DependencyBlockedTasks = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {

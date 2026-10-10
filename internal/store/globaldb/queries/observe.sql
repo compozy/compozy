@@ -19,6 +19,14 @@ INSERT INTO event_summaries (
 -- name: GetEventSummarySessionProjection :one
 SELECT workspace_id, provider, worktree_id FROM sessions WHERE id = sqlc.arg(session_id);
 
+-- name: HasExpiredObservability :one
+SELECT CAST(
+  EXISTS(SELECT 1 FROM event_summaries WHERE event_summaries.timestamp < sqlc.arg(cutoff))
+  OR EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < sqlc.arg(cutoff))
+  OR EXISTS(SELECT 1 FROM token_usage_daily WHERE token_usage_daily.day < sqlc.arg(cutoff_day))
+  OR EXISTS(SELECT 1 FROM permission_log WHERE permission_log.timestamp < sqlc.arg(cutoff))
+AS INTEGER);
+
 -- name: DeleteEventSummariesBefore :execrows
 DELETE FROM event_summaries WHERE timestamp < sqlc.arg(cutoff);
 

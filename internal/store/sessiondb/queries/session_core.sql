@@ -169,8 +169,10 @@ DELETE FROM conversation_rewind_receipts;
 WITH bounds AS (SELECT CAST(sqlc.arg(from_sequence) AS INTEGER) AS cut_from,
                       CAST(sqlc.arg(to_sequence) AS INTEGER) AS cut_to)
 SELECT COUNT(*) FROM transcript_entries AS e, bounds
-WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
-              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+WHERE e.entry_key IN (
+    SELECT DISTINCT transcript_entry_key FROM events
+    WHERE archived = 0 AND sequence BETWEEN bounds.cut_from AND bounds.cut_to
+  )
   AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
               AND (sequence < bounds.cut_from OR sequence > bounds.cut_to));
 

@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -148,6 +149,34 @@ func TestQueryTaskSummaryAggregatesByScopeOriginAndOwner(t *testing.T) {
 func TestQueryTaskSummaryKeepsProfileReadsIsolated(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should summarize current profile state while task audit is unavailable", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		createObserveTask(t, h, taskpkg.Task{
+			ID: "task-current-state", Scope: taskpkg.ScopeGlobal, Title: "Current task",
+			Status: taskpkg.TaskStatusReady, CreatedBy: taskActor(taskpkg.ActorKindHuman, "operator"),
+			Origin: taskOrigin(taskpkg.OriginKindCLI, "test"), CreatedAt: h.now, UpdatedAt: h.now,
+		})
+		auditErr := errors.New("task audit unavailable")
+		h.observer.registry = unavailableTaskAuditRegistry{Registry: h.registry, err: auditErr}
+		summary, err := h.observer.QueryTaskSummary(t.Context(), TaskSummaryQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskSummary() error = %v", err)
+		}
+		if summary.TotalTasks != 1 || summary.TotalRuns != 0 ||
+			!containsTaskTotal(summary.TaskTotals, taskpkg.ScopeGlobal, taskpkg.TaskStatusReady, 1) {
+			t.Fatalf("summary = %#v, want the current ready task", summary)
+		}
+		_, err = h.observer.QueryTaskMetrics(t.Context(), TaskMetricsQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if !errors.Is(err, auditErr) {
+			t.Fatalf("QueryTaskMetrics() error = %v, want %v", err, auditErr)
+		}
+	})
+
 	t.Run("Should return only tasks and runs owned by the requested profile", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -237,6 +266,15 @@ func TestQueryTaskSummaryKeepsProfileReadsIsolated(t *testing.T) {
 			t.Fatalf("aggregate dashboard totals = %+v, want both profile owners", aggregateDashboard.Totals)
 		}
 	})
+}
+
+type unavailableTaskAuditRegistry struct {
+	Registry
+	err error
+}
+
+func (r unavailableTaskAuditRegistry) ListTaskEvents(context.Context, taskpkg.EventQuery) ([]taskpkg.Event, error) {
+	return nil, r.err
 }
 
 func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {

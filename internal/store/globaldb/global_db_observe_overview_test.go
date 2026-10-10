@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -128,6 +129,53 @@ func seedOverviewEvent(
 
 func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 	t.Parallel()
+	t.Run("Should cancel a contended token write before the native busy timeout", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		writeErr := db.RecordTokenUsage(
+			writeCtx,
+			store.TokenStatsUpdate{
+				SessionID:  "session-canceled",
+				AgentName:  "writer",
+				CostStatus: "unknown",
+				CostSource: "none",
+			},
+			store.TokenUsageDailyUpdate{
+				ProfileID:  store.DefaultProfileID,
+				Day:        "2026-10-09",
+				AgentName:  "writer",
+				CostStatus: "unknown",
+				CostSource: "none",
+			},
+		)
+		elapsed := time.Since(started)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(writeErr, context.DeadlineExceeded) || elapsed > time.Second {
+			t.Fatalf("contended token write = %v after %s, want prompt context cancellation", writeErr, elapsed)
+		}
+		stats, err := db.ListTokenStats(ctx, store.TokenStatsQuery{SessionID: "session-canceled"})
+		if err != nil || len(stats) != 0 {
+			t.Fatalf("canceled token write persisted stats: %#v, %v", stats, err)
+		}
+	})
 
 	t.Run("Should attribute usage by owner despite mixed credential sources [IT-021]", func(t *testing.T) {
 		t.Parallel()

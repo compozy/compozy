@@ -55,3 +55,9 @@ The existing real-store scheduler integration owns this backend scenario; see th
 [contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).
 
 QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.
+
+SQLite audit 2026-10-09: Hold an external writer during scheduled claim and trigger update. Cancellation must return promptly without a partial cursor/run or trigger-rule mutation; retry after release must preserve the original fire and existing validation. Existing real SQLite automation integration owns these backend checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

@@ -207,65 +207,55 @@ func (g *AutomationRepo) UpdateTrigger(
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: begin update automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	defer rollbackAutomationDefinitionTx(&err, tx, "update automation trigger")
-	queries := sqlcgen.New(tx)
-	previous, err := queries.GetAutomationTrigger(ctx, normalized.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: automation trigger %q: %w",
-			normalized.ID,
+	err = g.withImmediateTransaction(ctx, "update automation trigger", func(tx globalSQLExecutor) error {
+		queries := sqlcgen.New(tx)
+		previous, err := queries.GetAutomationTrigger(ctx, normalized.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf(
+				"store: automation trigger %q: %w",
+				normalized.ID,
+				automation.ErrTriggerNotFound,
+			)
+		}
+		if err != nil {
+			return fmt.Errorf(
+				"store: load prior automation trigger %q: %w",
+				normalized.ID,
+				err,
+			)
+		}
+		affected, err := queries.UpdateAutomationTrigger(ctx, params)
+		if err != nil {
+			return fmt.Errorf(
+				"store: update automation trigger %q: %w",
+				normalized.ID,
+				mapAutomationTriggerConstraintError(ctx, tx, normalized, err),
+			)
+		}
+		if err := requireAutomationAffected(
+			affected,
 			automation.ErrTriggerNotFound,
-		)
-	}
+			normalized.ID,
+			"automation trigger",
+		); err != nil {
+			return err
+		}
+		if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
+			return err
+		}
+		identityChanged := automationNullStringValue(previous.WebhookID) != normalized.WebhookID ||
+			automationNullStringValue(previous.EndpointSlug) != normalized.EndpointSlug
+		if err := reconcileAutomationIngressBinding(ctx, queries, normalized, identityChanged); err != nil {
+			return fmt.Errorf(
+				"store: invalidate changed webhook ingress binding %q: %w",
+				normalized.ID,
+				err,
+			)
+		}
+		return nil
+	})
 	if err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: load prior automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	affected, err := queries.UpdateAutomationTrigger(ctx, params)
-	if err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: update automation trigger %q: %w",
-			normalized.ID,
-			mapAutomationTriggerConstraintError(ctx, tx, normalized, err),
-		)
-	}
-	if err := requireAutomationAffected(
-		affected,
-		automation.ErrTriggerNotFound,
-		normalized.ID,
-		"automation trigger",
-	); err != nil {
 		return automation.Trigger{}, err
-	}
-	if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
-		return automation.Trigger{}, err
-	}
-	identityChanged := automationNullStringValue(previous.WebhookID) != normalized.WebhookID ||
-		automationNullStringValue(previous.EndpointSlug) != normalized.EndpointSlug
-	if err := reconcileAutomationIngressBinding(ctx, queries, normalized, identityChanged); err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: invalidate changed webhook ingress binding %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: commit update automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
 	}
 	return g.GetTrigger(ctx, normalized.ID)
 }

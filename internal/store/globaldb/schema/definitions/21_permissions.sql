@@ -10,3 +10,5 @@ CREATE TABLE permission_log (
 	);
 
 CREATE INDEX idx_perm_session ON permission_log(session_id);
+
+CREATE INDEX idx_perm_timestamp ON permission_log(timestamp);

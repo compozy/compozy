@@ -393,6 +393,94 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
+	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00132_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		const at = "2026-10-09T12:00:00Z"
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('retained-ws', '/retained', 'retained', '` + at + `', '` + at + `')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('retained-session', '00000000000000000000000000', 'coder', 'retained-ws', 'stopped', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('retained-input', 'retained-session', 'canceled', 'queue', 'Keep authored text', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_input_clear_traces (entry_id, session_id, turn_id, actor_kind, actor_id, queue_generation, created_at, projected_at)
+			 VALUES ('retained-input', 'retained-session', 'turn', 'user', 'operator', 7, '` + at + `', '` + at + `')`,
+			`INSERT INTO agent_heartbeat_wake_events (id, workspace_id, agent_name, session_id, source, result, reason, created_at, expires_at)
+			 VALUES ('retained-event', 'retained-ws', 'coder', 'retained-session', 'manual', 'sent', 'wake_sent', '` + at + `', '` + at + `')`,
+			`INSERT INTO agent_heartbeat_wake_state (workspace_id, agent_name, session_id, coalesced_count, last_result, updated_at)
+			 VALUES ('retained-ws', 'coder', 'retained-session', 3, 'coalesced', '` + at + `')`,
+			`INSERT INTO token_stats (id, session_id, agent_name, input_tokens, total_tokens, turn_count, updated_at)
+			 VALUES ('retained-stats', 'retained-session', 'coder', 42, 42, 2, '` + at + `')`,
+			`INSERT INTO permission_log (id, session_id, agent_name, action, resource, decision, policy_used, timestamp)
+			 VALUES ('retained-permission', 'retained-session', 'coder', 'read', '/retained', 'allow', 'read-only', '` + at + `')`,
+			`INSERT INTO tasks (id, profile_id, scope, title, status, created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at)
+			 VALUES ('retained-task', '00000000000000000000000000', 'global', 'Keep task', 'completed', 'daemon', 'fixture', 'daemon', 'fixture', '` + at + `', '` + at + `')`,
+			`INSERT INTO task_blocks (id, task_id, kind, reason, created_by_kind, created_by_ref, created_at, cleared_at)
+			 VALUES ('retained-block', 'retained-task', 'needs_input', 'Keep reason', 'daemon', 'fixture', '` + at + `', '` + at + `')`,
+			`INSERT INTO task_designation_rollups (designation_group_id, task_id, summary_json, created_at)
+			 VALUES ('retained-group', 'retained-task', '{"completed":1}', '` + at + `')`,
+			`INSERT INTO session_subagent_wakes (wake_message_id, workspace_id, parent_session_id, state, route, created_at, updated_at)
+			 VALUES ('retained-wake', 'retained-ws', 'retained-session', 'settled', 'queue', '` + at + `', '` + at + `')`,
+			`INSERT INTO session_subagents (id, workspace_id, parent_session_id, parent_turn_id, origin, idempotency_key, request_fingerprint,
+			 title, task_chars, depth, status, work_state, result, wake_policy, delivery, wake_message_id, created_at, updated_at)
+			 VALUES ('retained-subagent', 'retained-ws', 'retained-session', 'turn', 'delegated', 'key', 'fingerprint',
+			 'Keep result', 10, 1, 'completed', 'result_available', 'Retained result', 'always', 'delivered', 'retained-wake', '` + at + `', '` + at + `')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const historyQuery = `SELECT json_array(
+			(SELECT json_array(text, status) FROM session_input_queue WHERE id='retained-input'),
+			(SELECT json_array(actor_id, queue_generation, projected_at) FROM session_input_clear_traces WHERE entry_id='retained-input'),
+			(SELECT json_array(session_id, result, reason) FROM agent_heartbeat_wake_events WHERE id='retained-event'),
+			(SELECT json_array(coalesced_count, last_result) FROM agent_heartbeat_wake_state WHERE session_id='retained-session'),
+			(SELECT json_array(input_tokens, total_tokens, turn_count) FROM token_stats WHERE id='retained-stats'),
+			(SELECT json_array(resource, decision, policy_used) FROM permission_log WHERE id='retained-permission'),
+			(SELECT json_array(reason, cleared_at) FROM task_blocks WHERE id='retained-block'),
+			(SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'),
+			(SELECT json_array(result, status, delivery, wake_message_id) FROM session_subagents WHERE id='retained-subagent'))`
+		var before string
+		if err := prior.QueryRowContext(ctx, historyQuery).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after string
+			if err := upgraded.db.QueryRowContext(ctx, historyQuery).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if after != before {
+				t.Fatalf("history changed across index upgrade: before %s, after %s", before, after)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	// Invariant: palette retirement merges counts and pins per workspace/profile exactly once; the reopen suite owns upgrades.
 	t.Run("Should preserve palette personalization across app retirement [IT-012]", func(t *testing.T) {
 		t.Parallel()
@@ -2682,6 +2770,38 @@ func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
 
 func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should avoid waiting for the writer when no observability rows have expired", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		// Initialize the second reader before measuring contention, including under the race detector.
+		if _, err := db.SweepObservability(ctx, time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		sweepCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		result, sweepErr := db.SweepObservability(sweepCtx, time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC))
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if sweepErr != nil || result.DeletedEventSummaries != 0 || result.DeletedTokenStats != 0 ||
+			result.DeletedPermissionLogs != 0 || result.DeletedTokenUsageDaily != 0 {
+			t.Fatalf("empty sweep = %#v, %v", result, sweepErr)
+		}
+	})
 
 	ctx := testutil.Context(t)
 	globalDB := openTestGlobalDB(t)

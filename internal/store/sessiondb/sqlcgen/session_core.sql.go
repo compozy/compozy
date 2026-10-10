@@ -126,8 +126,10 @@ const countTranscriptEntriesCrossingCut = `-- name: CountTranscriptEntriesCrossi
 WITH bounds AS (SELECT CAST(?1 AS INTEGER) AS cut_from,
                       CAST(?2 AS INTEGER) AS cut_to)
 SELECT COUNT(*) FROM transcript_entries AS e, bounds
-WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
-              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+WHERE e.entry_key IN (
+    SELECT DISTINCT transcript_entry_key FROM events
+    WHERE archived = 0 AND sequence BETWEEN bounds.cut_from AND bounds.cut_to
+  )
   AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
               AND (sequence < bounds.cut_from OR sequence > bounds.cut_to))
 `
