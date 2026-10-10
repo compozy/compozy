@@ -1128,7 +1128,8 @@ func TestSubagentHookDaemonIntegration(t *testing.T) {
 			return err == nil && json.Unmarshal(data, &payload) == nil
 		})
 		if payload.Event != hookspkg.HookSubagentSettled || payload.SubagentID != row.ID ||
-			payload.Status != store.SubagentStatusCompleted || payload.ParentSessionID != caller.SessionID {
+			payload.Status != store.SubagentStatusCompleted || payload.ParentSessionID != caller.SessionID ||
+			payload.Isolation != "shared" || payload.Worktree != nil {
 			t.Fatal(payload)
 		}
 	})
@@ -2306,9 +2307,23 @@ func TestIsolatedSubagentDaemonIntegration(t *testing.T) {
 			name = "Should rollback failed " + failure + " without starting a child"
 		}
 		t.Run(name, func(t *testing.T) {
+			capture := filepath.Join(t.TempDir(), "isolated-settled.json")
+			script := writeDaemonHookScript(
+				t,
+				t.TempDir(),
+				"settled.sh",
+				"#!/bin/sh\ncat > \"$1\"\nprintf '%s\\n' '{}'\n",
+			)
 			d, manager, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+				cfg.Hooks.Declarations = append(cfg.Hooks.Declarations, hookspkg.HookDecl{
+					Name:    "observe-isolated",
+					Event:   hookspkg.HookSubagentSettled,
+					Mode:    hookspkg.HookModeAsync,
+					Command: script,
+					Args:    []string{capture},
+				})
 				if setupFails {
-					cfg.Worktrees.SetupCommand = "exit 1"
+					cfg.Worktrees.SetupCommand = "echo setup-output > setup-created.txt; exit 1"
 				}
 			})
 			resolved, err := d.workspaceResolver.Resolve(t.Context(), ws)
@@ -2359,6 +2374,12 @@ func TestIsolatedSubagentDaemonIntegration(t *testing.T) {
 				if err != nil || len(list.Worktrees) != 0 {
 					t.Fatal(list, err)
 				}
+				if branches := git("branch", "--list", "run/*"); branches != "" {
+					t.Fatalf("failed provision left branches: %s", branches)
+				}
+				if checkouts := git("worktree", "list", "--porcelain"); strings.Count(checkouts, "worktree ") != 1 {
+					t.Fatalf("failed provision left checkouts: %s", checkouts)
+				}
 				return
 			}
 			if err != nil {
@@ -2390,6 +2411,20 @@ func TestIsolatedSubagentDaemonIntegration(t *testing.T) {
 				*current.WorktreeState().Facts.CommitsAhead != 1 ||
 				current.WorktreeState().Facts.PRStatus != "unknown" {
 				t.Fatal(current, err)
+			}
+			var settled hookspkg.SubagentSettledPayload
+			waitForRuntimeCondition(t, "isolated settlement hook", 10*time.Second, func() bool {
+				data, readErr := os.ReadFile(capture)
+				return readErr == nil && json.Unmarshal(data, &settled) == nil
+			})
+			if settled.Isolation != "worktree" || settled.Worktree == nil ||
+				settled.Worktree.ID != current.WorktreeState().ID ||
+				settled.Worktree.BaseSHA != base ||
+				settled.Worktree.CommitsAhead == nil ||
+				*settled.Worktree.CommitsAhead != 1 ||
+				settled.Worktree.PullRequestStatus != "unknown" ||
+				settled.Worktree.ObservedAt == nil {
+				t.Fatal(settled)
 			}
 			cwd, err := os.ReadFile(filepath.Join(row.WorktreeState().Path, "isolated-cwd.txt"))
 			if err != nil || strings.TrimSpace(string(cwd)) != row.WorktreeState().Path {
@@ -2792,6 +2827,22 @@ func TestIsolatedSubagentDeliveryIntegration(t *testing.T) {
 
 		}
 		db := d.registry.(store.SubagentStore)
+		waitForRuntimeCondition(t, "both isolated results in the queued wake", 15*time.Second, func() bool {
+			wakes, err := db.ListWakesByParent(t.Context(), parent.ID, []string{store.SubagentWakeStateOpen})
+			if err != nil || len(wakes) != 1 {
+				return false
+			}
+			_, members, err := db.GetWake(t.Context(), wakes[0].WakeMessageID)
+			if err != nil || len(members) != 2 {
+				return false
+			}
+			inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), parent.ID)
+			return err == nil && len(inputs) == 1 && strings.Contains(inputs[0].Text, first.WorktreeState().Branch) &&
+				strings.Contains(
+					inputs[0].Text,
+					second.WorktreeState().Branch,
+				) && strings.Contains(inputs[0].Text, "https://forge.test/pull/7")
+		})
 		wakes, err := db.ListWakesByParent(t.Context(), parent.ID, []string{store.SubagentWakeStateOpen})
 		if err != nil || len(wakes) != 1 {
 			t.Fatal(wakes, err)
@@ -3500,11 +3551,19 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 			watches != 8 {
 			t.Fatal(watches, err)
 		}
-		rows, err := m.Events(t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100, Forward: true})
+		rows, err := m.Events(
+			t.Context(),
+			sender.ID,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100, Forward: true},
+		)
 		if err != nil || len(rows) != 8 {
 			t.Fatal(len(rows), err)
 		}
-		targetRows, err := m.Events(t.Context(), target.ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
+		targetRows, err := m.Events(
+			t.Context(),
+			target.ID,
+			store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+		)
 		if err != nil || len(targetRows) != 8 {
 			t.Fatalf("target turns = %d, %v", len(targetRows), err)
 		}

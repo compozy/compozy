@@ -2211,8 +2211,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": true,
-    "input_schema_digest": "876f2cda9494ba44ec7fc1671ccd77522c2aa1724bffbd83bf7c3502ea2ae39d",
-    "output_schema_digest": "0830cf215bb492d51d2e9f68a0d38ac03796323b4b1e0dd2963c708ac18f8b18"
+    "input_schema_digest": "8a82b9738ec4acb6b3ba5dff92b460a7fa647b9581cf5678e2d87a62fca6754c",
+    "output_schema_digest": "f91a4eebcc32ef1719a8699ed633306cb6d702e93f899c6fefad84c8784cfc4a"
   },
   {
     "tool_id": "compozy__subagent_status",
@@ -2225,7 +2225,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "56aea006d4a44b193a1e7c8fb3224d2dcf84a8fbd20abea1e7c000b7f0ee3b98",
-    "output_schema_digest": "0830cf215bb492d51d2e9f68a0d38ac03796323b4b1e0dd2963c708ac18f8b18"
+    "output_schema_digest": "f91a4eebcc32ef1719a8699ed633306cb6d702e93f899c6fefad84c8784cfc4a"
   },
   {
     "tool_id": "compozy__task_block",

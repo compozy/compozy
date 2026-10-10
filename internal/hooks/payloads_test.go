@@ -681,6 +681,25 @@ func TestSubagentHookPayloads(t *testing.T) {
 			Status:          "completed",
 			Runtime:         SubagentRuntimePayload{Provider: "codex", Model: "model"},
 			DurationMS:      123,
+			Isolation:       "worktree",
+			Worktree: &SubagentWorktreePayload{
+				ID:                "wt",
+				Name:              "review",
+				Branch:            "run/review",
+				BaseRef:           "main",
+				BaseSHA:           "sha",
+				Path:              "/checkout",
+				HeadSHA:           "head",
+				CommitsAhead:      new(2),
+				DirtyFiles:        new(0),
+				ObservedAt:        new(time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)),
+				PullRequestStatus: "open",
+				PullRequest: &SubagentPullRequestPayload{
+					URL:    "https://example.test/pull/7",
+					Number: 7,
+					State:  "open",
+				},
+			},
 		}
 		raw, err = json.Marshal(settled)
 		if err != nil {
@@ -692,6 +711,15 @@ func TestSubagentHookPayloads(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, settled) {
 			t.Fatalf("round trip = %#v", got)
+		}
+		cloned := settled.cloneForAsync()
+		cloned.Worktree.ID = "changed"
+		*cloned.Worktree.CommitsAhead = 99
+		*cloned.Worktree.DirtyFiles = 99
+		*cloned.Worktree.ObservedAt = time.Time{}
+		cloned.Worktree.PullRequest.State = "closed"
+		if !reflect.DeepEqual(got, settled) {
+			t.Fatal("async clone changed the original snapshot", settled)
 		}
 		if HookSubagentSettled.SyncEligible() || HookSubagentSettled.Family() != HookEventFamilySubagent {
 			t.Fatal("settlement must be observe-only in subagent family")
