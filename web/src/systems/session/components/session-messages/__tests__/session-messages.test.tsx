@@ -13,7 +13,6 @@ import {
   sessionMessageOrigin,
   sessionReplyMeta,
   sessionReplyOutcomes,
-  sessionReplyText,
   sessionSentMessagePart,
 } from "@/systems/session/lib/session-message-payload";
 import type { QueuedPrompt } from "@/systems/session/lib/queued-prompt";
@@ -125,6 +124,7 @@ describe("session message payload adapter", () => {
       child_workspace_id: WS,
       child_agent_name: "codex",
       reason: "completed",
+      summary: " Per job, one shared counter. ",
       reply_truncated: true,
       hop: 1,
     };
@@ -134,6 +134,7 @@ describe("session message payload adapter", () => {
       targetWorkspaceId: WS,
       targetAgentName: "codex",
       outcome: "completed",
+      text: "Per job, one shared counter.",
       truncated: true,
     });
     expect(
@@ -145,20 +146,6 @@ describe("session message payload adapter", () => {
     expect(sessionReplyMeta({ custom: { synthetic: { reason: "completed" } } })).toBeNull();
   });
 
-  it("Should lift only the answer out of the reply wake text", () => {
-    const header =
-      'Session "Billing reviewer" (sess-c03f) replied to your message msg-1: completed.';
-    expect(sessionReplyText(`${header}\n---\nPer job.\n\nShared counter.`)).toBe(
-      "Per job.\n\nShared counter."
-    );
-    expect(
-      sessionReplyText(
-        `${header}\n---\nPer job.\n[Reply truncated at 12000 characters. Read the full turn with compozy__session_history.]`
-      )
-    ).toBe("Per job.");
-    expect(sessionReplyText(`${header}\n---\n(no reply text)`)).toBe("");
-  });
-
   it("Should map the sent part's mode and call state and match replies by watch id (UT-067)", () => {
     const part = sessionSentMessagePart("data-compozy-session-message", {
       tool_call_id: "call-1",
@@ -167,9 +154,20 @@ describe("session message payload adapter", () => {
       message_id: "msg-retry-q",
       mode: "steer",
       reply_watch_id: "rw-6e2d81a0",
-      state: "output-error",
+      state: "error",
     });
     expect(part).toMatchObject({ toolCallId: "call-1", mode: "steer", state: "failed" });
+    const state = (raw: string) =>
+      sessionSentMessagePart("data-compozy-session-message", {
+        tool_call_id: "call-1",
+        target_session_id: target.sessionId,
+        state: raw,
+      })?.state;
+    expect([state("running"), state("done"), state("error")]).toEqual([
+      "sending",
+      "sent",
+      "failed",
+    ]);
     expect(sessionSentMessagePart("data-compozy-subagent", { target_session_id: "x" })).toBeNull();
 
     const reply = (watch: string, reason: string) => ({
