@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-collaboration/agent-collaboration-transcript.html",
+  "entry": "agent-collaboration/agent-collaboration-transcript.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-10T05:50:29.449Z",
+  "updatedAt": "2026-10-10T05:50:29.449Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

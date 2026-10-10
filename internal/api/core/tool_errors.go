@@ -66,7 +66,10 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 			return http.StatusForbidden
 		}
 		return http.StatusAccepted
-	case toolspkg.ErrorCodeConflict, toolspkg.ErrorCodeSessionBusy, toolspkg.ErrorCodeCompactionUnsupported:
+	case toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeSessionBusy,
+		toolspkg.ErrorCodeCompactionUnsupported,
+		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
@@ -155,6 +158,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 }
 
 func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) string {
+	if message := safeSessionToolErrorMessage(code); message != "" {
+		return message
+	}
 	switch code {
 	case toolspkg.ErrorCodeNotFound:
 		if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
@@ -166,10 +172,6 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 		return "tool not found"
 	case toolspkg.ErrorCodeConflict:
 		return "tool conflict"
-	case toolspkg.ErrorCodeSessionBusy:
-		return "session is busy"
-	case toolspkg.ErrorCodeCompactionUnsupported:
-		return "session compaction is unsupported"
 	case toolspkg.ErrorCodeUnavailable:
 		return "tool unavailable"
 	case toolspkg.ErrorCodeDenied:
@@ -256,6 +258,18 @@ func toolErrorLayer(reasons []toolspkg.ReasonCode) string {
 			toolspkg.ReasonConflictedSanitizedName:
 			return "availability"
 		}
+	}
+	return ""
+}
+
+func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
+	switch code {
+	case toolspkg.ErrorCodeSessionBusy:
+		return "session is busy"
+	case toolspkg.ErrorCodeSessionMessageHopLimit:
+		return "Message chain limit reached (8 hops). Ask the operator to continue."
+	case toolspkg.ErrorCodeCompactionUnsupported:
+		return "session compaction is unsupported"
 	}
 	return ""
 }

@@ -1660,3 +1660,91 @@ func TestAuthoredContextHeartbeatSessionProfileScope(t *testing.T) {
 		}
 	}
 }
+
+type replyWatchStatusManager struct {
+	testutil.StubSessionManager
+	watches session.ReplyWatchService
+}
+
+func (m replyWatchStatusManager) ReplyWatches() session.ReplyWatchService { return m.watches }
+
+type replyWatchStatusService struct {
+	session.ReplyWatchService
+	list func(context.Context, string, string) ([]store.ReplyWatch, error)
+}
+
+func (s replyWatchStatusService) ListForSender(
+	ctx context.Context,
+	workspace, sender string,
+) ([]store.ReplyWatch, error) {
+	return s.list(ctx, workspace, sender)
+}
+
+func TestSessionStatusReplyWatches(t *testing.T) {
+	t.Run("Should authorize the session before returning its reply watches UT-047", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-registry",
+				ProfileID:   store.DefaultProfileID,
+				AgentName:   "coder",
+				State:       session.StateActive,
+			}, nil
+		}}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "ws-registry",
+					WorkspaceID: "ws-stable",
+					RootDir:     t.TempDir(),
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
+		fixture.Handlers.Sessions = replyWatchStatusManager{
+			StubSessionManager: manager,
+			watches: replyWatchStatusService{
+				list: func(_ context.Context, workspace, sender string) ([]store.ReplyWatch, error) {
+					if workspace != "ws-registry" || sender != "sender" {
+						t.Errorf("scope = %s/%s", workspace, sender)
+					}
+					return []store.ReplyWatch{
+						{
+							ID:              "rw-1",
+							TargetSessionID: "target",
+							MessageID:       "message",
+							State:           "armed",
+							CreatedAt:       time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC),
+						},
+					}, nil
+				},
+			},
+		}
+		fixture.Handlers.SessionHealth = sessionHealthReaderStub{
+			health: heartbeat.SessionHealth{
+				SessionID:   "sender",
+				WorkspaceID: "ws-registry",
+				AgentName:   "coder",
+				State:       heartbeat.SessionHealthStateIdle,
+				Health:      heartbeat.SessionHealthHealthy,
+			},
+		}
+		fixture.Engine.GET("/workspaces/:workspace_id/sessions/:session_id/status", fixture.Handlers.GetSessionStatus)
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/workspaces/ws-stable/sessions/sender/status",
+			nil,
+		)
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+		var payload contract.SessionStatusResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &payload)
+		if recorder.Code != http.StatusOK || err != nil || len(payload.ReplyWatches) != 1 ||
+			payload.ReplyWatches[0].ID != "rw-1" ||
+			payload.ReplyWatches[0].TargetSessionID != "target" {
+			t.Fatalf("status = %d, %+v, %v; %s", recorder.Code, payload, err, recorder.Body.String())
+		}
+	})
+}

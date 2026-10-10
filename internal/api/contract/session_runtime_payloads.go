@@ -58,7 +58,16 @@ type ApproveSessionRequest struct {
 }
 
 // SessionPayload is the shared session response payload.
+type ReplyWatchPayload struct {
+	ID              string    `json:"id"`
+	TargetSessionID string    `json:"target_session_id"`
+	MessageID       string    `json:"message_id"`
+	State           string    `json:"state"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 type SessionPayload struct {
+	ReplyWatches        []ReplyWatchPayload         `json:"reply_watches,omitempty"`
 	SubagentSummary     *SubagentSummaryPayload     `json:"subagent_summary,omitzero"`
 	Queue               *SessionQueueSummaryPayload `json:"queue,omitzero"`
 	Supervision         *session.SupervisionState   `json:"supervision"`

@@ -3942,3 +3942,70 @@ func TestCompactSessionHandler(t *testing.T) {
 		})
 	}
 }
+
+// UT-012 UT-017: queue origin reaches HTTP and protects agent-authored edits/promotions.
+func TestSessionInputOriginContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose origin and refuse replace and promotion with conflict", func(t *testing.T) {
+		t.Parallel()
+		manager := stubSessionManager{
+			ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
+				return []session.PendingInput{
+					{
+						ID:        "inq-1",
+						SessionID: "sess-123",
+						Text:      "Q?",
+						Origin: json.RawMessage(
+							`{"kind":"session","session_id":"sender","workspace_id":"ws-other","hop":2}`,
+						),
+					},
+					{ID: "inq-operator", SessionID: "sess-123", Text: "operator input"},
+				}, nil
+			},
+			ReplacePendingInputFn: func(context.Context, string, string, session.ReplacePendingInputOpts) (session.PendingInput, error) {
+				return session.PendingInput{}, store.ErrSessionInputAgentAuthored
+			},
+			PromotePendingInputFn: func(context.Context, string, string, session.PromotePendingInputOpts) (session.SendPromptResult, error) {
+				return session.SendPromptResult{}, store.ErrSessionInputAgentAuthored
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		base := "/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue"
+		listed := performRequest(t, engine, http.MethodGet, base, nil)
+		var payload contract.SessionInputListResponse
+		if err := json.Unmarshal(listed.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if listed.Code != http.StatusOK || len(payload.Inputs) != 2 || payload.Inputs[0].Origin == nil ||
+			payload.Inputs[0].Origin.SessionID != "sender" ||
+			payload.Inputs[0].Origin.WorkspaceID != "ws-other" {
+			t.Fatal(listed.Code, listed.Body.String())
+		}
+		var raw struct {
+			Inputs []map[string]json.RawMessage `json:"inputs"`
+		}
+		if err := json.Unmarshal(listed.Body.Bytes(), &raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := raw.Inputs[1]["origin"]; exists {
+			t.Fatal("operator input carries origin", listed.Body.String())
+		}
+		for _, route := range []struct{ method, path string }{{http.MethodPut, base + "/inq-1"}, {http.MethodPost, base + "/inq-1/steer"}} {
+			response := performRequest(
+				t,
+				engine,
+				route.method,
+				route.path,
+				[]byte(`{"text":"edited","message_id":"new","idempotency_key":"key"}`),
+			)
+			var failure contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusConflict || failure.Code != "input_agent_authored" ||
+				failure.Error != store.ErrSessionInputAgentAuthored.Error() {
+				t.Fatal(response.Code, failure)
+			}
+		}
+	})
+}

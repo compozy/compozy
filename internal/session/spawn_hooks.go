@@ -18,6 +18,11 @@ func (m *Manager) dispatchSpawnPreCreate(
 	opts SpawnOpts,
 	lineage *store.SessionLineage,
 ) (SpawnOpts, *store.SessionLineage, error) {
+	expectedSubagent := opts.Subagent
+	if expectedSubagent != nil {
+		expected := *expectedSubagent
+		expectedSubagent = &expected
+	}
 	payload := hookspkg.SpawnPreCreatePayload{
 		Event:             hookspkg.HookSpawnPreCreate,
 		Subagent:          opts.Subagent,
@@ -33,7 +38,9 @@ func (m *Manager) dispatchSpawnPreCreate(
 		); denied &&
 			opts.SpawnRole == store.SubagentSpawnRole {
 			return SpawnOpts{}, nil, &SubagentError{
-				Code: "capability_denied", Message: denial.Reason, Err: errors.Join(ErrSubagentCapabilityDenied, err),
+				Code:    subagentCapabilityDeniedCode,
+				Message: denial.Reason,
+				Err:     errors.Join(ErrSubagentCapabilityDenied, err),
 			}
 		}
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
@@ -45,7 +52,7 @@ func (m *Manager) dispatchSpawnPreCreate(
 		}
 		if opts.SpawnRole == store.SubagentSpawnRole {
 			return SpawnOpts{}, nil, &SubagentError{
-				Code:    "capability_denied",
+				Code:    subagentCapabilityDeniedCode,
 				Message: reason,
 				Err:     ErrSubagentCapabilityDenied,
 			}
@@ -53,6 +60,15 @@ func (m *Manager) dispatchSpawnPreCreate(
 		return SpawnOpts{}, nil, fmt.Errorf("%w: %s", ErrSpawnPermissionDenied, reason)
 	}
 
+	if expectedSubagent != nil &&
+		(result.Subagent == nil || result.Subagent.Isolation != expectedSubagent.Isolation ||
+			result.Subagent.WorktreeID != expectedSubagent.WorktreeID) {
+		return SpawnOpts{}, nil, &SubagentError{
+			Code:    subagentCapabilityDeniedCode,
+			Message: "inherited worktree binding is immutable",
+			Err:     ErrSubagentCapabilityDenied,
+		}
+	}
 	if opts.SpawnRole == store.SubagentSpawnRole &&
 		(result.TTLSeconds != 0 || result.SpawnRole != store.SubagentSpawnRole) {
 		return SpawnOpts{}, nil, ErrSubagentCapabilityDenied

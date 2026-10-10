@@ -105,6 +105,32 @@ accept or send a prompt or runtime. A named Worktree must be ready; new creation
 session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
+
+### Session message origin
+
+Use the native `compozy__session_prompt` tool when one agent messages another session. The daemon
+stamps `origin` from the calling session, including its session/workspace IDs, agent, title at send,
+and hop. Neither the message body nor a tool input can set or replace this identity. CLI, HTTP,
+and operator tool prompts remain operator input without an origin. Cross-workspace reach is
+unchanged; the sender workspace in origin identifies the correct session link.
+
+Origin survives queue, steer, interrupt and daemon restart. The receiving provider sees a sender
+header before the message. Stored text remains the authored message; queue and event JSON expose
+origin separately. Without `notify_on_complete`, the header tells the recipient to reply with
+`compozy__session_prompt` targeting the sender. `notify_on_complete: true` requests the reply-watch
+flow; it requires an agent session and is part of the admission identity.
+
+Keep the same `message_id` and `idempotency_key` when retrying. Another sender or a changed
+`notify_on_complete` conflicts. Renaming the sender does not change the admitted origin. Historical
+v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed
+in v0.5.0.
+
+Agent-authored queue entries cannot be edited or promoted to steer: `input_agent_authored` directs
+the operator to cancel instead. Self-targeting returns `invalid_request`. To continue work in the
+same session, end the turn; to schedule work, use a subagent or `compozy session prompt` from the
+operator. Message chains allow eight hops, including steering received during the active turn;
+`message_hop_limit` requires operator intervention to start a fresh chain.
+
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace
 root or configured `additional_dirs`, or existing workspace/session-scoped `att_...` IDs; at least
@@ -119,6 +145,21 @@ and typed `acp_options` are optional snapshot fields. Each option sets exactly o
 `bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.
+
+For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
+`notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
+the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
+history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+`reply_watches` in state `armed` or `fired`; delivered and abandoned watches disappear from that list.
+A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
+summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain
+and the target session should be inspected. An offline sender receives its pending wake on resume.
+Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
+redelivery. `notify_on_complete` is an agent-facing option, not an HTTP operator prompt field.
+Operator-scoped native calls requesting it return `invalid_request` with
+`notify_on_complete requires an agent session`. A same-key retry after a pre-dispatch send failure
+re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
+`abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
 `compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
@@ -156,13 +197,24 @@ by another agent, provider, or model while you keep working:
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
+   `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
+   with `worktree` and defaults to the caller checkout's current HEAD commit. Uncommitted changes
+   are not copied. Include "commit, then deliver with `compozy worktree deliver`" in a code task.
+   Reusing an idempotency key requires the same isolation and requested base ref. Worktree/setup
+   hook denial returns `capability_denied`; creation/setup failure returns `isolation_failed`.
+   The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
+   read-only `subagent.isolation` and `subagent.worktree_id`.
 3. Prefer `mode: "async"` (default): the call returns `status: "running"` with `subagent_id` and
    `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
 4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
    `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
    `Call compozy__subagent_status to read its result.` (one subagent) or `… to read each result.`
    (several). The wake is steered into your running turn when your agent supports steering,
-   otherwise queued ahead of user prompts.
+   otherwise queued ahead of user prompts. An isolated wake also names its branch and PR URL,
+   or says that PR status is unknown. `subagent_status` includes `isolation` and optional `worktree`:
+   id, name, branch, path, requested `base_ref`, pinned `base_sha`, and settlement Git/PR facts.
+   Missing integers mean unknown, not zero. PR status `none` means the forge answered without a
+   PR; `unknown` means unavailable or failed lookup. Shared subagents omit worktree facts.
 5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
    assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
    the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a

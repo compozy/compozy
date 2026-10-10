@@ -33,6 +33,21 @@ func (s *Service) resolveBaseRef(ctx context.Context, root, requested string) (s
 	return ref, strings.TrimSpace(string(stdout)), nil
 }
 
+// ResolveCommit pins a ref using the service's configured Git runner and repository lock.
+func (s *Service) ResolveCommit(ctx context.Context, path, ref string) (string, error) {
+	commonDir, err := s.commonDir(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	release, err := s.locks.Acquire(ctx, commonDir)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	_, sha, err := s.resolveBaseRef(ctx, path, ref)
+	return sha, err
+}
+
 func (s *Service) commonDir(ctx context.Context, root string) (string, error) {
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {

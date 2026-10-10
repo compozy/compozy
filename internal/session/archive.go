@@ -64,6 +64,14 @@ func (m *Manager) setArchived(
 			return nil, err
 		}
 	}
+	if archived {
+		if service := m.ReplyWatches(); service != nil {
+			service.OnTargetGone(ctx, sessionID)
+			if err := service.OnSenderGone(ctx, sessionID); err != nil {
+				return nil, err
+			}
+		}
+	}
 	info := sessionInfoFromCatalog(&stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil

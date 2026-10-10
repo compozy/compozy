@@ -1,4 +1,4 @@
-h1:rROU5q8C7YnzXRN3TqyvFBPUvcRN63M7dkbQixFmXIQ=
+h1:a2pPj3IE7XIJyYpX4Vtfkf3dvgzCPuBubTmaZq5/avE=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -130,3 +130,6 @@ h1:rROU5q8C7YnzXRN3TqyvFBPUvcRN63M7dkbQixFmXIQ=
 00129_automations_palette.sql h1:AlEGoU6AfWR24j1CI/t1IEDH+8ojqLLOuMyXmjFV7fg=
 00130_retire_memory.sql h1:OdU+SPYJLOWyWGlw5O0teQHc+xlvErd1GH2X2amR4so=
 00131_session_subagents.sql h1:9IupPJU+Fye86XmAnp0PZBENLdnE59Je69A86nkl364=
+00132_schema.sql h1:0DUzuYBpeF0s94fi7m4a42LH7KqJA3CgGEa2yzj25cM=
+00133_schema.sql h1:KW9F6JTEotwnoHkgpWg1eTtBSm4AGYOHvb3WxY6Ls5o=
+00134_schema.sql h1:2hijgkoSGHgukltrUih+V2kPxrrZsjZpzDY1xDG15BE=

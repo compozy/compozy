@@ -3281,6 +3281,32 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 
 func TestSessionInputCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should show operator and session authors in the input list", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{listSessionInputsFn: func(context.Context, string) (SessionInputListRecord, error) {
+			return SessionInputListRecord{Inputs: []SessionInputRecord{
+				{ID: "operator", Text: "operator text"},
+				{
+					ID:   "agent",
+					Text: "agent text",
+					Origin: &contract.PromptOriginMeta{
+						Kind:        "session",
+						SessionID:   "sender",
+						TitleAtSend: "Refactor billing",
+					},
+				},
+			}}, nil
+		}}
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "session", "input", "list", "sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"FROM", "you", "Refactor billing (sender)"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("missing %q in %s", want, stdout)
+			}
+		}
+	})
 	t.Run("Should clear input and print complete per-entry JSON outcomes", func(t *testing.T) {
 		t.Parallel()
 		client := &stubClient{
@@ -4593,6 +4619,48 @@ func TestWaitSessionCompaction(t *testing.T) {
 // UT-046/UT-047: session subagent commands preserve documented output and errors.
 func TestSubagentCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should render isolated checkout facts and unknown pull request UT-036", func(t *testing.T) {
+		t.Parallel()
+		row := subagentCLIRecord()
+		row.Isolation = "worktree"
+		row.Worktree = &contract.SubagentWorktreePayload{
+			ID:                "wt",
+			Name:              "test",
+			Branch:            "run/test",
+			BaseRef:           "main",
+			BaseSHA:           "base",
+			Path:              "/checkout",
+			CommitsAhead:      new(2),
+			DirtyFiles:        new(0),
+			PullRequestStatus: "unknown",
+		}
+		got := subagentDetails(row, fixedTestNow)
+		for _, text := range []string{"Isolation     worktree", "Branch        run/test ← base · 2 ahead · clean", "Pull request  status unknown"} {
+			if !strings.Contains(got, text) {
+				t.Fatalf("missing %q in %s", text, got)
+			}
+		}
+		row.Worktree.BaseSHA = ""
+		row.Worktree.CommitsAhead = nil
+		row.Worktree.DirtyFiles = nil
+		got = subagentDetails(row, fixedTestNow)
+		if !strings.Contains(got, "Branch        run/test\n") || strings.Contains(got, "Base          ") ||
+			strings.Contains(got, "ahead") ||
+			strings.Contains(got, "clean") {
+			t.Fatal(got)
+		}
+		row.Worktree.PullRequest = &contract.SubagentPullRequestPayload{
+			Number: 731,
+			State:  "open",
+			URL:    "https://example.test/pull/731",
+		}
+		row.Worktree.ObservedAt = new(fixedTestNow)
+		got = subagentDetails(row, fixedTestNow)
+		if !strings.Contains(got, "Pull request  #731 open · https://example.test/pull/731") ||
+			!strings.Contains(got, "Observed      "+fixedTestNow.Format("2006-01-02 15:04:05")) {
+			t.Fatal(got)
+		}
+	})
 	t.Run("Should show a subagent without resolving the current directory", func(t *testing.T) {
 		t.Parallel()
 		client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(&stubClient{})}
@@ -4712,4 +4780,41 @@ func subagentCLIRecord() contract.SubagentPayload {
 		StartedAt:  new(fixedTestNow.Add(-7 * time.Second)),
 		Result:     new("Recommendation"),
 	}
+}
+
+func TestSessionReplyWatchOutput(t *testing.T) {
+	t.Run("Should expose waiting replies in every status format UT-047", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+				return SessionStatusRecord{
+					SessionID: "sender",
+					ReplyWatches: []contract.ReplyWatchPayload{
+						{
+							ID:              "rw-123",
+							TargetSessionID: "target",
+							MessageID:       "message",
+							State:           "armed",
+							CreatedAt:       time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC),
+						},
+					},
+				}, nil
+			}},
+		)
+		for _, format := range []string{"human", "json", "toon"} {
+			output, _, err := executeRootCommand(t, deps, "session", "status", "sender", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []string{"rw-123", "target", "message", "armed"} {
+				if !strings.Contains(output, value) {
+					t.Fatalf("%s omits %s: %s", format, value, output)
+				}
+			}
+			if format == "human" && !strings.Contains(output, "Waiting for replies") {
+				t.Fatal(output)
+			}
+		}
+	})
 }

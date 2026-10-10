@@ -214,6 +214,7 @@ export function subagentRow(
     error: null,
     wait_timed_out: false,
     delivery: "none",
+    isolation: "shared",
     created_at: secondsAgo(elapsed),
     started_at: secondsAgo(elapsed),
     settled_at: live ? null : secondsAgo(0),

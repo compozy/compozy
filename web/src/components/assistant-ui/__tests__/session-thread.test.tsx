@@ -6142,3 +6142,176 @@ it("Should preserve provider titles through the runtime on a plain live line", a
   expect(screen.queryByRole("button", { name: "Activity details" })).not.toBeInTheDocument();
   expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
 });
+
+// Suite extension: agent-to-agent messages in the thread (agent collaboration `_uiux.md` S1–S3;
+// UT-060, UT-066, UT-067). Invariant: a user turn whose metadata carries a session origin renders
+// as the session message card, never the operator bubble; a system wake renders only when its
+// synthetic kind is `session_reply`; a "Sent to" card resolves its reply state from the reply wake
+// whose watch id it names. Owning layer: SessionThreadMessage routing over the readonly thread.
+describe("SessionThread session messages", () => {
+  const senderId = "sess-7f3a2c11d09e4b58";
+  const targetId = "sess-c03f9d61b2e84a07";
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", createFetchMock());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function clientWithPeers() {
+    const queryClient = createQueryClient();
+    const peer = (id: string, name: string, agent: string) =>
+      queryClient.setQueryData(sessionKeys.detail(fixtureWorkspaceId(), id), {
+        ...primarySessionFixture,
+        id,
+        name,
+        agent_name: agent,
+      });
+    peer(senderId, "Refactor billing", "claude");
+    peer(targetId, "Billing reviewer", "codex");
+    return queryClient;
+  }
+
+  function replyWake(id: string, reason: string, kind = "session_reply"): SessionMessage {
+    return {
+      id,
+      role: "system",
+      metadata: {
+        turn_id: "turn-wake",
+        synthetic: {
+          kind,
+          wake_event_id: "rw-6e2d81a0",
+          child_session_id: targetId,
+          child_workspace_id: fixtureWorkspaceId(),
+          child_agent_name: "codex",
+          reason,
+          summary: "Per job, one shared counter.",
+          reply_truncated: false,
+          hop: 1,
+        },
+      },
+      parts: [
+        {
+          type: "text",
+          text: `Session "Billing reviewer" (${targetId}) replied to your message msg-retry-q: ${reason}.\n---\nWake body text the card never reads.`,
+          state: "done",
+        },
+      ],
+    } as SessionMessage;
+  }
+
+  it("UT-060: Should render an agent-sent user turn as the session message card", async () => {
+    const transcript: SessionMessage[] = [
+      {
+        id: "msg-retry-q",
+        role: "user",
+        metadata: {
+          turn_id: "turn-q",
+          message_id: "msg-retry-q",
+          origin: {
+            kind: "session",
+            session_id: senderId,
+            workspace_id: fixtureWorkspaceId(),
+            agent_name: "claude",
+            title_at_send: "Refactor billing",
+            hop: 1,
+            notify_on_complete: true,
+            reply_watch_id: "rw-6e2d81a0",
+          },
+        },
+        parts: [{ type: "text", text: "Is the retry budget per request or per job?" }],
+      } as SessionMessage,
+      {
+        id: "msg-operator",
+        role: "user",
+        metadata: { turn_id: "turn-o", message_id: "msg-operator" },
+        parts: [{ type: "text", text: "Note that down in the review doc too." }],
+      } as SessionMessage,
+    ];
+    renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages(transcript) },
+      clientWithPeers()
+    );
+
+    const card = await screen.findByRole("article", { name: "Message from Refactor billing" });
+    expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
+    expect(within(card).getByText("Reply requested")).toBeInTheDocument();
+    expect(within(card).queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+    // The operator's own prompt keeps its bubble.
+    expect(screen.getAllByTestId("user-message-bubble")).toHaveLength(1);
+  });
+
+  it("UT-066: Should render only session_reply wakes and keep other synthetic kinds hidden", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          replyWake("wake-reply", "completed"),
+          replyWake("wake-subagent", "completed", "subagent_wake"),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    const card = await screen.findByRole("article", {
+      name: "Reply from Billing reviewer, completed",
+    });
+    expect(within(card).getByText("Per job, one shared counter.")).toBeInTheDocument();
+    // The answer is the typed `synthetic.summary`; the wake text is never parsed.
+    expect(
+      within(card).queryByText(/replied to your message|Wake body text/)
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("session-reply-card")).toHaveLength(1);
+  });
+
+  it("UT-067: Should resolve the sent card's reply state from the matching reply wake", async () => {
+    const sender = (withReply: string | null): SessionMessage[] => [
+      {
+        id: "msg-sender-turn",
+        role: "assistant",
+        metadata: { turn_id: "turn-send" },
+        parts: [
+          {
+            type: "tool-compozy__session_prompt",
+            toolCallId: "call-send",
+            state: "output-available",
+            turnId: "turn-send",
+            input: { session_id: targetId, message: "Is the retry budget per request or per job?" },
+            output: { status: "accepted", reply_watch: { id: "rw-6e2d81a0", state: "armed" } },
+          },
+          {
+            type: "data-compozy-session-message",
+            turnId: "turn-send",
+            data: {
+              tool_call_id: "call-send",
+              target_session_id: targetId,
+              target_workspace_id: fixtureWorkspaceId(),
+              message_id: "msg-retry-q",
+              mode: "queue",
+              reply_watch_id: "rw-6e2d81a0",
+              state: "done",
+            },
+          },
+        ],
+      } as unknown as SessionMessage,
+      ...(withReply ? [replyWake("wake-reply", withReply)] : []),
+    ];
+
+    const view = renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages(sender(null)) },
+      clientWithPeers()
+    );
+    const waiting = await screen.findByRole("article", {
+      name: "Sent to Billing reviewer, waiting for reply",
+    });
+    expect(within(waiting).getByText("Is the retry budget per request or per job?")).toBeVisible();
+    expect(screen.queryByText("Used session prompt")).not.toBeInTheDocument();
+
+    view.rerenderWith({ messages: toReadonlyThreadMessages(sender("dropped")) });
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, dropped" })
+    ).toBeInTheDocument();
+  });
+});

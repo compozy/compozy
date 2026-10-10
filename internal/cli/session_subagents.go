@@ -187,7 +187,7 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 	}
 	output := fmt.Sprintf(
 		"Subagent      %s\nTitle         %s\nParent        %s (turn %s)\nChild         %s\n"+
-			"Runtime       %s\nStatus        %s (%s) · %s\nStarted       %s\n",
+			"Runtime       %s\nStatus        %s (%s) · %s\n",
 		row.SubagentID,
 		row.Title,
 		row.ParentSessionID,
@@ -197,8 +197,39 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 		row.Status,
 		strings.ReplaceAll(row.WorkState, "_", " "),
 		row.Delivery,
-		started,
 	)
+	output += "Isolation     " + row.Isolation + "\n"
+	if wt := row.Worktree; wt != nil {
+		branch := wt.Branch
+		if wt.BaseSHA != "" {
+			branch += " ← " + wt.BaseSHA[:min(7, len(wt.BaseSHA))]
+		}
+		if wt.CommitsAhead != nil {
+			branch += fmt.Sprintf(" · %d ahead", *wt.CommitsAhead)
+		}
+		if wt.DirtyFiles != nil {
+			if *wt.DirtyFiles == 0 {
+				branch += " · clean"
+			} else {
+				branch += fmt.Sprintf(" · %d changed", *wt.DirtyFiles)
+			}
+		}
+		output += fmt.Sprintf("Worktree      %s (%s)\nBranch        %s\n", wt.Name, wt.ID, branch)
+		if wt.PullRequest != nil {
+			output += fmt.Sprintf(
+				"Pull request  #%d %s · %s\n",
+				wt.PullRequest.Number,
+				wt.PullRequest.State,
+				wt.PullRequest.URL,
+			)
+		} else if wt.PullRequestStatus != "" {
+			output += "Pull request  status " + wt.PullRequestStatus + "\n"
+		}
+		if wt.ObservedAt != nil {
+			output += "Observed      " + wt.ObservedAt.Format("2006-01-02 15:04:05") + "\n"
+		}
+	}
+	output += "Started       " + started + "\n"
 	if row.Result != nil {
 		output += "\nResult\n" + *row.Result + "\n"
 	}

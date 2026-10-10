@@ -844,8 +844,10 @@ Lifecycle rules that matter for operations:
   started, and stops orphaned subagent sessions; each action logs `subagent.recovered`.
 - Subagents have no depth, count, or TTL limit. `[subagents].result_max_chars` (default 60000, range
   1,000–1,000,000) caps the `result` field only; the full answer stays in the child transcript.
-- Extensions observe settles with the `subagent.settled` hook, and `spawn.pre_create` runs for every
-  delegation with `spawn_role: "subagent"` and a `subagent` object (`title`, `role`, `task_chars`).
+- Extensions observe settles with the `subagent.settled` hook, including `isolation` and optional
+  `worktree` identity, Git and PR facts. Unknown snapshot fields are omitted. `spawn.pre_create`
+  runs for every delegation with `spawn_role: "subagent"` and a `subagent` object (`title`, `role`,
+  `task_chars`, read-only `isolation` and `worktree_id`); hooks cannot rebind the checkout.
 
 TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
 settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped

@@ -141,6 +141,7 @@ func (h *BaseHandlers) HandlePromoteSessionInput(c *gin.Context) {
 func SessionInputPayloadFromSession(input session.PendingInput) contract.SessionInputPayload {
 	payload := contract.SessionInputPayload{
 		ID: input.ID, SessionID: input.SessionID, MessageID: input.MessageID,
+		Origin:         storedPromptOriginPayload(input.Origin),
 		IdempotencyKey: input.IdempotencyKey, TargetTurnID: input.TargetTurnID,
 		Status: contract.SessionInputStatus(input.Status), Mode: contract.PromptMode(input.Mode),
 		OwnerKind: input.OwnerKind, OwnerID: input.OwnerID,

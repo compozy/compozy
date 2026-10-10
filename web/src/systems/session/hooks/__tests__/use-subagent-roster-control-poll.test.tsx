@@ -40,6 +40,7 @@ function row(id: string, status: string): SubagentPayload {
     error: null,
     wait_timed_out: false,
     delivery: "none",
+    isolation: "shared",
     started_at: "2026-10-09T12:00:00Z",
     settled_at: null,
     created_at: "2026-10-09T12:00:00Z",

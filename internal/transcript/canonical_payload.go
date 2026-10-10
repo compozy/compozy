@@ -43,6 +43,7 @@ type canonicalEventPayload struct {
 	Failure            *store.SessionFailure            `json:"failure,omitempty"`
 	ProviderError      *acp.ProviderErrorDiagnostic     `json:"provider_error,omitzero"`
 	Synthetic          *acp.PromptSyntheticMeta         `json:"synthetic,omitempty"`
+	Origin             *acp.PromptOriginMeta            `json:"origin,omitempty"`
 	Goal               *acp.GoalPromptMeta              `json:"goal,omitempty"`
 	AvailableCommands  []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
 	SkillInvocations   []commandpkg.Invocation          `json:"skill_invocations,omitempty"`

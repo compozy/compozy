@@ -106,6 +106,14 @@ type Redaction struct {
 	Bytes  int64      `json:"bytes,omitempty"`
 }
 
+type ReplyWatchPayload struct {
+	ID              string    `json:"id"`
+	TargetSessionID string    `json:"target_session_id"`
+	MessageID       string    `json:"message_id"`
+	State           string    `json:"state"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 type Resolution struct {
 	Requested Speed            `json:"requested"`
 	Status    ResolutionStatus `json:"status"`
@@ -150,10 +158,3 @@ type ResourceScope struct {
 }
 
 type ResourceScopeKind string
-
-type ResourceSnapshotRecord struct {
-	Kind  ResourceKind    `json:"kind"`
-	ID    string          `json:"id"`
-	Scope ResourceScope   `json:"scope"`
-	Spec  json.RawMessage `json:"spec"`
-}

@@ -13,26 +13,50 @@ func sessionInputListBundle(response SessionInputListRecord) outputBundle {
 		response,
 		response.Inputs,
 		"Pending Session Input",
-		[]string{"ID", "MODE", cliStatusHeader, "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
+		[]string{"ID", "MODE", cliStatusHeader, "FROM", "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
 		"session_inputs",
 		[]string{
-			"id", cliOutputModeKey, automationStatusKey, cliDeliveryKey, "target_turn_id", sessionClarifyTextFlag,
+			"id",
+			cliOutputModeKey,
+			automationStatusKey,
+			"from",
+			cliDeliveryKey,
+			"target_turn_id",
+			sessionClarifyTextFlag,
 			"enqueued_at",
 		},
 		func(input SessionInputRecord) []string {
 			return []string{
-				stringOrDash(input.ID), stringOrDash(string(input.Mode)), stringOrDash(string(input.Status)),
-				stringOrDash(string(input.Delivery)), stringOrDash(input.TargetTurnID),
-				stringOrDash(input.Text), formatTime(input.EnqueuedAt),
+				stringOrDash(input.ID),
+				stringOrDash(string(input.Mode)),
+				stringOrDash(string(input.Status)),
+				sessionInputFrom(input),
+				stringOrDash(string(input.Delivery)),
+				stringOrDash(input.TargetTurnID),
+				stringOrDash(input.Text),
+				formatTime(input.EnqueuedAt),
 			}
 		},
 		func(input SessionInputRecord) []string {
 			return []string{
-				input.ID, string(input.Mode), string(input.Status), string(input.Delivery), input.TargetTurnID,
-				input.Text, formatTime(input.EnqueuedAt),
+				input.ID,
+				string(input.Mode),
+				string(input.Status),
+				sessionInputFrom(input),
+				string(input.Delivery),
+				input.TargetTurnID,
+				input.Text,
+				formatTime(input.EnqueuedAt),
 			}
 		},
 	)
+}
+
+func sessionInputFrom(input SessionInputRecord) string {
+	if input.Origin == nil {
+		return "you"
+	}
+	return stringOrDash(input.Origin.TitleAtSend) + " (" + input.Origin.SessionID + ")"
 }
 
 func sessionInputRecordBundle(input SessionInputRecord) outputBundle {

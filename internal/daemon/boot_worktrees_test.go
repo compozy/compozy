@@ -664,3 +664,202 @@ func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managed
 	t.Cleanup(unlock)
 	return &managedDeliveryBusyEvents{GlobalDB: db, contended: make(chan error, 1)}, unlock
 }
+
+// Invariant: the daemon adapter translates provisioning failures and only removes safe, unadmitted work.
+// Owner: daemon worktree adapter; canonical worktree wiring suite (UT-038, UT-039).
+func TestSubagentWorktreeAdapter(t *testing.T) {
+	t.Parallel()
+	for _, nested := range []bool{false, true} {
+		name := "Should resolve omitted base from caller HEAD UT-020"
+		if nested {
+			name = "Should resolve nested caller HEAD UT-026"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{item: worktree.Worktree{Path: "/nested"}}
+			req := session.SubagentWorktreeRequest{CallerPath: "/caller"}
+			want := "/caller"
+			if nested {
+				req.CallerWorktreeID = "parent-wt"
+				want = "/nested"
+			}
+			base, err := subagentWorktreeBase(t.Context(), svc, req)
+			if err != nil || base != "caller-head" || svc.resolvedPath != want || svc.resolvedRef != "HEAD" {
+				t.Fatal(base, err, svc.resolvedPath, svc.resolvedRef)
+			}
+		})
+	}
+	for _, state := range []worktree.State{worktree.StatePending, worktree.StateReady, worktree.StateRemoved, worktree.StateMissing, worktree.StateDismissed} {
+		t.Run("Should find only live run materializations "+string(state), func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{
+				items: []worktree.Worktree{{ID: "wt", RunID: "sub", Origin: worktree.OriginPerRun, State: state}},
+			}
+			adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+			got, err := adapter.FindByRun(t.Context(), "ws", "sub")
+			want := state == worktree.StatePending || state == worktree.StateReady
+			if err != nil || (got != nil) != want {
+				t.Fatal(got, err)
+			}
+		})
+	}
+	t.Run("Should rollback failed setup and preserve hook denial identity", func(t *testing.T) {
+		t.Parallel()
+		service := &subagentWorktreeServiceStub{
+			item:   worktree.Worktree{ID: "wt", SetupState: worktree.SetupFailed},
+			status: worktree.Status{DirtyFiles: new(1)},
+		}
+		adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return service }}
+		req := session.SubagentWorktreeRequest{WorkspaceID: "ws", SubagentID: "sub", BaseRef: "main"}
+		_, err := adapter.Provision(t.Context(), req)
+		failure, ok := errors.AsType[*session.ErrSubagentIsolationFailed](err)
+		if !ok || failure.Cause != "setup_failed" || service.rollbacks != 1 {
+			t.Fatal(err, service.rollbacks)
+		}
+		service.provisionErr = worktree.ErrDeniedByHook
+		_, err = adapter.Provision(t.Context(), req)
+		if !errors.Is(err, worktree.ErrDeniedByHook) || !errors.Is(err, session.ErrSubagentCapabilityDenied) {
+			t.Fatal(err)
+		}
+	})
+	for _, tc := range []struct {
+		name                string
+		dirty, ahead        int
+		readError           string
+		retained, wantError bool
+	}{
+		{name: "Should remove a clean checkout with zero commits"},
+		{name: "Should retain dirty work", dirty: 1, retained: true},
+		{name: "Should retain committed work", ahead: 1, retained: true},
+		{name: "Should fail closed when Git cannot be read", readError: "unreadable", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{
+				status: worktree.Status{DirtyFiles: new(tc.dirty), ReadError: tc.readError},
+				ahead:  tc.ahead,
+			}
+			adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+			retained, err := adapter.SafeRollback(t.Context(), "ws", "wt", "sub", "creation-sha")
+			if retained != tc.retained || (err != nil) != tc.wantError {
+				t.Fatal(retained, err)
+			}
+			if (retained || err != nil) && svc.rollbacks != 0 {
+				t.Fatal("unsafe rollback", svc.rollbacks)
+			}
+			if !retained && err == nil && svc.rollbacks != 1 {
+				t.Fatal("missing rollback")
+			}
+		})
+	}
+	t.Run("Should observe against creation SHA and distinguish unknown from no PR", func(t *testing.T) {
+		t.Parallel()
+		svc := &subagentWorktreeServiceStub{
+			status: worktree.Status{
+				HeadSHA:     new("head"),
+				DirtyFiles:  new(0),
+				RefreshedAt: new(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)),
+			},
+			ahead:    2,
+			forgeErr: worktree.ErrForgeUnavailable,
+		}
+		adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+		facts := adapter.Observe(t.Context(), "ws", "wt", "creation-sha")
+		if svc.base != "creation-sha" || facts.PRStatus != "unknown" || facts.CommitsAhead == nil ||
+			*facts.CommitsAhead != 2 {
+			t.Fatal(facts, svc.base)
+		}
+		svc.forgeErr = nil
+		svc.forge = &worktree.ForgeStatus{}
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.PRStatus != "none" ||
+			facts.PRNumber != nil {
+			t.Fatal(facts)
+		}
+		svc.forge = &worktree.ForgeStatus{
+			PRNumber: new(7),
+			PRState:  new(" OPEN "),
+			PRURL:    "https://example.test/pull/7",
+			Draft:    new(true),
+		}
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.PRStatus != "draft" || facts.PRNumber == nil ||
+			*facts.PRNumber != 7 {
+			t.Fatal(facts)
+		}
+		svc.status.ReadError = "failed"
+		if facts := adapter.Observe(
+			t.Context(),
+			"ws",
+			"wt",
+			"creation-sha",
+		); facts.HeadSHA != "" || facts.CommitsAhead != nil ||
+			!facts.ObservedAt.IsZero() {
+			t.Fatal(facts)
+		}
+	})
+}
+
+type subagentWorktreeServiceStub struct {
+	subagentWorktreeService
+	item                      worktree.Worktree
+	status                    worktree.Status
+	forge                     *worktree.ForgeStatus
+	provisionErr, forgeErr    error
+	ahead, rollbacks          int
+	base                      string
+	items                     []worktree.Worktree
+	resolvedPath, resolvedRef string
+}
+
+var _ subagentWorktreeService = (*subagentWorktreeServiceStub)(nil)
+
+func (s *subagentWorktreeServiceStub) ResolveCommit(_ context.Context, path, ref string) (string, error) {
+	s.resolvedPath, s.resolvedRef = path, ref
+	return "caller-head", nil
+}
+
+func (s *subagentWorktreeServiceStub) Get(context.Context, string, string) (*worktree.Worktree, error) {
+	return &s.item, nil
+}
+
+func (s *subagentWorktreeServiceStub) List(context.Context, string, bool) (*worktree.Listing, error) {
+	return &worktree.Listing{Worktrees: s.items}, nil
+}
+
+func (s *subagentWorktreeServiceStub) MaterializeForRun(
+	context.Context,
+	string,
+	worktree.RunWorktreeRequest,
+) (*worktree.Worktree, error) {
+	return &s.item, s.provisionErr
+}
+func (s *subagentWorktreeServiceStub) RollbackRunMaterialization(context.Context, string, string, string) error {
+	s.rollbacks++
+	return nil
+}
+func (s *subagentWorktreeServiceStub) Status(context.Context, string, string, bool) (*worktree.Status, error) {
+	return &s.status, nil
+}
+func (s *subagentWorktreeServiceStub) CommitsAheadOf(_ context.Context, _, _, base string) (int, error) {
+	s.base = base
+	return s.ahead, nil
+}
+
+func (s *subagentWorktreeServiceStub) StatusDetails(
+	context.Context,
+	string,
+	string,
+	bool,
+	bool,
+) (*worktree.StatusDetails, error) {
+	return &worktree.StatusDetails{ForgeStatus: s.forge}, s.forgeErr
+}

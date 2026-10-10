@@ -61,6 +61,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 			return deleteErr
 		}
 	}
+	m.replyWatchSessionDeleted(ctx, target)
 	if m.sessionWindowReconciler != nil && staged.info != nil {
 		if reconcileErr := m.reconcileDeletedSessionWindows(
 			context.WithoutCancel(ctx),

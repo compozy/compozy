@@ -41,6 +41,9 @@ func (m *Manager) finalizeStoppedOwned(
 	defer func() {
 		m.finishFinalization(session.ID, err)
 		if err == nil && session.Info().State == StateStopped {
+			if service := m.ReplyWatches(); service != nil {
+				service.OnTurnSettled(ctx, session.ID, "")
+			}
 			if service := m.subagentService(); service != nil {
 				m.logSubagentError(service.OnChildSettled(ctx, session.ID))
 			}

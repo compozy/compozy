@@ -200,11 +200,8 @@ func claimSessionPromptAdmission(
 		},
 	)
 	if err == nil {
-		admission, mapErr := sessionPromptAdmissionFromGenerated(&existing)
-		if mapErr != nil {
-			return store.SessionPromptAdmission{}, false, mapErr
-		}
-		return classifyPromptAdmissionReplay(admission, req)
+		admission, err := replayPromptAdmissionClaim(ctx, exec, &existing, req)
+		return admission, false, err
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
@@ -245,6 +242,7 @@ func claimSessionPromptAdmission(
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
 		SkillInvocationsJson: string(skillInvocationsJSON),
+		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
 		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
@@ -263,6 +261,9 @@ func claimSessionPromptAdmission(
 		return store.SessionPromptAdmission{}, false, err
 	}
 	admission, err := sessionPromptAdmissionFromGenerated(&created)
+	if err == nil {
+		err = registerAdmissionReplyWatch(ctx, exec, admission)
+	}
 	return admission, true, err
 }
 
@@ -286,10 +287,17 @@ func encodeSessionPromptAdmissionPayload(
 func classifyPromptAdmissionReplay(
 	admission store.SessionPromptAdmission,
 	req store.SessionPromptAdmissionRequest,
-) (store.SessionPromptAdmission, bool, error) {
-	if admission.MessageID != req.MessageID || admission.FingerprintVersion != req.FingerprintVersion ||
-		admission.RequestFingerprint != req.RequestFingerprint || admission.Operation != req.Operation {
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+) (store.SessionPromptAdmission, error) {
+	fingerprintMatches := admission.FingerprintVersion == req.FingerprintVersion &&
+		admission.RequestFingerprint == req.RequestFingerprint
+	// Remove the v4 replay boundary shim in v0.5.0; historical admissions remain unattributed.
+	if admission.FingerprintVersion == "session-prompt/v4" &&
+		req.FingerprintVersion == sessionPromptOriginFingerprintVersion {
+		fingerprintMatches = req.LegacyRequestFingerprint != "" &&
+			admission.RequestFingerprint == req.LegacyRequestFingerprint
+	}
+	if admission.MessageID != req.MessageID || !fingerprintMatches || admission.Operation != req.Operation {
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"%w: idempotency_key %q is already bound to another request",
 			store.ErrSessionPromptIdempotencyConflict,
 			req.IdempotencyKey,
@@ -297,17 +305,17 @@ func classifyPromptAdmissionReplay(
 	}
 	switch admission.State {
 	case store.SessionPromptAdmissionReserved:
-		return admission, false, nil
+		return admission, nil
 	case store.SessionPromptAdmissionCompleted:
-		return admission, false, nil
+		return admission, nil
 	case store.SessionPromptAdmissionDispatchCommitted, store.SessionPromptAdmissionIndeterminate:
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"%w: idempotency_key %q",
 			store.ErrSessionPromptDispatchIndeterminate,
 			req.IdempotencyKey,
 		)
 	default:
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"store: invalid session prompt admission state %q",
 			admission.State,
 		)

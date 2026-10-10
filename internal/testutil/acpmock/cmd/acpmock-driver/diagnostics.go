@@ -69,7 +69,14 @@ func (a *mockAgent) HandleExtensionMethod(_ context.Context, method string, para
 	if err := json.Unmarshal(params, &request); err != nil {
 		return nil, err
 	}
-	if err := a.writeProtocolDiagnostics(method, string(request.SessionId), "", ""); err != nil {
+	if err := a.writeDiagnostics(
+		acpmock.DiagnosticsRecord{
+			AgentName:      a.agent.Name,
+			SessionID:      string(request.SessionId),
+			ProtocolMethod: method,
+			Prompt:         extractPromptText(request.Prompt),
+		},
+	); err != nil {
 		return nil, err
 	}
 	a.mu.Lock()

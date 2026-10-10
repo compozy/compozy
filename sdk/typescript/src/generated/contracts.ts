@@ -3914,6 +3914,14 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface ReplyWatchPayload {
+  id: string;
+  target_session_id: string;
+  message_id: string;
+  state: string;
+  created_at: ISODateTime;
+}
+
 export interface SessionQueueSummaryPayload {
   entries: number;
   cap: number;
@@ -3978,6 +3986,7 @@ export interface SessionDerivationPayload {
 }
 
 export interface SessionStatusResponse {
+  reply_watches?: ReplyWatchPayload[];
   queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;
   verified?: boolean;
@@ -4189,6 +4198,8 @@ export interface SpawnParentStoppedPayload {
 }
 
 export interface SubagentSpawnPayload {
+  isolation: string;
+  worktree_id?: string;
   title: string;
   role: string;
   task_chars: number;
@@ -4279,6 +4290,27 @@ export interface SubagentObservationPatch {
   labels?: Record<string, string>;
 }
 
+export interface SubagentPullRequestPayload {
+  url: string;
+  number: number;
+  state: string;
+}
+
+export interface SubagentWorktreePayload {
+  id: string;
+  name: string;
+  branch: string;
+  base_ref: string;
+  base_sha?: string;
+  path: string;
+  head_sha?: string;
+  commits_ahead?: number;
+  dirty_files?: number;
+  observed_at?: ISODateTime;
+  pull_request_status?: string;
+  pull_request?: SubagentPullRequestPayload;
+}
+
 export interface SubagentRuntimePayload {
   provider: string;
   model: string;
@@ -4287,6 +4319,8 @@ export interface SubagentRuntimePayload {
 export interface SubagentSettledPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  isolation: string;
+  worktree?: SubagentWorktreePayload;
   profile_id?: string;
   workspace_id: string;
   subagent_id: string;

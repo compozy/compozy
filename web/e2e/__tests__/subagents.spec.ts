@@ -3,11 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { createWorktreeRepo } from "../fixtures/worktree-repo";
 
 // Subagents (`.compozy/tasks/subagents/_tests.md` E2E-001…E2E-006).
 // The parent agent calls `compozy__subagent_capabilities` and `compozy__subagent_delegate`
@@ -15,7 +16,10 @@ import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 // its `subagent_id` result and the card land in the parent transcript exactly as a provider's
 // would. Workers answer after a delay, fail their prompt, or block until canceled. E2E-006
 // replays the pinned Claude Agent adapter frames (`internal/acp/testdata/
-// claude_agent_subagent.jsonl`, session id rebound to the mock's).
+// claude_agent_subagent.jsonl`, session id rebound to the mock's). The agent-collaboration
+// isolated card (`.compozy/tasks/agent-collaboration/_tests.md` E2E-004) delegates with
+// `isolation: "worktree"` from a real git workspace; the worker commits for real through an
+// ACP terminal in its own worktree.
 const fixturePath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../internal/testutil/acpmock/testdata/browser_subagent_journeys_fixture.json"
@@ -48,11 +52,16 @@ async function openSession(
   appPage: Page,
   runtime: BrowserRuntime,
   agentName: string,
-  prompt: string
+  prompt: string,
+  workspaceDir = runtime.paths?.workspaceDir
 ): Promise<Scene> {
-  if (!runtime.paths) throw new Error("subagent E2E requires an isolated runtime");
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+  if (!workspaceDir) throw new Error("subagent E2E requires an isolated runtime");
+  const workspace = await runtime.resolveWorkspace(workspaceDir);
   await completeOnboardingIfPrompted(appPage);
+  // A session outside the active project asks before switching; make its project active first.
+  if (workspaceDir !== runtime.paths?.workspaceDir) {
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+  }
   const created = await runtime.requestJSON<{ session: { id: string } }>("/api/sessions", {
     method: "POST",
     body: JSON.stringify({ agent_name: agentName, workspace: workspace.id }),
@@ -184,7 +193,8 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   await appPage.mouse.move(0, 0);
   await expect(hover).toHaveCount(0);
 
-  await review.focus();
+  // The card is a container; its open control is what keyboard focus lands on.
+  await review.locator('[data-slot="subagent-card-open"]').focus();
   await expect(hover).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(hover).toHaveCount(0);
@@ -262,4 +272,71 @@ test("E2E-006: a provider-native subagent is a card whose inner work stays insid
   await expect(scene.window.getByText("The reviewer found no issues.")).toBeVisible();
   await openFolds(scene);
   await expect(native).toHaveAttribute("data-status", "completed");
+});
+
+interface IsolatedWorktree {
+  branch: string;
+  base_sha?: string;
+}
+
+async function isolatedWorktree(scene: Scene, title: string): Promise<IsolatedWorktree> {
+  let worktree: IsolatedWorktree | undefined;
+  await expect
+    .poll(async () => {
+      const list = await scene.runtime.requestJSON<{
+        subagents: { title: string; isolation: string; worktree?: IsolatedWorktree }[];
+      }>(`/api/workspaces/${scene.workspaceId}/sessions/${scene.sessionId}/subagents`);
+      const row = list.subagents.find(candidate => candidate.title === title);
+      worktree = row?.isolation === "worktree" ? row.worktree : undefined;
+      return worktree?.branch ?? "";
+    })
+    .not.toBe("");
+  return worktree!;
+}
+
+const isolatedTitle = "Extract billing client";
+
+test("Agent collaboration E2E-004: an isolated subagent shows its branch while running, then its observed facts", async ({
+  appPage,
+  runtime,
+}) => {
+  const repo = await createWorktreeRepo();
+  try {
+    const scene = await openSession(
+      appPage,
+      runtime,
+      parentAgent,
+      "deliver the client on its own branch",
+      repo.rootDir
+    );
+    const isolated = card(scene, isolatedTitle);
+    await expect(isolated).toHaveAttribute("data-status", "running");
+    const worktree = await isolatedWorktree(scene, isolatedTitle);
+    expect(worktree.branch).toMatch(/^run\/extract-billing-client-[0-9a-f]{8}$/);
+    // US-016.AC-1: the branch is on line two from creation, full name in its title.
+    await expect(isolated.locator('[data-slot="subagent-branch"]')).toHaveAttribute(
+      "title",
+      worktree.branch
+    );
+
+    await expect(scene.window.getByText("Subagent results received.")).toBeVisible({
+      timeout: 60_000,
+    });
+    await openFolds(scene);
+    const settled = card(scene, isolatedTitle);
+    await expect(settled).toHaveAttribute("data-status", "completed");
+    // The fixture has no forge provider: no PR link, and the hover says unknown, never none.
+    await expect(settled.locator('[data-slot="subagent-pr-link"]')).toHaveCount(0);
+
+    await settled.hover();
+    const facts = appPage.locator('[data-slot="subagent-hover-facts"]');
+    await expect(facts).toBeVisible();
+    await expect(facts).toContainText(worktree.branch);
+    await expect(facts).toContainText(`Base${worktree.base_sha!.slice(0, 7)}`);
+    await expect(facts).toContainText("1 ahead·clean");
+    await expect(facts).toContainText("PR status unknown");
+    await expect(facts).toContainText("Observed");
+  } finally {
+    await repo.cleanup();
+  }
 });

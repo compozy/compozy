@@ -50,6 +50,37 @@ uses the same cancellation path as
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel` and the native tool. The CLI
 exits `0` after a cancel and `66` when there was nothing to cancel.
 
+## Messages between sessions
+
+Agents use `compozy__session_prompt` to address another session. Supply `session_id`, `message_id`,
+`idempotency_key`, and the message or attachments. Choose `mode: "queue"`, `"steer"`, or
+`"interrupt"` when the target is busy. Retry with the same message and idempotency IDs.
+
+CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
+include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,
+`title_at_send`, `notify_on_complete`, and `reply_watch_id`. The origin survives all delivery modes
+and daemon restarts. It cannot be supplied through a request body. CLI, HTTP and operator prompts
+remain unattributed operator input.
+
+The receiving provider sees a one-line sender header followed by the message. The header does not
+become stored message text. Without a reply watch, it tells the recipient to answer by calling
+`compozy__session_prompt` with the sender's session ID. Set `notify_on_complete: true` to request the
+reply-watch flow from an agent session. Changing that flag on a retry conflicts, as does retrying
+another sender's message identity. A sender rename preserves the original admission.
+
+An operator can cancel an agent-authored queued message, but cannot replace or promote its text.
+Those mutations return HTTP 409 `input_agent_authored`. Each message increases the active turn's
+highest accepted hop; steer also raises that value before provider delivery. A ninth hop returns
+`message_hop_limit`: ask the operator to continue in a fresh turn.
+
+Native self-targeting returns `invalid_request`. To continue work in the same session, end the turn;
+to schedule work, use a subagent or `compozy session prompt` from the operator. This approved
+compatibility exception applies immediately. Existing v4 admission receipts still replay without
+origin or a new reply watch; their boundary compatibility shim is scheduled for removal in v0.5.0.
+
+The message tool's existing cross-workspace reach is unchanged. Origin includes the sender's
+workspace so readers can resolve that session correctly.
+
 ## Governed child feedback
 
 `compozy spawn` creates a child with a required TTL, lineage, capacity limits, and permissions that
@@ -98,3 +129,29 @@ returns `queue-full` without consuming the pending interaction.
 - [Session Lifecycle](/docs/sessions/lifecycle) covers durable session and runtime state.
 - [Session Wait CLI](/docs/cli/session/wait) lists the generated flags.
 - [Prompt Cancel CLI](/docs/cli/session/prompt-cancel) lists the generated command contract.
+
+## Ask another session for a reply
+
+An agent can call `compozy__session_prompt` with `notify_on_complete: true` to receive a reply from an
+existing session. The tool returns `reply_watch: { id, state }`, using its current persisted state
+(`armed`, `fired`, `delivered`, or `abandoned`). Retrying the same message and idempotency key after a
+pre-dispatch failure re-arms the same watch. The sender can then finish its turn;
+CompozyOS delivers one synthetic reply wake after the turn that consumed the message settles.
+Queued messages retain their watches across a target stop. A busy sender receives the wake after its
+current turn; a stopped sender receives it after resume.
+
+`compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
+include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target
+session, message, state, and creation time. The human CLI shows a **Waiting for replies** section.
+Delivered and abandoned watches disappear from this list.
+
+Replies contain the last non-empty assistant message of the consuming turn, bounded to 12000 Unicode
+characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
+`(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
+(removed before execution), or `unknown` (delivery was uncertain; inspect the target session).
+
+Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
+from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native
+tool; HTTP operator prompts have no equivalent option. Operator-scoped native calls with this
+option return `invalid_request`: `notify_on_complete requires an agent session`. Archiving or deleting
+an unconsumed target settles its outstanding watches as `unknown` without waiting for a restart.

@@ -44,6 +44,7 @@ type SpawnOpts struct {
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.
 	InheritedWorktreeID string
+	IsolatedWorktreeID  string
 	AgentName           string
 	Provider            string
 	Model               string
@@ -101,7 +102,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
 	desiredID := ""
 	if normalized.SpawnRole == store.SubagentSpawnRole && normalized.IdempotencyKey != "" {
-		desiredID = "sess-" + strings.TrimPrefix(subagentID(parent.ID, normalized.IdempotencyKey), "sub-")
+		desiredID = subagentChildSessionID(parent.ID, normalized.IdempotencyKey)
 		if existing, ok := m.Get(desiredID); ok {
 			return existing, nil
 		}
@@ -159,6 +160,9 @@ func (m *Manager) prepareSpawn(
 		normalized.Speed = parent.Speed
 	}
 	normalized.InheritedWorktreeID = strings.TrimSpace(parent.WorktreeID)
+	if normalized.IsolatedWorktreeID != "" {
+		normalized.InheritedWorktreeID = normalized.IsolatedWorktreeID
+	}
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
@@ -172,11 +176,12 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 
+	expectedWorktreeID := normalized.InheritedWorktreeID
 	normalized, lineage, err = m.dispatchSpawnPreCreate(ctx, parent, normalized, lineage)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	if strings.TrimSpace(normalized.InheritedWorktreeID) != strings.TrimSpace(parent.WorktreeID) {
+	if strings.TrimSpace(normalized.InheritedWorktreeID) != expectedWorktreeID {
 		return SpawnOpts{}, nil, nil, spawnValidation("inherited worktree binding is immutable")
 	}
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
+
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -17,13 +19,18 @@ const (
 )
 
 // SendPrompt submits a user-facing prompt and applies busy-input policy when a turn is active.
-func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts) (SendPromptResult, error) {
+func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts) (result SendPromptResult, err error) {
 	if m == nil {
 		return SendPromptResult{}, errors.New("session: manager is required")
 	}
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: prompt context is required")
 	}
+	defer func() {
+		if err == nil {
+			m.refreshReplyWatchResult(ctx, &result)
+		}
+	}()
 	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -155,6 +162,20 @@ func (m *Manager) prepareSendPrompt(
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
+	req.meta.Origin = acp.ClonePromptOriginMeta(opts.Origin)
+	req.notifyOnComplete = opts.NotifyOnComplete
+	if req.meta.Origin == nil && opts.NotifyOnComplete {
+		return sendPromptPreparation{}, nil, errors.New("session: notify_on_complete requires origin")
+	}
+	if req.meta.Origin != nil {
+		req.meta.Origin.NotifyOnComplete = opts.NotifyOnComplete
+		if req.meta.Origin.Hop > acp.MaxSessionMessageHops {
+			return sendPromptPreparation{}, nil, ErrSessionMessageHopLimit
+		}
+		if err := req.meta.Origin.Validate(); err != nil {
+			return sendPromptPreparation{}, nil, err
+		}
+	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
@@ -167,6 +188,9 @@ func (m *Manager) prepareSendPrompt(
 	}
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
+	}
+	if req.meta.Origin != nil && !req.hasPromptAdmissionIdentity() {
+		return sendPromptPreparation{}, nil, errors.New("session: session message requires admission identity")
 	}
 	if req.hasPromptAdmissionIdentity() {
 		return sendPromptPreparation{request: req, mode: mode}, nil, nil
@@ -304,6 +328,9 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	m.publishSubagentWakeCanceled(ctx, &entry)
+	if service := m.ReplyWatches(); service != nil {
+		service.OnQueueEntryTerminal(ctx, &entry)
+	}
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusCanceled,
 		Mode:            BusyInputMode(entry.Mode),
