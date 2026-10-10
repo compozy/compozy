@@ -16,11 +16,14 @@ export function SessionWorkEntryView({
   active,
   turnFailed,
   disclosed = false,
+  onRail = false,
 }: {
   entry: SessionWorkEntry;
   active: boolean;
   turnFailed: boolean;
   disclosed?: boolean;
+  /** The entry hangs off a work group's rail: the branch is its bullet. */
+  onRail?: boolean;
 }) {
   const navigation = useOptionalSessionNavigationTarget();
   const id = entry.kind === "tool" ? `tool:${entry.toolCallId}` : `reasoning:${entry.id}`;
@@ -50,6 +53,7 @@ export function SessionWorkEntryView({
       turnSettled={!active}
       interrupted={entry.status === "interrupted" || isInterruptedState(entry.state)}
       turnFailed={turnFailed}
+      onRail={onRail}
       revealOpen={hold.held}
       onRevealRelease={hold.release}
       {...(hold.held && navigation?.reveal?.field ? { revealField: navigation.reveal.field } : {})}

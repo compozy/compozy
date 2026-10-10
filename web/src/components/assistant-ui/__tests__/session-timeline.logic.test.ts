@@ -561,8 +561,21 @@ describe("session timeline derivation", () => {
     // Fixed presentation order regardless of call order; the two same-path
     // Reads count as one distinct file.
     expect(workRow.summary?.label).toBe(
-      "Ran 1 command, edited 1 file, read 1 file, searched 1 file, used 2 tools"
+      "Ran 1 command, edited 1 file, read 1 file, searched once, used 2 tools"
     );
+  });
+
+  // Invariant: the group sentence counts each call as the kind its row shows.
+  it("Should count title-named shell tools and read-only shell commands by the kind their rows show", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Terminal", args: { command: "go test ./..." } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/package.json" } }),
+      tool(3, { toolName: "Bash", args: { command: "rg -n TODO web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Ran 1 command, read 1 file, searched once");
   });
 
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {

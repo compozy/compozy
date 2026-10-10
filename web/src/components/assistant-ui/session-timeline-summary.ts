@@ -5,10 +5,11 @@
 // collapse. A failure the agent absorbed stays inside the group as information
 // ("· 1 failed", ADR-009): it is counted in its category and in `failedCount`,
 // never promoted to an alarm. CompozyOS's data layer stays authoritative —
-// categories derive from the registered tool name, file identity from the tool
-// args the renderers already read.
+// categories derive from the same tool display the rows show, file identity
+// from the tool args the renderers already read.
 
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
+import { resolveToolDisplay } from "@/systems/session/lib/tool-display";
 import {
   getToolLabel,
   isSubagentToolName,
@@ -43,10 +44,6 @@ export interface SessionToolGroupSummary {
   failedCount: number;
 }
 
-const COMMAND_TOOLS = new Set(["Bash"]);
-const EDIT_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
-const READ_TOOLS = new Set(["Read"]);
-const SEARCH_TOOLS = new Set(["Grep", "Glob", "WebSearch", "WebFetch"]);
 /** Fixed presentation order: Ran → Edited → Read → Searched → subagent tools → Used. */
 const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
   "command",
@@ -76,12 +73,22 @@ export function classifyToolSummaryCategory(
   part: SessionTimelineToolPart
 ): SessionToolSummaryCategory {
   const name = resolveRegisteredToolName(part.toolName);
-  if (COMMAND_TOOLS.has(name)) return "command";
-  if (EDIT_TOOLS.has(name)) return "edit";
-  if (READ_TOOLS.has(name)) return "read";
-  if (SEARCH_TOOLS.has(name)) return "search";
   if (isSubagentToolName(name)) return "subagent";
-  return "tool";
+  // The same kind the row shows: a title-named shell tool counts as a command,
+  // a `cat`/`rg` command as the read or search it performs.
+  switch (resolveToolDisplay({ toolName: part.toolName, args: part.args }, "past").kind) {
+    case "command":
+      return "command";
+    case "edit":
+      return "edit";
+    case "read":
+      return "read";
+    case "search":
+    case "web":
+      return "search";
+    default:
+      return "tool";
+  }
 }
 
 // Distinct-file identity for an edit/read entry. Entries with no file info
@@ -106,7 +113,7 @@ function summaryPartLabel(category: SessionToolSummaryCategory, count: number): 
     case "read":
       return `Read ${count} ${pluralNoun(count, "file")}`;
     case "search":
-      return `Searched ${count} ${pluralNoun(count, "file")}`;
+      return count === 1 ? "Searched once" : `Searched ${count} times`;
     case "subagent":
       return `Used ${count} subagent ${pluralNoun(count, "tool")}`;
     case "tool":
