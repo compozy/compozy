@@ -45,6 +45,7 @@ func RespondPromptResult(c *gin.Context, result session.SendPromptResult, maskIn
 func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.SendPromptResultPayload, error) {
 	outcome := result.Outcome()
 	payload := contract.SendPromptResultPayload{
+		TargetWorkspaceID:     result.TargetWorkspaceID,
 		Disposition:           outcome.Disposition,
 		SteerDelivery:         outcome.Delivery,
 		TurnID:                outcome.TurnID,
@@ -62,6 +63,9 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.S
 		PreviousTurnID:        strings.TrimSpace(result.PreviousTurnID),
 		NewTurnID:             strings.TrimSpace(result.NewTurnID),
 		CanceledQueuedEntries: result.CanceledQueuedEntries,
+	}
+	if result.ReplyWatch != nil {
+		payload.ReplyWatch = &contract.ReplyWatchRefPayload{ID: result.ReplyWatch.ID, State: result.ReplyWatch.State}
 	}
 	if result.Goal != nil {
 		goal, err := GoalCommandResultPayloadFromSession(result.Goal)

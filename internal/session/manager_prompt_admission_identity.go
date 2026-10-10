@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -86,7 +87,11 @@ func (m *Manager) newPromptAdmissionRequest(
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, err
 	}
-	origin, err := encodePromptOrigin(req.meta.Origin)
+	originMeta := acp.ClonePromptOriginMeta(req.meta.Origin)
+	if originMeta != nil && originMeta.NotifyOnComplete {
+		originMeta.ReplyWatchID = store.ReplyWatchID(req.target, req.messageID)
+	}
+	origin, err := encodePromptOrigin(originMeta)
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, err
 	}
@@ -231,6 +236,9 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 		QueueEntryID: stored.QueueEntryID, QueuePosition: stored.QueuePosition,
 		QueueGeneration: stored.QueueGeneration, PreviousTurnID: stored.PreviousTurnID,
 		NewTurnID: stored.NewTurnID, CanceledQueuedEntries: stored.CanceledQueuedEntries,
+	}
+	if err := bindReplyWatchResult(admission, &result); err != nil {
+		return SendPromptResult{}, err
 	}
 	if len(stored.Goal) > 0 {
 		var goal GoalCommandResult

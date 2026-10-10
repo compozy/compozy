@@ -2032,8 +2032,10 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		"queue_generation",
 		"queue_position",
 		"replayed",
+		"reply_watch",
 		"status",
 		"steer_delivery",
+		"target_workspace_id",
 		"turn_id",
 	})
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {

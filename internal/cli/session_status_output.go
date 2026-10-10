@@ -42,6 +42,7 @@ func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, erro
 		{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
 	}...))
 	blocks := []string{base}
+	blocks = append(blocks, sessionReplyWatchesHuman(info.ReplyWatches))
 	blocks = appendSessionCapsBlock(blocks, info)
 	return renderHumanBlocks(blocks...), nil
 }

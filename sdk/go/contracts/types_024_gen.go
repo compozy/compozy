@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+type TerminalLimitRejectedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	Limit       string    `json:"limit"`
+	Current     int       `json:"current"`
+	Max         int       `json:"max"`
+}
+
 type TerminalObservationPatch struct{}
 
 type TerminalOpenedPayload struct {
@@ -287,26 +304,4 @@ type TurnEndPatch struct {
 	Deny       bool              `json:"deny,omitempty"`
 	DenyReason string            `json:"deny_reason,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnEndPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
 }

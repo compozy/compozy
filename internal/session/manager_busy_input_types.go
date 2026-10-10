@@ -87,6 +87,7 @@ type ReplyWatchRef struct{ ID, State string }
 
 // SendPromptResult reports how and when the daemon accepted input for delivery.
 type SendPromptResult struct {
+	TargetWorkspaceID     string
 	ReplyWatch            *ReplyWatchRef
 	Status                string
 	Mode                  BusyInputMode

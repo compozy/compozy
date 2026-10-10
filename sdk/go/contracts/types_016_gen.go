@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type SessionAttentionObservationPatch struct{}
+
 type SessionConfigOptionPayload struct {
 	ID             string                            `json:"id"`
 	Label          string                            `json:"label,omitempty"`
@@ -206,14 +208,4 @@ type SessionInputTargetParams struct {
 type SessionInputsListParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
-}
-
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }

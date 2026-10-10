@@ -1,9 +1,11 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"reflect"
@@ -2622,6 +2624,233 @@ func TestGlobalDBSubagentMigration(t *testing.T) {
 	})
 }
 
+func TestGlobalDBReplyWatchHandoff(t *testing.T) {
+	// Invariant: a reply commits one durable queue handoff; owner: global store queue suite.
+	t.Run("Should register atomically and replay the same watch UT-042", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sender := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+		req := promptAdmissionRequest("ws-input-queue-workspace", sender, "reply", now)
+		registration := store.ReplyWatchRegistration{
+			WorkspaceID:       req.WorkspaceID,
+			SenderSessionID:   sender,
+			TargetWorkspaceID: req.WorkspaceID,
+			TargetSessionID:   sender,
+			MessageID:         req.MessageID,
+			AdmissionID:       req.ID,
+			Hop:               1,
+			CreatedAt:         now,
+		}
+		aborted := errors.New("abort admission")
+		var first store.ReplyWatch
+		err := db.SessionRepo.withImmediateTransaction(
+			t.Context(),
+			"test registration rollback",
+			func(exec globalSQLExecutor) error {
+				if _, _, err := claimSessionPromptAdmission(t.Context(), exec, req); err != nil {
+					return err
+				}
+				var err error
+				first, err = db.InsertReplyWatchTx(t.Context(), exec, registration)
+				if err != nil {
+					return err
+				}
+				return aborted
+			},
+		)
+		if !errors.Is(err, aborted) {
+			t.Fatal(err)
+		}
+		if _, err := db.GetReplyWatch(t.Context(), first.ID); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("rolled back watch: %v", err)
+		}
+		err = db.SessionRepo.withImmediateTransaction(
+			t.Context(),
+			"test registration commit",
+			func(exec globalSQLExecutor) error {
+				if _, _, err := claimSessionPromptAdmission(t.Context(), exec, req); err != nil {
+					return err
+				}
+				a, err := db.InsertReplyWatchTx(t.Context(), exec, registration)
+				if err != nil {
+					return err
+				}
+				b, err := db.InsertReplyWatchTx(t.Context(), exec, registration)
+				if err != nil {
+					return err
+				}
+				if a.ID != b.ID || a.State != "armed" {
+					t.Errorf("replay = %+v, %+v", a, b)
+				}
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ListReplyWatches(t.Context(), store.ReplyWatchFilter{SenderSessionID: sender})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("watches = %+v, %v", rows, err)
+		}
+		registration.Hop = 2
+		if _, err := db.InsertReplyWatchTx(
+			t.Context(),
+			db.DB(),
+			registration,
+		); !errors.Is(
+			err,
+			store.ErrSessionPromptIdempotencyConflict,
+		) {
+			t.Fatalf("mismatch = %v", err)
+		}
+	})
+	t.Run("Should commit one handoff even after sent and reopen UT-049 IT-021", func(t *testing.T) {
+		t.Parallel()
+		db, w, entry := replyHandoffFixture(t)
+		const workers = 8
+		results := make(chan bool, workers)
+		failures := make(chan error, workers)
+		for range workers {
+			go func() {
+				changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry)
+				results <- changed
+				failures <- err
+			}()
+		}
+		wins := 0
+		for range workers {
+			if <-results {
+				wins++
+			}
+			if err := <-failures; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if wins != 1 {
+			t.Fatalf("deliveries = %d", wins)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(t.Context(), entry.SessionID, entry.Now)
+		if err != nil || !ok || claimed.ID != entry.ID {
+			t.Fatalf("claim = %+v, %v, %v", claimed, ok, err)
+		}
+		if err := db.MarkSessionInputSent(t.Context(), entry.SessionID, entry.ID, entry.Now); err != nil {
+			t.Fatal(err)
+		}
+		// Reopen the same SQLite file; a sent row is outside the pending unique index.
+		reopened, err := OpenGlobalDB(t.Context(), db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		entry.ID = "second-input"
+		if changed, err := reopened.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || changed {
+			t.Fatalf("redelivery = %v, %v", changed, err)
+		}
+		var count int
+		if err := reopened.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM session_input_queue WHERE message_id = ?", entry.MessageID).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("input count = %d, %v", count, err)
+		}
+	})
+	t.Run("Should roll back a full queue and abandon an archived sender UT-049 UT-046", func(t *testing.T) {
+		t.Parallel()
+		db, w, entry := replyHandoffFixture(t)
+		if _, _, err := db.EnqueueSessionInput(
+			t.Context(),
+			store.SessionInputQueueInsert{
+				ID:        "full",
+				SessionID: entry.SessionID,
+				Text:      "operator",
+				QueueCap:  1,
+				Now:       entry.Now,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); !errors.Is(err, store.ErrSessionInputQueueFull) {
+			t.Fatalf("full = %v", err)
+		}
+		current, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || current.State != "fired" || current.DeliveredInputID != "" {
+			t.Fatalf("watch = %+v, %v", current, err)
+		}
+		if _, err := db.CancelSessionInput(t.Context(), entry.SessionID, "full", entry.Now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET state='stopped', archived_at=? WHERE id=?", store.FormatTimestamp(entry.Now), entry.SessionID); err != nil {
+			t.Fatal(err)
+		}
+		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || changed {
+			t.Fatalf("archive delivery = %v, %v", changed, err)
+		}
+		current, err = db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || current.State != "abandoned" || current.AbandonReason != "sender_gone" {
+			t.Fatalf("abandoned = %+v, %v", current, err)
+		}
+	})
+}
+
+func replyHandoffFixture(t *testing.T) (*GlobalDB, store.ReplyWatch, store.SessionInputQueueInsert) {
+	t.Helper()
+	db := openTestGlobalDB(t)
+	sender := registerInputQueueSession(t, db)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	req := promptAdmissionRequest("ws-input-queue-workspace", sender, "handoff", now)
+	if _, _, err := db.ClaimSessionPromptAdmission(t.Context(), req); err != nil {
+		t.Fatal(err)
+	}
+	w, err := db.InsertReplyWatchTx(
+		t.Context(),
+		db.DB(),
+		store.ReplyWatchRegistration{
+			WorkspaceID:       req.WorkspaceID,
+			SenderSessionID:   sender,
+			TargetWorkspaceID: req.WorkspaceID,
+			TargetSessionID:   sender,
+			MessageID:         req.MessageID,
+			AdmissionID:       req.ID,
+			Hop:               1,
+			CreatedAt:         now,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := db.FireReplyWatch(
+		t.Context(),
+		w.ID,
+		store.ReplyWatchFire{Outcome: "completed", Text: "answer"},
+	); err != nil ||
+		!changed {
+		t.Fatalf("fire = %v, %v", changed, err)
+	}
+	return db, w, store.SessionInputQueueInsert{
+		ID:        "reply-input",
+		SessionID: sender,
+		MessageID: "prompt-reply:" + w.ID,
+		Priority:  1,
+		OwnerKind: store.SessionInputOwnerSynthetic,
+		Text:      "reply",
+		TurnID:    "reply-turn",
+		Mode:      store.SessionInputQueueModeQueue,
+		Delivery:  store.SessionInputDeliveryAfterTurn,
+		QueueCap:  1,
+		Now:       now,
+		SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+			RunID:    "prompt-reply:" + w.ID,
+			Metadata: []byte(`{"kind":"session_reply","reason":"completed"}`),
+		},
+	}
+}
+
 func TestGlobalDBSessionOriginMutation(t *testing.T) {
 	t.Parallel()
 	t.Run("Should refuse editing and promotion but allow cancellation of agent input", func(t *testing.T) {
@@ -2823,4 +3052,63 @@ func TestGlobalDBSessionOriginMigration(t *testing.T) {
 			t.Fatal(text, link, origin)
 		}
 	})
+}
+
+// Invariant: watch registration and the admission/queue row commit or roll back together.
+// Owner: global store transaction boundary; canonical admission/queue suite.
+func TestGlobalDBReplyWatchAdmission(t *testing.T) {
+	for _, queued := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should roll back a failed watch registration with queued=%t", queued), func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			target := registerInputQueueSession(t, db)
+			req := promptAdmissionRequest("ws-input-queue-workspace", target, "atomic-watch", time.Now().UTC())
+			req.FingerprintVersion = "session-prompt/v5"
+			req.Origin = json.RawMessage(
+				`{"kind":"session","session_id":"sender","workspace_id":"ws-sender","hop":1,"notify_on_complete":true}`,
+			)
+			if _, err := db.DB().
+				ExecContext(t.Context(), `CREATE TRIGGER reject_reply_watch BEFORE INSERT ON session_prompt_reply_watches BEGIN SELECT RAISE(ABORT, 'watch insertion fault'); END`); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			if queued {
+				_, _, _, _, err = db.EnqueueAdmittedSessionInput(
+					t.Context(),
+					req,
+					store.SessionInputQueueInsert{
+						ID:        "atomic-input",
+						SessionID: target,
+						Text:      "question",
+						QueueCap:  10,
+						Now:       req.Now,
+					},
+				)
+			} else {
+				_, _, err = db.ClaimSessionPromptAdmission(t.Context(), req)
+			}
+			if err == nil || !strings.Contains(err.Error(), "watch insertion fault") {
+				t.Fatalf("registration error = %v", err)
+			}
+			for _, table := range []string{"session_prompt_admissions", "session_input_queue", "session_prompt_reply_watches"} {
+				var count int
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).
+					Scan(&count); err != nil ||
+					count != 0 {
+					t.Fatalf("%s rows = %d, %v", table, count, err)
+				}
+			}
+			if _, err := db.DB().ExecContext(t.Context(), "DROP TRIGGER reject_reply_watch"); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := db.ClaimSessionPromptAdmission(t.Context(), req); err != nil {
+				t.Fatal(err)
+			}
+			w, err := db.GetReplyWatch(t.Context(), store.ReplyWatchID(target, req.MessageID))
+			if err != nil || w.AdmissionID != req.ID || w.State != "armed" {
+				t.Fatal(w, err)
+			}
+		})
+	}
 }

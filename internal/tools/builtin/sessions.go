@@ -327,6 +327,8 @@ const sessionPromptOutputSchema = `{
 				"previous_turn_id":{"type":"string"},
 				"new_turn_id":{"type":"string"},
 				"canceled_queued_entries":{"type":"integer"},
+ "target_workspace_id":{"type":"string"},
+ "reply_watch":{"type":"object","required":["id","state"],"properties":{"id":{"type":"string"},"state":{"type":"string","enum":["armed"]}},"additionalProperties":false},
 				"goal":{"type":"object"}
 			},
 			"additionalProperties":false

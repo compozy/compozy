@@ -116,6 +116,9 @@ func (m *Manager) dispatchQueuedInput(
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
+	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
 			if err := service.OnWakeDispatched(dispatchCtx, target, entry.messageID); err != nil {
@@ -219,6 +222,9 @@ func (m *Manager) handleQueuedInputDispatchError(
 	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.id, cause.Error()); err != nil {
 		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.id, "error", err)
 	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
+	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
 			m.logSubagentError(service.OnWakeFailed(m.fallbackLifecycleContext(), target, entry.messageID))
@@ -250,6 +256,9 @@ func (m *Manager) acceptQueuedInputDispatch(
 			err.Error(),
 		); failErr != nil {
 			m.sessionLogger(session).Error("session: mark queued input failed", "entry_id", entry.id, "error", failErr)
+		}
+		if service := m.ReplyWatches(); service != nil {
+			service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
 		}
 		m.emitTranscriptMarker(
 			m.fallbackLifecycleContext(),

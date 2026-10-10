@@ -146,6 +146,17 @@ and typed `acp_options` are optional snapshot fields. Each option sets exactly o
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.
 
+For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
+`notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
+the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
+history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+`reply_watches` in state `armed` or `fired`; delivered and abandoned watches disappear from that list.
+A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
+summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain
+and the target session should be inspected. An offline sender receives its pending wake on resume.
+Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
+redelivery. `notify_on_complete` is an agent-facing option, not an HTTP operator prompt field.
+
 `compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
 `timeout_ms` defaults to 300,000 and cannot exceed 1,800,000. Outcomes are `state-reached`, `timeout`,
