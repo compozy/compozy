@@ -126,7 +126,9 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		"session_prompt",
 		"Session Prompt",
 		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; "+
-			"steering uses the expected active turn.",
+			"steering uses the expected active turn. Agent calls carry an immutable sender origin; "+
+			"self-targeting is rejected and message chains are limited to 8 hops. "+
+			"Use notify_on_complete to request a reply wake.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -256,7 +258,9 @@ const sessionPromptInputSchema = `{
 		"idempotency_key":{"type":"string","minLength":1},
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 		"expected_turn_id":{"type":"string","minLength":1},
-		"wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
+		"notify_on_complete":{"type":"boolean","default":false,
+ "description":"Request a reply wake when the receiving turn completes. Requires an agent session."},
+ "wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],
@@ -395,6 +399,7 @@ const sessionInputPayloadSchema = `{
 	"properties":{
 		"id":{"type":"string","minLength":1},
 		"session_id":{"type":"string","minLength":1},
+		"origin":` + sessionPromptOriginSchema + `,
 		"owner_kind":{"type":"string"},
 		"owner_id":{"type":"string"},
 		"message_id":{"type":"string"},

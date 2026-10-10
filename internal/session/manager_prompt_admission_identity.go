@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPromptFingerprintVersion = "session-prompt/v4"
+const sessionPromptFingerprintVersion = "session-prompt/v5"
 
 type promptAdmissionLock struct {
 	mu   sync.Mutex
@@ -82,6 +82,14 @@ func (m *Manager) newPromptAdmissionRequest(
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, err
 	}
+	legacyFingerprint, err := promptAdmissionFingerprintVersion(operation, mode, req, "session-prompt/v4")
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, err
+	}
+	origin, err := encodePromptOrigin(req.meta.Origin)
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, err
+	}
 	admissionID, err := store.NewID("pad")
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission id: %w", err)
@@ -91,22 +99,24 @@ func (m *Manager) newPromptAdmissionRequest(
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission event id: %w", err)
 	}
 	return store.SessionPromptAdmissionRequest{
-		ID:                 admissionID,
-		WorkspaceID:        workspaceID,
-		SessionID:          req.target,
-		MessageID:          req.messageID,
-		IdempotencyKey:     req.idempotencyKey,
-		Operation:          operation,
-		FingerprintVersion: sessionPromptFingerprintVersion,
-		RequestFingerprint: fingerprint,
-		Mode:               string(mode),
-		AuthoredText:       req.authoredMessage,
-		Runtime:            storeRuntimeSelection(req.runtime),
-		SkillInvocations:   append([]commandpkg.Invocation(nil), req.skillInvocations...),
-		Attachments:        storeAttachments(req.attachments),
-		TurnID:             req.turnID,
-		EventID:            eventID,
-		Now:                m.now(),
+		ID:                       admissionID,
+		WorkspaceID:              workspaceID,
+		SessionID:                req.target,
+		MessageID:                req.messageID,
+		IdempotencyKey:           req.idempotencyKey,
+		Operation:                operation,
+		FingerprintVersion:       sessionPromptFingerprintVersion,
+		RequestFingerprint:       fingerprint,
+		LegacyRequestFingerprint: legacyFingerprint,
+		Origin:                   origin,
+		Mode:                     string(mode),
+		AuthoredText:             req.authoredMessage,
+		Runtime:                  storeRuntimeSelection(req.runtime),
+		SkillInvocations:         append([]commandpkg.Invocation(nil), req.skillInvocations...),
+		Attachments:              storeAttachments(req.attachments),
+		TurnID:                   req.turnID,
+		EventID:                  eventID,
+		Now:                      m.now(),
 	}, nil
 }
 
@@ -115,10 +125,21 @@ func promptAdmissionFingerprint(
 	mode BusyInputMode,
 	req promptRequest,
 ) (string, error) {
+	return promptAdmissionFingerprintVersion(operation, mode, req, sessionPromptFingerprintVersion)
+}
+
+func promptAdmissionFingerprintVersion(
+	operation string,
+	mode BusyInputMode,
+	req promptRequest,
+	version string,
+) (string, error) {
 	runtime := storeRuntimeSelection(req.runtime).Normalize()
 	attachmentIdentities := attachmentFingerprintIdentities(req.attachments)
 	slices.Sort(attachmentIdentities)
 	canonical := struct {
+		Actor            string                            `json:"actor,omitempty"`
+		NotifyOnComplete *bool                             `json:"notify_on_complete,omitempty"`
 		Version          string                            `json:"version"`
 		Operation        string                            `json:"operation"`
 		MessageID        string                            `json:"message_id"`
@@ -133,7 +154,7 @@ func promptAdmissionFingerprint(
 		SkillInvocations []commandpkg.Invocation           `json:"skill_invocations,omitempty"`
 		AttachmentIDs    []string                          `json:"attachment_ids,omitempty"`
 	}{
-		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
+		Version: version, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
 		Mode: strings.TrimSpace(string(mode)), Provider: runtime.Provider, Model: runtime.Model,
 		ReasoningEffort: runtime.ReasoningEffort, Speed: runtime.Speed,
@@ -141,6 +162,13 @@ func promptAdmissionFingerprint(
 		ExpectedTurnID:   strings.TrimSpace(req.expectedTurnID),
 		SkillInvocations: append([]commandpkg.Invocation(nil), req.skillInvocations...),
 		AttachmentIDs:    attachmentIdentities,
+	}
+	if version == sessionPromptFingerprintVersion {
+		canonical.Actor = "operator"
+		if req.meta.Origin != nil {
+			canonical.Actor = req.meta.Origin.Kind + ":" + req.meta.Origin.SessionID
+		}
+		canonical.NotifyOnComplete = new(req.notifyOnComplete)
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -174,7 +202,12 @@ func (m *Manager) claimPromptAdmission(
 	return admission, &replayed, nil
 }
 
-func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPromptAdmission) promptRequest {
+func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPromptAdmission) (promptRequest, error) {
+	origin, err := decodePromptOrigin(admission.Origin)
+	if err != nil {
+		return req, err
+	}
+	req.meta.Origin = origin
 	req.turnID = admission.TurnID
 	req.eventID = admission.EventID
 	req.messageID = admission.MessageID
@@ -182,7 +215,7 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	req.runtime = runtimeSelectionFromStore(admission.Runtime)
 	req.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	req.attachments = attachmentMetaFromStore(admission.Attachments)
-	return req
+	return req, nil
 }
 
 func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (SendPromptResult, error) {

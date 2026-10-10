@@ -245,6 +245,7 @@ func claimSessionPromptAdmission(
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
 		SkillInvocationsJson: string(skillInvocationsJSON),
+		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
 		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
@@ -287,8 +288,14 @@ func classifyPromptAdmissionReplay(
 	admission store.SessionPromptAdmission,
 	req store.SessionPromptAdmissionRequest,
 ) (store.SessionPromptAdmission, bool, error) {
-	if admission.MessageID != req.MessageID || admission.FingerprintVersion != req.FingerprintVersion ||
-		admission.RequestFingerprint != req.RequestFingerprint || admission.Operation != req.Operation {
+	fingerprintMatches := admission.FingerprintVersion == req.FingerprintVersion &&
+		admission.RequestFingerprint == req.RequestFingerprint
+	// Remove the v4 replay boundary shim in v0.5.0; historical admissions remain unattributed.
+	if admission.FingerprintVersion == "session-prompt/v4" && req.FingerprintVersion == "session-prompt/v5" {
+		fingerprintMatches = req.LegacyRequestFingerprint != "" &&
+			admission.RequestFingerprint == req.LegacyRequestFingerprint
+	}
+	if admission.MessageID != req.MessageID || !fingerprintMatches || admission.Operation != req.Operation {
 		return store.SessionPromptAdmission{}, false, fmt.Errorf(
 			"%w: idempotency_key %q is already bound to another request",
 			store.ErrSessionPromptIdempotencyConflict,

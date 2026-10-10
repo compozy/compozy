@@ -226,6 +226,7 @@ type Session struct {
 	currentPromptMessage    string
 	currentPromptDelivery   PromptDelivery
 	currentPromptMeta       acp.PromptMeta
+	currentTurnHopFloor     int
 	currentSkillInvocations []commandpkg.Invocation
 	currentPromptCancel     context.CancelFunc
 	currentPromptCancelTurn string

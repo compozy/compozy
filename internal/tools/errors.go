@@ -37,6 +37,8 @@ var (
 // ErrorCode is the stable public tool error code.
 type ErrorCode string
 
+const ErrorCodeSessionMessageHopLimit ErrorCode = "message_hop_limit"
+
 const (
 	// ErrorCodeNotFound maps to ErrToolNotFound.
 	ErrorCodeNotFound ErrorCode = "tool_not_found"

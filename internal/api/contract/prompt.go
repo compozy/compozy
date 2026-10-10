@@ -96,6 +96,7 @@ type SendPromptResultPayload struct {
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.
 type SessionInputPayload struct {
+	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
 	ID               string                          `json:"id"`
 	SessionID        string                          `json:"session_id"`
 	OwnerKind        string                          `json:"owner_kind,omitempty"`

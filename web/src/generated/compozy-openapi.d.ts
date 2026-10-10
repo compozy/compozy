@@ -47217,6 +47217,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -47427,6 +47437,16 @@ export interface operations {
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
+                origin?: {
+                  agent_name?: string;
+                  hop: number;
+                  kind: string;
+                  notify_on_complete?: boolean;
+                  reply_watch_id?: string;
+                  session_id: string;
+                  title_at_send?: string;
+                  workspace_id: string;
+                } | null;
                 parent_session_id?: string;
                 provider_error?: {
                   code: string;
@@ -47976,6 +47996,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -48056,6 +48086,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -75705,6 +75745,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -76563,6 +76604,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -76855,6 +76897,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -77423,6 +77466,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77693,6 +77737,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77970,6 +78015,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78315,6 +78361,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78577,6 +78624,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78847,6 +78895,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -79124,6 +79173,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79458,6 +79508,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79741,6 +79792,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80011,6 +80063,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80273,6 +80326,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80543,6 +80597,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80813,6 +80868,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81075,6 +81131,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81337,6 +81394,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81599,6 +81657,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81891,6 +81950,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82319,6 +82379,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82743,6 +82804,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83013,6 +83075,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83290,6 +83353,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -108084,6 +108148,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -110630,6 +110704,16 @@ export interface operations {
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
+                origin?: {
+                  agent_name?: string;
+                  hop: number;
+                  kind: string;
+                  notify_on_complete?: boolean;
+                  reply_watch_id?: string;
+                  session_id: string;
+                  title_at_send?: string;
+                  workspace_id: string;
+                } | null;
                 parent_session_id?: string;
                 provider_error?: {
                   code: string;
@@ -112718,6 +112802,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -112866,6 +112960,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -113052,6 +113156,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -117036,6 +117150,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -117116,6 +117240,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -118024,6 +118158,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -118586,6 +118721,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -118848,6 +118984,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -125677,6 +125814,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -125939,6 +126077,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126201,6 +126340,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"

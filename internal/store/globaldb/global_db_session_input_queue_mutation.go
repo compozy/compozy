@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -142,27 +143,25 @@ func (g *SessionRepo) replacePendingSessionInput(
 	}
 
 	err = g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
+		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
 		replayed, replayErr := getSessionInputQueueEntry(ctx, exec, target, replacement.ID)
-		if replayErr == nil {
+		if replayErr == nil && len(existing.Origin) == 0 {
 			if !sameSessionInputMutation(&replayed, replacement) {
 				return fmt.Errorf("%w: %s", store.ErrSessionInputMutationConflict, replacement.ID)
 			}
 			entry = replayed
 			return nil
 		}
-		if !errors.Is(replayErr, store.ErrSessionInputQueueEntryNotFound) {
+		if replayErr != nil && !errors.Is(replayErr, store.ErrSessionInputQueueEntryNotFound) {
 			return replayErr
 		}
-		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
 		if getErr != nil {
 			return getErr
 		}
-		if existing.OwnerKind != "" {
-			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
+		if err := validateSessionInputMutation(ctx, &existing, replacement.Text); err != nil {
+			return err
 		}
-		if existing.Status != store.SessionInputQueueStatusQueued {
-			return &store.SessionInputNotQueuedError{EntryID: entryID, Status: existing.Status, Text: replacement.Text}
-		}
+
 		replacement.SessionGeneration = existing.SessionGeneration
 		var superseded []string
 		if cancelPriorSteers {
@@ -232,4 +231,18 @@ func cancelPriorPendingSessionSteers(
 		return nil, fmt.Errorf("store: cancel prior session steer input: %w", err)
 	}
 	return ids, nil
+}
+
+func validateSessionInputMutation(ctx context.Context, existing *store.SessionInputQueueEntry, text string) error {
+	if len(existing.Origin) > 0 {
+		slog.WarnContext(ctx, "session.input.mutation_refused", "entry_id", existing.ID, "reason", "agent_authored")
+		return store.ErrSessionInputAgentAuthored
+	}
+	if existing.OwnerKind != "" {
+		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, existing.ID)
+	}
+	if existing.Status != store.SessionInputQueueStatusQueued {
+		return &store.SessionInputNotQueuedError{EntryID: existing.ID, Status: existing.Status, Text: text}
+	}
+	return nil
 }

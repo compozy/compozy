@@ -28,16 +28,17 @@ type sessionCreateInput struct {
 }
 
 type sessionPromptInput struct {
-	Workspace      string                                  `json:"workspace,omitempty"`
-	SessionID      string                                  `json:"session_id"`
-	Message        string                                  `json:"message"`
-	Attachments    []string                                `json:"attachments,omitempty"`
-	MessageID      string                                  `json:"message_id"`
-	IdempotencyKey string                                  `json:"idempotency_key"`
-	Mode           string                                  `json:"mode,omitempty"`
-	ExpectedTurnID string                                  `json:"expected_turn_id,omitempty"`
-	Wait           bool                                    `json:"wait,omitzero"`
-	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
+	NotifyOnComplete bool                                    `json:"notify_on_complete,omitzero"`
+	Workspace        string                                  `json:"workspace,omitempty"`
+	SessionID        string                                  `json:"session_id"`
+	Message          string                                  `json:"message"`
+	Attachments      []string                                `json:"attachments,omitempty"`
+	MessageID        string                                  `json:"message_id"`
+	IdempotencyKey   string                                  `json:"idempotency_key"`
+	Mode             string                                  `json:"mode,omitempty"`
+	ExpectedTurnID   string                                  `json:"expected_turn_id,omitempty"`
+	Wait             bool                                    `json:"wait,omitzero"`
+	Runtime          *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 }
 
 type sessionRewindInput struct {
@@ -207,17 +208,24 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	origin, err := n.sessionPromptOrigin(ctx, scope, req.ToolID, sessionID, input.NotifyOnComplete)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	deliveryCtx, cancelDelivery := context.WithCancel(ctx)
 	defer cancelDelivery()
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Mode: mode, ExpectedTurnID: expectedTurnID,
 		DeliveryContext: deliveryCtx,
-		Runtime:         core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
+		Origin:          origin, NotifyOnComplete: input.NotifyOnComplete,
+		Caller:  nativeSessionPromptCaller(scope, req.ToolID),
+		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	logSessionMessageSent(ctx, origin, sessionID, messageID, mode)
 	if input.Wait && result.Events != nil {
 		if err := drainNativeSessionPromptEvents(result.Events); err != nil {
 			return toolspkg.ToolResult{}, err
