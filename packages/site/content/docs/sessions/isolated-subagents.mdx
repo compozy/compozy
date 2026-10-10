@@ -155,17 +155,27 @@ Parent        sess-7f3a2c11d09e4b58 (turn turn-91aa04c2)
 Child         sess-2b8e5f907c1d4a33
 Runtime       claude · opus-5.5 · high · normal
 Status        completed (result available) · delivered
+Started       2026-10-09 22:31:40 · settled 2026-10-09 22:41:07 (9m 27s)
 Isolation     worktree
 Worktree      extract-billing-client-3f9a0c12 (wt-5d1a7c0e)
-Branch        run/extract-billing-client-3f9a0c12 ← origin/main · 3 ahead · clean
-Pull request  #731 open · https://github.com/compozy/billing/pull/731
-Observed      2026-10-09 22:41:07
-Started       2026-10-09 22:31:40 · settled 2026-10-09 22:41:07 (9m 27s)
+Branch        run/extract-billing-client-3f9a0c12
+Base          origin/main (4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b)
+Path          /Users/you/.compozy/worktrees/billing/extract-billing-client-3f9a0c12
+Head          9c41e07b3d5a8f1e2c4b6a7d9e0f1a2b3c4d5e6f
+Commits ahead 3
+Dirty files   0
+Pull request  https://github.com/compozy/billing/pull/731 (open)
+
+Result
+Moved the client into internal/billing/client; opened draft PR #731.
 ```
 
-A shared subagent prints `Isolation  shared` and none of the worktree lines. When CompozyOS couldn't
-check the PR, the line reads `Pull request  status unknown`. Add `--json` to get the same `isolation`
-and `worktree` fields the agent sees.
+`Base` shows the ref you asked for and, in parentheses, the exact commit the worktree started from.
+`Head`, `Commits ahead`, `Dirty files`, and `Pull request` appear only once the subagent has settled
+and CompozyOS could read them. When CompozyOS couldn't check the PR, the line reads
+`Pull request  status unknown`; when the forge found none, `Pull request  status none`. A shared
+subagent prints `Isolation     shared` and none of the worktree lines. Add `--json` to get the same
+`isolation` and `worktree` fields the agent sees, including `observed_at`.
 
 ## Step 5: Ask another session and wait for the answer
 
@@ -280,15 +290,16 @@ files or unpushed commits, is refused instead of deleted. See
 
 ## If something goes wrong
 
-| What you see                                                                       | What to do                                                                                                              |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `Could not create the subagent worktree: base_ref_not_found.`                      | The base doesn't exist locally. Fetch it (`git fetch origin`) or ask for a ref that exists.                             |
-| `Could not create the subagent worktree: branch_held.`                             | Another worktree already has that branch checked out. Remove that worktree, then ask again.                             |
-| `Could not create the subagent worktree: setup_failed.` followed by setup output   | Your `[worktrees] setup_command` failed in the new worktree. Fix the command; the half-made worktree is rolled back.    |
-| The card says "PR status unknown"                                                  | Set up a forge provider (for example, sign in to the GitHub CLI). The subagent's facts are taken once, when it settles. |
-| The hover shows "2 changed"                                                        | The subagent left uncommitted files. Open its session and ask it to commit, or commit in the worktree yourself.         |
-| `Message chain limit reached (8 hops). Ask the operator to continue.`              | Two agents kept messaging each other. Read both sessions and send the next prompt yourself.                             |
-| `This message was sent by another session and can't be edited. Cancel it instead.` | Remove the queued message; the sender is told it was dropped.                                                           |
+| What you see                                                                       | What to do                                                                                                                       |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `Could not create the subagent worktree: base_ref_not_found.`                      | The base doesn't exist locally. Fetch it (`git fetch origin`) or ask for a ref that exists.                                      |
+| `Could not create the subagent worktree: branch_held.`                             | Another worktree already has that branch checked out. Remove that worktree, then ask again.                                      |
+| `Could not create the subagent worktree: setup_failed.` followed by setup output   | Your `[worktrees] setup_command` failed in the new worktree. Fix the command; the half-made worktree is rolled back.             |
+| `Could not create the subagent worktree: materialization_failed.`                  | Git could not create the worktree for another reason. Check the repository with `compozy worktree list --refresh` and try again. |
+| The card says "PR status unknown"                                                  | Set up a forge provider (for example, sign in to the GitHub CLI). The subagent's facts are taken once, when it settles.          |
+| The hover shows "2 changed"                                                        | The subagent left uncommitted files. Open its session and ask it to commit, or commit in the worktree yourself.                  |
+| `Message chain limit reached (8 hops). Ask the operator to continue.`              | Two agents kept messaging each other. Read both sessions and send the next prompt yourself.                                      |
+| `This message was sent by another session and can't be edited. Cancel it instead.` | Remove the queued message; the sender is told it was dropped.                                                                    |
 
 ## Next steps
 
