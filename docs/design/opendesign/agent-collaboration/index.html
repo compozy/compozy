@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Agent collaboration · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../subagents/subagents.css">
+<link rel="stylesheet" href="agent-collaboration.css">
+<!--
+  agent-collaboration index · set map for the three boards named in
+  .compozy/tasks/agent-collaboration/_uiux.md (S1–S5, VC-01..07). Contract: DESIGN-NOTES.md.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1040px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .hub__grp{margin-top:36px}
+  .hub__grp-t{font-size:12px;font-weight:510;color:var(--subtle);padding-bottom:10px}
+  .matrix{width:100%;border-collapse:collapse;font-size:12px}
+  .matrix th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .matrix td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+  .matrix td:first-child{font-family:var(--font-mono);color:var(--faint);white-space:nowrap}
+  .matrix td a{color:var(--fg);font-weight:510}
+  .matrix td a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+  .matrix .comp{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .matrix .vc{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .card{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__mods{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto;padding-top:4px}
+  .card__peek{margin:4px 0 2px;pointer-events:none}
+  .card__peek .session-message,.card__peek .session-sent-card{max-width:none}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:76ch}
+  .mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+  @media (max-width:860px){.cards{grid-template-columns:1fr}.hub{padding:36px 20px 64px}.matrix .comp{display:none}}
+</style>
+</head>
+<body>
+<div class="hub" data-od-id="ac-index">
+  <h1 data-od-id="ac-index-title">Agent collaboration</h1>
+  <p class="hub__lede">Three boards for <a href="../../../../.compozy/tasks/agent-collaboration/_uiux.md" style="text-decoration:underline;color:var(--muted)"><code>.compozy/tasks/agent-collaboration/_uiux.md</code></a> (spec: <a href="../../../../.compozy/tasks/agent-collaboration/_spec.md" style="text-decoration:underline;color:var(--muted)"><code>_spec.md</code></a>) (S1–S5). A message one agent sends to another becomes a left-aligned card that names the sender, so it can never be mistaken for your own prompt. The sender sees a "Sent to" card that waits for the answer, and the answer comes back as a "Reply from" card. A subagent delegated into its own worktree shows its branch and the pull request it opened. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="hub__grp" data-od-id="ac-index-boards">
+    <div class="hub__grp-t">Boards — read in this order</div>
+    <div class="cards">
+      <a class="card" href="agent-collaboration-transcript.html" data-od-id="card-transcript">
+        <span class="card__name">01 · Transcript</span>
+        <span class="card__file">agent-collaboration-transcript.html · S1 S2 S3</span>
+        <div class="card__peek"><article class="session-message" style="padding:7px 10px 8px 8px"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><div class="session-message__head"><span class="session-message__from">From <span class="session-message__link">Refactor billing</span></span><span class="session-message__chip">Reply requested</span></div><div class="session-message__body" style="font-size:12px">Is the retry budget per request or per job?</div></article></div>
+        <span class="card__sub">The session message card in 10 states, the in-thread rhythm next to your prompts, the sender's send → wait → reply flow, the reply card's 8 outcomes and the sent card's 10 states.</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--new">new ×4</span><span class="sa-mod sa-mod--modify">modify ×2</span></span>
+      </a>
+      <a class="card" href="agent-collaboration-composer.html" data-od-id="card-composer">
+        <span class="card__name">02 · Queue</span>
+        <span class="card__file">agent-collaboration-composer.html · S4</span>
+        <span class="card__sub">A queued message from another session shows the sender in the owner slot. Remove only: no Edit, no Steer. Removing it tells a waiting sender the message was dropped.</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--modify">modify ×2</span><span class="sa-mod sa-mod--backend">backend ×1</span></span>
+      </a>
+      <a class="card" href="agent-collaboration-subagents.html" data-od-id="card-subagents">
+        <span class="card__name">03 · Isolated subagents</span>
+        <span class="card__file">agent-collaboration-subagents.html · S5</span>
+        <span class="card__sub">Branch on the card while it runs, a PR link with its state once settled, worktree facts in the hover, and the same on each roster row. Unknown is never shown as "no PR".</span>
+        <span class="card__mods"><span class="sa-mod sa-mod--modify">modify ×4</span></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="ac-index-matrix">
+    <div class="hub__grp-t">Surface → board → components</div>
+    <table class="matrix">
+      <thead><tr><th>S#</th><th>Surface</th><th>Board</th><th>Production components</th><th>VC rows</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Session message card</td><td><a href="agent-collaboration-transcript.html#tr-rhythm">Transcript §01–02</a></td><td><span class="comp">new SessionMessageFrame · SessionMessageCard · useSessionLabel · useMessageClamp · modify SessionThreadMessage</span></td><td class="vc">VC-01 · VC-02</td></tr>
+        <tr><td>S2</td><td>Reply card</td><td><a href="agent-collaboration-transcript.html#tr-reply">Transcript §03–04</a></td><td><span class="comp">new SessionReplyCard · modify SessionThreadMessage (system + synthetic.kind session_reply)</span></td><td class="vc">VC-03</td></tr>
+        <tr><td>S3</td><td>Sent card</td><td><a href="agent-collaboration-transcript.html#tr-sent">Transcript §03 · §05</a></td><td><span class="comp">new SessionSentCard · modify session-timeline.logic.ts (SessionRow "session-message") · tool-labels.ts</span></td><td class="vc">VC-04</td></tr>
+        <tr><td>S4</td><td>Queue strip row</td><td><a href="agent-collaboration-composer.html#cp-live">Queue §01–03</a></td><td><span class="comp">modify queued-prompt.ts · SessionQueueEntryRow · backend 409 input_agent_authored</span></td><td class="vc">VC-05</td></tr>
+        <tr><td>S5</td><td>Subagent card, hover, roster</td><td><a href="agent-collaboration-subagents.html#sg-live">Subagents §01–04</a></td><td><span class="comp">modify subagent-payload.ts · SubagentCard · SubagentHoverContent · SubagentRowTrail · SessionInspectorSubagentsSection</span></td><td class="vc">VC-06 · VC-07</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> through <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> (unmodified). The subagents lane <span class="mono">../subagents/subagents.css</span> + <span class="mono">subagents.js</span> is reused as-is (SubagentCard, avatar, hover card, roster, lab scaffold); this set adds <span class="mono">agent-collaboration.css</span> + <span class="mono">agent-collaboration.js</span>, every class named after the production component it renders. Provider marks copied from <span class="mono">packages/ui/src/logos</span>. Fixture: <span class="mono">Refactor billing (Claude) ↔ Billing reviewer (Codex) · 3 isolated subagents · PR #731</span>. Titles, PR numbers and times are illustrative; runtime truth owns values. Iterate — never regenerate a delivered board.</p>
+</div>
+</body>
+</html>

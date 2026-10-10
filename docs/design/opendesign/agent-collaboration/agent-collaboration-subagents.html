@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Isolated subagents · Agent collaboration · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../subagents/subagents.css">
+<link rel="stylesheet" href="agent-collaboration.css">
+<!--
+  agent-collaboration-subagents · S5 worktree facts on the subagent card, hover and inspector roster.
+  Contract: DESIGN-NOTES.md. Spec: _uiux.md S5 · _dx.md SubagentPayload.worktree · US-016 · US-018.
+  Provenance:
+    production — SubagentCard (subagent-card.tsx), SubagentGroup panel (flush cards),
+                 SubagentHoverContent location slot (subagent-format.ts subagentLocationRows),
+                 SessionInspectorSubagentsSection rows, SubagentRowTrail.
+    delta      — branch prepended to line 2 (mono, middle-truncated); PR link in the trail as a
+                 sibling of the open control (stretched button), never nested inside it;
+                 hover gains worktree · branch · base · commits · PR · observed rows.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sg-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Agent collaboration</a><span class="w2-sep">/</span><h1 class="w2-title">03 · Isolated subagents</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="agent-collaboration-composer.html">← Queue</a><a class="btn btn--sm" href="index.html">Overview →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="sg-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>A subagent that works on its own branch shows where its work landed.</b> When an agent delegates with <code>isolation: "worktree"</code>, the subagent gets its own worktree and branch. Its card shows the branch while it runs. Once it settles, the card links to the pull request it opened, with the PR's state.</p>
+        <p class="sa-contract__what">Hovering the card shows the worktree, the branch and its base, commits ahead, uncommitted files, the PR, and when CompozyOS last checked. CompozyOS observes these facts itself; it never takes the agent's word for them. If it could not check the PR, it says so instead of saying there is none.</p>
+        <p class="sa-contract__file">agent-collaboration-subagents.html · S5 · SubagentPayload.isolation · .worktree · SSE subagent_updated</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>subagent-payload.ts · types.ts</b><i>web/src/systems/session/</i>map <code>isolation</code> + <code>worktree</code> onto SubagentView</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SubagentCard</b><i>subagents/subagent-card.tsx</i>branch prepended to line 2; PR link in the trail; open control becomes a stretched button so the link is a sibling</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SubagentHoverContent · subagent-format.ts</b><i>subagents/</i>wires the existing location slot + git and PR fact rows</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SubagentRowTrail · SessionInspectorSubagentsSection</b><i>subagents/</i>PR link + branch line on isolated roster rows</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>SubagentAvatar · SubagentElapsed · StateGlyph · HoverCard · PropertyRow · Icon · Time</b><i>unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#sg-live">Fan-out — three isolated subagents</a><code>VC-06 · VC-07</code></li>
+          <li><a href="#sg-card">Card + trail — 9 states</a><code>VC-06</code></li>
+          <li><a href="#sg-hover">Hover facts — 6 states</a><code>VC-07</code></li>
+          <li><a href="#sg-roster">Inspector roster</a><code>VC-07</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE FAN-OUT ===== -->
+    <section class="lab-sec" id="sg-live" data-od-id="sg-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Fan-out — one turn, three branches, PRs as they land</h2><span class="lab-sec__gist">VC-06 · VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Hover or Tab to a card for its worktree facts. The PR link opens the pull request in your browser; the rest of the card opens the subagent's session (⌘-click for a new window). The roster in the inspector carries the same branch and PR on each isolated row.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="sg-live-stage">
+            <section class="win win--inline is-focused sa-win sa-win--nav" style="--sa-win-w:1080px" data-od-id="sg-live-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Refactor billing</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col">
+                    <div class="ac-user">Split the billing refactor into PRs: extract the client, add per-request retries, and fix the webhook path.</div>
+                    <p class="ac-asst">Three independent slices, each on its own branch from <code>origin/main</code>. Each subagent delivers its own PR.</p>
+
+                    <div class="subagent-group" style="position:relative" data-od-id="sg-live-group">
+                      <i class="sa-n sa-n--left">1</i>
+                      <button class="subagent-group__trigger" type="button" data-sa-disclosure aria-expanded="true" aria-controls="sg-live-panel">
+                        <span class="avatar-group"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/claude.svg" alt=""></span><span class="subagent-avatar"><img src="assets/openai.svg" alt=""></span></span>
+                        <span style="min-width:0"><span class="subagent-group__label">3 subagents</span><span class="subagent-group__summary" data-tone="live">1 working · 2 done</span></span>
+                        <span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span>
+                        <svg class="subagent-group__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="subagent-group__panel" id="sg-live-panel">
+
+                        <div class="hc-host" style="position:relative">
+                          <div class="subagent-card ac-card" data-status="completed" data-settled="true">
+                            <span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-hc-trigger data-sa-open="Extract billing client" aria-description="Completed">Extract billing client</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch" title="run/extract-billing-client-3f9a0c12"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span><i class="sa-n" style="margin:0 0 0 4px">2</i><span class="sep">·</span>Moved the client into internal/billing/client</span></span>
+                            <span class="ac-card__end"><i class="sa-n" style="margin:0">3</i><a class="subagent-pr-link" data-pr="open" href="#" data-sa-open="PR #731 · opens in your browser" aria-label="Pull request #731, open"><svg data-lucide="git-pull-request"></svg>#731<svg class="ext" data-lucide="arrow-up-right"></svg></a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </div>
+                          <div class="hover-card" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Extract billing client</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div>
+                                <div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="567">9m 27s</span></div>
+                              </div>
+                              <dl class="subagent-hover__facts">
+                                <dt>Worktree</dt><dd><span class="mono">extract-billing-client-3f9a0c12</span></dd>
+                                <dt>Branch</dt><dd><span class="mono">run/extract-billing-client-3f9a0c12</span></dd>
+                                <dt>Base</dt><dd><span class="mono">origin/main</span><span class="q">· 4be1c9d</span></dd>
+                                <dt>Commits</dt><dd>3 ahead<span class="q">·</span>clean</dd>
+                                <dt>PR</dt><dd><svg data-pr="open" data-lucide="git-pull-request"></svg><a href="#" data-sa-open="PR #731">#731</a> open</dd>
+                                <dt>Observed</dt><dd class="q">4m ago</dd>
+                              </dl>
+                              <div class="subagent-hover__preview"><span class="subagent-hover__preview-k">Result</span>Moved the client into internal/billing/client; opened draft PR #731.</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="hc-host" style="position:relative">
+                          <div class="subagent-card ac-card" data-status="running">
+                            <span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-hc-trigger data-sa-open="Add billing retries" aria-description="Running">Add billing retries</button><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2"><span class="subagent-branch" title="run/add-billing-retries-0d2e7b51"><svg data-lucide="git-branch"></svg><span>run/add-billing-r…0d2e7b51</span></span><span class="sep">·</span>Editing internal/billing/retry.go</span></span>
+                            <span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span></span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </div>
+                          <div class="hover-card" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Add billing retries</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/claude.svg" alt=""><b>Opus 5.5</b><span class="sep">·</span>high</div>
+                                <div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span></div>
+                              </div>
+                              <dl class="subagent-hover__facts">
+                                <dt>Worktree</dt><dd><span class="mono">add-billing-retries-0d2e7b51</span></dd>
+                                <dt>Branch</dt><dd><span class="mono">run/add-billing-retries-0d2e7b51</span></dd>
+                                <dt>Base</dt><dd><span class="mono">origin/main</span><span class="q">· 4be1c9d</span></dd>
+                              </dl>
+                              <div class="subagent-hover__preview">Editing internal/billing/retry.go</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="hc-host" style="position:relative">
+                          <div class="subagent-card ac-card" data-status="completed" data-settled="true">
+                            <span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span>
+                            <span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-hc-trigger data-sa-open="Cap webhook retries" aria-description="Completed">Cap webhook retries</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch" title="run/cap-webhook-retries-a81c44e0"><svg data-lucide="git-branch"></svg><span>run/cap-webhook-r…a81c44e0</span></span><span class="sep">·</span>Added a per-delivery cap in webhook/dispatch.go</span></span>
+                            <span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="341">5m 41s</span></span>
+                            <svg class="subagent-card__chev" data-lucide="chevron-right"></svg>
+                          </div>
+                          <div class="hover-card hover-card--right" role="dialog" aria-label="Subagent details">
+                            <div class="subagent-hover">
+                              <div class="subagent-hover__title">Cap webhook retries</div>
+                              <div class="subagent-hover__rows">
+                                <div class="subagent-hover__row"><img src="assets/openai.svg" alt=""><b>gpt-5.6-sol</b><span class="sep">·</span>medium</div>
+                                <div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="341">5m 41s</span></div>
+                              </div>
+                              <dl class="subagent-hover__facts">
+                                <dt>Worktree</dt><dd><span class="mono">cap-webhook-retries-a81c44e0</span></dd>
+                                <dt>Branch</dt><dd><span class="mono">run/cap-webhook-retries-a81c44e0</span></dd>
+                                <dt>Base</dt><dd><span class="mono">origin/main</span><span class="q">· 4be1c9d</span></dd>
+                                <dt>Commits</dt><dd>1 ahead<span class="q">·</span><span class="dirty">2 changed</span></dd>
+                                <dt>PR</dt><dd class="q">PR status unknown</dd>
+                                <dt>Observed</dt><dd class="q">2m ago</dd>
+                              </dl>
+                              <div class="subagent-hover__preview"><span class="subagent-hover__preview-k">Result</span>Added a per-delivery cap in webhook/dispatch.go. Not delivered yet.</div>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                    <p class="ac-asst">Two slices are done. #731 is open; the webhook branch still has 2 uncommitted files, so I'll ask it to commit before delivering.</p>
+                  </div></div>
+                </div>
+                <aside class="session-inspector" aria-label="Context" data-od-id="sg-live-inspector">
+                  <div class="session-inspector__head">Context</div>
+                  <div class="session-inspector__body">
+                    <section class="session-inspector__sec session-inspector__sec--folded" aria-hidden="true"><div class="session-inspector__sec-head"><span class="eyebrow">Activity</span><span class="meta">18 events</span></div><div class="session-inspector__ghost" style="width:86%"></div><div class="session-inspector__ghost" style="width:64%"></div></section>
+                    <section class="session-inspector__sec" style="position:relative">
+                      <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 1 running</span><span class="meta">3</span><i class="sa-n sa-n--pin" style="right:-4px">4</i></div>
+                      <div class="subagent-roster">
+                        <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Add billing retries">Add billing retries</button><span class="subagent-branch" title="run/add-billing-retries-0d2e7b51"><svg data-lucide="git-branch"></svg><span>run/add-billing-r…0d2e7b51</span></span></span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span></span></div>
+                        <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-branch" title="run/extract-billing-client-3f9a0c12"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span></span><span class="subagent-roster__end"><a class="subagent-pr-link" data-pr="open" href="#" data-sa-open="PR #731 · opens in your browser" aria-label="Pull request #731, open"><svg data-lucide="git-pull-request"></svg>#731</a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span></div>
+                        <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Cap webhook retries">Cap webhook retries</button><span class="subagent-branch" title="run/cap-webhook-retries-a81c44e0"><svg data-lucide="git-branch"></svg><span>run/cap-webhook-r…a81c44e0</span></span></span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="341">5m 41s</span></span></div>
+                      </div>
+                    </section>
+                  </div>
+                </aside>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>SubagentGroup</b> <em>unchanged.</em> Same-turn isolated delegations group exactly like shared ones; isolation adds facts, not a new container.</span></li>
+            <li><i class="sa-n">2</i><span><b>Branch</b> <em>mono, middle-truncated, prepended to line 2.</em> Shown from creation while running (US-016.AC-1). Full name in <code>title</code> and the hover.</span></li>
+            <li><i class="sa-n">3</i><span><b>PR link</b> <em>only when <code>pull_request</code> exists.</em> State glyph + "#731"; opens the URL externally. A sibling of the card's open control, never nested in it.</span></li>
+            <li><i class="sa-n">4</i><span><b>Inspector roster</b> <em>isolated rows gain a branch line.</em> PR link sits before elapsed in the trail; shared rows keep one line.</span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>1 running isolated · 1 settled with PR · 1 settled, PR unknown + dirty</span><span class="sa-tag"><b>component</b>SubagentCard · SubagentHoverContent · SessionInspectorSubagentsSection</span><span class="sa-tag"><b>VC</b>VC-06 · VC-07</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CARD STATES ===== -->
+    <section class="lab-sec" id="sg-card" data-od-id="sg-card">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Card + trail — states</h2><span class="lab-sec__gist">VC-06 · 9 states</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The card says branch and PR; the hover says the rest.</b> The PR glyph follows the PR's state: open (info), draft (faint), merged (success), closed (faint). No PR and unknown both show no link on the card; the hover tells them apart. Shared subagents are unchanged.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="sg-card-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">running isolated <code>branch only · US-016.AC-1</code></span>
+                <div class="subagent-card ac-card" data-status="running"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Add billing retries">Add billing retries</button><span class="subagent-card__word">Running</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/add-billing-r…0d2e7b51</span></span><span class="sep">·</span>Editing internal/billing/retry.go</span></span><span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR open <code>info glyph</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span><span class="sep">·</span>Moved the client into internal/billing/client</span></span><span class="ac-card__end"><a class="subagent-pr-link" data-pr="open" href="#" data-sa-open="PR #731" aria-label="Pull request #731, open"><svg data-lucide="git-pull-request"></svg>#731<svg class="ext" data-lucide="arrow-up-right"></svg></a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR draft <code>faint glyph</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span><span class="sep">·</span>Opened draft PR #731</span></span><span class="ac-card__end"><a class="subagent-pr-link" data-pr="draft" href="#" data-sa-open="PR #731" aria-label="Pull request #731, draft"><svg data-lucide="git-pull-request-draft"></svg>#731<svg class="ext" data-lucide="arrow-up-right"></svg></a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR merged <code>success glyph</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span><span class="sep">·</span>Moved the client into internal/billing/client</span></span><span class="ac-card__end"><a class="subagent-pr-link" data-pr="merged" href="#" data-sa-open="PR #731" aria-label="Pull request #731, merged"><svg data-lucide="git-merge"></svg>#731<svg class="ext" data-lucide="arrow-up-right"></svg></a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR closed <code>faint glyph</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span><span class="sep">·</span>Moved the client into internal/billing/client</span></span><span class="ac-card__end"><a class="subagent-pr-link" data-pr="closed" href="#" data-sa-open="PR #731" aria-label="Pull request #731, closed"><svg data-lucide="git-pull-request-closed"></svg>#731<svg class="ext" data-lucide="arrow-up-right"></svg></a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · no PR <code>none · no link</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Spike retry jitter">Spike retry jitter</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/spike-retry-j…77b0c9d1</span></span><span class="sep">·</span>Jitter helps under load; branch kept for reference</span></span><span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="208">3m 28s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR unknown <code>no forge / lookup failed · US-018</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Cap webhook retries">Cap webhook retries</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/cap-webhook-r…a81c44e0</span></span><span class="sep">·</span>Added a per-delivery cap in webhook/dispatch.go</span></span><span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="341">5m 41s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">failed isolated <code>branch kept · retention</code></span>
+                <div class="subagent-card ac-card" data-status="failed" data-settled="true"><span class="subagent-avatar"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Add billing retries">Add billing retries</button><span class="subagent-card__word">Failed</span></span><span class="subagent-card__line2"><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/add-billing-r…0d2e7b51</span></span><span class="sep">·</span>go test ./internal/billing/... failed</span></span><span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="404">6m 44s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">shared subagent <code>unchanged · no branch, no PR</code></span>
+                <div class="subagent-card ac-card" data-status="completed" data-settled="true"><span class="subagent-avatar"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-card__main"><span class="subagent-card__line1"><button class="ac-card__open" type="button" data-sa-open="Review retry config">Review retry config</button><span class="subagent-card__word">Completed</span></span><span class="subagent-card__line2">The budget is per job; no per-request cap exists.</span></span><span class="ac-card__end"><span class="subagent-elapsed" data-elapsed="92">1m 32s</span></span><svg class="subagent-card__chev" data-lucide="chevron-right"></svg></div></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentCard · SubagentRowTrail</span><span class="sa-tag"><b>VC</b>VC-06</span><span class="sa-tag"><b>tone</b>PR glyph: open info · draft faint · merged success · closed faint · danger stays failed-only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · HOVER STATES ===== -->
+    <section class="lab-sec" id="sg-hover" data-od-id="sg-hover">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Hover facts — states</h2><span class="lab-sec__gist">VC-07 · 6 states</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Facts not yet observed are absent, not zero.</b> While running, only worktree, branch and base exist. At settle, CompozyOS snapshots commits ahead, uncommitted files and the PR once. Uncommitted files read "{n} changed" in warning ink. "PR status unknown" means CompozyOS could not check; "No pull request" means the forge answered and there is none.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="sg-hover-states">
+            <div class="lab-grid lab-grid--3">
+              <div class="lab-cell"><span class="lab-cell__t">running <code>static facts only</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Add billing retries</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="running" data-size="sm"></span>Running<span class="subagent-elapsed" data-elapsed="612" data-live="true">10m 12s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">add-billing-retries-0d2e7b51</span></dd><dt>Branch</dt><dd><span class="mono">run/add-billing-retries-0d2e7b51</span></dd><dt>Base</dt><dd><span class="mono">origin/main</span><span class="q">· 4be1c9d</span></dd></dl></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · PR open · clean</span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Extract billing client</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="567">9m 27s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">extract-billing-client-3f9a0c12</span></dd><dt>Branch</dt><dd><span class="mono">run/extract-billing-client-3f9a0c12</span></dd><dt>Base</dt><dd><span class="mono">4be1c9d</span></dd><dt>Commits</dt><dd>3 ahead<span class="q">·</span>clean</dd><dt>PR</dt><dd><svg data-pr="open" data-lucide="git-pull-request"></svg><a href="#" data-sa-open="PR #731">#731</a> open</dd><dt>Observed</dt><dd class="q">4m ago</dd></dl></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">settled · merged</span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Extract billing client</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="567">9m 27s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">extract-billing-client-3f9a0c12</span></dd><dt>Branch</dt><dd><span class="mono">run/extract-billing-client-3f9a0c12</span></dd><dt>Base</dt><dd><span class="mono">4be1c9d</span></dd><dt>Commits</dt><dd>3 ahead<span class="q">·</span>clean</dd><dt>PR</dt><dd><svg data-pr="merged" data-lucide="git-merge"></svg><a href="#" data-sa-open="PR #731">#731</a> merged</dd><dt>Observed</dt><dd class="q">1h ago</dd></dl></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">dirty · no PR <code>none · warning ink</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Spike retry jitter</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="208">3m 28s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">spike-retry-jitter-77b0c9d1</span></dd><dt>Branch</dt><dd><span class="mono">run/spike-retry-jitter-77b0c9d1</span></dd><dt>Base</dt><dd><span class="mono">4be1c9d</span></dd><dt>Commits</dt><dd>0 ahead<span class="q">·</span><span class="dirty">4 changed</span></dd><dt>PR</dt><dd class="q">No pull request</dd><dt>Observed</dt><dd class="q">12m ago</dd></dl></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">PR status unknown <code>US-018.AC-1</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Cap webhook retries</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="341">5m 41s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">cap-webhook-retries-a81c44e0</span></dd><dt>Branch</dt><dd><span class="mono">run/cap-webhook-retries-a81c44e0</span></dd><dt>Base</dt><dd><span class="mono">4be1c9d</span></dd><dt>Commits</dt><dd>1 ahead<span class="q">·</span>clean</dd><dt>PR</dt><dd class="q">PR status unknown</dd><dt>Observed</dt><dd class="q">2m ago</dd></dl></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">git read failed <code>git facts absent · PR still shown</code></span>
+                <div class="hover-card hover-card--static"><div class="subagent-hover"><div class="subagent-hover__title">Extract billing client</div><div class="subagent-hover__rows"><div class="subagent-hover__row"><span data-sg="done" data-size="sm"></span>Completed<span class="subagent-elapsed" data-elapsed="567">9m 27s</span></div></div><dl class="subagent-hover__facts"><dt>Worktree</dt><dd><span class="mono">extract-billing-client-3f9a0c12</span></dd><dt>Branch</dt><dd><span class="mono">run/extract-billing-client-3f9a0c12</span></dd><dt>Base</dt><dd><span class="mono">4be1c9d</span></dd><dt>PR</dt><dd><svg data-pr="draft" data-lucide="git-pull-request-draft"></svg><a href="#" data-sa-open="PR #731">#731</a> draft</dd></dl></div></div></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SubagentHoverContent · subagent-format.ts (subagentLocationRows + worktree rows)</span><span class="sa-tag"><b>VC</b>VC-07</span><span class="sa-tag"><b>rule</b>absent ≠ zero · unknown ≠ none</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · ROSTER ===== -->
+    <section class="lab-sec" id="sg-roster" data-od-id="sg-roster">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Inspector roster — isolated and shared rows together</h2><span class="lab-sec__gist">VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Isolated rows grow to two lines; shared rows stay one.</b> The branch line uses the same middle truncation as the card. The PR link sits before the trail word or elapsed time, and is a sibling of the row's open control. Ordering, pinning and Stop are unchanged from the subagents roster.</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:360px" data-od-id="sg-roster-panel">
+            <div class="session-inspector" style="width:100%;border:0">
+              <div class="session-inspector__body" style="padding:6px">
+                <section class="session-inspector__sec">
+                  <div class="session-inspector__sec-head"><span class="eyebrow">Subagents · 1 running</span><span class="meta">5</span></div>
+                  <div class="subagent-roster">
+                    <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--danger"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Add billing retries">Add billing retries</button><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/add-billing-r…0d2e7b51</span></span></span><span class="subagent-roster__end"><span class="subagent-roster__w subagent-roster__w--failed">Failed</span></span></div>
+                    <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success status-dot--pulse"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Cap webhook retries">Cap webhook retries</button><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/cap-webhook-r…a81c44e0</span></span></span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="120" data-live="true">2m 00s</span></span></div>
+                    <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Extract billing client">Extract billing client</button><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/extract-bill…3f9a0c12</span></span></span><span class="subagent-roster__end"><a class="subagent-pr-link" data-pr="merged" href="#" data-sa-open="PR #731" aria-label="Pull request #731, merged"><svg data-lucide="git-merge"></svg>#731</a><span class="subagent-elapsed" data-elapsed="567">9m 27s</span></span></div>
+                    <div class="subagent-roster__row subagent-roster__row--iso"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/claude.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__main"><button class="ac-card__open subagent-roster__t" type="button" data-sa-open="Spike retry jitter">Spike retry jitter</button><span class="subagent-branch"><svg data-lucide="git-branch"></svg><span>run/spike-retry-j…77b0c9d1</span></span></span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="208">3m 28s</span></span></div>
+                    <div class="subagent-roster__row" role="button" tabindex="0" data-sa-open="Review retry config"><span class="subagent-avatar subagent-avatar--sm"><img src="assets/openai.svg" alt=""><span class="status-dot status-dot--success"></span></span><span class="subagent-roster__t">Review retry config</span><span class="subagent-roster__end"><span class="subagent-elapsed" data-elapsed="92">1m 32s</span></span></div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionInspectorSubagentsSection · SubagentRowTrail</span><span class="sa-tag"><b>VC</b>VC-07</span><span class="sa-tag"><b>a11y</b>row open control and PR link are siblings</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S5 · _dx.md SubagentPayload.worktree · US-001 · US-016 · US-018. Production read: subagents/subagent-card.tsx · subagent-row-trail.tsx · subagent-hover-content.tsx · subagent-format.ts · session-inspector-subagents-section.tsx · types.ts. Branches, PR numbers and times are fixtures; runtime truth owns values.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="../subagents/subagents.js"></script>
+<script src="agent-collaboration.js"></script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Queue · Agent collaboration · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../subagents/subagents.css">
+<link rel="stylesheet" href="agent-collaboration.css">
+<!--
+  agent-collaboration-composer · S4 queue strip row for a queued session message.
+  Contract: DESIGN-NOTES.md. Spec: _uiux.md S4 · Business Rule 17 · US-008.
+  Provenance:
+    production — session-queue-strip.tsx (sunken inset, rounded-lg, header h-8 · count · queued),
+                 session-queue-strip-row.tsx (position · ListPlus · owner · preview · verbs),
+                 queued-prompt.ts (owner mapping).
+    delta      — origin-bearing rows show the sender's provider mark + "From {title}" in the owner
+                 slot and keep only Remove; Steer (promote) and Edit are absent, not disabled.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Agent collaboration</a><span class="w2-sep">/</span><h1 class="w2-title">02 · Queue</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="agent-collaboration-transcript.html">← Transcript</a><a class="btn btn--sm" href="agent-collaboration-subagents.html">Next: Subagents →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="cp-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>A message that is waiting in the queue already says who sent it.</b> When the target session is busy, another agent's message parks in the queue strip above the composer. Its row shows the sender's provider mark and "From {title}" where other actors' rows show their owner.</p>
+        <p class="sa-contract__what">You can remove it, but you can't edit or steer it: the text is another agent's, and changing it would break who sent it and the reply it is waiting for. Removing it tells a waiting sender the message was dropped.</p>
+        <p class="sa-contract__file">agent-collaboration-composer.html · S4 · GET …/prompt/queue origin · 409 input_agent_authored</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>queued-prompt.ts</b><i>web/src/systems/session/lib/queued-prompt.ts</i>queuedPromptsFromInputs reads <code>origin</code>; a session-message row is immutable</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionQueueEntryRow</b><i>systems/session/components/session-queue-strip-row.tsx</i>owner slot → provider avatar + "From {title}"; verbs: Remove only</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>useSessionLabel</b><i>session-messages/use-session-label.ts</i>title + deleted state, shared with S1</span></li>
+          <li><span class="sa-mod sa-mod--backend">backend</span><span><b>ErrSessionInputAgentAuthored → 409</b><i>global_db_session_input_queue_mutation.go</i>replace and promote refused on HTTP, UDS, CLI and Web</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>SessionQueueStrip · Button · OwnerAvatar</b><i>unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#cp-live">Mixed queue — remove a session message</a><code>VC-05</code></li>
+          <li><a href="#cp-rows">Row states</a><code>VC-05</code></li>
+          <li><a href="#cp-refusal">Refusal on other surfaces</a><code>VC-05</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE ===== -->
+    <section class="lab-sec" id="cp-live" data-od-id="cp-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Mixed queue — yours, another session's, a goal's</h2><span class="lab-sec__gist">VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Remove row #2 with its trash icon. It leaves in one 180 ms fade, the positions renumber, and the sender's transcript on the right receives a "Dropped" reply because it asked for one. Your own row keeps Steer, Edit and Remove. The goal row has no verbs, as today.</div>
+        <div class="spec__demo">
+          <div class="ac-pair">
+            <div class="stage stage--pad" style="padding:20px 16px" data-od-id="cp-live-stage">
+              <section class="win win--inline is-focused sa-win" style="--sa-win-w:640px;width:100%" data-od-id="cp-live-window">
+                <header class="win-head">
+                  <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                  <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Billing reviewer</span></div>
+                  <span class="w2-flex" aria-hidden="true"></span>
+                </header>
+                <div class="win-body">
+                  <div class="sa-thread">
+                    <div class="sa-thread__scroll" style="padding-top:14px"><div class="sa-thread__col">
+                      <p class="ac-asst">Auditing <code>internal/billing</code> for direct client imports…</p>
+                      <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="search"></svg></span><span class="tool-call-row__tool">Searching code</span><span class="tool-call-row__preview">billing/client</span><span class="tool-call-row__end"><span data-sg="running" data-size="sm"></span></span></div>
+                    </div></div>
+                    <div class="sa-composer-wrap"><div class="sa-composer-col">
+                      <div class="session-queue-strip" style="position:relative" data-od-id="cp-live-strip">
+                        <div class="session-queue-strip__head"><span class="n">3</span>queued<span class="spacer"></span><button class="ghost-btn" type="button" data-ac-queue-reset><svg data-lucide="rotate-ccw"></svg>Reset demo</button></div>
+                        <div class="session-queue-row">
+                          <span class="session-queue-row__pos">#1</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg>
+                          <span class="session-queue-row__prev">also check the docs for the old retry key</span>
+                          <span class="session-queue-row__acts"><button class="ghost-btn" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button><button class="icon-btn" type="button" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="icon-btn" type="button" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></span>
+                        </div>
+                        <div class="session-queue-row" style="position:relative" data-owner-kind="session" data-ac-watch="cp-sender">
+                          <i class="sa-n sa-n--left" style="left:-30px">1</i>
+                          <span class="session-queue-row__pos">#2</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg>
+                          <span class="session-queue-row__owner"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span>From&nbsp;<b>Refactor billing</b></span><i class="sa-n" style="margin:0">2</i>
+                          <span class="session-queue-row__prev">Is the retry budget in billing.toml per request or per job?</span>
+                          <span class="session-queue-row__acts"><button class="icon-btn" type="button" aria-label="Remove message from Refactor billing" data-ac-remove><svg data-lucide="trash-2"></svg></button><i class="sa-n" style="margin:0 0 0 4px">3</i></span>
+                        </div>
+                        <div class="session-queue-row" data-owner-kind="goal">
+                          <span class="session-queue-row__pos">#3</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg>
+                          <span class="session-queue-row__owner"><span class="owner-avatar"><svg data-lucide="target"></svg></span>goal-ship-v2</span>
+                          <span class="session-queue-row__prev">Continue: verify the billing PR checklist</span>
+                        </div>
+                      </div>
+                      <div class="sa-composer"><div class="sa-composer__input">Queue a follow-up…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/openai.svg" alt="">gpt-5.6-sol</span><span class="w2-flex"></span><span class="sa-send sa-send--stop"><svg data-lucide="square"></svg></span></div></div>
+                    </div></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="plain plain--canvas" data-od-id="cp-live-sender">
+              <div class="ac-mini-head"><img src="assets/claude.svg" alt="">Sender transcript · <b>Refactor billing</b></div>
+              <div class="ac-cell-stack" id="cp-sender">
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, waiting for reply"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="success"><span class="status-dot status-dot--success status-dot--pulse"></span>Waiting for reply</span><time class="session-message__time">22:30</time></span></article>
+                <p class="ac-empty">The reply arrives here as the next wake turn.</p>
+              </div>
+              <template id="cp-sender-tpl">
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, dropped"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state"><span class="status-dot status-dot--faint"></span>Dropped</span><time class="session-message__time">22:30</time></span></article>
+                <article class="session-message" aria-label="Reply from Billing reviewer, dropped"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--faint"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Dropped</span><time class="session-message__time">22:33</time></div><div class="session-message__body session-message__body--quiet"><p>The message was removed from the queue before it ran.</p></div></article>
+              </template>
+            </div>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>SessionQueueEntryRow</b> <em>data-owner-kind = session.</em> Same frame, position and ListPlus glyph as every queued row.</span></li>
+            <li><i class="sa-n">2</i><span><b>Owner slot</b> <em>18px provider avatar + "From {title}".</em> Title truncates before the preview does (max 44% of the row). Deleted sender: "From a deleted session".</span></li>
+            <li><i class="sa-n">3</i><span><b>Remove only</b> <em>Steer and Edit are absent, not disabled.</em> Remove cancels the entry; a waiting sender is woken with <code>dropped</code>. aria-label names the sender.</span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionQueueStrip · SessionQueueEntryRow · queued-prompt.ts</span><span class="sa-tag"><b>VC</b>VC-05</span><span class="sa-tag"><b>accent</b>0 — the strip stays bookkeeping</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ROW STATES ===== -->
+    <section class="lab-sec" id="cp-rows" data-od-id="cp-rows">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Row states</h2><span class="lab-sec__gist">VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The owner slot is the only change.</b> Position, glyph, preview and the dispatching state behave as for any queued row. A dispatching session message shows "Sending…" and no verbs, like every other row.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="cp-row-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">queued session message <code>US-008.AC-1</code></span>
+                <div class="session-queue-strip" style="margin:0"><div class="session-queue-strip__head"><span class="n">1</span>queued</div>
+                  <div class="session-queue-row" data-owner-kind="session"><span class="session-queue-row__pos">#1</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg><span class="session-queue-row__owner"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span>From&nbsp;<b>Refactor billing</b></span><span class="session-queue-row__prev">Is the retry budget in billing.toml per request or per job?</span><span class="session-queue-row__acts"><button class="icon-btn" type="button" aria-label="Remove message from Refactor billing"><svg data-lucide="trash-2"></svg></button></span></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">sender deleted <code>no link anywhere in the strip</code></span>
+                <div class="session-queue-strip" style="margin:0"><div class="session-queue-strip__head"><span class="n">1</span>queued</div>
+                  <div class="session-queue-row" data-owner-kind="session"><span class="session-queue-row__pos">#1</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg><span class="session-queue-row__owner"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span>From&nbsp;<span class="gone">a deleted session</span></span><span class="session-queue-row__prev">Is the retry budget in billing.toml per request or per job?</span><span class="session-queue-row__acts"><button class="icon-btn" type="button" aria-label="Remove message from a deleted session"><svg data-lucide="trash-2"></svg></button></span></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">dispatching <code>Sending… · no verbs</code></span>
+                <div class="session-queue-strip" style="margin:0"><div class="session-queue-strip__head"><span class="n">1</span>queued</div>
+                  <div class="session-queue-row" data-owner-kind="session"><span class="session-queue-row__pos">#1</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg><span class="session-queue-row__owner"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"></span>From&nbsp;<b>Docs sweep</b></span><span class="session-queue-row__prev">Which config key replaced billing.retry_max?</span><span class="session-reply-state"><svg class="spin" data-lucide="loader-circle"></svg>Sending…</span></div></div></div>
+              <div class="lab-cell"><span class="lab-cell__t">long title <code>title truncates first, preview keeps a share</code></span>
+                <div class="session-queue-strip" style="margin:0"><div class="session-queue-strip__head"><span class="n">1</span>queued</div>
+                  <div class="session-queue-row" data-owner-kind="session"><span class="session-queue-row__pos">#1</span><svg class="session-queue-row__kind" data-lucide="list-plus"></svg><span class="session-queue-row__owner" title="From Billing refactor · split into two PRs and verify webhook retries"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span>From&nbsp;<b>Billing refactor · split into two PRs and verify webhook retries</b></span><span class="session-queue-row__prev">Is the retry budget per request or per job?</span><span class="session-queue-row__acts"><button class="icon-btn" type="button" aria-label="Remove message from Billing refactor"><svg data-lucide="trash-2"></svg></button></span></div></div></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionQueueEntryRow</span><span class="sa-tag"><b>VC</b>VC-05</span><span class="sa-tag"><b>rule</b>verbs the runtime would refuse are never rendered</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · REFUSAL ===== -->
+    <section class="lab-sec" id="cp-refusal" data-od-id="cp-refusal">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Refusal on other surfaces</h2><span class="lab-sec__gist">VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Web never shows the verb; other surfaces get one clear error.</b> HTTP, UDS and CLI replace or promote of an origin-bearing entry return 409 <code>input_agent_authored</code>. The message tells the operator what is still possible.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas">
+            <table class="lab-table">
+              <thead><tr><th>Surface</th><th>Edit / Steer (promote)</th><th>Remove</th></tr></thead>
+              <tbody>
+                <tr><td>Web queue strip</td><td>absent</td><td>shown · cancels · sender gets <code>dropped</code></td></tr>
+                <tr><td>HTTP / UDS</td><td>409 <code>input_agent_authored</code></td><td>allowed</td></tr>
+                <tr><td>CLI <code>session input list</code></td><td><code>FROM</code> column: "Refactor billing (sess-7f3a…)" · "you"</td><td>allowed</td></tr>
+                <tr><td>Error message</td><td colspan="2">This message was sent by another session and can't be edited. Cancel it instead.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>source</b>_spec.md Business Rule 17 · _dx.md Errors</span><span class="sa-tag"><b>VC</b>VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S4 · _spec.md Business Rule 17 · US-008 · US-012.AC-3. Production read: session-queue-strip.tsx · session-queue-strip-row.tsx · queued-prompt.ts. Titles and texts are fixtures; runtime truth owns values.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="../subagents/subagents.js"></script>
+<script src="agent-collaboration.js"></script>
+</body>
+</html>
