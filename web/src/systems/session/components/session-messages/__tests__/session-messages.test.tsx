@@ -154,6 +154,7 @@ describe("session message payload adapter", () => {
       target_workspace_id: WS,
       message_id: "msg-retry-q",
       mode: "steer",
+      delivery: "interrupt_then_prompt",
       reply_watch_id: "rw-6e2d81a0",
       state: "error",
     });
@@ -169,6 +170,23 @@ describe("session message payload adapter", () => {
       "sent",
       "failed",
     ]);
+    // The chip follows the daemon's delivery, not the requested mode (m-4).
+    const mode = (requested: string, delivery?: string) =>
+      sessionSentMessagePart("data-compozy-session-message", {
+        tool_call_id: "call-1",
+        target_session_id: target.sessionId,
+        mode: requested,
+        ...(delivery ? { delivery } : {}),
+        state: "done",
+      })?.mode;
+    expect([
+      mode("steer", "interrupt_then_prompt"),
+      mode("interrupt", "interrupt_then_prompt"),
+      mode("steer", "direct"),
+      mode("interrupt", "direct"),
+      mode("queue", "after_turn"),
+      mode("steer"),
+    ]).toEqual(["steer", "interrupt", "queue", "queue", "queue", "queue"]);
     expect(sessionSentMessagePart("data-compozy-subagent", { target_session_id: "x" })).toBeNull();
 
     const reply = (watch: string, reason: string) => ({
