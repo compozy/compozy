@@ -178,6 +178,10 @@ CREATE INDEX idx_task_blocks_open
 			ON task_blocks(task_id)
 			WHERE cleared_at IS NULL;
 
+CREATE INDEX idx_task_blocks_task_created ON task_blocks(task_id, created_at, id);
+
+CREATE INDEX idx_task_designation_rollups_task ON task_designation_rollups(task_id);
+
 CREATE INDEX idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);
 
 CREATE INDEX idx_task_dependencies_task ON task_dependencies(task_id, created_at ASC, depends_on_task_id ASC);

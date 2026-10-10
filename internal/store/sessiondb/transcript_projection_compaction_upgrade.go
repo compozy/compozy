@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -18,16 +17,20 @@ import (
 )
 
 // restoreCompactionTranscriptProjection retains the ledger's assigned keys instead of rerouting surviving entries.
-func restoreCompactionTranscriptProjection(ctx context.Context, db *sql.DB, sessionID string) (retErr error) {
-	tx, err := db.BeginTx(ctx, nil)
+func restoreCompactionTranscriptProjection(ctx context.Context, db *sql.DB, sessionID string) error {
+	keys, err := sqlcgen.New(db).ListMissingUnarchivedCompactionEntries(ctx)
 	if err != nil {
-		return fmt.Errorf("store: begin compaction projection upgrade: %w", err)
+		return fmt.Errorf("store: find restored compaction entries: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			retErr = errors.Join(retErr, fmt.Errorf("store: rollback compaction projection upgrade: %w", err))
-		}
-	}()
+	if len(keys) == 0 {
+		return nil
+	}
+	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+		return restoreCompactionTranscriptProjectionTx(ctx, tx, sessionID)
+	})
+}
+
+func restoreCompactionTranscriptProjectionTx(ctx context.Context, tx *store.WriteTx, sessionID string) error {
 	queries := sqlcgen.New(tx)
 	keys, err := queries.ListMissingUnarchivedCompactionEntries(ctx)
 	if err != nil {
@@ -56,15 +59,12 @@ func restoreCompactionTranscriptProjection(ctx context.Context, db *sql.DB, sess
 	if err := queries.AdvanceTranscriptProjectionGeneration(ctx); err != nil {
 		return fmt.Errorf("store: advance restored compaction generation: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit compaction projection upgrade: %w", err)
-	}
 	return nil
 }
 
 func restoreCompactionTranscriptEntry(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx *store.WriteTx,
 	sessionID, key string,
 	restoredKeys []string,
 	rebuilt restoredEntryIdentity,
@@ -119,7 +119,7 @@ type restoredEntryIdentity struct {
 // The replay never depends on the target entry, so one pass serves every key.
 func rebuildCompactionEntryIdentities(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx *store.WriteTx,
 	sessionID string,
 	keys []string,
 ) (map[string]restoredEntryIdentity, error) {

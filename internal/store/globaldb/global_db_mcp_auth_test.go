@@ -25,6 +25,67 @@ const testMCPDefinitionFingerprint = "sha256:0123456789abcdef0123456789abcdef012
 // Owner: globaldb Vault persistence. Canonical suite: global_db_mcp_auth_test.go.
 func TestMCPAuthOwnerIsolation(t *testing.T) {
 	t.Parallel()
+	// Invariant: sticky names need no writer; new allocations wait and leave no state on cancellation.
+	// Owner: extension MCP persistence; canonical suite: TestMCPAuthOwnerIsolation.
+	t.Run(
+		"Should retain sticky MCP names and cancel new allocations while another writer holds the database",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			sticky := extensionmcp.Target{Extension: "github", ProfileID: store.DefaultProfileID, ServerName: "github"}
+			if _, err := db.ExtensionMCP.Reserve(ctx, sticky, "", nil); err != nil {
+				t.Fatal(err)
+			}
+			db.DB().SetMaxOpenConns(2)
+			writer, err := db.DB().Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			locked := false
+			t.Cleanup(func() {
+				if locked {
+					if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+						t.Error(err)
+					}
+				}
+				if err := writer.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := db.DB().ExecContext(ctx, "PRAGMA busy_timeout = 1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatal(err)
+			}
+			locked = true
+			waitCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			retained, err := db.ExtensionMCP.Reserve(waitCtx, sticky, "", nil)
+			if err != nil || retained.RuntimeName != sticky.ServerName {
+				t.Fatalf("sticky allocation needed another writer: %#v, %v", retained, err)
+			}
+			target := extensionmcp.Target{Extension: "linear", ProfileID: store.DefaultProfileID, ServerName: "linear"}
+			allocated, err := db.ExtensionMCP.Reserve(waitCtx, target, "", nil)
+			if !errors.Is(err, context.DeadlineExceeded) || allocated.RuntimeName != "" ||
+				!allocated.UpdatedAt.IsZero() {
+				t.Fatalf("contended allocation = %#v, %v; want empty record and deadline exceeded", allocated, err)
+			}
+			if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+				t.Fatal(err)
+			}
+			locked = false
+			records, err := db.ExtensionMCP.ListAll(ctx)
+			if err != nil || len(records) != 1 || records[0].Target != sticky {
+				t.Fatalf("canceled allocation persisted = %#v, %v", records, err)
+			}
+			allocated, err = db.ExtensionMCP.Reserve(ctx, target, "", nil)
+			if err != nil || allocated.RuntimeName != target.ServerName {
+				t.Fatalf("allocation after writer release = %#v, %v", allocated, err)
+			}
+		},
+	)
 	// Invariant: scoped allocations are sticky and override edits cannot rename another definition.
 	// Owner: extension MCP persistence; canonical suite: global_db_mcp_auth_test.go, IT-021.
 	t.Run("Should persist collision-free names and isolated overrides across reopen", func(t *testing.T) {

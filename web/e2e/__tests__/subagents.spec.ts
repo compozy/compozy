@@ -260,6 +260,9 @@ test("E2E-006: a provider-native subagent is a card whose inner work stays insid
   await expect(scene.window.getByText("Inspecting the diff.")).toHaveCount(1);
 
   await expect(scene.window.getByText("The reviewer found no issues.")).toBeVisible();
-  await openFolds(scene);
+  // Final text can precede turn settlement; wait for the settled fold before opening it.
+  const fold = scene.window.getByTestId("turn-fold-row");
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await fold.click();
   await expect(native).toHaveAttribute("data-status", "completed");
 });

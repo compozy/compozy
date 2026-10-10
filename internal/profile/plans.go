@@ -106,6 +106,22 @@ func (m *Manager) renamePlan(
 }
 
 func profileRepoFolderCandidates(ctx context.Context, q queryer, profileName string) ([]RepoFolderRef, error) {
+	folders, err := profileRepoFolderPaths(ctx, q, profileName)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]RepoFolderRef, 0, len(folders))
+	for _, folder := range folders {
+		if _, err := os.Stat(folder.Path); err == nil {
+			candidates = append(candidates, folder)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("profile: inspect repository profile folder %q: %w", folder.Path, err)
+		}
+	}
+	return candidates, nil
+}
+
+func profileRepoFolderPaths(ctx context.Context, q queryer, profileName string) ([]RepoFolderRef, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id, name, root_dir FROM workspaces ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("profile: list repository candidates: %w", err)
@@ -116,16 +132,11 @@ func profileRepoFolderCandidates(ctx context.Context, q queryer, profileName str
 		if err := rows.Scan(&workspaceID, &workspaceName, &rootDir); err != nil {
 			return nil, errors.Join(fmt.Errorf("profile: scan repository candidate: %w", err), rows.Close())
 		}
-		path := filepath.Join(rootDir, ".compozy", "profiles", profileName)
-		if _, err := os.Stat(path); err == nil {
-			candidates = append(candidates, RepoFolderRef{
-				WorkspaceID: workspaceID, WorkspaceName: workspaceName, Path: path,
-			})
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, errors.Join(
-				fmt.Errorf("profile: inspect repository profile folder %q: %w", path, err), rows.Close(),
-			)
-		}
+		candidates = append(candidates, RepoFolderRef{
+			WorkspaceID:   workspaceID,
+			WorkspaceName: workspaceName,
+			Path:          filepath.Join(rootDir, ".compozy", "profiles", profileName),
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, errors.Join(fmt.Errorf("profile: iterate repository candidates: %w", err), rows.Close())

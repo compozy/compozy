@@ -29,45 +29,42 @@ func (g *ObserveRepo) SweepObservability(
 	result = store.ObservabilityRetentionSweepResult{CutoffAt: cutoff.UTC()}
 	cutoffValue := store.FormatTimestamp(result.CutoffAt)
 
-	tx, err := g.db.BeginTx(ctx, nil)
+	expired, err := g.queries.HasExpiredObservability(ctx, sqlcgen.HasExpiredObservabilityParams{
+		Cutoff: cutoffValue, CutoffDay: store.LocalDay(result.CutoffAt),
+	})
 	if err != nil {
-		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf(
-			"store: begin observability retention sweep: %w",
-			err,
-		)
+		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf("store: check expired observability rows: %w", err)
 	}
-	defer func() {
-		joinCleanupError(&err, rollbackTx(tx, "observability retention sweep"))
-	}()
-
-	queries := sqlcgen.New(tx)
-	if result.DeletedEventSummaries, err = queries.DeleteEventSummariesBefore(ctx, cutoffValue); err != nil {
-		err = fmt.Errorf("store: delete old event_summaries rows: %w", err)
+	if expired == 0 {
+		return result, nil
+	}
+	err = g.withImmediateTransaction(ctx, "sweep observability", func(tx globalSQLExecutor) error {
+		queries := sqlcgen.New(tx)
+		if result.DeletedEventSummaries, err = queries.DeleteEventSummariesBefore(ctx, cutoffValue); err != nil {
+			err = fmt.Errorf("store: delete old event_summaries rows: %w", err)
+			return err
+		}
+		if result.DeletedTokenStats, err = queries.DeleteTokenStatsBefore(ctx, cutoffValue); err != nil {
+			err = fmt.Errorf("store: delete old token_stats rows: %w", err)
+			return err
+		}
+		// token_usage_daily is keyed by daemon-local day buckets, so the cutoff is
+		// compared in LocalDay form (not the RFC3339 timestamp the other tables use).
+		if result.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
+			ctx,
+			store.LocalDay(result.CutoffAt),
+		); err != nil {
+			err = fmt.Errorf("store: delete old token_usage_daily rows: %w", err)
+			return err
+		}
+		if result.DeletedPermissionLogs, err = queries.DeletePermissionLogsBefore(ctx, cutoffValue); err != nil {
+			err = fmt.Errorf("store: delete old permission_log rows: %w", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return store.ObservabilityRetentionSweepResult{}, err
-	}
-	if result.DeletedTokenStats, err = queries.DeleteTokenStatsBefore(ctx, cutoffValue); err != nil {
-		err = fmt.Errorf("store: delete old token_stats rows: %w", err)
-		return store.ObservabilityRetentionSweepResult{}, err
-	}
-	// token_usage_daily is keyed by daemon-local day buckets, so the cutoff is
-	// compared in LocalDay form (not the RFC3339 timestamp the other tables use).
-	if result.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
-		ctx,
-		store.LocalDay(result.CutoffAt),
-	); err != nil {
-		err = fmt.Errorf("store: delete old token_usage_daily rows: %w", err)
-		return store.ObservabilityRetentionSweepResult{}, err
-	}
-	if result.DeletedPermissionLogs, err = queries.DeletePermissionLogsBefore(ctx, cutoffValue); err != nil {
-		err = fmt.Errorf("store: delete old permission_log rows: %w", err)
-		return store.ObservabilityRetentionSweepResult{}, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf(
-			"store: commit observability retention sweep: %w",
-			err,
-		)
 	}
 	return result, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -19,17 +18,20 @@ const whitespaceProjectionVersion = 1
 const whitespaceUpgradeBatchSize = 512
 
 // upgradeTranscriptWhitespaceProjection replays entries whose text whitespace changed in version 1.
-func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sessionID string) (retErr error) {
-	tx, err := db.BeginTx(ctx, nil)
+func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sessionID string) error {
+	row, err := sqlcgen.New(db).GetTranscriptProjectionState(ctx)
 	if err != nil {
-		return fmt.Errorf("store: begin transcript whitespace upgrade: %w", err)
+		return fmt.Errorf("store: read transcript projection version: %w", err)
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			retErr = errors.Join(retErr, fmt.Errorf("store: rollback transcript whitespace upgrade: %w", rollbackErr))
-		}
-	}()
+	if row.ProjectionVersion == transcript.ProjectionVersion {
+		return nil
+	}
+	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+		return upgradeTranscriptWhitespaceProjectionTx(ctx, tx, sessionID)
+	})
+}
 
+func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.WriteTx, sessionID string) error {
 	queries := sqlcgen.New(tx)
 	row, err := queries.GetTranscriptProjectionState(ctx)
 	if err != nil {
@@ -77,9 +79,6 @@ func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sess
 		ActiveEntryKey:    row.ActiveEntryKey,
 	}); err != nil {
 		return fmt.Errorf("store: finish transcript whitespace upgrade: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit transcript whitespace upgrade: %w", err)
 	}
 	return nil
 }

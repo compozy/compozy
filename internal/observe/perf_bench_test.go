@@ -1,16 +1,96 @@
 package observe
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+func BenchmarkTaskSnapshotSQLite(b *testing.B) {
+	path := filepath.Join(b.TempDir(), "global.db")
+	if err := observeTestGlobalSeed.Clone(path); err != nil {
+		b.Fatal(err)
+	}
+	registry, err := globaldb.OpenGlobalDB(b.Context(), path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := registry.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	tasks := make([]taskpkg.Summary, 64)
+	for index := range tasks {
+		id := fmt.Sprintf("task-%04d", index)
+		if err := registry.CreateTask(b.Context(), taskpkg.Task{
+			ID: id, ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal,
+			Title: id, Status: taskpkg.TaskStatusReady,
+			CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "benchmark"},
+			CreatedAt: benchmarkObserveNow, UpdatedAt: benchmarkObserveNow,
+		}); err != nil {
+			b.Fatal(err)
+		}
+		tasks[index] = taskpkg.Summary{ID: id}
+		if index > 0 {
+			if err := registry.CreateDependency(b.Context(), taskpkg.Dependency{
+				TaskID: id, DependsOnTaskID: tasks[index-1].ID,
+				Kind: taskpkg.DependencyKindBlocks, CreatedAt: benchmarkObserveNow,
+			}); err != nil {
+				b.Fatal(err)
+			}
+		}
+		for eventIndex := range 16 {
+			if err := registry.CreateTaskEvent(b.Context(), taskpkg.Event{
+				ID: fmt.Sprintf("event-%04d-%02d", index, eventIndex), TaskID: id,
+				EventType: "task.updated",
+				Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "benchmark"},
+				Payload:   json.RawMessage(`{}`), Timestamp: benchmarkObserveNow,
+			}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	observer := &Observer{registry: registry, now: func() time.Time { return benchmarkObserveNow }}
+	b.Run("DependencyCounts", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			counts, err := observer.loadTaskDependencyCounts(b.Context(), tasks)
+			if err != nil || len(counts) != len(tasks)-1 || counts[tasks[1].ID] != 1 {
+				b.Fatalf("dependency counts = %v, error = %v", counts, err)
+			}
+		}
+	})
+	b.Run("Summary", func(b *testing.B) {
+		b.ReportAllocs()
+		var summary Summary
+		for b.Loop() {
+			summary, err = observer.QueryTaskSummary(b.Context(), TaskSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+			})
+			if err != nil || summary.TotalTasks != len(tasks) {
+				b.Fatalf("summary = %#v, error = %v", summary, err)
+			}
+		}
+		encoded, err := json.Marshal(summary)
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Logf("summary SHA-256: %x", sha256.Sum256(encoded))
+	})
+}
 
 var (
 	benchmarkObserveNow = time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)

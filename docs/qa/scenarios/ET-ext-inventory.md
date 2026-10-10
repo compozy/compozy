@@ -18,3 +18,9 @@ overlaps: ET-web-extension-kit-inventory; ET-web-extensions-manage
 
 QA impact 2026-08-02: new read-only agent surface. Compare CLI, HTTP, UDS, and native payloads before
 and after enable and prove the global published instance never absorbs a workspace dev overlay.
+
+SQLite audit 2026-10-09: Contend extension port allocation and environment-input replacement with a held SQLite writer. A canceled request must leave no partial allocation/replacement; successful retry must preserve stable allocation identity, monotonic generation, and the complete environment snapshot. Existing MCP auth and extension environment suites own these backend checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

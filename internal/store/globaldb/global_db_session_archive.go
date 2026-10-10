@@ -20,11 +20,28 @@ func (g *SessionRepo) SessionArchivedAt(
 	workspaceID string,
 	sessionID string,
 ) (*time.Time, error) {
-	info, err := g.sessionForArchive(ctx, workspaceID, sessionID)
-	if err != nil {
+	if err := g.checkReady(ctx, "read session archive state"); err != nil {
 		return nil, err
 	}
-	return cloneArchiveTime(info.ArchivedAt), nil
+	workspaceID = strings.TrimSpace(workspaceID)
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, errors.New("store: session archive session id is required")
+	}
+	archivedAt, err := g.queries.GetSessionArchivedAt(ctx, sqlcgen.GetSessionArchivedAtParams{
+		WorkspaceID: workspaceID, ID: sessionID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: read session archive state %q: %w", sessionID, err)
+	}
+	value, err := parseOptionalSessionInputTimestamp(archivedAt)
+	if err != nil {
+		return nil, fmt.Errorf("store: parse session archive state %q: %w", sessionID, err)
+	}
+	return value, nil
 }
 
 // SetSessionArchived archives or restores one workspace-owned session.
@@ -110,41 +127,6 @@ func mapSessionArchivedConstraint(sessionID string, err error) error {
 		return fmt.Errorf("%w: %s", store.ErrSessionArchived, strings.TrimSpace(sessionID))
 	}
 	return err
-}
-
-func (g *SessionRepo) sessionForArchive(
-	ctx context.Context,
-	workspaceID string,
-	sessionID string,
-) (store.SessionInfo, error) {
-	if err := g.checkReady(ctx, "read session archive state"); err != nil {
-		return store.SessionInfo{}, err
-	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return store.SessionInfo{}, errors.New("store: session archive session id is required")
-	}
-	info, err := scanSessionInfo(g.db.QueryRowContext(
-		ctx,
-		sessionInfoSelectQuery+" WHERE workspace_id = ? AND id = ?",
-		workspaceID,
-		sessionID,
-	))
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
-		}
-		return store.SessionInfo{}, fmt.Errorf("store: read session archive state %q: %w", sessionID, err)
-	}
-	return info, nil
-}
-
-func cloneArchiveTime(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
-	}
-	return new(value.UTC())
 }
 
 var _ store.SessionArchiveStore = (*SessionRepo)(nil)

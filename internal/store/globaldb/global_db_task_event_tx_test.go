@@ -30,6 +30,99 @@ type recordingTaskEventCommitObserver struct {
 	err     error
 }
 
+// Invariant: task-event list and replay reads preserve every supplied filter and
+// stable ordering across task-scoped and global branches. The GlobalDB task-event
+// transaction suite is the canonical owner.
+func TestGlobalDBTaskEventReadsShouldPreserveFilterAndSequenceSemantics(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	for _, taskID := range []string{"task-event-filter-a", "task-event-filter-b"} {
+		if err := globalDB.CreateTask(ctx, taskRecordForTest(taskID)); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", taskID, err)
+		}
+	}
+	for _, run := range []taskpkg.Run{
+		taskRunForTest("run-event-filter-a", "task-event-filter-a"),
+		taskRunForTest("run-event-filter-b", "task-event-filter-b"),
+	} {
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+		}
+	}
+	actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "daemon:test"}
+	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"}
+	base := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	for _, event := range []taskpkg.Event{
+		{ID: "event-filter-a1", TaskID: "task-event-filter-a", RunID: "run-event-filter-a", EventType: "task.created", Actor: actor, Origin: origin, Timestamp: base},
+		{ID: "event-filter-a2", TaskID: "task-event-filter-a", RunID: "run-event-filter-a", EventType: "task.updated", Actor: actor, Origin: origin, Timestamp: base.Add(time.Second)},
+		{ID: "event-filter-b1", TaskID: "task-event-filter-b", RunID: "run-event-filter-b", EventType: "task.updated", Actor: actor, Origin: origin, Timestamp: base.Add(2 * time.Second)},
+		{ID: "event-filter-a3", TaskID: "task-event-filter-a", RunID: "run-event-filter-a", EventType: "task.created", Actor: actor, Origin: origin, Timestamp: base.Add(3 * time.Second)},
+	} {
+		if err := globalDB.CreateTaskEvent(ctx, event); err != nil {
+			t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+		}
+	}
+
+	for _, test := range []struct {
+		name  string
+		query taskpkg.EventQuery
+		want  []string
+	}{
+		{name: "Should list events by task", query: taskpkg.EventQuery{TaskID: "task-event-filter-a"}, want: []string{"event-filter-a3", "event-filter-a2", "event-filter-a1"}},
+		{name: "Should list events by run", query: taskpkg.EventQuery{RunID: "run-event-filter-b"}, want: []string{"event-filter-b1"}},
+		{name: "Should list events by event type", query: taskpkg.EventQuery{EventType: "task.created"}, want: []string{"event-filter-a3", "event-filter-a1"}},
+		{name: "Should list events by combined filters", query: taskpkg.EventQuery{TaskID: "task-event-filter-a", RunID: "run-event-filter-a", EventType: "task.updated"}, want: []string{"event-filter-a2"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			events, err := globalDB.ListTaskEvents(t.Context(), test.query)
+			if err != nil {
+				t.Fatalf("ListTaskEvents() error = %v", err)
+			}
+			got := make([]string, 0, len(events))
+			for _, event := range events {
+				got = append(got, event.ID)
+			}
+			if !testutil.EqualStringSlices(got, test.want) {
+				t.Fatalf("event ids = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+
+	first, err := globalDB.GetTaskEventRecord(ctx, "event-filter-a1")
+	if err != nil {
+		t.Fatalf("GetTaskEventRecord(first) error = %v", err)
+	}
+	for _, test := range []struct {
+		name  string
+		query taskpkg.EventRecordQuery
+		want  []string
+	}{
+		{name: "Should list task records after a sequence ascending", query: taskpkg.EventRecordQuery{TaskID: "task-event-filter-a", AfterSequence: first.Sequence}, want: []string{"event-filter-a2", "event-filter-a3"}},
+		{name: "Should list task records descending", query: taskpkg.EventRecordQuery{TaskID: "task-event-filter-a", Descending: true}, want: []string{"event-filter-a3", "event-filter-a2", "event-filter-a1"}},
+		{name: "Should list all task records after a sequence ascending", query: taskpkg.EventRecordQuery{AfterSequence: first.Sequence, AllTasks: true}, want: []string{"event-filter-a2", "event-filter-b1", "event-filter-a3"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			records, err := globalDB.ListTaskEventRecords(t.Context(), test.query)
+			if err != nil {
+				t.Fatalf("ListTaskEventRecords() error = %v", err)
+			}
+			got := make([]string, 0, len(records))
+			for _, record := range records {
+				got = append(got, record.Event.ID)
+			}
+			if !testutil.EqualStringSlices(got, test.want) {
+				t.Fatalf("event ids = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
 // Invariant: coordinator completion commits canonical task events and the matching final task/run
 // state atomically. The GlobalDB task-event transaction suite is the canonical owner.
 func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *testing.T) {

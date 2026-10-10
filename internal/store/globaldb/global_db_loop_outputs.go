@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -66,7 +65,7 @@ func (g *LoopRepo) RecordAppliedRuntime(
 	nodeID looppkg.NodeID,
 	itemIndex int,
 	resolved looppkg.ResolvedRuntime,
-) (returnErr error) {
+) error {
 	if err := g.checkReady(ctx, "record loop applied runtime"); err != nil {
 		return err
 	}
@@ -78,49 +77,43 @@ func (g *LoopRepo) RecordAppliedRuntime(
 	if err != nil {
 		return fmt.Errorf("store: marshal applied runtime: %w", err)
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin applied runtime transaction: %w", err)
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			returnErr = errors.Join(returnErr, fmt.Errorf("store: rollback applied runtime: %w", rollbackErr))
-		}
-	}()
-	queries := sqlcgen.New(tx)
-	rows, err := queries.RecordLoopGenerationOutputRuntime(
+	return store.ExecuteWriteOperation(
 		ctx,
-		sqlcgen.RecordLoopGenerationOutputRuntimeParams{
-			ResolvedRuntimeJson: sql.NullString{String: string(payload), Valid: true},
-			LoopRunID:           string(loopRunID),
-			TargetGeneration:    int64(generation),
-			TargetNodeID:        string(nodeID),
-			TargetItemIndex:     int64(itemIndex),
-			WorkspaceID:         string(workspaceID),
+		g.db,
+		"record loop applied runtime",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			queries := sqlcgen.New(tx)
+			rows, err := queries.RecordLoopGenerationOutputRuntime(
+				ctx,
+				sqlcgen.RecordLoopGenerationOutputRuntimeParams{
+					ResolvedRuntimeJson: sql.NullString{String: string(payload), Valid: true},
+					LoopRunID:           string(loopRunID),
+					TargetGeneration:    int64(generation),
+					TargetNodeID:        string(nodeID),
+					TargetItemIndex:     int64(itemIndex),
+					WorkspaceID:         string(workspaceID),
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("store: record applied runtime: %w", err)
+			}
+			if rows != 1 {
+				return fmt.Errorf("%w: generation output not found in workspace", looppkg.ErrValidation)
+			}
+			if err := appendLoopRunEventWithExecutor(
+				ctx,
+				tx,
+				loopRunID,
+				workspaceID,
+				loopRunEventRuntimeApplied,
+				appliedRuntimeEventPayload(generation, nodeID, itemIndex, resolved),
+				time.Now().UTC(),
+			); err != nil {
+				return fmt.Errorf("store: append applied runtime event: %w", err)
+			}
+			return nil
 		},
 	)
-	if err != nil {
-		return fmt.Errorf("store: record applied runtime: %w", err)
-	}
-	if rows != 1 {
-		return fmt.Errorf("%w: generation output not found in workspace", looppkg.ErrValidation)
-	}
-	if err := appendLoopRunEventWithExecutor(
-		ctx,
-		tx,
-		loopRunID,
-		workspaceID,
-		loopRunEventRuntimeApplied,
-		appliedRuntimeEventPayload(generation, nodeID, itemIndex, resolved),
-		time.Now().UTC(),
-	); err != nil {
-		return fmt.Errorf("store: append applied runtime event: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit applied runtime transaction: %w", err)
-	}
-	return nil
 }
 
 func appliedRuntimeEventPayload(

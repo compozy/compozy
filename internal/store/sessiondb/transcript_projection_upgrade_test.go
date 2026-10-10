@@ -1,6 +1,7 @@
 package sessiondb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -146,6 +147,56 @@ func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should wait for an active writer before upgrading and preserve state on cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-upgrade-contention")
+		if err := db.Record(ctx, SessionEvent{
+			TurnID: "turn", Type: acp.EventTypeAgentMessage, AgentName: "coder", Content: " padded ",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE transcript_projection_state SET projection_version=1`); err != nil {
+			t.Fatal(err)
+		}
+		holder, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := holder.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := holder.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		blocked, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		upgradeErr := upgradeTranscriptWhitespaceProjection(blocked, db.db, db.SessionID())
+		if _, err := holder.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(upgradeErr, context.DeadlineExceeded) {
+			t.Fatalf("blocked upgrade error = %v, want deadline exceeded while waiting for writer", upgradeErr)
+		}
+		var version int
+		if err := db.db.QueryRowContext(ctx, `SELECT projection_version FROM transcript_projection_state`).
+			Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if version != whitespaceProjectionVersion {
+			t.Fatalf("canceled upgrade changed version to %d", version)
+		}
+		if err := upgradeTranscriptWhitespaceProjection(ctx, db.db, db.SessionID()); err != nil {
+			t.Fatal(err)
+		}
+		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil || len(page.Entries) != 1 || transcript.UIMessageText(page.Entries[0].Message) != " padded " {
+			t.Fatalf("retried upgrade page = %#v, %v", page, err)
+		}
+	})
+
 	t.Run("Should repair padding around raw text chunks", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

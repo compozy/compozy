@@ -213,23 +213,14 @@ func queryTranscriptChanges(
 	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query retained transcript boundary: %w", err)
 	}
-	// One event can update its assigned entry and close at most one active
-	// assistant. Rank paging keeps that bounded two-entry change atomic.
-	// dynamic-sql: sqlc's SQLite analyzer cannot resolve the DENSE_RANK alias through the derived-table boundary.
-	rows, err := tx.QueryContext(ctx, `
-		SELECT message_json, start_sequence, updated_sequence, event_type, marker_json, change_rank
-		FROM (
-			SELECT message_json, start_sequence, updated_sequence, event_type, marker_json,
-				DENSE_RANK() OVER (ORDER BY updated_sequence ASC) AS change_rank
-			FROM transcript_entries
-			WHERE message_json IS NOT NULL AND updated_sequence > ?
-		)
-		WHERE change_rank <= ?
-		ORDER BY updated_sequence ASC, start_sequence ASC`, query.AfterSequence, query.Limit+1)
+	rows, err := sqlcgen.New(tx).ListTranscriptChanges(ctx, sqlcgen.ListTranscriptChangesParams{
+		AfterSequence: query.AfterSequence,
+		SequenceLimit: int64(query.Limit + 1),
+	})
 	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query transcript changes: %w", err)
 	}
-	entries, hasMore, err := scanMaterializedChangeEntries(rows, query.Limit)
+	entries, hasMore, err := materializedChangeEntries(rows, query.Limit)
 	if err != nil {
 		return transcript.ChangePage{}, err
 	}
@@ -246,52 +237,32 @@ func queryTranscriptChanges(
 	return page, nil
 }
 
-func scanMaterializedChangeEntries(
-	rows *sql.Rows,
+func materializedChangeEntries(
+	rows []sqlcgen.ListTranscriptChangesRow,
 	limit int,
-) (entries []transcript.Entry, hasMore bool, err error) {
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close materialized transcript changes: %w", closeErr))
+) ([]transcript.Entry, bool, error) {
+	entries := make([]transcript.Entry, 0, len(rows))
+	var previousSequence int64
+	groups := 0
+	hasMore := false
+	for index, row := range rows {
+		if index == 0 || row.UpdatedSequence != previousSequence {
+			groups++
+			previousSequence = row.UpdatedSequence
 		}
-	}()
-	entries = make([]transcript.Entry, 0, limit)
-	for rows.Next() {
-		entry, rank, scanErr := scanMaterializedChangeEntry(rows)
-		if scanErr != nil {
-			return nil, false, scanErr
+		entry, err := materializedTranscriptEntry(
+			row.MessageJson, row.StartSequence, row.UpdatedSequence, row.EventType, row.MarkerJson,
+		)
+		if err != nil {
+			return nil, false, err
 		}
-		if rank > limit {
+		if groups > limit {
 			hasMore = true
 			continue
 		}
 		entries = append(entries, entry)
 	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, false, fmt.Errorf("store: iterate materialized transcript changes: %w", rowsErr)
-	}
 	return entries, hasMore, nil
-}
-
-func scanMaterializedChangeEntry(scanner rowScanner) (transcript.Entry, int, error) {
-	var entry transcript.Entry
-	var messageJSON string
-	var markerJSON sql.NullString
-	var rank int
-	if err := scanner.Scan(
-		&messageJSON,
-		&entry.StartSequence,
-		&entry.Sequence,
-		&entry.EventType,
-		&markerJSON,
-		&rank,
-	); err != nil {
-		return transcript.Entry{}, 0, fmt.Errorf("store: scan materialized transcript change: %w", err)
-	}
-	if err := decodeMaterializedEntry(&entry, messageJSON, markerJSON); err != nil {
-		return transcript.Entry{}, 0, err
-	}
-	return entry, rank, nil
 }
 
 func decodeMaterializedEntry(entry *transcript.Entry, messageJSON string, markerJSON sql.NullString) error {

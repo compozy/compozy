@@ -107,7 +107,8 @@ func (d *DB) Close(ctx context.Context) error {
 		return nil
 	}
 
-	checkpointErr := store.Checkpoint(ctx, d.db)
+	// Reader-pinned WAL frames must not block lifecycle close.
+	checkpointErr := store.CheckpointPassive(ctx, d.db)
 	closeErr := d.db.Close()
 	return errors.Join(checkpointErr, closeErr)
 }

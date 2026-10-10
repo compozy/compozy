@@ -279,7 +279,7 @@ func (s *subagentService) successor(ctx context.Context, parent string) error {
 	if retrying {
 		return nil
 	}
-	pending, err := s.store.ListPending(ctx)
+	pending, err := s.store.ListPending(ctx, parent)
 	if err != nil {
 		return err
 	}

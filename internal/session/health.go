@@ -67,7 +67,7 @@ func (m *Manager) GetSessionHealth(ctx context.Context, id string) (heartbeat.Se
 		return heartbeat.SessionHealth{}, err
 	}
 	health := m.sessionHealthFromInfo(sessionInfoFromMeta(&meta), existing, m.now(), sessionHealthInput{})
-	return m.storeSessionHealth(ctx, health)
+	return m.storeSessionHealth(ctx, existing, health)
 }
 
 // ListSessionHealth refreshes active rows, marks stale rows, and returns persisted health.
@@ -135,7 +135,7 @@ func (m *Manager) RecoverSessionHealth(ctx context.Context) (HealthRecoveryResul
 			if errors.Is(readErr, ErrSessionNotFound) {
 				next := staleRecoveredSessionHealth(row, now)
 				if !sessionHealthEqual(row, next) {
-					if _, storeErr := m.storeSessionHealth(ctx, next); storeErr != nil {
+					if _, storeErr := m.storeSessionHealth(ctx, row, next); storeErr != nil {
 						return HealthRecoveryResult{}, storeErr
 					}
 					result.Recomputed++
@@ -152,7 +152,7 @@ func (m *Manager) RecoverSessionHealth(ctx context.Context) (HealthRecoveryResul
 		if sessionHealthEqual(row, next) {
 			continue
 		}
-		if _, storeErr := m.storeSessionHealth(ctx, next); storeErr != nil {
+		if _, storeErr := m.storeSessionHealth(ctx, row, next); storeErr != nil {
 			return HealthRecoveryResult{}, storeErr
 		}
 		result.Recomputed++
@@ -238,5 +238,5 @@ func (m *Manager) persistSessionHealthForSession(
 		return heartbeat.SessionHealth{}, err
 	}
 	health := m.sessionHealthFromInfo(session.Info(), existing, at, input)
-	return m.storeSessionHealth(ctx, health)
+	return m.storeSessionHealth(ctx, existing, health)
 }

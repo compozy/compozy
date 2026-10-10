@@ -23,3 +23,9 @@ must not reveal or mutate the target session.
 QA completion 2026-08-05: Cora and Ada completed the archive round trip through Web, CLI, HTTP,
 UDS, native tools, and a live extension. The marker survived daemon restart, archived history stayed
 readable, write guards held, and a second workspace received only not-found responses.
+
+SQLite audit 2026-10-09: Archive and reopen a session whose event ledger contains a large archived prefix and retained active tail. Preserve transcript identities, content, cursor groups, archive-cut crossing refusals, and generation across upgrade and repeated reopen. A current projection no-op open must remain readable while another connection holds the writer. Existing sessiondb archive/projection/migration suites own these checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
@@ -59,7 +58,7 @@ func (g *AutomationRepo) SetScheduledDeferral(
 
 func resumeDeferredScheduledRun(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx sqlcgen.DBTX,
 	state automation.SchedulerState,
 	claim automation.SchedulerClaim,
 ) (automation.SchedulerClaimResult, error) {
@@ -77,9 +76,6 @@ func resumeDeferredScheduledRun(
 		if err := upsertSchedulerStateTx(ctx, tx, state); err != nil {
 			return automation.SchedulerClaimResult{}, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.SchedulerClaimResult{}, err
 	}
 	return automation.SchedulerClaimResult{State: state, Run: run, Skipped: run.Status != automation.RunScheduled}, nil
 }

@@ -30,23 +30,19 @@ func (g *ObserveRepo) RecordTokenUsage(
 		return err
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin record token usage: %w", err)
-	}
-	defer func() {
-		joinCleanupError(&err, rollbackTx(tx, "record token usage"))
-	}()
-
-	queries := sqlcgen.New(tx)
-	if statsErr := queries.UpsertTokenStats(ctx, statsParams); statsErr != nil {
-		return fmt.Errorf("store: upsert token stats for session %q: %w", stats.SessionID, statsErr)
-	}
-	if dailyErr := queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(daily)); dailyErr != nil {
-		return fmt.Errorf("store: upsert token usage daily for day %q: %w", daily.Day, dailyErr)
-	}
-	if commitErr := tx.Commit(); commitErr != nil {
-		return fmt.Errorf("store: commit record token usage: %w", commitErr)
-	}
-	return nil
+	return store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"record token usage",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			queries := sqlcgen.New(tx)
+			if statsErr := queries.UpsertTokenStats(ctx, statsParams); statsErr != nil {
+				return fmt.Errorf("store: upsert token stats for session %q: %w", stats.SessionID, statsErr)
+			}
+			if dailyErr := queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(daily)); dailyErr != nil {
+				return fmt.Errorf("store: upsert token usage daily for day %q: %w", daily.Day, dailyErr)
+			}
+			return nil
+		},
+	)
 }
