@@ -45,9 +45,11 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	turnID := strings.TrimSpace(event.TurnID)
 	messageID := event.MessageIDValue()
 	goal := event.GoalPromptMeta()
+	origin := event.PromptOrigin()
 	invocations := inputUISkillInvocations(event.SkillInvocations())
 	attachments := event.Attachments()
-	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 && len(attachments) == 0 {
+	if turnID == "" && messageID == "" && goal == nil && origin == nil && len(invocations) == 0 &&
+		len(attachments) == 0 {
 		return nil
 	}
 	timestamp := ""
@@ -58,11 +60,12 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		TurnID           string                   `json:"turn_id,omitempty"`
 		Timestamp        string                   `json:"timestamp,omitempty"`
 		MessageID        string                   `json:"message_id,omitempty"`
+		Origin           *acp.PromptOriginMeta    `json:"origin,omitempty"`
 		Goal             *acp.GoalPromptMeta      `json:"goal,omitempty"`
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
 		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
 	}{
-		TurnID: turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal,
+		TurnID: turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal, Origin: origin,
 		SkillInvocations: invocations, Attachments: attachments,
 	})
 	if err != nil {

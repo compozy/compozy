@@ -2,12 +2,14 @@ package globaldb
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2616,6 +2618,209 @@ func TestGlobalDBSubagentMigration(t *testing.T) {
 			},
 		); err == nil {
 			t.Fatal("missing scoped parent foreign key")
+		}
+	})
+}
+
+func TestGlobalDBSessionOriginMutation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refuse editing and promotion but allow cancellation of agent input", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		origin := json.RawMessage(`{"kind":"session","session_id":"sender","workspace_id":"ws","hop":1}`)
+		now := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+		entry, _, err := db.EnqueueSessionInput(
+			t.Context(),
+			store.SessionInputQueueInsert{
+				ID:        "origin-entry",
+				SessionID: sessionID,
+				Text:      "Q?",
+				Origin:    origin,
+				QueueCap:  10,
+				Now:       now,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement := store.SessionInputQueueInsert{
+			ID:           "replacement",
+			Text:         "changed",
+			TargetTurnID: "turn-active",
+			QueueCap:     10,
+			Now:          now,
+		}
+		if _, _, err := db.ReplaceSessionInput(
+			t.Context(),
+			sessionID,
+			entry.ID,
+			replacement,
+		); !errors.Is(
+			err,
+			store.ErrSessionInputAgentAuthored,
+		) {
+			t.Fatal(err)
+		}
+		if _, _, err := db.PromoteSessionInputToSteer(
+			t.Context(),
+			sessionID,
+			entry.ID,
+			replacement,
+		); !errors.Is(
+			err,
+			store.ErrSessionInputAgentAuthored,
+		) {
+			t.Fatal(err)
+		}
+		replay := store.SessionInputQueueInsert{
+			ID:        "existing-replacement",
+			SessionID: sessionID,
+			Text:      entry.Text,
+			QueueCap:  10,
+			Now:       now,
+		}
+		if _, _, err := db.EnqueueSessionInput(t.Context(), replay); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := db.ReplaceSessionInput(
+			t.Context(),
+			sessionID,
+			entry.ID,
+			replay,
+		); !errors.Is(
+			err,
+			store.ErrSessionInputAgentAuthored,
+		) {
+			t.Fatalf("attributed mutation replay: %v", err)
+		}
+		loaded, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || loaded.Text != "Q?" || string(loaded.Origin) != string(origin) {
+			t.Fatal(loaded, err)
+		}
+		canceled, err := db.CancelSessionInput(t.Context(), sessionID, entry.ID, now)
+		if err != nil || canceled.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatal(canceled, err)
+		}
+	})
+}
+
+func TestGlobalDBSessionOriginMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve pre-origin admissions and queue rows across upgrade and reopen", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00132_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = OFF"); err != nil {
+			t.Fatal(err)
+		}
+		now := "2026-10-09T00:00:00Z"
+		if _, err := db.ExecContext(t.Context(), `INSERT INTO session_prompt_admissions
+ (id,workspace_id,session_id,message_id,idempotency_key,operation,fingerprint_version,request_fingerprint,state,authored_text,turn_id,event_id,result_json,created_at,updated_at)
+ VALUES ('pad-origin','ws-origin','sess-origin','msg-origin','key-origin','prompt','session-prompt/v4','sha256:legacy','completed','preserved prompt','turn-origin','event-origin','{"status":"accepted","new_turn_id":"turn-origin"}',?,?)`, now, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), `INSERT INTO session_input_queue
+ (id,session_id,prompt_admission_id,status,mode,text,enqueued_at,updated_at) VALUES ('inq-origin','sess-origin','pad-origin','queued','queue','preserved queue',?,?)`, now, now); err != nil {
+			t.Fatal(err)
+		}
+		readRows := func() map[string][]any {
+			t.Helper()
+			result := make(map[string][]any)
+			for _, table := range []string{"session_prompt_admissions", "session_input_queue"} {
+				rows, err := db.QueryContext(t.Context(), "SELECT * FROM "+table)
+				if err != nil {
+					t.Fatal(err)
+				}
+				columns, err := rows.Columns()
+				if err != nil {
+					t.Fatal(err)
+				}
+				for rows.Next() {
+					values := make([]any, len(columns))
+					dest := make([]any, len(columns))
+					for i := range dest {
+						dest[i] = &values[i]
+					}
+					if err := rows.Scan(dest...); err != nil {
+						t.Fatal(err)
+					}
+					for i, column := range columns {
+						if column != "origin_json" {
+							result[table] = append(result[table], values[i])
+						}
+					}
+				}
+				if err := rows.Err(); err != nil {
+					t.Fatal(err)
+				}
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return result
+		}
+		before := readRows()
+		if err := applyGlobalMigrationPrefix(t, db, globalMigrationPrefixThrough(t, "00132_schema.sql")); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err = openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixThrough(t, "00132_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after := readRows(); !reflect.DeepEqual(before, after) {
+			t.Fatalf("upgrade changed existing values: before=%v after=%v", before, after)
+		}
+		// IT-030: the real upgrade preserves a v4 receipt for the store replay boundary.
+		repo := &SessionRepo{repoBase: newRepoBase(db, time.Now, new(atomic.Int32))}
+		replay, found, err := repo.ReplaySessionPromptAdmission(t.Context(), store.SessionPromptAdmissionRequest{
+			ID:                       "new-admission",
+			WorkspaceID:              "ws-origin",
+			SessionID:                "sess-origin",
+			MessageID:                "msg-origin",
+			IdempotencyKey:           "key-origin",
+			Operation:                store.SessionPromptOperationPrompt,
+			FingerprintVersion:       "session-prompt/v5",
+			RequestFingerprint:       "sha256:actor-v5",
+			LegacyRequestFingerprint: "sha256:legacy",
+			AuthoredText:             "preserved prompt",
+			TurnID:                   "new-turn",
+			EventID:                  "new-event",
+			Origin: json.RawMessage(
+				`{"kind":"session","session_id":"sender","workspace_id":"ws-origin","hop":1}`,
+			),
+		})
+		if err != nil || !found || replay.ID != "pad-origin" || len(replay.Origin) != 0 ||
+			replay.FingerprintVersion != "session-prompt/v4" || replay.Result.Status != "accepted" || replay.Result.NewTurnID != "turn-origin" {
+			t.Fatal(replay, found, err)
+		}
+
+		var text, fingerprint, link string
+		var origin sql.NullString
+		if err := db.QueryRowContext(t.Context(), `SELECT authored_text,fingerprint_version,origin_json FROM session_prompt_admissions WHERE id='pad-origin'`).
+			Scan(&text, &fingerprint, &origin); err != nil {
+			t.Fatal(err)
+		}
+		if text != "preserved prompt" || fingerprint != "session-prompt/v4" || origin.Valid {
+			t.Fatal(text, fingerprint, origin)
+		}
+		if err := db.QueryRowContext(t.Context(), `SELECT text,prompt_admission_id,origin_json FROM session_input_queue WHERE id='inq-origin'`).
+			Scan(&text, &link, &origin); err != nil {
+			t.Fatal(err)
+		}
+		if text != "preserved queue" || link != "pad-origin" || origin.Valid {
+			t.Fatal(text, link, origin)
 		}
 	})
 }

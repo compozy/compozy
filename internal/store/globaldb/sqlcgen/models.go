@@ -1476,6 +1476,7 @@ type SessionInputQueue struct {
 	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`
+	OriginJson               sql.NullString `json:"origin_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`
 	RuntimeModel             string         `json:"runtime_model"`
 	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
@@ -1548,6 +1549,7 @@ type SessionPromptAdmission struct {
 	AuthoredText           string         `json:"authored_text"`
 	SkillInvocationsJson   string         `json:"skill_invocations_json"`
 	AttachmentsJson        string         `json:"attachments_json"`
+	OriginJson             sql.NullString `json:"origin_json"`
 	RuntimeProvider        string         `json:"runtime_provider"`
 	RuntimeModel           string         `json:"runtime_model"`
 	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`

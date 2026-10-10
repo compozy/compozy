@@ -80,6 +80,9 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry.Attachments = attachments
+	if row.OriginJson.Valid {
+		entry.Origin = json.RawMessage(row.OriginJson.String)
+	}
 	if err := decodeSyntheticQueuePrompt(row.SyntheticPromptJson, &entry); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}

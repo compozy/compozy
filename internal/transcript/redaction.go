@@ -60,6 +60,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.ProviderError = redactProviderError(event.ProviderError)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
+	redacted = redacted.WithPromptOrigin(redactPromptOrigin(event.PromptOrigin()))
 	redacted = redacted.WithGoalPromptMeta(redactGoalPromptMeta(event.GoalPromptMeta()))
 	if commands := event.AvailableCommandSet(); commands != nil {
 		redacted = redacted.WithAvailableCommands(commands.Values())
@@ -104,6 +105,7 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.ProviderError = redactProviderError(payload.ProviderError)
 	payload.Synthetic = redactPromptSyntheticMeta(payload.Synthetic)
 	payload.Goal = redactGoalPromptMeta(payload.Goal)
+	payload.Origin = redactPromptOrigin(payload.Origin)
 	payload.Attachments = redactEventAttachments(payload.Attachments)
 	payload.Runtime = redactRuntimeActivity(payload.Runtime)
 	payload.Delivery = redactDeliveryManifest(payload.Delivery)

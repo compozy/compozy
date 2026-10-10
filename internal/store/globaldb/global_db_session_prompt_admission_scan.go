@@ -46,6 +46,9 @@ func sessionPromptAdmissionFromGenerated(
 		return store.SessionPromptAdmission{}, err
 	}
 	admission.Attachments = attachments
+	if row.OriginJson.Valid {
+		admission.Origin = json.RawMessage(row.OriginJson.String)
+	}
 	if row.ResultJson.Valid {
 		var result store.SessionPromptAdmissionResult
 		if err := json.Unmarshal([]byte(row.ResultJson.String), &result); err != nil {

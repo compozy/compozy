@@ -167,6 +167,7 @@ func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {
 func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	runtime := runtimeSelectionFromStore(entry.Runtime)
 	return PendingInput{
+		Origin:           append([]byte(nil), entry.Origin...),
 		ID:               entry.ID,
 		SessionID:        entry.SessionID,
 		OwnerKind:        entry.OwnerKind,
