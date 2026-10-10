@@ -2838,15 +2838,17 @@ describe("SessionChatRuntimeProvider", () => {
     const chatText = chat.textContent ?? "";
     const beforeIndex = chatText.indexOf("Before search.");
     const reasoningIndex = chatText.indexOf("Need the current launch note before answering.");
-    // The row heading is the visible tense-aware verb ("Searched web"), not the raw tool id.
-    const toolIndex = chatText.indexOf("Searched web");
+    // The row heading is the visible tense-aware verb ("Searched the web"), not the raw tool id.
+    const toolIndex = chatText.indexOf("Searched the web");
     const afterIndex = chatText.indexOf("After search.");
 
     expect(beforeIndex).toBeGreaterThanOrEqual(0);
     expect(reasoningIndex).toBeGreaterThan(beforeIndex);
     expect(toolIndex).toBeGreaterThan(reasoningIndex);
     expect(afterIndex).toBeGreaterThan(toolIndex);
-    expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent("Searched web");
+    expect(within(chat).getByTestId("tool-call-row")).toHaveTextContent(
+      "Searched the weblaunch note"
+    );
   }, 10_000);
 
   it("keeps unregistered data parts inside the settled turn fold instead of dropping them", async () => {

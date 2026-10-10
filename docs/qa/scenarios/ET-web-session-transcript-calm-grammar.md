@@ -127,3 +127,5 @@ frontmatter status is left as recorded because the last real-runtime walk predat
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-09 (session-transcript-ui): grouping, live-row, fold, and find semantics are unchanged; the presentation changed. Work-group headers show the dominant kind glyph, which hands its place to a chevron on hover or open (no trailing chevron, no grey check). Opened groups hang their steps off a curved rail. Tool rows read verb + mono object chip with copy and chevron on hover and no success glyph. The live row shimmers the verb beside the same chip. Group sentences count calls by the kind their rows show ("searched once"/"searched N times" replaces "searched N files"). The user message's actions surface on hover. Needs a fresh walk; no QA session ran.

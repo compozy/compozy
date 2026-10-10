@@ -32,10 +32,16 @@ export type ToolCallIconComponent = React.ComponentType<{
 
 export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "title"> {
   toolName: React.ReactNode;
-  /** Mono, truncated summary shown after the heading (command, path, pattern…). */
+  /** The object of the verb, truncated after it (command, path, pattern…). */
   preview?: React.ReactNode;
+  /**
+   * How the object reads: `chip` is a mono pill for paths and commands, `code`
+   * bare mono, `text` plain sans (prose objects, error lines). Defaults to `code`.
+   */
+  previewVariant?: "chip" | "code" | "text";
   status: ToolCallStatus;
-  icon?: ToolCallIconComponent | React.ReactNode;
+  /** Kind glyph in the leading well; `null` drops the well (rows on a group rail). */
+  icon?: ToolCallIconComponent | React.ReactNode | null;
   errorMessage?: React.ReactNode;
   /** Per-file diff stat (+a −d) rendered between the text and the trailing glyphs. */
   stat?: React.ReactNode;
@@ -59,15 +65,17 @@ function ToolCallRowOutput(props: ToolCallRowSectionProps) {
 
 /**
  * `ToolCallRow` renders one tool call as a single ~24px line —
- * `[icon well] [verb] [mono preview] [diff stat] [chevron] [status glyph]` —
- * that expands an inline indented body (params/outputs) on click or
- * Enter/Space. Calm-transcript grammar: no tinted wells, row text never
- * changes color on failure — status lives in the trailing glyph alone (grey
- * check, red ×, grey spinner).
+ * `[icon well] [verb] [object] [diff stat] [chevron] [status glyph]` — that
+ * expands an inline body card (input/output) on click or Enter/Space.
+ * Calm-transcript grammar: the verb rests in the subtle ink with its object as
+ * a mono chip, copy and chevron surface on hover, success carries no glyph,
+ * and row text never changes color on failure — status lives in the trailing
+ * glyph alone (red ×, grey ×, grey spinner).
  */
 function ToolCallRowInner({
   toolName,
   preview,
+  previewVariant = "code",
   status,
   icon,
   errorMessage,
@@ -101,6 +109,7 @@ function ToolCallRowInner({
       icon={icon}
       isExpanded={isExpanded}
       preview={preview}
+      previewVariant={previewVariant}
       stat={stat}
       status={status}
       toolName={toolName}

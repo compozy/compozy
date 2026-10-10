@@ -19,7 +19,7 @@ function nativeTitle(value: React.ReactNode): string | undefined {
 
 function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   const iconClass =
-    "size-3.5 shrink-0 text-subtle transition-colors group-hover/tool-row:text-muted";
+    "size-3.5 shrink-0 text-faint transition-colors duration-base group-hover/tool-row:text-subtle";
   if (icon === undefined) {
     return <WrenchIcon aria-hidden="true" data-slot="tool-call-row-icon" className={iconClass} />;
   }
@@ -30,12 +30,17 @@ function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   return icon;
 }
 
-const LINE_CLASS = "min-h-6 gap-1.5 rounded-sm px-1 text-small-body";
+const LINE_CLASS = "min-h-6 gap-1.5 rounded-md px-1 text-small-body";
+
+/** Trailing affordances stay out of the resting read: they surface on hover, focus, or open. */
+const REVEAL_CLASS =
+  "opacity-0 transition-opacity duration-base ease-out group-hover/tool-row:opacity-100 group-focus-within/tool-row:opacity-100 motion-reduce:transition-none";
 
 interface ToolCallRowLineProps {
   toolName: React.ReactNode;
   toolNameId: string;
   preview?: React.ReactNode;
+  previewVariant: NonNullable<ToolCallRowProps["previewVariant"]>;
   icon: ToolCallRowProps["icon"];
   stat?: React.ReactNode;
   actions?: React.ReactNode;
@@ -44,11 +49,42 @@ interface ToolCallRowLineProps {
   isExpanded: boolean;
 }
 
-/** The single line: `[icon well] [verb] [mono preview] [diff stat] [actions] [chevron] [status glyph]`. */
+function ToolCallRowPreview({
+  preview,
+  variant,
+}: {
+  preview: React.ReactNode;
+  variant: ToolCallRowLineProps["previewVariant"];
+}) {
+  return (
+    <span
+      data-slot="tool-call-row-preview"
+      data-variant={variant}
+      className={cn(
+        "min-w-0 truncate",
+        variant === "chip"
+          ? "rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted transition-colors duration-base group-hover/tool-row:text-fg"
+          : variant === "code"
+            ? "font-mono text-transcript-body text-subtle"
+            : "text-subtle"
+      )}
+      title={nativeTitle(preview)}
+    >
+      {preview}
+    </span>
+  );
+}
+
+/**
+ * The single line: `[icon well] [verb] [object] [diff stat] [actions] [chevron] [status glyph]`.
+ * The line hugs its content so the trailing affordances sit beside the words,
+ * never at the far edge of a wide transcript column.
+ */
 export function ToolCallRowLine({
   toolName,
   toolNameId,
   preview,
+  previewVariant,
   icon,
   stat,
   actions,
@@ -58,32 +94,24 @@ export function ToolCallRowLine({
 }: ToolCallRowLineProps) {
   return (
     <>
-      <span
-        data-slot="tool-call-row-icon-well"
-        className="flex size-5 shrink-0 items-center justify-center rounded-xs"
-      >
-        {renderToolCallIcon(icon)}
-      </span>
-      <span className="flex min-w-0 max-w-sm flex-1 items-baseline gap-1.5">
+      {icon === null ? null : (
+        <span
+          data-slot="tool-call-row-icon-well"
+          className="flex size-5 shrink-0 items-center justify-center rounded-xs"
+        >
+          {renderToolCallIcon(icon)}
+        </span>
+      )}
+      <span className="flex min-w-0 items-center gap-1.5">
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className="min-w-0 max-w-xs shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
+          className="shrink-0 whitespace-nowrap text-subtle transition-colors duration-base group-hover/tool-row:text-muted"
           title={nativeTitle(toolName)}
         >
           {toolName}
         </span>
-        {preview ? (
-          <span
-            data-slot="tool-call-row-preview"
-            className="min-w-0 flex-1 truncate font-mono text-subtle"
-            title={nativeTitle(preview)}
-          >
-            {preview}
-          </span>
-        ) : (
-          <span className="min-w-0 flex-1" />
-        )}
+        {preview ? <ToolCallRowPreview preview={preview} variant={previewVariant} /> : null}
       </span>
       {stat ? (
         <span
@@ -97,7 +125,7 @@ export function ToolCallRowLine({
         {actions ? (
           <span
             data-slot="tool-call-row-actions"
-            className="relative z-10 flex shrink-0 items-center"
+            className={cn("relative z-10 flex shrink-0 items-center", REVEAL_CLASS)}
             onClick={event => event.stopPropagation()}
             onKeyDown={event => event.stopPropagation()}
             onPointerDown={event => event.stopPropagation()}
@@ -110,8 +138,8 @@ export function ToolCallRowLine({
             aria-hidden="true"
             data-slot="tool-call-row-chevron"
             className={cn(
-              "size-3 shrink-0 text-subtle transition-transform duration-base ease-out motion-reduce:transition-none",
-              isExpanded ? "rotate-90 text-muted" : null
+              "size-3 shrink-0 text-subtle transition-[transform,opacity] duration-base ease-out motion-reduce:transition-none",
+              isExpanded ? "rotate-90 text-muted opacity-100" : REVEAL_CLASS
             )}
           />
         ) : null}
@@ -144,7 +172,7 @@ export function ToolCallRowHeader({
     <div
       data-slot="tool-call-row-header"
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer items-center text-left",
+        "relative flex w-fit max-w-full min-w-0 cursor-pointer items-center text-left",
         LINE_CLASS
       )}
     >
@@ -153,7 +181,7 @@ export function ToolCallRowHeader({
         data-slot="tool-call-row-trigger"
         aria-expanded={isExpanded}
         aria-labelledby={`${toolNameId}${statLabelledBy} ${triggerDescriptionId}`}
-        className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
+        className="absolute inset-0 rounded-md outline-none transition-colors duration-base ease-out hover:bg-chat-fill-user focus-visible:shadow-focus-inset"
         onClick={onToggle}
       />
       <span id={triggerDescriptionId} className="sr-only">
@@ -173,7 +201,7 @@ export function ToolCallRowStatic({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-slot="tool-call-row-static"
-      className={cn("flex w-full min-w-0 items-center", LINE_CLASS)}
+      className={cn("flex w-fit max-w-full min-w-0 items-center", LINE_CLASS)}
     >
       {children}
     </div>
@@ -190,12 +218,15 @@ export function ToolCallRowBody({
   return (
     <div
       data-slot="tool-call-row-body"
-      className="mt-1 ml-7 flex max-h-64 min-w-0 cursor-default flex-col gap-2 overflow-auto border-l border-line pl-3 text-small-body text-muted select-text"
+      className="mt-1 mb-1.5 ml-7 flex max-h-80 min-w-0 cursor-default flex-col gap-2.5 overflow-auto rounded-lg border border-line-soft bg-chat-fill-code p-2.5 text-small-body text-muted select-text"
       onClick={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()}
     >
       {errorMessage ? (
-        <p data-slot="tool-call-row-error" className="text-small-body text-muted">
+        <p
+          data-slot="tool-call-row-error"
+          className="font-mono text-transcript-caption leading-prose break-words whitespace-pre-wrap text-muted"
+        >
           {errorMessage}
         </p>
       ) : null}

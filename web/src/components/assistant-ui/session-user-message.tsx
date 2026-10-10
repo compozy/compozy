@@ -50,9 +50,10 @@ function SessionDataPart(part: DataMessagePartProps<unknown>) {
 }
 
 /**
- * The one message surface in the transcript: a right-aligned, borderless block
- * on the 4.5% ink wash. No avatar, no role label, no shadow. Long messages
- * clamp behind a fade mask with a quiet "Show more" toggle.
+ * The one message surface in the transcript: a right-aligned, borderless,
+ * softly rounded block on the 4.5% ink wash. No avatar, no role label, no
+ * shadow. Long messages clamp behind a fade mask with a quiet "Show more"
+ * toggle; the message's actions surface on hover (see `MessageActions`).
  */
 export function UserMessageBubble({
   children,
@@ -88,7 +89,7 @@ export function UserMessageBubble({
         data-clamped={clamped || undefined}
         data-subdued={subdued || undefined}
         className={cn(
-          "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-transcript-message-y",
+          "w-fit max-w-full min-w-0 rounded-xl bg-chat-fill-user px-3.5 py-2",
           "text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
           subdued ? "text-subtle" : "text-fg",
           clamped

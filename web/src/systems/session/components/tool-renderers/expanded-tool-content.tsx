@@ -42,6 +42,12 @@ export function ExpandedToolContent({ message }: { message: UIMessage }) {
     case "TodoWrite":
       return <TodoContent message={message} />;
     default:
-      return <GenericContent message={message} />;
+      // A provider that names its shell tool by title ("Terminal") still sent
+      // a command: it reads as the command and its output, not as raw JSON.
+      return typeof message.toolInput?.command === "string" ? (
+        <BashContent message={message} />
+      ) : (
+        <GenericContent message={message} />
+      );
   }
 }

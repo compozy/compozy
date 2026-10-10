@@ -120,6 +120,68 @@
   }
 }
 
+/* Session work rail — the steps behind an open work group hang off one spine
+   that starts under the group's glyph, each joined by a quarter-curve branch
+   (design ref: MonoCode phase rail). The spine color is opaque so the spine and
+   the curve never double up where they overlap. The last step's spine stops at
+   its branch. Opening fades the steps in; reduced motion opens instantly. */
+.session-rail {
+  --session-rail-color: var(--color-line-strong);
+  animation: session-rail-open var(--duration-slow) var(--ease-out) both;
+}
+
+/* The spine sits under the center of the header's 18px glyph well (4px pad +
+   9px), so it reads as dropping out of the group's glyph. */
+.session-rail-step {
+  position: relative;
+  padding-left: 24px;
+}
+
+.session-rail-step::before,
+.session-rail-step::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+.session-rail-step::before {
+  top: 0;
+  height: 100%;
+  width: 1px;
+  background: var(--session-rail-color);
+}
+
+.session-rail-step:last-child::before {
+  height: 6px;
+}
+
+.session-rail-step::after {
+  top: 4px;
+  width: 9px;
+  height: 8px;
+  border-bottom: 1px solid var(--session-rail-color);
+  border-left: 1px solid var(--session-rail-color);
+  border-bottom-left-radius: 8px;
+}
+
+@keyframes session-rail-open {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-rail {
+    animation: none;
+  }
+}
+
 /* Session working row — three 4px dots on a stepped 2s duty cycle (design ref:
    session.css §05). The component itself swaps to a static label under reduced
    motion; the global collapse in tokens-runtime.css also zeroes this. */

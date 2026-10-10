@@ -6,6 +6,8 @@ import {
   humanizeToolId,
   resolveRegisteredToolName,
 } from "../tool-labels";
+import { resolveToolDisplay } from "../tool-display";
+import { inferShellIntent } from "../tool-shell-intent";
 import {
   Bot,
   FileEdit,
@@ -210,5 +212,82 @@ describe("subagent tool labels (UT-W09)", () => {
     expect(getToolLabel("compozy__subagent_status", "past")).toBe("Read subagent status");
     expect(getToolLabel("compozy__subagent_cancel", "past")).toBe("Canceled a subagent");
     expect(getToolIcon("compozy__subagent_delegate")).toBe(Bot);
+  });
+});
+
+// Invariant: a row reads as verb + object, and its kind follows the registered
+// name first, then the input shape — never a provider's display title.
+describe("resolveToolDisplay", () => {
+  const past = (toolName: string, args: Record<string, unknown> = {}, toolTitle?: string) =>
+    resolveToolDisplay({ toolName, args, ...(toolTitle ? { toolTitle } : {}) }, "past");
+
+  it("Should split catalogued tools into a tense-aware verb and a mono object", () => {
+    expect(past("Read", { file_path: "web/src/app.tsx" })).toMatchObject({
+      kind: "read",
+      verb: "Read",
+      target: "web/src/app.tsx",
+      targetKind: "file",
+    });
+    expect(past("Bash", { command: "cd /repo && go test ./..." })).toMatchObject({
+      kind: "command",
+      verb: "Ran",
+      target: "go test ./...",
+      targetKind: "code",
+    });
+    expect(
+      resolveToolDisplay({ toolName: "Grep", args: { pattern: "TODO" } }, "active")
+    ).toMatchObject({ kind: "search", verb: "Searching", target: "TODO" });
+  });
+
+  it("Should infer the kind of a title-named or uncatalogued tool from its input", () => {
+    expect(past("Terminal", { command: "bun test" })).toMatchObject({
+      kind: "command",
+      verb: "Ran",
+      target: "bun test",
+    });
+    expect(past("Preparing file…", { file_path: "a.md", content: "# A" })).toMatchObject({
+      kind: "edit",
+      verb: "Wrote",
+      target: "a.md",
+    });
+    expect(
+      past("mcp__compozy-hosted-tools__compozy__skill_view", { name: "compozy" })
+    ).toMatchObject({ kind: "other", verb: "Used", target: "skill view", targetKind: "text" });
+  });
+
+  it("Should read simple read/list/search shell commands as that action", () => {
+    expect(past("Bash", { command: "sed -n '1,40p' web/src/app.tsx" })).toMatchObject({
+      kind: "read",
+      verb: "Read",
+      target: "web/src/app.tsx",
+    });
+    expect(past("Bash", { command: "ls web/src" })).toMatchObject({
+      verb: "Listed",
+      target: "web/src",
+    });
+    expect(past("Bash", { command: "rg -n TODO web | head -20" })).toMatchObject({
+      kind: "search",
+      target: "TODO",
+    });
+  });
+
+  it("Should keep a long provider title out of the verb and bound the object", () => {
+    const title = "Inspect the layout\n" + "x".repeat(400);
+    const display = past(title);
+    expect(display.verb).toBe("Used tool");
+    expect(display.target).toBe(display.target?.slice(0, 120));
+    expect(display.target).not.toContain("\n");
+  });
+});
+
+describe("inferShellIntent", () => {
+  it("Should stay the raw command whenever the command does more than read", () => {
+    expect(inferShellIntent("cat a.ts > b.ts")).toBeNull();
+    expect(inferShellIntent("cat a.ts && rm a.ts")).toBeNull();
+    expect(inferShellIntent("sed -i 's/a/b/' a.ts")).toBeNull();
+    expect(inferShellIntent("cat $(ls)")).toBeNull();
+    expect(inferShellIntent("cat a.ts b.ts")).toBeNull();
+    expect(inferShellIntent("git status")).toBeNull();
+    expect(inferShellIntent("rg TODO | xargs rm")).toBeNull();
   });
 });
