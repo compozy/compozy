@@ -16569,6 +16569,37 @@
                               ],
                               "type": "object"
                             },
+                            "reply_watches": {
+                              "items": {
+                                "properties": {
+                                  "created_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message_id": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  },
+                                  "target_session_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "created_at",
+                                  "id",
+                                  "message_id",
+                                  "state",
+                                  "target_session_id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "runtime": {
                               "properties": {
                                 "acp_caps": {
@@ -110311,6 +110342,37 @@
                             ],
                             "type": "object"
                           },
+                          "reply_watches": {
+                            "items": {
+                              "properties": {
+                                "created_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "message_id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                },
+                                "target_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "created_at",
+                                "id",
+                                "message_id",
+                                "state",
+                                "target_session_id"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "runtime": {
                             "properties": {
                               "acp_caps": {
@@ -111818,6 +111880,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -114547,6 +114640,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -116982,6 +117106,37 @@
                         "entries"
                       ],
                       "type": "object"
+                    },
+                    "reply_watches": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "message_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "target_session_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "created_at",
+                          "id",
+                          "message_id",
+                          "state",
+                          "target_session_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "session_id": {
                       "type": "string"
@@ -208896,6 +209051,37 @@
                             ],
                             "type": "object"
                           },
+                          "reply_watches": {
+                            "items": {
+                              "properties": {
+                                "created_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "message_id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                },
+                                "target_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "created_at",
+                                "id",
+                                "message_id",
+                                "state",
+                                "target_session_id"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "runtime": {
                             "properties": {
                               "acp_caps": {
@@ -258114,6 +258300,37 @@
                             ],
                             "type": "object"
                           },
+                          "reply_watches": {
+                            "items": {
+                              "properties": {
+                                "created_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "message_id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                },
+                                "target_session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "created_at",
+                                "id",
+                                "message_id",
+                                "state",
+                                "target_session_id"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "runtime": {
                             "properties": {
                               "acp_caps": {
@@ -259808,6 +260025,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -261067,6 +261315,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -262785,6 +263064,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -264223,6 +264533,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -267618,6 +267959,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -269914,6 +270286,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -271044,6 +271447,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -273765,6 +274199,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -274895,6 +275360,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -281666,6 +282162,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -281675,6 +282187,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -282039,6 +282554,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -282048,6 +282579,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -282559,6 +283093,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -282568,6 +283118,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -283005,6 +283558,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -283014,6 +283583,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -283527,6 +284099,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -283536,6 +284124,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -285321,6 +285912,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -285330,6 +285937,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -286483,6 +287093,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -286492,6 +287118,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -287713,6 +288342,37 @@
                                 "entries"
                               ],
                               "type": "object"
+                            },
+                            "reply_watches": {
+                              "items": {
+                                "properties": {
+                                  "created_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message_id": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  },
+                                  "target_session_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "created_at",
+                                  "id",
+                                  "message_id",
+                                  "state",
+                                  "target_session_id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
                             },
                             "runtime": {
                               "properties": {
@@ -289534,6 +290194,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -291016,6 +291707,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -292475,6 +293197,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {
@@ -294375,6 +295128,37 @@
                       ],
                       "type": "object"
                     },
+                    "reply_watches": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "message_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "target_session_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "created_at",
+                          "id",
+                          "message_id",
+                          "state",
+                          "target_session_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "session_id": {
                       "type": "string"
                     },
@@ -295120,6 +295904,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -295129,6 +295929,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -302515,6 +303318,37 @@
                           ],
                           "type": "object"
                         },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "runtime": {
                           "properties": {
                             "acp_caps": {
@@ -305379,6 +306213,37 @@
                             "entries"
                           ],
                           "type": "object"
+                        },
+                        "reply_watches": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "target_session_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "id",
+                              "message_id",
+                              "state",
+                              "target_session_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "runtime": {
                           "properties": {

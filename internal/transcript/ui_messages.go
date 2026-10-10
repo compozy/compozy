@@ -224,9 +224,11 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 		builder.applyToolCall(decoded)
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 		builder.appendSubagentPart(decoded)
+		builder.appendSessionMessagePart(decoded)
 	case acp.EventTypeToolResult:
 		builder.applyToolResult(decoded)
 		builder.appendSubagentPart(decoded)
+		builder.appendSessionMessagePart(decoded)
 	case acp.EventTypePermission:
 		builder.appendDataPart(uiPartDataPermission, uiPermissionDataPartID(decoded.agent), decoded.dataPayload())
 	case acp.EventTypeError:

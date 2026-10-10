@@ -246,11 +246,13 @@ func TestPromptOriginAdmissionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.meta.Origin = &acp.PromptOriginMeta{
-			Kind:        "session",
-			SessionID:   "sender",
-			WorkspaceID: h.workspaceID,
-			Hop:         1,
+			Kind:             "session",
+			SessionID:        "sender",
+			WorkspaceID:      h.workspaceID,
+			Hop:              1,
+			NotifyOnComplete: true,
 		}
+		req.notifyOnComplete = true
 		request, err = h.manager.newPromptAdmissionRequest(
 			h.workspaceID,
 			req,
@@ -267,6 +269,10 @@ func TestPromptOriginAdmissionIdentity(t *testing.T) {
 		result, err := sendPromptResultFromAdmission(replayed)
 		if err != nil || result.ReplyWatch != nil {
 			t.Fatal(result, err)
+		}
+		watches, err := database.ListReplyWatches(t.Context(), store.ReplyWatchFilter{})
+		if err != nil || len(watches) != 0 {
+			t.Fatalf("legacy watches = %+v, %v", watches, err)
 		}
 		request.LegacyRequestFingerprint = "wrong"
 		if _, _, err := database.ReplaySessionPromptAdmission(

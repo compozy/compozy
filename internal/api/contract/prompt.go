@@ -73,7 +73,14 @@ type SteerPromptRequest struct {
 }
 
 // SendPromptResultPayload reports non-streaming busy-input outcomes.
+type ReplyWatchRefPayload struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
 type SendPromptResultPayload struct {
+	ReplyWatch            *ReplyWatchRefPayload   `json:"reply_watch,omitempty"`
+	TargetWorkspaceID     string                  `json:"target_workspace_id,omitempty"`
 	Disposition           session.Disposition     `json:"disposition,omitempty"`
 	SteerDelivery         store.SteerDeliveryMode `json:"steer_delivery,omitempty"`
 	TurnID                string                  `json:"turn_id,omitempty"`

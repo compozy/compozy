@@ -264,6 +264,9 @@ func claimSessionPromptAdmission(
 		return store.SessionPromptAdmission{}, false, err
 	}
 	admission, err := sessionPromptAdmissionFromGenerated(&created)
+	if err == nil {
+		err = registerAdmissionReplyWatch(ctx, exec, admission)
+	}
 	return admission, true, err
 }
 

@@ -195,6 +195,11 @@ func (m *Manager) deliverPersistedPromptEvent(
 			event = event.WithSubagentCard(data)
 		}
 	}
+	if card, ok := transcript.SessionMessagePartForStoredEvent(persisted); ok {
+		if data, err := json.Marshal(card); err == nil {
+			event = event.WithSessionMessageCard(data)
+		}
+	}
 	m.publishSubagentActivity(ctx, session, event)
 	// Keep native terminal ingestion inline before turn settlement: interruptNative
 	// treats any remaining live row as interrupted and cannot accept a late terminal update.

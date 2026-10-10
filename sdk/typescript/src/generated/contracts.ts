@@ -3914,6 +3914,14 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface ReplyWatchPayload {
+  id: string;
+  target_session_id: string;
+  message_id: string;
+  state: string;
+  created_at: ISODateTime;
+}
+
 export interface SessionQueueSummaryPayload {
   entries: number;
   cap: number;
@@ -3978,6 +3986,7 @@ export interface SessionDerivationPayload {
 }
 
 export interface SessionStatusResponse {
+  reply_watches?: ReplyWatchPayload[];
   queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;
   verified?: boolean;

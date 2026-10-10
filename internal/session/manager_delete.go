@@ -61,6 +61,11 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 			return deleteErr
 		}
 	}
+	if service := m.ReplyWatches(); service != nil {
+		if abandonErr := service.OnSenderGone(ctx, target); abandonErr != nil {
+			m.logger.ErrorContext(ctx, "reply_watch.abandon_failed", "session_id", target, "error", abandonErr)
+		}
+	}
 	if m.sessionWindowReconciler != nil && staged.info != nil {
 		if reconcileErr := m.reconcileDeletedSessionWindows(
 			context.WithoutCancel(ctx),

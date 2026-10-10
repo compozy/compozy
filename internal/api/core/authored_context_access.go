@@ -184,5 +184,9 @@ func SessionPayloadWithQueue(ctx context.Context, reader interface {
 		return contract.SessionPayload{}, err
 	}
 	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
+	payload.ReplyWatches, err = sessionReplyWatchPayloads(ctx, reader, info.WorkspaceID, info.ID)
+	if err != nil {
+		return contract.SessionPayload{}, err
+	}
 	return payload, nil
 }

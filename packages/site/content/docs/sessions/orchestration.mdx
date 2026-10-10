@@ -129,3 +129,25 @@ returns `queue-full` without consuming the pending interaction.
 - [Session Lifecycle](/docs/sessions/lifecycle) covers durable session and runtime state.
 - [Session Wait CLI](/docs/cli/session/wait) lists the generated flags.
 - [Prompt Cancel CLI](/docs/cli/session/prompt-cancel) lists the generated command contract.
+
+## Ask another session for a reply
+
+An agent can call `compozy__session_prompt` with `notify_on_complete: true` to receive a reply from an
+existing session. The tool returns `reply_watch: { id, state }`. The sender can then finish its turn;
+CompozyOS delivers one synthetic reply wake after the turn that consumed the message settles.
+Queued messages retain their watches across a target stop. A busy sender receives the wake after its
+current turn; a stopped sender receives it after resume.
+
+`compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
+include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target
+session, message, state, and creation time. The human CLI shows a **Waiting for replies** section.
+Delivered and abandoned watches disappear from this list.
+
+Replies contain the last non-empty assistant message of the consuming turn, bounded to 12000 Unicode
+characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
+`(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
+(removed before execution), or `unknown` (delivery was uncertain; inspect the target session).
+
+Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
+from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native
+tool; HTTP operator prompts have no equivalent option.
