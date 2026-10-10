@@ -1276,6 +1276,60 @@ func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
 // Owner: Safe Spawn; canonical suite: spawn_test.go (UT-013, UT-014, UT-042).
 func TestSubagentSpawn(t *testing.T) {
 	t.Parallel()
+	// Invariant: isolated bindings override inheritance and hooks cannot rebind them (UT-026, UT-032).
+	for _, mode := range []string{"shared", "worktree", "rebind"} {
+		t.Run("Should preserve structural worktree binding "+mode, func(t *testing.T) {
+			t.Parallel()
+			hooks := &recordingSessionSpawnHooks{}
+			if mode == "rebind" {
+				hooks.preCreatePatch = func(p hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload {
+					p.Subagent.WorktreeID = "forbidden"
+					return p
+				}
+			}
+			resolver := &fakeSessionWorktreeResolver{id: "wt-parent", root: t.TempDir()}
+			h := newHostedMCPHarness(t, WithWorktreeResolver(resolver), WithHookSet(HookSet{Spawn: hooks}))
+			parent, err := h.manager.Create(
+				t.Context(),
+				CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-parent"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, parent.ID)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			output, err := h.manager.Prompt(t.Context(), parent.ID, "delegate")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { close(source); collectEvents(t, output) }()
+			opts := SpawnOpts{ParentSessionID: parent.ID, AgentName: "coder", SpawnRole: store.SubagentSpawnRole,
+				Subagent: &hookspkg.SubagentSpawnPayload{Isolation: "shared"}}
+			expected := "wt-parent"
+			if mode != "shared" {
+				expected = "wt-b"
+				opts.IsolatedWorktreeID = expected
+				opts.Subagent.Isolation, opts.Subagent.WorktreeID = "worktree", expected
+			}
+			prepared, _, _, err := h.manager.prepareSpawn(t.Context(), opts)
+			if mode == "rebind" {
+				if !errors.Is(err, ErrSubagentCapabilityDenied) ||
+					!strings.Contains(err.Error(), "inherited worktree binding is immutable") {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || prepared.InheritedWorktreeID != expected {
+				t.Fatal(prepared, err)
+			}
+			if mode == "worktree" &&
+				(len(hooks.preCreate) != 1 || hooks.preCreate[0].Subagent.Isolation != "worktree" || hooks.preCreate[0].Subagent.WorktreeID != expected) {
+				t.Fatal(hooks.preCreate)
+			}
+		})
+	}
+
 	for _, denyTTL := range []bool{false, true} {
 		name := "Should spawn without TTL or caps UT-013 UT-014 UT-042"
 		if denyTTL {
@@ -1320,6 +1374,13 @@ func TestSubagentSpawn(t *testing.T) {
 				t.Fatal(err)
 			}
 			cleanupSessionStop(t, h, child.ID)
+			if child.ID != subagentChildSessionID(parent.ID, opts.IdempotencyKey) {
+				t.Fatalf(
+					"spawn ID %s differs from recovery ID %s",
+					child.ID,
+					subagentChildSessionID(parent.ID, opts.IdempotencyKey),
+				)
+			}
 			if child.Info().Lineage.TTLExpiresAt != nil || child.Info().Lineage.NotifyCreator ||
 				!child.Info().Lineage.AutoStopOnParent {
 				t.Fatal(child.Info().Lineage)

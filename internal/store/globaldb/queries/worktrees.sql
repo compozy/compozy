@@ -58,6 +58,13 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND origin = 'per_run'
   AND state IN ('pending', 'ready');
 
+-- name: TombstoneBoundRunMaterialization :execrows
+UPDATE worktrees SET state = 'removed', updated_at = sqlc.arg(updated_at)
+WHERE worktrees.workspace_id = sqlc.arg(workspace_id) AND worktrees.id = sqlc.arg(worktree_id)
+  AND worktrees.run_id = sqlc.arg(run_id) AND worktrees.origin = 'per_run' AND worktrees.state IN ('pending', 'ready')
+  AND EXISTS (SELECT 1 FROM sessions WHERE sessions.workspace_id = worktrees.workspace_id
+    AND sessions.worktree_id = worktrees.id);
+
 -- name: UpdatePendingWorktree :execrows
 UPDATE worktrees SET
   pending_phase = sqlc.arg(pending_phase),

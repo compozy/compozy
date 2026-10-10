@@ -9,7 +9,7 @@ entry_points: web session window transcript (SubagentCard, SubagentGroup, Subage
 qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-card-hosted-tool-name; BUG-20261009-subagent-card-live-missing; BUG-20261009-subagent-running-count-settled; BUG-20261009-subagent-preview-raw-markdown
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: c5105724d; e7e9b276a; 1ca1f1a38; 7573fab3a; f4a2d1918; 4c5dff7e4
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
 last_report: docs/qa/reports/2026-10-09-subagents-r2.md

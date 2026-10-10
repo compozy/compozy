@@ -598,6 +598,34 @@ func (q *Queries) SetWorktreeState(ctx context.Context, arg SetWorktreeStatePara
 	return result.RowsAffected()
 }
 
+const tombstoneBoundRunMaterialization = `-- name: TombstoneBoundRunMaterialization :execrows
+UPDATE worktrees SET state = 'removed', updated_at = ?1
+WHERE worktrees.workspace_id = ?2 AND worktrees.id = ?3
+  AND worktrees.run_id = ?4 AND worktrees.origin = 'per_run' AND worktrees.state IN ('pending', 'ready')
+  AND EXISTS (SELECT 1 FROM sessions WHERE sessions.workspace_id = worktrees.workspace_id
+    AND sessions.worktree_id = worktrees.id)
+`
+
+type TombstoneBoundRunMaterializationParams struct {
+	UpdatedAt   string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+	RunID       string `json:"run_id"`
+}
+
+func (q *Queries) TombstoneBoundRunMaterialization(ctx context.Context, arg TombstoneBoundRunMaterializationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, tombstoneBoundRunMaterialization,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.WorktreeID,
+		arg.RunID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updatePendingWorktree = `-- name: UpdatePendingWorktree :execrows
 UPDATE worktrees SET
   pending_phase = ?1,

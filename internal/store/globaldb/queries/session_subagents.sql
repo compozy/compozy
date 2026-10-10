@@ -1,6 +1,6 @@
 -- name: ReserveSubagent :execrows
-INSERT INTO session_subagents (id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(parent_session_id), sqlc.arg(parent_turn_id), sqlc.arg(parent_tool_call_id), sqlc.narg(child_session_id), sqlc.arg(origin), sqlc.arg(provider_tool_call_id), sqlc.arg(idempotency_key), sqlc.arg(request_fingerprint), sqlc.arg(title), sqlc.arg(role), sqlc.arg(task_chars), sqlc.narg(pending_task), sqlc.arg(runtime_agent), sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), sqlc.arg(depth), sqlc.arg(status), sqlc.arg(work_state), sqlc.arg(progress), sqlc.narg(result), sqlc.arg(result_truncated), sqlc.narg(error), sqlc.arg(wake_policy), sqlc.arg(delivery), sqlc.narg(wake_message_id), sqlc.arg(acknowledged_turn_id), sqlc.narg(started_at), sqlc.narg(settled_at), sqlc.arg(created_at), sqlc.arg(updated_at))
+INSERT INTO session_subagents (isolation, id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at)
+VALUES (sqlc.arg(isolation), sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(parent_session_id), sqlc.arg(parent_turn_id), sqlc.arg(parent_tool_call_id), sqlc.narg(child_session_id), sqlc.arg(origin), sqlc.arg(provider_tool_call_id), sqlc.arg(idempotency_key), sqlc.arg(request_fingerprint), sqlc.arg(title), sqlc.arg(role), sqlc.arg(task_chars), sqlc.narg(pending_task), sqlc.arg(runtime_agent), sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), sqlc.arg(depth), sqlc.arg(status), sqlc.arg(work_state), sqlc.arg(progress), sqlc.narg(result), sqlc.arg(result_truncated), sqlc.narg(error), sqlc.arg(wake_policy), sqlc.arg(delivery), sqlc.narg(wake_message_id), sqlc.arg(acknowledged_turn_id), sqlc.narg(started_at), sqlc.narg(settled_at), sqlc.arg(created_at), sqlc.arg(updated_at))
 ON CONFLICT(parent_session_id,idempotency_key) DO NOTHING;
 
 -- name: GetSubagent :one
@@ -156,3 +156,18 @@ UPDATE session_subagent_wakes SET attempts = MAX(attempts, COALESCE((
 
 -- name: FailSubagentWake :execrows
 UPDATE session_subagent_wakes SET attempts = attempts + 1,state = 'canceled',updated_at = ? WHERE wake_message_id = ? AND state IN ('open','dispatched');
+
+-- name: AssociateSubagentWorktree :execrows
+UPDATE session_subagents SET worktree_id = sqlc.narg(worktree_id), worktree_name = sqlc.narg(worktree_name), worktree_branch = sqlc.narg(worktree_branch), worktree_base_ref = sqlc.narg(worktree_base_ref), worktree_base_sha = sqlc.narg(worktree_base_sha), worktree_path = sqlc.narg(worktree_path) WHERE id = sqlc.arg(id) AND isolation = 'worktree';
+
+-- name: SetSubagentWorktreeCleanup :execrows
+UPDATE session_subagents SET worktree_cleanup = sqlc.narg(worktree_cleanup) WHERE id = sqlc.arg(id);
+
+-- name: ListSubagentWorktreeCleanupPending :many
+SELECT * FROM session_subagents WHERE worktree_cleanup = 'pending' ORDER BY created_at,id;
+
+-- name: SetSubagentWorktreeFacts :exec
+UPDATE session_subagents SET git_head_sha = sqlc.narg(git_head_sha), git_commits_ahead = sqlc.narg(git_commits_ahead), git_dirty_files = sqlc.narg(git_dirty_files), git_observed_at = sqlc.narg(git_observed_at), pr_status = sqlc.narg(pr_status), pr_url = sqlc.narg(pr_url), pr_number = sqlc.narg(pr_number) WHERE id = sqlc.arg(id) AND isolation = 'worktree' AND pr_status IS NULL AND status IN ('completed','failed','canceled','interrupted');
+
+-- name: HasSubagentCommittedAdmission :one
+SELECT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE workspace_id = sqlc.arg(workspace_id) AND session_id = sqlc.arg(session_id) AND idempotency_key = sqlc.arg(subagent_id) AND state IN ('dispatch_committed','indeterminate','completed'));

@@ -109,7 +109,19 @@ func subagentWakeText(rows []store.SessionSubagent) string {
 	var lines []string
 	for _, row := range rows {
 		title := strings.Join(strings.Fields(strings.ReplaceAll(row.Title, "\"", "'")), " ")
-		lines = append(lines, fmt.Sprintf("Subagent %q (%s) finished: %s.", title, row.ID, row.Status))
+		line := fmt.Sprintf("Subagent %q (%s) finished: %s.", title, row.ID, row.Status)
+		if row.Isolation == SubagentIsolationWorktree && row.WorktreeState().Branch != "" {
+			line += " Branch " + row.WorktreeState().Branch
+			switch {
+			case row.WorktreeState().Facts.PRURL != "":
+				line += "; PR " + row.WorktreeState().Facts.PRURL + "."
+			case row.WorktreeState().Facts.PRStatus == "none":
+				line += "."
+			default:
+				line += "; PR status unknown."
+			}
+		}
+		lines = append(lines, line)
 	}
 	suffix := "Call compozy__subagent_status to read each result."
 	if len(rows) == 1 {

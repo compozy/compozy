@@ -117941,6 +117941,9 @@
                             "hint": {
                               "type": "string"
                             },
+                            "isolation": {
+                              "type": "string"
+                            },
                             "origin": {
                               "type": "string"
                             },
@@ -118028,6 +118031,76 @@
                             },
                             "workspace_id": {
                               "type": "string"
+                            },
+                            "worktree": {
+                              "nullable": true,
+                              "properties": {
+                                "base_ref": {
+                                  "type": "string"
+                                },
+                                "base_sha": {
+                                  "type": "string"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                },
+                                "commits_ahead": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "dirty_files": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "head_sha": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "pull_request": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "number": {
+                                      "type": "integer"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "number",
+                                    "state",
+                                    "url"
+                                  ],
+                                  "type": "object"
+                                },
+                                "pull_request_status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base_ref",
+                                "branch",
+                                "id",
+                                "name",
+                                "path"
+                              ],
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -118036,6 +118109,7 @@
                             "delivery",
                             "depth",
                             "error",
+                            "isolation",
                             "origin",
                             "parent_session_id",
                             "parent_turn_id",
@@ -118093,6 +118167,9 @@
                                 "type": "string"
                               },
                               "hint": {
+                                "type": "string"
+                              },
+                              "isolation": {
                                 "type": "string"
                               },
                               "origin": {
@@ -118182,6 +118259,76 @@
                               },
                               "workspace_id": {
                                 "type": "string"
+                              },
+                              "worktree": {
+                                "nullable": true,
+                                "properties": {
+                                  "base_ref": {
+                                    "type": "string"
+                                  },
+                                  "base_sha": {
+                                    "type": "string"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  },
+                                  "commits_ahead": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "dirty_files": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "head_sha": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "pull_request": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "number": {
+                                        "type": "integer"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "number",
+                                      "state",
+                                      "url"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "pull_request_status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "base_ref",
+                                  "branch",
+                                  "id",
+                                  "name",
+                                  "path"
+                                ],
+                                "type": "object"
                               }
                             },
                             "required": [
@@ -118190,6 +118337,7 @@
                               "delivery",
                               "depth",
                               "error",
+                              "isolation",
                               "origin",
                               "parent_session_id",
                               "parent_turn_id",
@@ -296114,6 +296262,9 @@
                             "hint": {
                               "type": "string"
                             },
+                            "isolation": {
+                              "type": "string"
+                            },
                             "origin": {
                               "type": "string"
                             },
@@ -296201,6 +296352,76 @@
                             },
                             "workspace_id": {
                               "type": "string"
+                            },
+                            "worktree": {
+                              "nullable": true,
+                              "properties": {
+                                "base_ref": {
+                                  "type": "string"
+                                },
+                                "base_sha": {
+                                  "type": "string"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                },
+                                "commits_ahead": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "dirty_files": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "head_sha": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "pull_request": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "number": {
+                                      "type": "integer"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "number",
+                                    "state",
+                                    "url"
+                                  ],
+                                  "type": "object"
+                                },
+                                "pull_request_status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base_ref",
+                                "branch",
+                                "id",
+                                "name",
+                                "path"
+                              ],
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -296209,6 +296430,7 @@
                             "delivery",
                             "depth",
                             "error",
+                            "isolation",
                             "origin",
                             "parent_session_id",
                             "parent_turn_id",
@@ -296266,6 +296488,9 @@
                                 "type": "string"
                               },
                               "hint": {
+                                "type": "string"
+                              },
+                              "isolation": {
                                 "type": "string"
                               },
                               "origin": {
@@ -296355,6 +296580,76 @@
                               },
                               "workspace_id": {
                                 "type": "string"
+                              },
+                              "worktree": {
+                                "nullable": true,
+                                "properties": {
+                                  "base_ref": {
+                                    "type": "string"
+                                  },
+                                  "base_sha": {
+                                    "type": "string"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  },
+                                  "commits_ahead": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "dirty_files": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "head_sha": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "pull_request": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "number": {
+                                        "type": "integer"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "number",
+                                      "state",
+                                      "url"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "pull_request_status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "base_ref",
+                                  "branch",
+                                  "id",
+                                  "name",
+                                  "path"
+                                ],
+                                "type": "object"
                               }
                             },
                             "required": [
@@ -296363,6 +296658,7 @@
                               "delivery",
                               "depth",
                               "error",
+                              "isolation",
                               "origin",
                               "parent_session_id",
                               "parent_turn_id",
@@ -297086,6 +297382,9 @@
                           "hint": {
                             "type": "string"
                           },
+                          "isolation": {
+                            "type": "string"
+                          },
                           "origin": {
                             "type": "string"
                           },
@@ -297173,6 +297472,76 @@
                           },
                           "workspace_id": {
                             "type": "string"
+                          },
+                          "worktree": {
+                            "nullable": true,
+                            "properties": {
+                              "base_ref": {
+                                "type": "string"
+                              },
+                              "base_sha": {
+                                "type": "string"
+                              },
+                              "branch": {
+                                "type": "string"
+                              },
+                              "commits_ahead": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "dirty_files": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "head_sha": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "observed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "pull_request": {
+                                "nullable": true,
+                                "properties": {
+                                  "number": {
+                                    "type": "integer"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "number",
+                                  "state",
+                                  "url"
+                                ],
+                                "type": "object"
+                              },
+                              "pull_request_status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "base_ref",
+                              "branch",
+                              "id",
+                              "name",
+                              "path"
+                            ],
+                            "type": "object"
                           }
                         },
                         "required": [
@@ -297181,6 +297550,7 @@
                           "delivery",
                           "depth",
                           "error",
+                          "isolation",
                           "origin",
                           "parent_session_id",
                           "parent_turn_id",
@@ -305535,6 +305905,9 @@
                     "hint": {
                       "type": "string"
                     },
+                    "isolation": {
+                      "type": "string"
+                    },
                     "origin": {
                       "type": "string"
                     },
@@ -305622,6 +305995,76 @@
                     },
                     "workspace_id": {
                       "type": "string"
+                    },
+                    "worktree": {
+                      "nullable": true,
+                      "properties": {
+                        "base_ref": {
+                          "type": "string"
+                        },
+                        "base_sha": {
+                          "type": "string"
+                        },
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commits_ahead": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "dirty_files": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "head_sha": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "pull_request": {
+                          "nullable": true,
+                          "properties": {
+                            "number": {
+                              "type": "integer"
+                            },
+                            "state": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "number",
+                            "state",
+                            "url"
+                          ],
+                          "type": "object"
+                        },
+                        "pull_request_status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "base_ref",
+                        "branch",
+                        "id",
+                        "name",
+                        "path"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -305630,6 +306073,7 @@
                     "delivery",
                     "depth",
                     "error",
+                    "isolation",
                     "origin",
                     "parent_session_id",
                     "parent_turn_id",

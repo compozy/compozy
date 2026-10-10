@@ -43,8 +43,9 @@ explicit TTL and an explicit tool subset, or is driven by repeated `session_prom
 when the work needs daemon-owned state, leases, review verdicts, or a scheduler.
 
 Subagents are not task authority. A subagent's result is evidence for your turn; it does not complete,
-claim, or review a task run. Subagents share your workspace and worktree, so concurrent subagents
-must not edit the same files. Give each one disjoint paths or a read-only task.
+claim, or review a task run. Subagents share your workspace and worktree by default, so concurrent
+shared subagents must use disjoint paths or read-only tasks. For independent code changes, delegate
+with `isolation: "worktree"`; see `references/worktrees.md` for bases, delivery and retention.
 
 ## Catalog And Inbox Reads
 

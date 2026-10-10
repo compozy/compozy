@@ -9,7 +9,7 @@ entry_points: web session window transcript; session transcript REST + SSE
 qa_status: untested
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-09-06-sessions-stability.md
 last_report: docs/qa/reports/2026-10-02-untested.md

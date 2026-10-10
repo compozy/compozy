@@ -18,12 +18,13 @@ import (
 )
 
 type memorySubagents struct {
-	mu       sync.Mutex
-	rows     map[string]store.SessionSubagent
-	wakes    map[string]store.SessionSubagentWake
-	writes   int
-	rewrites map[string]string
-	orphans  []string
+	mu                 sync.Mutex
+	rows               map[string]store.SessionSubagent
+	wakes              map[string]store.SessionSubagentWake
+	writes             int
+	rewrites           map[string]string
+	orphans            []string
+	committedAdmission bool
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -171,10 +172,21 @@ func (d *memorySubagents) FinalizeSubagent(
 		return row, false, store.ErrSubagentNotFound
 	}
 	if store.IsSubagentStatusTerminal(row.Status) {
+		if in.WorktreeFacts != nil && row.WorktreeState().Facts.PRStatus == "" {
+			wt := row.WorktreeState()
+			wt.Facts = *in.WorktreeFacts
+			row.Worktree = &wt
+			d.rows[row.ID] = row
+		}
 		return row, false, nil
 	}
 	row.Status = in.Status
 	row.WorkState = in.WorkState
+	if in.WorktreeFacts != nil {
+		wt := row.WorktreeState()
+		wt.Facts = *in.WorktreeFacts
+		row.Worktree = &wt
+	}
 	row.Result = in.Result
 	row.Error = in.Error
 	row.ResultTruncated = in.ResultTruncated
@@ -727,4 +739,82 @@ func (r *subagentTestRuntime) ResumeChild(_ context.Context, row store.SessionSu
 	snap.Active = true
 	r.snapshots[*row.ChildSessionID] = snap
 	return nil
+}
+
+func (d *memorySubagents) AssociateSubagentWorktree(_ context.Context, row store.SessionSubagent) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	old := d.rows[row.ID]
+	wt := row.WorktreeState()
+	wt.Cleanup, wt.Facts = old.WorktreeState().Cleanup, old.WorktreeState().Facts
+	old.Worktree = &wt
+	d.rows[row.ID] = old
+	return nil
+}
+func (d *memorySubagents) SetSubagentWorktreeCleanup(_ context.Context, id, state string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	wt := row.WorktreeState()
+	wt.Cleanup = state
+	row.Worktree = &wt
+	d.rows[id] = row
+	return nil
+}
+func (d *memorySubagents) ListSubagentWorktreeCleanupPending(context.Context) ([]store.SessionSubagent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var rows []store.SessionSubagent
+	for _, row := range d.rows {
+		if row.WorktreeState().Cleanup == "pending" {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+func (d *memorySubagents) HasSubagentCommittedAdmission(context.Context, string, string, string) (bool, error) {
+	return d.committedAdmission, nil
+}
+
+type subagentWorktreeStub struct {
+	requests                    []SubagentWorktreeRequest
+	worktree                    SubagentWorktree
+	provisionErr, errorRollback error
+	lookupErr                   error
+	retained                    bool
+	rollbacks                   int
+	facts                       SubagentWorktreeFacts
+	observe                     func()
+}
+
+var _ SubagentWorktrees = (*subagentWorktreeStub)(nil)
+
+func (w *subagentWorktreeStub) Provision(_ context.Context, r SubagentWorktreeRequest) (SubagentWorktree, error) {
+	w.requests = append(w.requests, r)
+	return w.worktree, w.provisionErr
+}
+func (w *subagentWorktreeStub) FindByRun(context.Context, string, string) (*SubagentWorktree, error) {
+	if w.lookupErr != nil {
+		return nil, w.lookupErr
+	}
+	if w.worktree.ID == "" {
+		return nil, nil
+	}
+	return &w.worktree, nil
+}
+func (w *subagentWorktreeStub) Rollback(context.Context, string, string, string) error {
+	w.rollbacks++
+	return w.errorRollback
+}
+func (w *subagentWorktreeStub) SafeRollback(ctx context.Context, ws, id, run, _ string) (bool, error) {
+	if w.retained {
+		return true, nil
+	}
+	return false, w.Rollback(ctx, ws, id, run)
+}
+func (w *subagentWorktreeStub) Observe(context.Context, string, string, string) SubagentWorktreeFacts {
+	if w.observe != nil {
+		w.observe()
+	}
+	return w.facts
 }

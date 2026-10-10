@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -75,7 +76,20 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	unlock()
 	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(flight.done); s.mu.Unlock() })
 	defer finishFlight()
-	opts := SpawnOpts{
+	opts := subagentSpawnOptions(row, target, mode, policy)
+	if req.Isolation == SubagentIsolationWorktree {
+		if err := s.provisionIsolation(ctx, req, snap.Info, &row); err != nil {
+			return s.failIsolatedDelegation(ctx, row, "", err)
+		}
+		opts.IsolatedWorktreeID = row.WorktreeState().ID
+		opts.Subagent.WorktreeID = row.WorktreeState().ID
+	}
+	return s.startDelegation(ctx, req, row, opts, finishFlight)
+}
+
+func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
+	mode compozyconfig.PermissionMode, policy store.SessionPermissionPolicy) SpawnOpts {
+	return SpawnOpts{
 		ParentSessionID:  row.ParentSessionID,
 		ParentTurnID:     row.ParentTurnID,
 		AgentName:        target.Agent,
@@ -88,12 +102,16 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		SpawnRole:        store.SubagentSpawnRole,
 		AutoStopOnParent: true,
 		NotifyCreatorSet: true,
-		IdempotencyKey:   id,
+		IdempotencyKey:   row.ID,
 		Permissions:      mode,
 		PermissionPolicy: policy,
-		Subagent:         &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
+		Subagent: &hookspkg.SubagentSpawnPayload{
+			Title:     row.Title,
+			Role:      row.Role,
+			TaskChars: row.TaskChars,
+			Isolation: row.Isolation,
+		},
 	}
-	return s.startDelegation(ctx, req, row, opts, finishFlight)
 }
 
 func (s *subagentService) startDelegation(
@@ -106,19 +124,7 @@ func (s *subagentService) startDelegation(
 	id := row.ID
 	child, err := s.runtime.Spawn(ctx, opts)
 	if err != nil {
-		if errors.Is(err, ErrSubagentCapabilityDenied) {
-			if deleteErr := s.store.DeleteReserved(context.WithoutCancel(ctx), id); deleteErr != nil {
-				return Subagent{}, errors.Join(err, deleteErr)
-			}
-			s.mu.Lock()
-			if flight := s.flights[id]; flight != nil {
-				flight.err = err
-			}
-			s.mu.Unlock()
-			s.runtime.PublishParent(ctx, row.ParentSessionID)
-			return Subagent{}, err
-		}
-		return s.failDelegation(ctx, row, child, err)
+		return s.handleSubagentSpawnFailure(ctx, row, child, err)
 	}
 	unlock := s.lock(row.ParentSessionID)
 	current, readErr := s.store.GetSubagent(ctx, row.WorkspaceID, row.ID)
@@ -128,11 +134,9 @@ func (s *subagentService) startDelegation(
 	}
 	if store.IsSubagentStatusTerminal(current.Status) {
 		unlock()
-		if err := s.runtime.Stop(ctx, child); err != nil {
-			return Subagent{}, err
-		}
-		return presentSubagent(current), nil
+		return s.stopCanceledDelegation(ctx, row, current, child)
 	}
+
 	linked, linkErr := s.store.LinkChild(ctx, id, child, s.now().UTC())
 	err = linkErr
 	if err == nil {
@@ -156,11 +160,17 @@ func (s *subagentService) startDelegation(
 	if current, err := s.store.GetSubagentByID(ctx, id); err != nil {
 		return s.failDelegation(ctx, row, child, err)
 	} else if store.IsSubagentStatusTerminal(current.Status) {
+		if row.Isolation == SubagentIsolationWorktree {
+			return s.stopCanceledDelegation(ctx, row, current, child)
+		}
 		return presentSubagent(current), nil
 	}
-	if err = s.runtime.Admit(ctx, row, subagentPrompt(row.Role, req.Task), false); err != nil {
+	if err = s.runtime.Admit(ctx, row, subagentFirstPrompt(row, req.Task), false); err != nil {
 		if current, readErr := s.store.GetSubagentByID(ctx, id); readErr == nil &&
 			store.IsSubagentStatusTerminal(current.Status) {
+			if row.Isolation == SubagentIsolationWorktree {
+				return s.stopCanceledDelegation(ctx, row, current, child)
+			}
 			return presentSubagent(current), nil
 		}
 		return s.failDelegation(ctx, row, child, err)
@@ -177,12 +187,57 @@ func (s *subagentService) startDelegation(
 	return s.Get(ctx, row.WorkspaceID, id)
 }
 
+func (s *subagentService) stopCanceledDelegation(
+	ctx context.Context,
+	row, current store.SessionSubagent,
+	child string,
+) (Subagent, error) {
+	if row.Isolation == SubagentIsolationWorktree {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		defer cancel()
+		if _, err := s.compensateIsolation(cleanup, &row, child); err != nil {
+			return Subagent{}, err
+		}
+	} else if err := s.runtime.Stop(ctx, child); err != nil {
+		return Subagent{}, err
+	}
+	return presentSubagent(current), nil
+}
+
+func (s *subagentService) handleSubagentSpawnFailure(
+	ctx context.Context,
+	row store.SessionSubagent,
+	child string,
+	err error,
+) (Subagent, error) {
+	id := row.ID
+	if row.Isolation == SubagentIsolationWorktree {
+		return s.failIsolatedDelegation(ctx, row, child, err)
+	}
+	if errors.Is(err, ErrSubagentCapabilityDenied) {
+		if deleteErr := s.store.DeleteReserved(context.WithoutCancel(ctx), id); deleteErr != nil {
+			return Subagent{}, errors.Join(err, deleteErr)
+		}
+		s.mu.Lock()
+		if flight := s.flights[id]; flight != nil {
+			flight.err = err
+		}
+		s.mu.Unlock()
+		s.runtime.PublishParent(ctx, row.ParentSessionID)
+		return Subagent{}, err
+	}
+	return s.failDelegation(ctx, row, child, err)
+}
+
 func (s *subagentService) failDelegation(
 	ctx context.Context,
 	row store.SessionSubagent,
 	child string,
 	cause error,
 ) (Subagent, error) {
+	if row.Isolation == SubagentIsolationWorktree {
+		return s.failIsolatedDelegation(ctx, row, child, cause)
+	}
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 	unlock := s.lock(row.ParentSessionID)
@@ -288,7 +343,7 @@ func (s *subagentService) reserveDelegation(
 		policyName = store.SubagentWakePolicySettledOnly
 	}
 	return s.store.ReserveSubagent(ctx, store.SessionSubagent{
-		ID: id, WorkspaceID: req.Caller.WorkspaceID, ParentSessionID: req.Caller.SessionID,
+		Isolation: req.Isolation, ID: id, WorkspaceID: req.Caller.WorkspaceID, ParentSessionID: req.Caller.SessionID,
 		ParentTurnID: req.Caller.TurnID, ParentToolCallID: req.Caller.ToolCallID,
 		Origin: store.SubagentOriginDelegated, IdempotencyKey: req.IdempotencyKey, RequestFingerprint: fingerprint,
 		Title: req.Title, Role: req.Role, TaskChars: utf8.RuneCountInString(req.Task), PendingTask: &req.Task,

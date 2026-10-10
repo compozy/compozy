@@ -48116,6 +48116,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -48144,6 +48145,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               };
             } | null;
             subagents_snapshot?: {
@@ -48156,6 +48176,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -48184,6 +48205,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               }[];
             } | null;
             transcript_delta?: {
@@ -117136,6 +117176,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -117164,6 +117205,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               };
             } | null;
             subagents_snapshot?: {
@@ -117176,6 +117236,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -117204,6 +117265,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               }[];
             } | null;
             transcript_delta?: {
@@ -117460,6 +117540,7 @@ export interface operations {
               depth: number;
               error: string | null;
               hint?: string;
+              isolation: string;
               origin: string;
               parent_session_id: string;
               parent_turn_id: string;
@@ -117488,6 +117569,25 @@ export interface operations {
               wait_timed_out: boolean;
               work_state: string;
               workspace_id: string;
+              worktree?: {
+                base_ref: string;
+                base_sha?: string;
+                branch: string;
+                commits_ahead?: number | null;
+                dirty_files?: number | null;
+                head_sha?: string;
+                id: string;
+                name: string;
+                /** Format: date-time */
+                observed_at?: string | null;
+                path: string;
+                pull_request?: {
+                  number: number;
+                  state: string;
+                  url: string;
+                } | null;
+                pull_request_status?: string;
+              } | null;
             }[];
           };
         };
@@ -121063,6 +121163,7 @@ export interface operations {
             depth: number;
             error: string | null;
             hint?: string;
+            isolation: string;
             origin: string;
             parent_session_id: string;
             parent_turn_id: string;
@@ -121091,6 +121192,25 @@ export interface operations {
             wait_timed_out: boolean;
             work_state: string;
             workspace_id: string;
+            worktree?: {
+              base_ref: string;
+              base_sha?: string;
+              branch: string;
+              commits_ahead?: number | null;
+              dirty_files?: number | null;
+              head_sha?: string;
+              id: string;
+              name: string;
+              /** Format: date-time */
+              observed_at?: string | null;
+              path: string;
+              pull_request?: {
+                number: number;
+                state: string;
+                url: string;
+              } | null;
+              pull_request_status?: string;
+            } | null;
           };
         };
       };
