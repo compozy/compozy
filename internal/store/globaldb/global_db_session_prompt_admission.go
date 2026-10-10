@@ -200,11 +200,8 @@ func claimSessionPromptAdmission(
 		},
 	)
 	if err == nil {
-		admission, mapErr := sessionPromptAdmissionFromGenerated(&existing)
-		if mapErr != nil {
-			return store.SessionPromptAdmission{}, false, mapErr
-		}
-		return classifyPromptAdmissionReplay(admission, req)
+		admission, err := replayPromptAdmissionClaim(ctx, exec, &existing, req)
+		return admission, false, err
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
@@ -290,16 +287,17 @@ func encodeSessionPromptAdmissionPayload(
 func classifyPromptAdmissionReplay(
 	admission store.SessionPromptAdmission,
 	req store.SessionPromptAdmissionRequest,
-) (store.SessionPromptAdmission, bool, error) {
+) (store.SessionPromptAdmission, error) {
 	fingerprintMatches := admission.FingerprintVersion == req.FingerprintVersion &&
 		admission.RequestFingerprint == req.RequestFingerprint
 	// Remove the v4 replay boundary shim in v0.5.0; historical admissions remain unattributed.
-	if admission.FingerprintVersion == "session-prompt/v4" && req.FingerprintVersion == "session-prompt/v5" {
+	if admission.FingerprintVersion == "session-prompt/v4" &&
+		req.FingerprintVersion == sessionPromptOriginFingerprintVersion {
 		fingerprintMatches = req.LegacyRequestFingerprint != "" &&
 			admission.RequestFingerprint == req.LegacyRequestFingerprint
 	}
 	if admission.MessageID != req.MessageID || !fingerprintMatches || admission.Operation != req.Operation {
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"%w: idempotency_key %q is already bound to another request",
 			store.ErrSessionPromptIdempotencyConflict,
 			req.IdempotencyKey,
@@ -307,17 +305,17 @@ func classifyPromptAdmissionReplay(
 	}
 	switch admission.State {
 	case store.SessionPromptAdmissionReserved:
-		return admission, false, nil
+		return admission, nil
 	case store.SessionPromptAdmissionCompleted:
-		return admission, false, nil
+		return admission, nil
 	case store.SessionPromptAdmissionDispatchCommitted, store.SessionPromptAdmissionIndeterminate:
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"%w: idempotency_key %q",
 			store.ErrSessionPromptDispatchIndeterminate,
 			req.IdempotencyKey,
 		)
 	default:
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
+		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"store: invalid session prompt admission state %q",
 			admission.State,
 		)

@@ -119,8 +119,38 @@ func (m *Manager) replyTurnEvents(ctx context.Context, sessionID, turnID string)
 	}
 }
 
-func (m *Manager) replyMessageTurn(ctx context.Context, sessionID, messageID string) (string, error) {
-	events, err := m.replyTurnEvents(ctx, sessionID, "")
+func (m *Manager) replyMessageTurn(
+	ctx context.Context, w store.ReplyWatch, admission store.SessionPromptAdmission,
+	inputs []store.SessionInputQueueEntry, recovering bool,
+) (string, error) {
+	ids := []string{admission.EventID}
+	for i := range inputs {
+		input := &inputs[i]
+		if input.EventID != "" && !slices.Contains(ids, input.EventID) {
+			ids = append(ids, input.EventID)
+		}
+	}
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		events, err := m.Events(
+			ctx,
+			w.TargetSessionID,
+			store.EventQuery{ID: id, Type: acp.EventTypeUserMessage, Limit: 1},
+		)
+		if err != nil {
+			return "", err
+		}
+		if len(events) > 0 {
+			return events[0].TurnID, nil
+		}
+	}
+	if !recovering {
+		return "", nil
+	}
+	// Old incomplete bindings may be recovered from one bounded page of input events.
+	events, err := m.Events(ctx, w.TargetSessionID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 200})
 	if err != nil {
 		return "", err
 	}
@@ -129,11 +159,25 @@ func (m *Manager) replyMessageTurn(ctx context.Context, sessionID, messageID str
 		if err != nil {
 			return "", err
 		}
-		if decoded.MessageIDValue() == messageID && event.Type == acp.EventTypeUserMessage {
+		if decoded.MessageIDValue() == w.MessageID && decoded.ParentToolCallID() == "" {
 			return event.TurnID, nil
 		}
 	}
 	return "", nil
+}
+
+func replyDispatchTime(admission store.SessionPromptAdmission, inputs []store.SessionInputQueueEntry) time.Time {
+	since := admission.CreatedAt
+	if admission.DispatchCommittedAt != nil {
+		since = *admission.DispatchCommittedAt
+	}
+	for i := range inputs {
+		input := &inputs[i]
+		if input.DispatchStartedAt != nil && input.DispatchStartedAt.After(since) {
+			since = *input.DispatchStartedAt
+		}
+	}
+	return since
 }
 
 func (m *Manager) replyTargetSettledSince(ctx context.Context, id string, since time.Time) (bool, error) {

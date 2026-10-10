@@ -259,6 +259,16 @@ func (q *Queries) ListReplyWatches(ctx context.Context, arg ListReplyWatchesPara
 	return items, nil
 }
 
+const rearmFailedReplyWatch = `-- name: RearmFailedReplyWatch :exec
+UPDATE session_prompt_reply_watches SET state = 'armed', abandon_reason = NULL
+WHERE admission_id = ? AND state = 'abandoned' AND abandon_reason = 'send_failed'
+`
+
+func (q *Queries) RearmFailedReplyWatch(ctx context.Context, admissionID string) error {
+	_, err := q.db.ExecContext(ctx, rearmFailedReplyWatch, admissionID)
+	return err
+}
+
 const replyWatchAdmission = `-- name: ReplyWatchAdmission :one
 SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions WHERE id = ?
 `

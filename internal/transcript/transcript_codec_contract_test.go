@@ -678,6 +678,7 @@ func TestSubagentCodecContract(t *testing.T) {
 	})
 }
 
+// UT-004 UT-007: redact structured origin without treating authored text as attribution.
 func TestPromptOriginCodec(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve attributed authored text through codec and redaction", func(t *testing.T) {

@@ -83,3 +83,34 @@ func (m *Manager) promptDispatchIndeterminate(
 	indeterminate := fmt.Errorf("%w: %s", store.ErrSessionPromptDispatchIndeterminate, reason)
 	return errors.Join(indeterminate, markErr)
 }
+
+func (m *Manager) refreshReplyWatchResult(ctx context.Context, result *SendPromptResult) error {
+	if result.ReplyWatch == nil {
+		return nil
+	}
+	watches, ok := m.inputQueueStore.(store.ReplyWatchStore)
+	if !ok {
+		return nil
+	}
+	watch, err := watches.GetReplyWatch(ctx, result.ReplyWatch.ID)
+	if err != nil {
+		return err
+	}
+	result.ReplyWatch.State = watch.State
+	return nil
+}
+
+func (m *Manager) replyWatchSteerResolved(ctx context.Context, sessionID string) {
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSteerResolved(ctx, sessionID, "")
+	}
+}
+
+func (m *Manager) replyWatchSessionDeleted(ctx context.Context, sessionID string) {
+	if service := m.ReplyWatches(); service != nil {
+		service.OnTargetGone(ctx, sessionID)
+		if err := service.OnSenderGone(ctx, sessionID); err != nil {
+			m.logger.ErrorContext(ctx, "reply_watch.abandon_failed", "session_id", sessionID, "error", err)
+		}
+	}
+}

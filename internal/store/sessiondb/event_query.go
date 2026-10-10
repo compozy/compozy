@@ -24,6 +24,7 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 
 	baseQuery := "SELECT " + projection + " FROM events"
 	where, args := store.BuildClauses(
+		store.StringClause("id", query.ID),
 		store.StringClause("type", query.Type),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("turn_id", query.TurnID),

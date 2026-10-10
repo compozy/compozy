@@ -3943,6 +3943,7 @@ func TestCompactSessionHandler(t *testing.T) {
 	}
 }
 
+// UT-012 UT-017: queue origin reaches HTTP and protects agent-authored edits/promotions.
 func TestSessionInputOriginContract(t *testing.T) {
 	t.Parallel()
 	t.Run("Should expose origin and refuse replace and promotion with conflict", func(t *testing.T) {

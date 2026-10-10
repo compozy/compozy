@@ -86,6 +86,15 @@ func (m *Manager) cleanupInterruptingInputActivationFailure(
 	if entry.Status != store.SessionInputQueueStatusQueued {
 		return cause
 	}
+	if service := m.ReplyWatches(); service != nil {
+		origin, err := decodePromptOrigin(entry.Origin)
+		if err != nil {
+			return errors.Join(cause, err)
+		}
+		if origin != nil && origin.ReplyWatchID != "" {
+			service.OnSendResult(context.WithoutCancel(ctx), origin.ReplyWatchID, cause)
+		}
+	}
 	return m.cancelUndeliverableInput(ctx, entry.SessionID, entry.ID, cause)
 }
 

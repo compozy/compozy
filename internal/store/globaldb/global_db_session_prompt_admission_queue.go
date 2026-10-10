@@ -333,7 +333,7 @@ func findPromptAdmissionReplay(
 	if err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	admission, _, err = classifyPromptAdmissionReplay(admission, req)
+	admission, err = classifyPromptAdmissionReplay(admission, req)
 	return admission, true, err
 }
 

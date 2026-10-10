@@ -14,6 +14,7 @@ type UISessionMessagePayload struct {
 	TargetWorkspaceID string `json:"target_workspace_id,omitempty"`
 	MessageID         string `json:"message_id,omitempty"`
 	Mode              string `json:"mode,omitempty"`
+	Delivery          string `json:"delivery,omitempty"`
 	ReplyWatchID      string `json:"reply_watch_id,omitempty"`
 	State             string `json:"state"`
 }
@@ -92,6 +93,7 @@ func sessionMessagePartPayload(decoded *decodedStoredEvent) (UISessionMessagePay
 			if output.Mode != "" {
 				payload.Mode = output.Mode
 			}
+			payload.Delivery = output.Delivery
 			if output.ReplyWatch != nil {
 				payload.ReplyWatchID = output.ReplyWatch.ID
 			}
@@ -106,6 +108,7 @@ type sessionMessageOutput struct {
 	TargetWorkspaceID string `json:"target_workspace_id"`
 	MessageID         string `json:"message_id"`
 	Mode              string `json:"mode"`
+	Delivery          string `json:"delivery"`
 	ReplyWatch        *struct {
 		ID string `json:"id"`
 	} `json:"reply_watch"`

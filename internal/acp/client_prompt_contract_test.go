@@ -1689,6 +1689,7 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 	})
 }
 
+// UT-001 UT-002: normalize, clone, and validate sender origin at the ACP boundary.
 func TestPromptOriginContract(t *testing.T) {
 	t.Parallel()
 	t.Run("Should normalize bound and clone immutable sender metadata", func(t *testing.T) {

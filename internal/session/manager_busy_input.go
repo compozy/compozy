@@ -19,13 +19,18 @@ const (
 )
 
 // SendPrompt submits a user-facing prompt and applies busy-input policy when a turn is active.
-func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts) (SendPromptResult, error) {
+func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts) (result SendPromptResult, err error) {
 	if m == nil {
 		return SendPromptResult{}, errors.New("session: manager is required")
 	}
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: prompt context is required")
 	}
+	defer func() {
+		if err == nil {
+			err = m.refreshReplyWatchResult(ctx, &result)
+		}
+	}()
 	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
 	if err != nil {
 		return SendPromptResult{}, err
