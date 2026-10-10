@@ -1,4 +1,4 @@
-import type { SubagentWirePayload, SubagentWorktreePayload } from "../adapters/subagent-api";
+import type { SubagentPayload, SubagentWorktreePayload } from "../adapters/subagent-api";
 import type {
   SubagentOrigin,
   SubagentPullRequestState,
@@ -45,8 +45,8 @@ const PULL_REQUEST_STATES: ReadonlySet<string> = new Set<SubagentPullRequestStat
 
 const SAFE_PR_URL = /^https?:\/\//i;
 
-const text = (value: string | undefined): string | null => value?.trim() || null;
-const count = (value: number | undefined): number | null =>
+const text = (value: string | null | undefined): string | null => value?.trim() || null;
+const count = (value: number | null | undefined): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
 /**
@@ -88,9 +88,7 @@ function worktreeView(worktree: SubagentWorktreePayload): SubagentWorktreeView {
 }
 
 /** Shared subagents carry no facts, even if a payload sends some. */
-function isolationFields(
-  payload: SubagentWirePayload
-): Pick<SubagentView, "isolation" | "worktree"> {
+function isolationFields(payload: SubagentPayload): Pick<SubagentView, "isolation" | "worktree"> {
   if (payload.isolation !== "worktree") return { isolation: "shared", worktree: null };
   return {
     isolation: "worktree",
@@ -101,7 +99,7 @@ function isolationFields(
 /**
  * The wire → view mapping preserves the daemon creation timestamp for stable ordering.
  */
-export function subagentViewFromPayload(payload: SubagentWirePayload): SubagentView {
+export function subagentViewFromPayload(payload: SubagentPayload): SubagentView {
   return {
     id: payload.subagent_id,
     parent_session_id: payload.parent_session_id,
