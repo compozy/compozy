@@ -13,11 +13,12 @@ import { SubagentCard } from "../subagent-card";
 import { SubagentChip } from "../subagent-chip";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
-import type { SubagentStatus, SubagentView } from "../types";
+import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
 
 // Suite: subagent presentational components.
 // Invariant: rendered copy, roles and controls of the card, hover card, divider, banner, chip and
-// inspector roster follow `_uiux.md` S1–S5, S9, S10; elapsed ticks from server timestamps on a
+// inspector roster follow `_uiux.md` S1–S5, S9, S10 (and agent-collaboration S5 worktree facts);
+// elapsed ticks from server timestamps on a
 // shared ticker without re-rendering React. Owning layer: session subagent components (props in,
 // callbacks out). Canonical suite: this file. Boundary OUT: sonner toast.
 const NO_RUNTIME = { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" };
@@ -385,5 +386,178 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
     await act(async () => reject(new Error("boom")));
     expect(toast.error).toHaveBeenCalledWith("Could not stop subagent");
     expect(screen.getByRole("button", { name: "Stop subagent" })).toBeEnabled();
+  });
+});
+
+describe("Isolated subagent worktree facts (UT-070, UT-071, UT-072)", () => {
+  const PR_URL = "https://github.com/compozy/compozy/pull/731";
+  function worktree(overrides: Partial<SubagentWorktreeView> = {}): SubagentWorktreeView {
+    return {
+      id: "wt-5d1a7c0e",
+      name: "extract-billing-client-3f9a0c12",
+      branch: "run/extract-billing-client-3f9a0c12",
+      base_ref: "origin/main",
+      base_sha: "4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b",
+      path: "/w/extract-billing-client-3f9a0c12",
+      head_sha: "9c41e07",
+      commits_ahead: 3,
+      dirty_files: 0,
+      observed_at: new Date(Date.now() - 240_000).toISOString(),
+      pull_request_status: "open",
+      pull_request: { url: PR_URL, number: 731, state: "open" },
+      ...overrides,
+    };
+  }
+  const isolated = (
+    overrides: Partial<SubagentWorktreeView> = {},
+    status: SubagentStatus = "completed"
+  ) =>
+    subagent({
+      title: "Extract billing client",
+      status,
+      settled_at: status === "running" ? null : at(567),
+      result_preview: "Moved the client into internal/billing/client",
+      isolation: "worktree",
+      worktree: worktree(overrides),
+    });
+
+  async function focusHover() {
+    const user = userEvent.setup();
+    await user.tab();
+    return waitFor(() => {
+      const node = document.querySelector('[data-slot="subagent-hover-facts"]');
+      expect(node).not.toBeNull();
+      return node as HTMLElement;
+    });
+  }
+  const factText = (facts: HTMLElement) =>
+    [...facts.querySelectorAll("dt")].map(
+      dt => `${dt.textContent}: ${dt.nextElementSibling?.textContent}`
+    );
+
+  it("Should begin line two with the branch and link the PR beside, not inside, the open control (UT-070)", () => {
+    const onOpen = vi.fn();
+    renderUI(<SubagentCard subagent={isolated()} onOpen={onOpen} />);
+    const open = screen.getByRole("button", { name: "Open Extract billing client" });
+    const lineTwo = open.querySelector('[data-slot="subagent-card-line-two"]')!;
+    const branch = within(lineTwo as HTMLElement).getByTitle("run/extract-billing-client-3f9a0c12");
+    expect(lineTwo.firstElementChild).toBe(branch);
+    expect(branch).toHaveTextContent("run/extract-billi…3f9a0c12");
+    expect(lineTwo).toHaveTextContent("Moved the client into internal/billing/client");
+
+    const link = screen.getByRole("link", { name: "Pull request #731, open" });
+    expect(link).toHaveTextContent("#731");
+    expect(link).toHaveAttribute("href", PR_URL);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(open).not.toContainElement(link);
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.click(open);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("Should show branch, base, commits, PR and observed time in the hover (UT-071)", async () => {
+    renderUI(<SubagentCard subagent={isolated()} onOpen={vi.fn()} />);
+    expect(factText(await focusHover())).toEqual([
+      "Worktree: extract-billing-client-3f9a0c12",
+      "Branch: run/extract-billing-client-3f9a0c12",
+      "Base: origin/main· 4be1c9d",
+      "Commits: 3 ahead·clean",
+      "PR: #731open",
+      "Observed: 4m ago",
+    ]);
+  });
+
+  it("Should show only static facts and no PR link while running (US-016.AC-1)", async () => {
+    renderUI(
+      <SubagentCard
+        subagent={isolated(
+          {
+            head_sha: null,
+            commits_ahead: null,
+            dirty_files: null,
+            observed_at: null,
+            pull_request_status: null,
+            pull_request: null,
+          },
+          "running"
+        )}
+        onOpen={vi.fn()}
+      />
+    );
+    expect(screen.getByTitle("run/extract-billing-client-3f9a0c12")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    const facts = await focusHover();
+    expect([...facts.querySelectorAll("dt")].map(dt => dt.textContent)).toEqual([
+      "Worktree",
+      "Branch",
+      "Base",
+    ]);
+  });
+
+  it("Should show no link for an unknown PR and say PR status unknown (UT-072)", async () => {
+    renderUI(
+      <SubagentCard
+        subagent={isolated({ pull_request_status: "unknown", pull_request: null, dirty_files: 2 })}
+        onOpen={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    const facts = factText(await focusHover());
+    expect(facts).toContain("PR: PR status unknown");
+    expect(facts).toContain("Commits: 3 ahead·2 changed");
+  });
+
+  it("Should say No pull request when the forge answered none (UT-072)", async () => {
+    renderUI(
+      <SubagentCard
+        subagent={isolated({ pull_request_status: "none", pull_request: null })}
+        onOpen={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(factText(await focusHover())).toContain("PR: No pull request");
+  });
+
+  it("Should leave a shared subagent unchanged: no branch, no PR, no facts", async () => {
+    renderUI(
+      <SubagentCard
+        subagent={subagent({ isolation: "shared", progress: "Reading webhook.go" })}
+        onOpen={vi.fn()}
+      />
+    );
+    expect(document.querySelector('[data-slot="subagent-branch"]')).toBeNull();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.tab();
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
+    );
+    expect(document.querySelector('[data-slot="subagent-hover-facts"]')).toBeNull();
+  });
+
+  it("Should show the branch and PR link on isolated inspector rows only (UT-071)", () => {
+    renderUI(
+      <SessionInspectorSubagentsSection
+        subagents={[
+          { ...isolated(), id: "iso" },
+          subagent({
+            id: "shared",
+            title: "Review retry config",
+            status: "completed",
+            settled_at: at(9),
+          }),
+        ]}
+        onOpen={vi.fn()}
+        defaultPreviousOpen
+      />
+    );
+    const open = screen.getByRole("button", { name: "Open Extract billing client" });
+    expect(within(open).getByTitle("run/extract-billing-client-3f9a0c12")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Pull request #731, open" });
+    expect(open).not.toContainElement(link);
+    const shared = screen.getByRole("button", { name: "Open Review retry config" });
+    expect(shared.querySelector('[data-slot="subagent-branch"]')).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });

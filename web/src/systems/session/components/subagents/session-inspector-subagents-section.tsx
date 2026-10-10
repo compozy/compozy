@@ -15,7 +15,7 @@ import {
 
 import { SessionInspectorSection, SessionInspectorSectionHead } from "../session-inspector-section";
 import { SubagentAvatar } from "./subagent-avatar";
-import type { SubagentOpenOptions } from "./subagent-card";
+import { SubagentBranch, type SubagentOpenOptions } from "./subagent-card";
 import {
   SUBAGENT_ROW_STOP_FAILED,
   SUBAGENT_STATUS_WORD,
@@ -24,7 +24,8 @@ import {
   subagentRosterTitle,
 } from "./subagent-format";
 import { SubagentHoverContent } from "./subagent-hover-content";
-import { SubagentRowTrail } from "./subagent-row-trail";
+import { SubagentPullRequestLink, SubagentRowTrail } from "./subagent-row-trail";
+import { subagentPullRequest, subagentWorktree } from "./subagent-worktree-format";
 import type { SubagentView } from "./types";
 import { useSubagentStop } from "./use-subagent-stop";
 
@@ -57,8 +58,13 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
   );
   const drillable = subagent.child_session_id !== null && onOpen !== undefined;
   const word = SUBAGENT_STATUS_WORD[subagent.status];
-  const mainClass =
-    "grid min-h-7.5 min-w-0 grid-cols-[20px_minmax(0,1fr)] items-center gap-2 rounded-sm py-1 pl-1.5 text-left outline-none focus-visible:shadow-focus-inset";
+  // Isolated rows grow a branch line (S5); the PR link stays a sibling of the open control.
+  const branch = subagentWorktree(subagent)?.branch;
+  const pullRequest = subagentPullRequest(subagent);
+  const mainClass = cn(
+    "grid min-w-0 grid-cols-[20px_minmax(0,1fr)] gap-2 rounded-sm pl-1.5 text-left outline-none focus-visible:shadow-focus-inset",
+    branch ? "min-h-10 items-start py-1.25" : "min-h-7.5 items-center py-1"
+  );
 
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     onOpen?.(subagent, { newWindow: event.metaKey || event.ctrlKey });
@@ -101,14 +107,25 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
             size="sm"
             surface="rail"
             still={stale}
+            className={branch ? "mt-px" : undefined}
           />
-          <span className="truncate text-transcript-meta">{subagent.title}</span>
+          {branch ? (
+            <span className="flex min-w-0 flex-col gap-px">
+              <span className="truncate text-transcript-meta">{subagent.title}</span>
+              <SubagentBranch branch={branch} className="min-w-0 text-micro" />
+            </span>
+          ) : (
+            <span className="truncate text-transcript-meta">{subagent.title}</span>
+          )}
         </HoverCardTrigger>
         <HoverCardContent side="left" align="start">
           <SubagentHoverContent subagent={subagent} stale={stale} />
         </HoverCardContent>
       </HoverCard>
-      <span className="inline-flex shrink-0 items-center gap-1">
+      <span
+        className={cn("inline-flex shrink-0 items-center gap-1", branch && "self-start pt-1.5")}
+      >
+        {pullRequest ? <SubagentPullRequestLink pr={pullRequest} size="row" /> : null}
         <SubagentRowTrail
           subagent={subagent}
           stale={stale}

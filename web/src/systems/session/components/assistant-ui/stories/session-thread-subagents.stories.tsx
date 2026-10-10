@@ -132,7 +132,7 @@ export const NativeNesting: Story = {
     // Transcript VC-05: the native card opens inline to its inner work.
     const card = await waitFor(() => {
       const element = canvasElement.querySelector<HTMLElement>(
-        '[data-slot="subagent-card"][aria-expanded]'
+        '[data-slot="subagent-card-open"][aria-expanded]'
       );
       if (!element) throw new Error("native card not rendered yet");
       return element;

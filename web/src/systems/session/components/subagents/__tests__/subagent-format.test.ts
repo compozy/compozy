@@ -17,7 +17,12 @@ import {
   SUBAGENT_STATUS_GLYPH,
   SUBAGENT_STATUS_WORD,
 } from "../subagent-format";
-import type { SubagentStatus, SubagentView } from "../types";
+import {
+  middleTruncate,
+  subagentWorktreeFacts,
+  SUBAGENT_BRANCH_MAX_CHARS,
+} from "../subagent-worktree-format";
+import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
 
 // Suite: subagent presentation rules (pure).
 // Invariant: card lines, elapsed source/format, group copy/span, hover content, banner
@@ -373,5 +378,83 @@ describe("subagentRosterGroups (UT-W19)", () => {
   it("Should title the section with the running count", () => {
     expect(subagentRosterTitle(2)).toBe("Subagents · 2 running");
     expect(subagentRosterTitle(0)).toBe("Subagents");
+  });
+});
+
+describe("isolated subagent worktree facts (UT-070, UT-071, UT-072)", () => {
+  const BASE_SHA = "4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b";
+  function worktree(overrides: Partial<SubagentWorktreeView> = {}): SubagentWorktreeView {
+    return {
+      id: "wt-1",
+      name: "extract-billing-client-3f9a0c12",
+      branch: "run/extract-billing-client-3f9a0c12",
+      base_ref: "origin/main",
+      base_sha: BASE_SHA,
+      path: "/w/extract-billing-client-3f9a0c12",
+      head_sha: null,
+      commits_ahead: null,
+      dirty_files: null,
+      observed_at: null,
+      pull_request_status: null,
+      pull_request: null,
+      ...overrides,
+    };
+  }
+  const labels = (view: SubagentWorktreeView) => subagentWorktreeFacts(view).map(f => f.label);
+
+  it("Should middle-truncate a long branch to the board width and keep its hash suffix", () => {
+    const truncated = middleTruncate("run/extract-billing-client-3f9a0c12");
+    expect([...truncated]).toHaveLength(SUBAGENT_BRANCH_MAX_CHARS);
+    expect(truncated).toBe("run/extract-billi…3f9a0c12");
+    expect(middleTruncate("run/short")).toBe("run/short");
+  });
+
+  it("Should list only static facts while running: absent, never zero", () => {
+    expect(labels(worktree())).toEqual(["Worktree", "Branch", "Base"]);
+  });
+
+  it("Should show the requested base with the short sha, or the sha alone when none was requested", () => {
+    const base = (view: SubagentWorktreeView) =>
+      subagentWorktreeFacts(view).find(fact => fact.kind === "base");
+    expect(base(worktree())).toMatchObject({ ref: "origin/main", sha: "4be1c9d" });
+    expect(base(worktree({ base_ref: BASE_SHA }))).toMatchObject({ ref: "4be1c9d", sha: null });
+  });
+
+  it("Should snapshot commits, PR and observed time at settle; clean vs changed", () => {
+    const settled = worktree({
+      commits_ahead: 3,
+      dirty_files: 0,
+      observed_at: "2026-10-09T22:41:07Z",
+      pull_request_status: "open",
+      pull_request: { url: "https://x/pull/731", number: 731, state: "open" },
+    });
+    expect(labels(settled)).toEqual(["Worktree", "Branch", "Base", "Commits", "PR", "Observed"]);
+    expect(subagentWorktreeFacts(settled)[3]).toMatchObject({
+      ahead: "3 ahead",
+      changes: { text: "clean", dirty: false },
+    });
+    expect(subagentWorktreeFacts(worktree({ commits_ahead: 0, dirty_files: 4 }))[3]).toMatchObject({
+      ahead: "0 ahead",
+      changes: { text: "4 changed", dirty: true },
+    });
+  });
+
+  it("Should read unknown as PR status unknown and none as No pull request", () => {
+    const pr = (view: SubagentWorktreeView) =>
+      subagentWorktreeFacts(view).find(fact => fact.label === "PR");
+    expect(pr(worktree({ pull_request_status: "unknown" }))).toMatchObject({
+      text: "PR status unknown",
+    });
+    expect(pr(worktree({ pull_request_status: "none" }))).toMatchObject({
+      text: "No pull request",
+    });
+  });
+
+  it("Should keep the PR after a failed git read leaves commits and observed time absent", () => {
+    const failedRead = worktree({
+      pull_request_status: "draft",
+      pull_request: { url: "https://x/pull/731", number: 731, state: "draft" },
+    });
+    expect(labels(failedRead)).toEqual(["Worktree", "Branch", "Base", "PR"]);
   });
 });
