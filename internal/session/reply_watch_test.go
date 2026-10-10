@@ -1234,3 +1234,43 @@ func TestReplyWatchActivationFailure(t *testing.T) {
 		}
 	})
 }
+
+type replyRefreshFailureStore struct{ *globaldb.GlobalDB }
+
+func (s replyRefreshFailureStore) GetReplyWatch(context.Context, string) (store.ReplyWatch, error) {
+	return store.ReplyWatch{}, errors.New("reply watch read fault")
+}
+
+// Invariant: a delivered notified send returns its receipt even when the post-dispatch watch read fails.
+// Owner: session reply-watch suite (review N-1).
+func TestReplyWatchReceiptRefresh(t *testing.T) {
+	t.Run("Should keep the admission receipt when the watch state read fails", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, _ := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		h.manager.inputQueueStore = replyRefreshFailureStore{db}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return completedSyntheticPromptEvents(req.TurnID), nil
+		}
+		result, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+			Message:          "question",
+			MessageID:        "refresh-message",
+			IdempotencyKey:   "refresh-key",
+			NotifyOnComplete: true,
+			Origin: &acp.PromptOriginMeta{
+				Kind:        "session",
+				SessionID:   sender.ID,
+				WorkspaceID: h.workspaceID,
+				Hop:         1,
+			},
+		})
+		if err != nil {
+			t.Fatalf("send = %v", err)
+		}
+		if result.ReplyWatch == nil || result.ReplyWatch.ID != store.ReplyWatchID(target.ID, "refresh-message") ||
+			result.ReplyWatch.State != store.ReplyWatchArmed {
+			t.Fatalf("receipt = %+v", result.ReplyWatch)
+		}
+		collectEvents(t, result.Events)
+	})
+}
