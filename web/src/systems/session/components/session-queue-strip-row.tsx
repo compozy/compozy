@@ -1,8 +1,8 @@
-import { CornerDownRight, ListPlus, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { CornerDownRight, Folder, ListPlus, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { Button, OwnerAvatar, Spinner } from "@compozy/ui";
+import { Button, OwnerAvatar, Skeleton, Spinner } from "@compozy/ui";
 
 import {
   isQueuedPromptMutable,
@@ -12,6 +12,7 @@ import {
 } from "../lib/queued-prompt";
 import { queuedPromptPreview } from "../lib/queued-prompt-preview";
 import type { UnconfirmedSend } from "../lib/session-unconfirmed-send";
+import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import type { SessionMessageOrigin } from "../lib/session-message-payload";
 import { SubagentAvatar } from "./subagents/subagent-avatar";
 import { DELETED_SESSION_LABEL } from "./session-messages/session-message-party";
@@ -180,10 +181,12 @@ function SessionQueuedSessionMessageRow({
   actionsHidden: boolean;
   onRemove: (id: string) => void;
 }) {
+  // The viewing session's workspace: a sender in another one is named with its workspace (Gap 5).
+  const viewWorkspaceId = useSessionRuntimeRenderContext()?.workspaceId || sender.workspaceId;
   const party = useSessionLabel({
     sessionId: sender.sessionId,
     workspaceId: sender.workspaceId,
-    currentWorkspaceId: sender.workspaceId,
+    currentWorkspaceId: viewWorkspaceId,
     agentName: sender.agentName,
     titleAtSend: sender.titleAtSend,
   });
@@ -195,18 +198,32 @@ function SessionQueuedSessionMessageRow({
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <span
         data-testid="composer-queued-sender"
+        aria-busy={party.pending || undefined}
         className="inline-flex max-w-[44%] min-w-0 shrink-0 items-center gap-1.5 text-micro text-muted"
       >
         <SubagentAvatar provider={party.agentName} size="sm" className="size-4.5" />
         <span className="shrink-0">From</span>
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            party.title === null ? "font-medium text-muted" : "font-medium text-fg-2"
-          )}
-        >
-          {title}
-        </span>
+        {party.pending ? (
+          <Skeleton aria-hidden="true" className="inline-block h-3 w-16 rounded-xs" />
+        ) : (
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              party.title === null ? "font-medium text-muted" : "font-medium text-fg-2"
+            )}
+          >
+            {title}
+          </span>
+        )}
+        {party.workspaceName ? (
+          <span
+            className="inline-flex min-w-0 items-center gap-0.5 text-subtle"
+            data-testid="composer-queued-sender-workspace"
+          >
+            <Folder aria-hidden="true" className="size-2.75 shrink-0 text-faint" />
+            <span className="truncate">{party.workspaceName}</span>
+          </span>
+        ) : null}
       </span>
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
       <SessionQueuedPreview text={prompt.text} />
@@ -218,7 +235,7 @@ function SessionQueuedSessionMessageRow({
       {isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden ? (
         <div className="flex shrink-0 items-center gap-px">
           <SessionQueuedRemove
-            label={`Remove message from ${title}`}
+            label={party.pending ? "Remove message" : `Remove message from ${title}`}
             disabled={disabled}
             onRemove={() => onRemove(prompt.id)}
           />

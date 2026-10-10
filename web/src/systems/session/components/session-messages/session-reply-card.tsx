@@ -78,6 +78,7 @@ export function SessionReplyCard({
   return (
     <SessionMessageFrame
       aria-label={truncated ? `${name}, truncated` : name}
+      aria-busy={target.pending || undefined}
       data-testid="session-reply-card"
       data-outcome={outcome}
       avatar={

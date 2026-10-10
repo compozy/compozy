@@ -55,6 +55,7 @@ export function SessionMessageCard({
   return (
     <SessionMessageFrame
       aria-label={superseded ? `${name}, superseded` : name}
+      aria-busy={sender.pending || undefined}
       data-testid="session-message-card"
       data-delivery={delivery ?? undefined}
       avatar={<SubagentAvatar provider={sender.agentName} surface="rail" />}

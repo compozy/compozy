@@ -1,7 +1,7 @@
 import { Folder } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 
-import { Button, Pill, cn } from "@compozy/ui";
+import { Button, Pill, Skeleton, cn } from "@compozy/ui";
 
 import { MessageClampToggle } from "@/components/assistant-ui/message-clamp-toggle";
 import {
@@ -45,7 +45,13 @@ export function SessionMessagePartyLabel({
         data-slot="session-message-party"
       >
         <span className="shrink-0">{verb}</span>
-        {party.title === null ? (
+        {party.pending ? (
+          <Skeleton
+            aria-hidden="true"
+            className="inline-block h-3 w-20 self-center rounded-xs"
+            data-testid="session-message-party-pending"
+          />
+        ) : party.title === null ? (
           <span className="font-medium text-muted" data-testid="session-message-party-deleted">
             {DELETED_SESSION_LABEL}
           </span>
