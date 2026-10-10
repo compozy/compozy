@@ -16,6 +16,7 @@ import {
   QUEUE_STORY_ENTRIES,
   QUEUE_STORY_FULL_ENTRIES,
   QUEUE_STORY_OTHER_ACTOR_ENTRIES,
+  QUEUE_STORY_SESSION_MESSAGE_ENTRIES,
   queueStoryClearedTranscript,
   queueStoryHandlers,
   type QueueStorySceneOptions,
@@ -153,6 +154,15 @@ export const EditingOwnRow: Story = {
 /** VC-02 — agent-owned entries carry actor names and omit mutation controls. */
 export const OtherActor: Story = {
   parameters: scene({ entries: QUEUE_STORY_OTHER_ACTOR_ENTRIES }),
+};
+
+/**
+ * Agent collaboration VC-05 — a mixed queue: the operator's row keeps every
+ * verb; a message another session sent shows its sender ("From {title}", or "a
+ * deleted session") and keeps Remove only; another actor's row keeps none.
+ */
+export const SessionMessages: Story = {
+  parameters: scene({ entries: QUEUE_STORY_SESSION_MESSAGE_ENTRIES }),
 };
 
 /**

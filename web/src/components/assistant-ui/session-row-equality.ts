@@ -9,6 +9,7 @@ import type {
   SessionLiveToolRow,
   SessionReasoningRow,
   SessionRow,
+  SessionSentMessageRow,
   SessionSubagentRow,
   SessionTextRow,
   SessionTimelinePart,
@@ -92,6 +93,16 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
         a.subagentIds.join("\n") === other.subagentIds.join("\n") &&
         dataPartsEqual(a.parts, other.parts) &&
         nestedPartsEqual(a.nested, other.nested)
+      );
+    }
+    case "session-message": {
+      const other = b as SessionSentMessageRow;
+      return (
+        dataPartsEqual([a.part], [other.part]) &&
+        a.toolPart?.status === other.toolPart?.status &&
+        a.toolPart?.state === other.toolPart?.state &&
+        a.toolPart?.isError === other.toolPart?.isError &&
+        a.toolPart?.result === other.toolPart?.result
       );
     }
     case "changed-files": {

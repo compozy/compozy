@@ -14,12 +14,17 @@ import {
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
+import {
+  sessionMessageOrigin,
+  sessionReplyMeta,
+} from "@/systems/session/lib/session-message-payload";
 import { SubagentOriginContext } from "@/systems/session/contexts/session-subagents-context-value";
 import { SubagentOriginDivider } from "@/systems/session/components/subagents/subagent-origin-divider";
 import { AssistantMessage } from "./session-assistant-message";
 import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
+import { SessionAgentMessage, SessionReplyMessage } from "./session-agent-message";
 import {
   type SessionFailurePayload,
   type SessionState,
@@ -29,9 +34,17 @@ import {
 
 function SessionThreadMessage() {
   const role = useAuiState(state => state.message.role);
+  const metadata = useAuiState(state => state.message.metadata);
 
   if (role === "user") {
-    return <UserMessage />;
+    // Another session sent this turn (S1): its card, not the operator bubble.
+    const origin = sessionMessageOrigin(metadata);
+    return origin ? <SessionAgentMessage origin={origin} /> : <UserMessage />;
+  }
+  // A reply that came back (S2) is the one synthetic wake with a visible card.
+  const reply = sessionReplyMeta(metadata);
+  if (reply) {
+    return <SessionReplyMessage reply={reply} />;
   }
   if (role === "assistant") {
     return <AssistantMessage />;
@@ -126,7 +139,10 @@ function hasNarrativeMessage(
   messages: ReturnType<typeof useSessionTranscriptThreadState>["messages"]
 ): boolean {
   return messages.some(
-    message => message.role === "user" || deriveSessionRows(toTimelineParts(message)).length > 0
+    message =>
+      message.role === "user" ||
+      sessionReplyMeta(message.metadata) !== null ||
+      deriveSessionRows(toTimelineParts(message)).length > 0
   );
 }
 

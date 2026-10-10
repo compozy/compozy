@@ -14,6 +14,8 @@ export function rowContainsPart(row: SessionRow, partIndex: number): boolean {
       return row.parts.some(part => part.partIndex === partIndex);
     case "data":
       return row.parts.some(part => part.partIndex === partIndex);
+    case "session-message":
+      return row.part.partIndex === partIndex || row.toolPart?.partIndex === partIndex;
     case "work":
     case "live-tool":
       return row.entries.some(entry => entry.partIndex === partIndex);

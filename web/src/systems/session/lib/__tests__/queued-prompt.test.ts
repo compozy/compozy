@@ -74,6 +74,41 @@ describe("queued prompt read model", () => {
     expect(queuedPromptsFromInputs(undefined, "ws", "sess-1")).toEqual([]);
   });
 
+  it("Should map a session message's origin to its sender and leave other rows without one (UT-064)", () => {
+    const base: SessionInputPayload = {
+      delivery: "after_turn",
+      enqueued_at: "2026-10-09T22:30:12Z",
+      id: "inp-41aa",
+      mode: "queue",
+      queue_generation: 1,
+      session_id: "sess-c03f",
+      status: "queued",
+      text: "Is the retry budget per request or per job?",
+    };
+    const origin = {
+      kind: "session",
+      session_id: "sess-7f3a",
+      workspace_id: "ws",
+      agent_name: "claude",
+      title_at_send: "Refactor billing",
+      hop: 1,
+      notify_on_complete: true,
+      reply_watch_id: "rw-6e2d81a0",
+    };
+    const [sent, own] = queuedPromptsFromInputs(
+      [{ ...base, origin } as SessionInputPayload, { ...base, id: "inp-41ab" }],
+      "ws",
+      "sess-c03f"
+    );
+    expect(sent?.sender).toMatchObject({
+      sessionId: "sess-7f3a",
+      agentName: "claude",
+      titleAtSend: "Refactor billing",
+    });
+    expect(sent?.owner).toBeNull();
+    expect(own).not.toHaveProperty("sender");
+  });
+
   it("Should read the cap only from the daemon's queue summary and never invent one", () => {
     expect(queueCapFromInputs(undefined)).toBeNull();
     expect(queueCapFromInputs({ inputs: [] })).toBeNull();
