@@ -42,14 +42,7 @@ export function useSessionLabel({
   });
   const crossWorkspace = resolvedWorkspaceId !== "" && resolvedWorkspaceId !== currentWorkspaceId;
   const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
-  const deleted = detail.error instanceof SessionNotFoundError;
-  const recorded = titleAtSend || null;
-  const pending = !detail.data && !detail.isError && recorded === null;
-  const title = deleted
-    ? null
-    : detail.data
-      ? getSessionDisplayTitle(detail.data)
-      : (recorded ?? (detail.isError ? sessionId : null));
+  const { title, pending } = sessionLabelTitle(detail, sessionId, titleAtSend || null);
   return {
     sessionId,
     workspaceId: resolvedWorkspaceId,
@@ -58,4 +51,23 @@ export function useSessionLabel({
     agentName: detail.data?.agent_name || agentName,
     workspaceName: crossWorkspace ? (workspace.data?.workspace.name ?? null) : null,
   };
+}
+
+interface SessionDetailRead {
+  data?: Parameters<typeof getSessionDisplayTitle>[0];
+  error: unknown;
+  isError: boolean;
+}
+
+// The label's title: the current one once read, nothing for a deleted session,
+// the recorded title while the read is in flight, and the id after a failed read.
+function sessionLabelTitle(
+  detail: SessionDetailRead,
+  sessionId: string,
+  recorded: string | null
+): { title: string | null; pending: boolean } {
+  if (detail.error instanceof SessionNotFoundError) return { title: null, pending: false };
+  if (detail.data) return { title: getSessionDisplayTitle(detail.data), pending: false };
+  if (detail.isError) return { title: recorded ?? sessionId, pending: false };
+  return { title: recorded, pending: recorded === null };
 }
