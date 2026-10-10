@@ -75,10 +75,7 @@ func (s *subagentService) compensateIsolation(
 		return false, err
 	}
 	if admitted {
-		if row.WorktreeState().ID != "" {
-			return true, s.store.SetSubagentWorktreeCleanup(ctx, row.ID, "done")
-		}
-		return true, nil
+		return true, s.store.SetSubagentWorktreeCleanup(ctx, row.ID, "done")
 	}
 	return s.rollbackIsolatedWorktree(ctx, *row)
 }

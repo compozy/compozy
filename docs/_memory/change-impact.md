@@ -14,21 +14,24 @@ guidance in the release note. No delete targets. Native tools: `compozy__subagen
 (8 hops), and `input_agent_authored` for edit/promote of a queued session message;
 `compozy__session_status` gains `reply_watches`; no new tool IDs. Extensibility/hooks/config:
 `spawn.pre_create` gains read-only `subagent.isolation` and `subagent.worktree_id` (a rebind patch is
-`capability_denied`); `subagent.settled` carries the new `SubagentPayload` fields; worktree lifecycle
+`capability_denied`); `subagent.settled` gains typed `isolation` and optional `worktree` facts through
+its daemon bridge,
+with independent async snapshot copies and regenerated Go/TypeScript SDKs; worktree lifecycle
 hooks fire for isolated worktrees; no config keys (reuses `[worktrees] run_branch_namespace`,
 `setup_command`, `copy_list`) and no extension RPC. Public wire: CLI `compozy session subagents show`
 (Isolation/Worktree/Branch/Pull request/Observed lines), `compozy session status` ("Waiting for
 replies"), `compozy session input list` (`FROM` column); HTTP/UDS DTOs add `isolation`/`worktree`,
 `origin` on session-message events, inputs and queue entries, typed `metadata.synthetic` on
 `session_reply` wakes, the `data-compozy-session-message` transcript part, and `reply_watches`;
-OpenAPI and the generated Web client co-ship. User state: two additive Goose migrations — admission
+OpenAPI and the generated Web client co-ship. User state: three additive Goose migrations — admission
 and queue `origin_json` plus `session_prompt_reply_watches`, and the `session_subagents` isolation,
 worktree, git, and PR columns; lossless, existing rows default to `isolation = 'shared'`. Workspace
 data isolation: isolated worktrees belong to the delegating session's workspace and are removed only
 through the existing worktree access rules and refusals; origin records the sender workspace;
 `session_prompt` reach is unchanged (the cross-workspace question stays open); reply watches are read
 only through the sender session's read access. Official skill: `SKILL.md` routing,
-`references/native-tools.md`, `references/tasks-and-orchestration.md`, `references/worktrees.md`.
+`references/native-tools.md`, `references/tasks-and-orchestration.md`, `references/worktrees.md`,
+`references/runtime-operations.md`.
 Web/Docs: `_uiux.md` S1–S5 against the `docs/design/opendesign/agent-collaboration/` boards
 (VC-01..VC-07) — session message card, reply card, sent card, queue row, and isolated-subagent branch,
 PR link, hover facts and roster line; no new `@compozy/ui` primitive. Site reference pages
@@ -40,6 +43,18 @@ line in "Subagent Terms". QA: new `RT-session-message-origin`, `RT-session-messa
 `RT-subagent-isolated-worktree`, `ET-web-session-message-card`; reset to untested
 `RT-subagent-delegate`, `ET-web-subagent-card`, `RT-session-spawn-wake`,
 `ET-web-session-transcript-calm-grammar`.
+
+Isolation details (tasks 06–07): shared remains the default; settlement facts stay absent until
+observed. Git reads use `worktree.Service`, and forge PR states normalize case and whitespace.
+Recovery stops unadmitted children before safe cleanup, retries pending cleanup, and preserves
+admitted, dirty or ahead worktrees. Failed setup is the exception: force-remove its checkout and
+branch, including files written by setup, because the agent has not started. Bound stopped children
+retain a removed catalog tombstone; unbound failed materializations are deleted. Managed delivery
+holds settlement facts until its worktree fence releases. CLI show follows the approved compact
+`Branch … ← base · N ahead · clean/N changed`, numbered PR and `Observed` layout; missing facts are
+omitted. CLI input lists show `FROM you` or the sender title and session ID. Native schemas describe
+isolation/base_ref and enumerate all six PR states. The controller owns the integrated scenario walk;
+this packet validates scoped race suites and real isolated-subagent daemon integration, without QA labs.
 
 ## Explicit release asset verification — 2026-10-09
 
@@ -2596,30 +2611,3 @@ The roster read E2E now owns a cancellation-driven retry fixture; the separate t
 node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
 LP-run-read-agent-journey and ET-skill-view-actionable-errors.
 Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.
-
-## Isolated delegated subagents and worktree facts — 2026-10-09
-
-Owner: `.compozy/tasks/agent-collaboration/_spec.md`, tasks 06–07, branch `ac-isolation`.
-Native `compozy__subagent_delegate` accepts additive `isolation` and `base_ref`; native status,
-HTTP/UDS/SSE and CLI subagent payloads expose the same optional worktree facts. Settlement fields,
-including pull_request_status, remain absent while running (NULL until settle). Shared delegation
-remains the default. `spawn.pre_create.subagent` includes read-only isolation and worktree IDs;
-no new hook, configuration key or extension RPC is introduced. Existing forge providers supply PR
-facts. Generated OpenAPI and Go/TypeScript/Web clients co-ship through `make codegen`.
-
-User data upgrades through generator-owned Migration B (`00132_schema.sql` in the isolated branch;
-the controller regenerates the integrated tail). Existing subagents retain shared mode and null
-worktree columns. Checkouts remain workspace-scoped and owned by their durable per-run subagent
-identity. Recovery stops unadmitted children before safe cleanup, retries pending cleanup, and never
-removes admitted, dirty or ahead worktrees. Rollback keeps a removed catalog tombstone when a
-stopped child references the checkout, preserving the existing session foreign key and history;
-unbound failed materializations are deleted. Managed delivery defers settlement facts until its
-existing worktree fence releases, after commit/push/PR effects.
-
-Official skill changes: delegation routing plus `references/native-tools.md` and
-`references/worktrees.md`; site `sessions/subagents` explains defaults, retention, delivery and
-unknown facts. Web rendering belongs to task 08; this slice supplies its generated contract.
-QA adds `RT-subagent-isolated-worktree` and resets `RT-subagent-delegate`,
-`ET-web-subagent-card`, `RT-session-spawn-wake`, and `ET-web-session-transcript-calm-grammar`.
-The controller owns the integrated scenario walk; this packet permits scoped automated tests and
-explicitly excludes QA labs, full E2E and Playwright runs.

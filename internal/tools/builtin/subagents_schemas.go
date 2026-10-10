@@ -132,10 +132,12 @@ const subagentDelegateInputSchema = `{
       "enum": [
         "shared",
         "worktree"
-      ]
+      ],
+      "description": "Shared uses the caller checkout (default); worktree creates a separate branch and checkout."
     },
     "base_ref": {
-      "type": "string"
+      "type": "string",
+      "description": "Only with worktree. Omitted or blank uses the caller checkout HEAD commit at delegate time."
     }
   },
   "required": [

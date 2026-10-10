@@ -29,10 +29,14 @@ This packet does not authorize QA labs; the controller owns the scenario walk af
    overrides the default. Shared plus a nonblank base is rejected.
 3. Commit in an isolated child and deliver with `compozy worktree deliver`. On settlement, compare
    the wake, native status, HTTP/UDS payload and CLI show/JSON: branch, base SHA, commits ahead,
-   dirty-file count and PR URL/state agree. Advance the base ref; the snapshot stays pinned.
-   A missing forge returns unknown; a successful no-PR lookup returns none.
-4. Exercise setup failure and hook denial: no child is admitted, clean newly created resources are
-   removed, and the error is respectively isolation_failed or capability_denied.
+   dirty-file count and PR URL/state agree. CLI show uses the compact branch/base/ahead/clean line,
+   a numbered PR link and an Observed timestamp; unknown facts are omitted. Advance the base ref;
+   the snapshot stays pinned.
+   A missing forge returns unknown; a successful no-PR lookup returns none. Capture an async
+   `subagent.settled` hook and compare its isolation/worktree snapshot with native status.
+4. Exercise setup failure and hook denial: have setup write a non-ignored file before failing. No
+   child is admitted; setup-failed checkouts and branches are force-removed, including setup output.
+   The error is respectively isolation_failed or capability_denied.
 5. Restart at each compensation boundary, including before worktree association and before child
    linkage. Confirm recovery finds the run-owned checkout and exact deterministic child. Stop and
    join the unadmitted child before cleanup; retain admitted, dirty or ahead checkouts. A failed

@@ -12,7 +12,13 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
-const subagentMaterializationFailed = "materialization_failed"
+const (
+	subagentMaterializationFailed = "materialization_failed"
+	subagentPRStatusOpen          = "open"
+	subagentPRStatusDraft         = "draft"
+	subagentPRStatusMerged        = "merged"
+	subagentPRStatusClosed        = "closed"
+)
 
 type subagentWorktreeService interface {
 	executionWorktreeService
@@ -20,6 +26,7 @@ type subagentWorktreeService interface {
 	Status(context.Context, string, string, bool) (*worktree.Status, error)
 	StatusDetails(context.Context, string, string, bool, bool) (*worktree.StatusDetails, error)
 	CommitsAheadOf(context.Context, string, string, string) (int, error)
+	ResolveCommit(context.Context, string, string) (string, error)
 }
 type daemonSubagentWorktrees struct {
 	lookup func() subagentWorktreeService
@@ -110,21 +117,11 @@ func subagentWorktreeBase(
 		req.CallerPath = parent.Path
 	}
 
-	runner, err := worktree.NewRealGitRunner(0)
+	base, err := svc.ResolveCommit(ctx, req.CallerPath, "HEAD")
 	if err != nil {
-		return "", &session.ErrSubagentIsolationFailed{
-			Cause: subagentMaterializationFailed,
-			Err:   err,
-		}
+		return "", &session.ErrSubagentIsolationFailed{Cause: "base_ref_not_found", Err: err}
 	}
-	out, _, err := runner.Run(ctx, req.CallerPath, "rev-parse", "--verify", "HEAD^{commit}")
-	if err != nil {
-		return "", &session.ErrSubagentIsolationFailed{
-			Cause: "base_ref_not_found",
-			Err:   err,
-		}
-	}
-	return strings.TrimSpace(string(out)), nil
+	return base, nil
 }
 
 func subagentWorktreeFromDomain(wt *worktree.Worktree) session.SubagentWorktree {
@@ -147,7 +144,8 @@ func (a daemonSubagentWorktrees) FindByRun(ctx context.Context, ws, id string) (
 		return nil, err
 	}
 	for _, wt := range rows.Worktrees {
-		if wt.Origin == worktree.OriginPerRun && wt.RunID == id {
+		if wt.Origin == worktree.OriginPerRun && wt.RunID == id &&
+			(wt.State == worktree.StatePending || wt.State == worktree.StateReady) {
 			return new(subagentWorktreeFromDomain(&wt)), nil
 		}
 	}
@@ -178,6 +176,10 @@ func (a daemonSubagentWorktrees) SafeRollback(ctx context.Context, ws, id, run, 
 	}
 	if item.State == worktree.StateRemoved || item.State == worktree.StateDismissed {
 		return false, nil
+	}
+	// Setup failed before a child could write any work; retries must use the same force cleanup.
+	if item.SetupState == worktree.SetupFailed {
+		return false, a.Rollback(ctx, ws, id, run)
 	}
 	status, err := svc.Status(ctx, ws, id, true)
 	if errors.Is(err, worktree.ErrNotFound) {
@@ -227,14 +229,14 @@ func (a daemonSubagentWorktrees) Observe(ctx context.Context, ws, id, base strin
 	pr := detail.ForgeStatus
 	facts.PRStatus = "none"
 	if pr.PRNumber != nil && pr.PRState != nil {
-		facts.PRStatus = *pr.PRState
+		facts.PRStatus = strings.ToLower(strings.TrimSpace(*pr.PRState))
 		if pr.Merged != nil && *pr.Merged {
-			facts.PRStatus = "merged"
-		} else if pr.Draft != nil && *pr.Draft && facts.PRStatus == "open" {
-			facts.PRStatus = "draft"
+			facts.PRStatus = subagentPRStatusMerged
+		} else if pr.Draft != nil && *pr.Draft && facts.PRStatus == subagentPRStatusOpen {
+			facts.PRStatus = subagentPRStatusDraft
 		}
 		switch facts.PRStatus {
-		case "open", "draft", "merged", "closed":
+		case subagentPRStatusOpen, subagentPRStatusDraft, subagentPRStatusMerged, subagentPRStatusClosed:
 			facts.PRURL = pr.PRURL
 			facts.PRNumber = pr.PRNumber
 		default:
