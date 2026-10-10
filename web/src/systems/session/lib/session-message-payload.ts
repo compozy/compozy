@@ -8,7 +8,7 @@
 // - `origin` on a queued input (`SessionInputPayload.origin`, S4).
 // S1/S4 read the generated `PromptOriginPayload`. The UI transcript's metadata
 // and data parts are untyped in the OpenAPI document (`metadata: unknown`), so
-// S2/S3 read DTOs that mirror the daemon structs (`acp.PromptSyntheticMeta`,
+// S2/S3 read DTOs that mirror the daemon structs (`transcript.inputUISyntheticMeta`,
 // `transcript.UISessionMessagePayload`), checked here once. The reply wake's
 // text is daemon-authored and never parsed: identity, outcome, links and the
 // answer come only from the typed fields.
@@ -50,7 +50,11 @@ export interface SessionReplyMeta {
   truncated: boolean;
 }
 
-/** How a sent message reached the target: only steer and interrupt earn a chip (Gap 3). */
+/**
+ * How a sent message actually reached the target: `steer` and `interrupt` only
+ * when the daemon reported an interrupt-then-prompt delivery, else `queue` (no
+ * chip, Gap 3). A steer to an idle target started directly and reads `queue`.
+ */
 export type SessionMessageMode = "queue" | "steer" | "interrupt";
 
 /** The call behind a "Sent to" card: in flight, admitted, or refused. */
@@ -131,7 +135,11 @@ export function queuedInputOrigin(input: SessionInputPayload): SessionMessageOri
   return sessionMessageOriginFromPayload(input.origin);
 }
 
-/** `acp.PromptSyntheticMeta` as a `session_reply` wake projects it (`metadata.synthetic`). */
+/**
+ * `transcript.inputUISyntheticMeta`: the typed subset of a synthetic wake the
+ * UI metadata carries (`metadata.synthetic`). `summary` (the reply text) is
+ * projected only for `session_reply`.
+ */
 interface SessionReplySyntheticPayload {
   kind: string;
   wake_event_id?: string;
@@ -156,6 +164,7 @@ function replySyntheticPayload(value: unknown): SessionReplySyntheticPayload | n
     reason: stringField(value, "reason"),
     summary: stringField(value, "summary"),
     reply_truncated: value.reply_truncated === true,
+    hop: typeof value.hop === "number" ? value.hop : undefined,
   };
 }
 
@@ -184,7 +193,10 @@ interface SessionMessagePartPayload {
   target_session_id: string;
   target_workspace_id?: string;
   message_id?: string;
+  /** The requested mode (`queue` · `steer` · `interrupt`). */
   mode?: string;
+  /** The result's delivery: `none` · `direct` · `after_turn` · `interrupt_then_prompt`; absent until the call returns. */
+  delivery?: string;
   reply_watch_id?: string;
   /** `running` while the call is in flight, `done` once it returned, `error` when it failed. */
   state: string;
@@ -201,6 +213,7 @@ function sessionMessagePartPayload(data: unknown): SessionMessagePartPayload | n
     target_workspace_id: stringField(data, "target_workspace_id"),
     message_id: stringField(data, "message_id"),
     mode: stringField(data, "mode"),
+    delivery: stringField(data, "delivery"),
     reply_watch_id: stringField(data, "reply_watch_id"),
     state: stringField(data, "state") ?? "",
   };
@@ -212,8 +225,14 @@ const SENT_CALL_STATE: Record<string, SessionSentCallState> = {
   error: "failed",
 };
 
-function sentMode(raw: string | undefined): SessionMessageMode {
-  return raw === "steer" || raw === "interrupt" ? raw : "queue";
+const INTERRUPT_THEN_PROMPT = "interrupt_then_prompt";
+
+// The requested mode earns its chip only when the result says the target's
+// turn was steered or interrupted; `direct` (idle target), `after_turn` and
+// `none` read as plain delivery, and so does a call with no result yet.
+function sentMode(mode: string | undefined, delivery: string | undefined): SessionMessageMode {
+  if (delivery !== INTERRUPT_THEN_PROMPT) return "queue";
+  return mode === "steer" || mode === "interrupt" ? mode : "queue";
 }
 
 /** The S3 part, or `null` when the value is not one the card can name. */
@@ -227,7 +246,7 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
     targetSessionId,
     targetWorkspaceId: part.target_workspace_id?.trim() ?? "",
     messageId: trimmedOrNull(part.message_id),
-    mode: sentMode(part.mode?.trim()),
+    mode: sentMode(part.mode?.trim(), part.delivery?.trim()),
     replyWatchId: trimmedOrNull(part.reply_watch_id),
     // An unknown state from a newer daemon reads as admitted: no spinner it cannot end.
     state: SENT_CALL_STATE[part.state.trim()] ?? "sent",

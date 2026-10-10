@@ -154,6 +154,7 @@ describe("session message payload adapter", () => {
       target_workspace_id: WS,
       message_id: "msg-retry-q",
       mode: "steer",
+      delivery: "interrupt_then_prompt",
       reply_watch_id: "rw-6e2d81a0",
       state: "error",
     });
@@ -169,6 +170,23 @@ describe("session message payload adapter", () => {
       "sent",
       "failed",
     ]);
+    // The chip follows the daemon's delivery, not the requested mode (m-4).
+    const mode = (requested: string, delivery?: string) =>
+      sessionSentMessagePart("data-compozy-session-message", {
+        tool_call_id: "call-1",
+        target_session_id: target.sessionId,
+        mode: requested,
+        ...(delivery ? { delivery } : {}),
+        state: "done",
+      })?.mode;
+    expect([
+      mode("steer", "interrupt_then_prompt"),
+      mode("interrupt", "interrupt_then_prompt"),
+      mode("steer", "direct"),
+      mode("interrupt", "direct"),
+      mode("queue", "after_turn"),
+      mode("steer"),
+    ]).toEqual(["steer", "interrupt", "queue", "queue", "queue", "queue"]);
     expect(sessionSentMessagePart("data-compozy-subagent", { target_session_id: "x" })).toBeNull();
 
     const reply = (watch: string, reason: string) => ({
@@ -401,12 +419,50 @@ describe("SessionReplyCard", () => {
       />,
       { wrapper }
     );
-    const card = screen.getByRole("article", { name: "Reply from, completed" });
+    const card = screen.getByRole("article", { name: "Reply, completed" });
     expect(card).toHaveAttribute("aria-busy", "true");
     expect(within(card).queryByText("a deleted session")).not.toBeInTheDocument();
     expect(
       within(card).queryByRole("button", { name: /Billing reviewer/ })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should name pending message and sent cards as standalone phrases (N-4)", () => {
+    const pending = { ...target, title: null, pending: true };
+    render(
+      <>
+        <SessionMessageCard
+          sender={pending}
+          delivery={null}
+          replyRequested={false}
+          timestampMs={AT}
+        >
+          Hi
+        </SessionMessageCard>
+        <SessionSentCard
+          target={pending}
+          callState="sent"
+          mode="queue"
+          firstLine="Hi"
+          error={null}
+          reply="waiting"
+          timestampMs={AT}
+        />
+        <SessionSentCard
+          target={pending}
+          callState="failed"
+          mode="queue"
+          firstLine="Hi"
+          error="Message chain limit reached."
+          reply="none"
+          timestampMs={AT}
+        />
+      </>,
+      { wrapper }
+    );
+    for (const name of ["Message", "Sent message, waiting for reply", "Message not sent"]) {
+      expect(screen.getByRole("article", { name })).toHaveAttribute("aria-busy", "true");
+    }
   });
 
   it.each([
