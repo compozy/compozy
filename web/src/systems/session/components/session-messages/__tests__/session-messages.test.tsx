@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@compozy/ui";
 
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
+import { SessionRuntimeRenderContext } from "@/systems/session/lib/session-runtime-render-context-value";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import {
   sessionMessageOriginFromPayload,
@@ -316,6 +317,22 @@ describe("useSessionLabel", () => {
     expect(result.current.workspaceName).toBeNull();
   });
 
+  it("Should name nothing while the read is in flight and no title was recorded (m-13)", async () => {
+    const { result } = renderHook(
+      () =>
+        useSessionLabel({
+          sessionId: SENDER_ID,
+          workspaceId: WS,
+          currentWorkspaceId: WS,
+          agentName: null,
+        }),
+      { wrapper }
+    );
+    expect(result.current).toMatchObject({ title: null, pending: true });
+    await waitFor(() => expect(result.current.title).toBe("Billing refactor · PR split"));
+    expect(result.current.pending).toBeUndefined();
+  });
+
   it("Should read a 404 as a deleted session (UT-063)", async () => {
     const { result } = renderHook(
       () =>
@@ -370,6 +387,26 @@ describe("SessionReplyCard", () => {
       "Reply truncated"
     );
     expect(within(card).getByRole("button", { name: "Read the full turn" })).toBeInTheDocument();
+  });
+
+  it("Should keep a pending target busy and unnamed instead of guessing a title (m-13)", () => {
+    render(
+      <SessionReplyCard
+        target={{ ...target, title: null, pending: true }}
+        outcome="completed"
+        text="Per job."
+        truncated={false}
+        timestampMs={AT}
+        onOpenTarget={vi.fn()}
+      />,
+      { wrapper }
+    );
+    const card = screen.getByRole("article", { name: "Reply from, completed" });
+    expect(card).toHaveAttribute("aria-busy", "true");
+    expect(within(card).queryByText("a deleted session")).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: /Billing reviewer/ })
+    ).not.toBeInTheDocument();
   });
 
   it.each([
@@ -489,6 +526,33 @@ describe("SessionQueueEntryRow session message", () => {
       within(row).getByRole("button", { name: "Remove message from Refactor billing" })
     );
     expect(onRemove).toHaveBeenCalledWith("inp-41aa");
+  });
+
+  it("Should name a sender's workspace when it is not the viewing session's (n-10)", async () => {
+    stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Docs sweep") });
+    render(
+      <SessionRuntimeRenderContext
+        value={{
+          durableMessageIds: new Set(),
+          expiredInteractions: new Map(),
+          resolvedInteractions: new Map(),
+          sessionId: "sess-c03f9d61b2e84a07",
+          workspaceId: "ws_other",
+        }}
+      >
+        <SessionQueueEntryRow
+          prompt={prompt}
+          disabled={false}
+          actionsHidden={false}
+          onSteer={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </SessionRuntimeRenderContext>,
+      { wrapper }
+    );
+    expect(await screen.findByTestId("composer-queued-sender-workspace")).toHaveTextContent(
+      "compozy-site"
+    );
   });
 
   it("Should read a deleted sender in the row (UT-064)", async () => {

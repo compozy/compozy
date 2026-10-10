@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { Button, cn } from "@compozy/ui";
 
 /** The quiet "Show more" / "Show less" under a clamped body; absent when nothing is clamped. */
 export function MessageClampToggle({
@@ -16,17 +16,19 @@ export function MessageClampToggle({
 }) {
   if (!clampable) return null;
   return (
-    <button
+    <Button
       type="button"
+      variant="link"
+      size="xs"
       data-testid={testId}
       aria-expanded={expanded}
       onClick={onToggle}
       className={cn(
-        "rounded-xs px-1 text-transcript-caption text-subtle transition-colors duration-base ease-out hover:text-fg",
+        "h-auto w-fit px-1 text-transcript-caption font-normal text-subtle hover:text-fg aria-expanded:text-subtle aria-expanded:hover:text-fg",
         className
       )}
     >
       {expanded ? "Show less" : "Show more"}
-    </button>
+    </Button>
   );
 }

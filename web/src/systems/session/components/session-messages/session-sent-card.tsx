@@ -123,6 +123,7 @@ export function SessionSentCard({
   return (
     <article
       aria-label={replyWord ? `${name}, ${replyWord}` : name}
+      aria-busy={target.pending || undefined}
       data-testid="session-sent-card"
       data-state={callState}
       data-reply={reply}
