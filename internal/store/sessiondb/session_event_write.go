@@ -197,7 +197,7 @@ func (s *SessionDB) writeEventIfAbsent(
 		event.Timestamp = s.now()
 	}
 	var persisted store.SessionEvent
-	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+	err := s.writeWithTranscriptFolds(ctx, func(ctx context.Context, tx *store.WriteTx) error {
 		row, err := sqlcgen.New(tx).GetEventByID(ctx, event.ID)
 		if err == nil {
 			existing, mapErr := sessionEventFromSQLC(
@@ -299,7 +299,7 @@ func (s *SessionDB) writeEventBatch(
 		return nil, err
 	}
 
-	if err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+	if err := s.writeWithTranscriptFolds(ctx, func(ctx context.Context, tx *store.WriteTx) error {
 		state, err := loadProjectionState(ctx, tx)
 		if err != nil {
 			return err

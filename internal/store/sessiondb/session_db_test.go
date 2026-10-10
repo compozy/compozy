@@ -1755,6 +1755,45 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should project the committed event when a failed append reused its sequence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		const sessionID = "sess-transcript-fold-rollback"
+		sessionDB := openTestSessionDB(t, sessionID)
+		at := time.Date(2026, 10, 9, 21, 0, 0, 0, time.UTC)
+		call := func(id, title string, offset int) SessionEvent {
+			return canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeToolCall, SessionID: sessionID, TurnID: "turn-rollback",
+				ToolCallID: id, Title: title, Timestamp: at.Add(time.Duration(offset) * time.Millisecond),
+			}, "coder")
+		}
+		if err := sessionDB.Record(ctx, call("call-kept", "kept-before", 0)); err != nil {
+			t.Fatalf("Record(first) error = %v", err)
+		}
+		errFenced := errors.New("commit fenced")
+		fenced := store.ContextWithMutationCommitFence(ctx, func(context.Context) error { return errFenced })
+		err := sessionDB.Record(fenced, call("call-rolled-back", "rolled-back-title", 1))
+		if !errors.Is(err, errFenced) {
+			t.Fatalf("Record(fenced) error = %v, want %v", err, errFenced)
+		}
+		if err := sessionDB.Record(ctx, call("call-committed", "committed-title", 2)); err != nil {
+			t.Fatalf("Record(replacement) error = %v", err)
+		}
+
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		raw, err := json.Marshal(page.Entries)
+		if err != nil {
+			t.Fatalf("marshal entries: %v", err)
+		}
+		if !strings.Contains(string(raw), "committed-title") || strings.Contains(string(raw), "rolled-back-title") {
+			t.Fatalf("transcript after rolled-back append = %s, want only committed events", raw)
+		}
+	})
+
 	t.Run("Should publish a completed assistant upsert with its boundary entry", func(t *testing.T) {
 		t.Parallel()
 

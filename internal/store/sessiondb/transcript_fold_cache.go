@@ -16,17 +16,34 @@ const maxCachedTranscriptFolds = 2
 
 // transcriptFoldCache keeps incremental assistant-entry reductions between
 // appends. It is owned by the session writer goroutine and needs no lock.
-// Every reuse is validated against the durable assigned-event prefix, so a
-// rolled-back write, an archive, or a rewind can only cause a full replay,
-// never a stale entry.
+// Folds touched by a write attempt are staged and published only after that
+// transaction commits; a fold taken by a failed attempt is discarded. Reuse is
+// also validated against the durable assigned-event prefix, so an archive or a
+// rewind can only cause a full replay, never a stale entry.
 type transcriptFoldCache struct {
 	generation int64
 	folds      []*transcript.EntryFold
+	staged     []*transcript.EntryFold
 }
 
 func (c *transcriptFoldCache) reset() {
 	c.generation = 0
 	c.folds = nil
+	c.staged = nil
+}
+
+// begin starts one write attempt, dropping folds staged by a failed attempt.
+func (c *transcriptFoldCache) begin() {
+	c.staged = nil
+}
+
+// commit publishes the folds staged by the committed write.
+func (c *transcriptFoldCache) commit() {
+	c.folds = append(c.staged, c.folds...)
+	c.staged = nil
+	if len(c.folds) > maxCachedTranscriptFolds {
+		c.folds = c.folds[:maxCachedTranscriptFolds]
+	}
 }
 
 func (c *transcriptFoldCache) take(generation int64, identity transcript.EntryIdentity) *transcript.EntryFold {
@@ -35,20 +52,42 @@ func (c *transcriptFoldCache) take(generation int64, identity transcript.EntryId
 		c.generation = generation
 		return nil
 	}
-	for index, fold := range c.folds {
+	if fold := takeMatchingFold(&c.staged, identity); fold != nil {
+		return fold
+	}
+	return takeMatchingFold(&c.folds, identity)
+}
+
+func (c *transcriptFoldCache) stage(fold *transcript.EntryFold) {
+	c.staged = append([]*transcript.EntryFold{fold}, c.staged...)
+}
+
+func takeMatchingFold(folds *[]*transcript.EntryFold, identity transcript.EntryIdentity) *transcript.EntryFold {
+	for index, fold := range *folds {
 		if fold.Matches(identity) {
-			c.folds = append(c.folds[:index], c.folds[index+1:]...)
+			*folds = append((*folds)[:index], (*folds)[index+1:]...)
 			return fold
 		}
 	}
 	return nil
 }
 
-func (c *transcriptFoldCache) keep(fold *transcript.EntryFold) {
-	c.folds = append([]*transcript.EntryFold{fold}, c.folds...)
-	if len(c.folds) > maxCachedTranscriptFolds {
-		c.folds = c.folds[:maxCachedTranscriptFolds]
+// writeWithTranscriptFolds runs one projected write and publishes its folds
+// only when the transaction commits.
+func (s *SessionDB) writeWithTranscriptFolds(
+	ctx context.Context,
+	fn func(context.Context, *store.WriteTx) error,
+) error {
+	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		s.transcriptFolds.begin()
+		return fn(ctx, tx)
+	})
+	if err != nil {
+		s.transcriptFolds.begin()
+		return err
 	}
+	s.transcriptFolds.commit()
+	return nil
 }
 
 // projectAssistantEntry reduces one assistant entry, replaying only events the
@@ -69,7 +108,7 @@ func (s *SessionDB) projectAssistantEntry(
 			return nil, err
 		}
 	}
-	s.transcriptFolds.keep(fold)
+	s.transcriptFolds.stage(fold)
 	return fold.Entry(identity), nil
 }
 
