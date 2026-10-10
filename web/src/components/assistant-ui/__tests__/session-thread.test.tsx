@@ -6187,6 +6187,7 @@ describe("SessionThread session messages", () => {
           child_workspace_id: fixtureWorkspaceId(),
           child_agent_name: "codex",
           reason,
+          summary: "Per job, one shared counter.",
           reply_truncated: false,
           hop: 1,
         },
@@ -6194,7 +6195,7 @@ describe("SessionThread session messages", () => {
       parts: [
         {
           type: "text",
-          text: `Session "Billing reviewer" (${targetId}) replied to your message msg-retry-q: ${reason}.\n---\nPer job, one shared counter.`,
+          text: `Session "Billing reviewer" (${targetId}) replied to your message msg-retry-q: ${reason}.\n---\nWake body text the card never reads.`,
           state: "done",
         },
       ],
@@ -6258,7 +6259,10 @@ describe("SessionThread session messages", () => {
       name: "Reply from Billing reviewer, completed",
     });
     expect(within(card).getByText("Per job, one shared counter.")).toBeInTheDocument();
-    expect(within(card).queryByText(/replied to your message/)).not.toBeInTheDocument();
+    // The answer is the typed `synthetic.summary`; the wake text is never parsed.
+    expect(
+      within(card).queryByText(/replied to your message|Wake body text/)
+    ).not.toBeInTheDocument();
     expect(screen.getAllByTestId("session-reply-card")).toHaveLength(1);
   });
 
@@ -6287,7 +6291,7 @@ describe("SessionThread session messages", () => {
               message_id: "msg-retry-q",
               mode: "queue",
               reply_watch_id: "rw-6e2d81a0",
-              state: "sent",
+              state: "done",
             },
           },
         ],

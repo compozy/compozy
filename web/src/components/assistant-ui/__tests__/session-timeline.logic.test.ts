@@ -1609,7 +1609,7 @@ function sessionMessagePart(
       message_id: `msg-${id}`,
       mode: "queue",
       reply_watch_id: "rw-6e2d81a0",
-      state: overrides.state ?? "sent",
+      state: overrides.state ?? "done",
     },
     turnId: overrides.turnId ?? "turn-1",
     timestamp: "2026-07-07T12:00:05Z",
@@ -1647,7 +1647,7 @@ describe("session timeline sent messages", () => {
   it("UT-065: Should keep a failed call inside its card instead of a failed tool row", () => {
     const rows = deriveSessionRows([
       sessionPrompt(1, { isError: true, result: { error: "Message chain limit reached." } }),
-      sessionMessagePart("sm-1", "tool-call-1", { state: "failed" }),
+      sessionMessagePart("sm-1", "tool-call-1", { state: "error" }),
     ]);
     expect(rows.map(row => row.kind)).toEqual(["session-message"]);
     expect(rows[0]).toMatchObject({ toolPart: { isError: true } });
