@@ -2,18 +2,19 @@
 
 ## Scope
 
-Worktree `sqlite-performance`, branch `perf/sqlite-contention`, based on
-`84549c6e1fbd691611518df036d3b6165e6ce37c`. The audit covers global, session,
+Worktree `sqlite-performance`, branch `perf/sqlite-contention`, audited against
+`84549c6e1fbd691611518df036d3b6165e6ce37c` and rebased onto main
+`88534944a7b348cbde9b47c7b5dd4f23dc7fa5b5`. The audit covers global, session,
 and workspace SQLite stores and their runtime consumers. All experiments use
 isolated synthetic databases; no operator database was opened or modified.
 
 [PR #715](https://github.com/compozy/compozy/pull/715), inspected at
 `08ef98273938b56f768e8465bedfb971360bee57`, owns incremental transcript folding,
-its writer cache and rollback invalidation, and duplicate redaction removal. Those changes are neither
-implemented nor integrated here. Shared filenames contain separate query/open
-improvements; this report does not attribute that PR's gains to this branch.
-A final remote check reported #715 merged at the same inspected head. This
-worktree retains the base above; it does not claim combined-branch validation.
+its writer cache and rollback invalidation, and duplicate redaction removal. Those
+changes are inherited from main after the rebase, without a second implementation.
+Shared filenames contain separate query/open improvements; this report does not
+attribute that PR's gains to this branch. The rebase preserved both sets of
+benchmarks, queries, and tests. Combined runtime validation is delegated to CI.
 
 The baseline inventory comprises 145 tables, 252 explicit indexes, and 754
 static sqlc queries. Every static query was compiled with `EXPLAIN QUERY PLAN`.
@@ -173,8 +174,8 @@ does not explain the isolated replay timeout; neither result is counted as passi
 On October 10, the user directed heavy/global validation to CI and authorized
 pushes for remediation. The resumed local gate passed code generation, then was
 stopped during lint at that direction, before starting another global test run.
-The checkpoint and rebase proceed under that explicit delivery override; complete
-validation will be reported from CI for the final branch head.
+The checkpoint and rebase completed under that explicit delivery override;
+complete validation will be reported from CI for the final branch head.
 A parallel historical migration test reused its replay-phase context for a separate
 ahead-version fixture after that context expired. That fixture phase now receives
 its own existing-budget context; replay, equivalence, integrity, and refusal
