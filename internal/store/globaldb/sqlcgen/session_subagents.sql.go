@@ -31,6 +31,36 @@ func (q *Queries) AcknowledgeSubagent(ctx context.Context, arg AcknowledgeSubage
 	return err
 }
 
+const associateSubagentWorktree = `-- name: AssociateSubagentWorktree :execrows
+UPDATE session_subagents SET worktree_id = ?1, worktree_name = ?2, worktree_branch = ?3, worktree_base_ref = ?4, worktree_base_sha = ?5, worktree_path = ?6 WHERE id = ?7 AND isolation = 'worktree'
+`
+
+type AssociateSubagentWorktreeParams struct {
+	WorktreeID      sql.NullString `json:"worktree_id"`
+	WorktreeName    sql.NullString `json:"worktree_name"`
+	WorktreeBranch  sql.NullString `json:"worktree_branch"`
+	WorktreeBaseRef sql.NullString `json:"worktree_base_ref"`
+	WorktreeBaseSha sql.NullString `json:"worktree_base_sha"`
+	WorktreePath    sql.NullString `json:"worktree_path"`
+	ID              string         `json:"id"`
+}
+
+func (q *Queries) AssociateSubagentWorktree(ctx context.Context, arg AssociateSubagentWorktreeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, associateSubagentWorktree,
+		arg.WorktreeID,
+		arg.WorktreeName,
+		arg.WorktreeBranch,
+		arg.WorktreeBaseRef,
+		arg.WorktreeBaseSha,
+		arg.WorktreePath,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const cancelEmptyParentSubagentWakes = `-- name: CancelEmptyParentSubagentWakes :exec
 UPDATE session_subagent_wakes SET state = 'canceled',updated_at = ? WHERE session_subagent_wakes.parent_session_id = ? AND state = 'open' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE session_subagents.wake_message_id = session_subagent_wakes.wake_message_id AND delivery = 'claimed')
 `
@@ -93,7 +123,7 @@ func (q *Queries) DeleteReservedSubagent(ctx context.Context, id string) (int64,
 }
 
 const disposeSubagents = `-- name: DisposeSubagents :many
-UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = ?1 WHERE origin = 'delegated' AND parent_session_id = ?2 AND (?3 = '' OR parent_turn_id = ?3) AND (?4 = '[]' OR id IN (SELECT value FROM json_each(?4))) AND delivery IN ('none','pending','claimed') RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
+UPDATE session_subagents SET delivery = 'disposed',wake_message_id = NULL,updated_at = ?1 WHERE origin = 'delegated' AND parent_session_id = ?2 AND (?3 = '' OR parent_turn_id = ?3) AND (?4 = '[]' OR id IN (SELECT value FROM json_each(?4))) AND delivery IN ('none','pending','claimed') RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number
 `
 
 type DisposeSubagentsParams struct {
@@ -152,6 +182,21 @@ func (q *Queries) DisposeSubagents(ctx context.Context, arg DisposeSubagentsPara
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -236,7 +281,7 @@ func (q *Queries) GetOpenSubagentWake(ctx context.Context, parentSessionID strin
 }
 
 const getSubagent = `-- name: GetSubagent :one
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE id = ?
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE id = ?
 `
 
 func (q *Queries) GetSubagent(ctx context.Context, id string) (SessionSubagent, error) {
@@ -277,12 +322,27 @@ func (q *Queries) GetSubagent(ctx context.Context, id string) (SessionSubagent, 
 		&i.SettledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Isolation,
+		&i.WorktreeID,
+		&i.WorktreeName,
+		&i.WorktreeBranch,
+		&i.WorktreeBaseRef,
+		&i.WorktreePath,
+		&i.WorktreeBaseSha,
+		&i.WorktreeCleanup,
+		&i.GitHeadSha,
+		&i.GitCommitsAhead,
+		&i.GitDirtyFiles,
+		&i.GitObservedAt,
+		&i.PrStatus,
+		&i.PrUrl,
+		&i.PrNumber,
 	)
 	return i, err
 }
 
 const getSubagentByChild = `-- name: GetSubagentByChild :one
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE child_session_id = ?
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE child_session_id = ?
 `
 
 func (q *Queries) GetSubagentByChild(ctx context.Context, childSessionID sql.NullString) (SessionSubagent, error) {
@@ -323,12 +383,27 @@ func (q *Queries) GetSubagentByChild(ctx context.Context, childSessionID sql.Nul
 		&i.SettledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Isolation,
+		&i.WorktreeID,
+		&i.WorktreeName,
+		&i.WorktreeBranch,
+		&i.WorktreeBaseRef,
+		&i.WorktreePath,
+		&i.WorktreeBaseSha,
+		&i.WorktreeCleanup,
+		&i.GitHeadSha,
+		&i.GitCommitsAhead,
+		&i.GitDirtyFiles,
+		&i.GitObservedAt,
+		&i.PrStatus,
+		&i.PrUrl,
+		&i.PrNumber,
 	)
 	return i, err
 }
 
 const getSubagentByKey = `-- name: GetSubagentByKey :one
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE parent_session_id = ? AND idempotency_key = ?
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE parent_session_id = ? AND idempotency_key = ?
 `
 
 type GetSubagentByKeyParams struct {
@@ -374,6 +449,21 @@ func (q *Queries) GetSubagentByKey(ctx context.Context, arg GetSubagentByKeyPara
 		&i.SettledAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Isolation,
+		&i.WorktreeID,
+		&i.WorktreeName,
+		&i.WorktreeBranch,
+		&i.WorktreeBaseRef,
+		&i.WorktreePath,
+		&i.WorktreeBaseSha,
+		&i.WorktreeCleanup,
+		&i.GitHeadSha,
+		&i.GitCommitsAhead,
+		&i.GitDirtyFiles,
+		&i.GitObservedAt,
+		&i.PrStatus,
+		&i.PrUrl,
+		&i.PrNumber,
 	)
 	return i, err
 }
@@ -398,6 +488,23 @@ func (q *Queries) GetSubagentWake(ctx context.Context, wakeMessageID string) (Se
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const hasSubagentCommittedAdmission = `-- name: HasSubagentCommittedAdmission :one
+SELECT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE workspace_id = ?1 AND session_id = ?2 AND idempotency_key = ?3 AND state IN ('dispatch_committed','indeterminate','completed'))
+`
+
+type HasSubagentCommittedAdmissionParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	SubagentID  string `json:"subagent_id"`
+}
+
+func (q *Queries) HasSubagentCommittedAdmission(ctx context.Context, arg HasSubagentCommittedAdmissionParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasSubagentCommittedAdmission, arg.WorkspaceID, arg.SessionID, arg.SubagentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const inheritSubagentWakeAttempts = `-- name: InheritSubagentWakeAttempts :exec
@@ -517,7 +624,7 @@ func (q *Queries) ListOrphanSubagentSessions(ctx context.Context) ([]string, err
 }
 
 const listPendingSubagents = `-- name: ListPendingSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE delivery = 'pending' ORDER BY created_at,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE delivery = 'pending' ORDER BY created_at,id
 `
 
 func (q *Queries) ListPendingSubagents(ctx context.Context) ([]SessionSubagent, error) {
@@ -564,6 +671,21 @@ func (q *Queries) ListPendingSubagents(ctx context.Context) ([]SessionSubagent, 
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -579,7 +701,7 @@ func (q *Queries) ListPendingSubagents(ctx context.Context) ([]SessionSubagent, 
 }
 
 const listStaleReservedSubagents = `-- name: ListStaleReservedSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id
 `
 
 func (q *Queries) ListStaleReservedSubagents(ctx context.Context, createdAt string) ([]SessionSubagent, error) {
@@ -626,6 +748,21 @@ func (q *Queries) ListStaleReservedSubagents(ctx context.Context, createdAt stri
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -684,7 +821,7 @@ func (q *Queries) ListSubagentArchiveFamily(ctx context.Context, arg ListSubagen
 }
 
 const listSubagentWakeRows = `-- name: ListSubagentWakeRows :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE wake_message_id = ? ORDER BY created_at,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE wake_message_id = ? ORDER BY created_at,id
 `
 
 func (q *Queries) ListSubagentWakeRows(ctx context.Context, wakeMessageID sql.NullString) ([]SessionSubagent, error) {
@@ -731,6 +868,21 @@ func (q *Queries) ListSubagentWakeRows(ctx context.Context, wakeMessageID sql.Nu
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -791,8 +943,85 @@ func (q *Queries) ListSubagentWakesByParent(ctx context.Context, arg ListSubagen
 	return items, nil
 }
 
+const listSubagentWorktreeCleanupPending = `-- name: ListSubagentWorktreeCleanupPending :many
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE worktree_cleanup = 'pending' ORDER BY created_at,id
+`
+
+func (q *Queries) ListSubagentWorktreeCleanupPending(ctx context.Context) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listSubagentWorktreeCleanupPending)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagent{}
+	for rows.Next() {
+		var i SessionSubagent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.ParentTurnID,
+			&i.ParentToolCallID,
+			&i.ChildSessionID,
+			&i.Origin,
+			&i.ProviderToolCallID,
+			&i.IdempotencyKey,
+			&i.RequestFingerprint,
+			&i.Title,
+			&i.Role,
+			&i.TaskChars,
+			&i.PendingTask,
+			&i.RuntimeAgent,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.Depth,
+			&i.Status,
+			&i.WorkState,
+			&i.Progress,
+			&i.Result,
+			&i.ResultTruncated,
+			&i.Error,
+			&i.WakePolicy,
+			&i.Delivery,
+			&i.WakeMessageID,
+			&i.AcknowledgedTurnID,
+			&i.StartedAt,
+			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubagents = `-- name: ListSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents
 WHERE (?1 = '' OR workspace_id = ?1)
  AND (?2 = '' OR parent_session_id = ?2)
  AND (?3 = '[]' OR origin IN (SELECT value FROM json_each(?3)))
@@ -863,6 +1092,21 @@ func (q *Queries) ListSubagents(ctx context.Context, arg ListSubagentsParams) ([
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -878,7 +1122,7 @@ func (q *Queries) ListSubagents(ctx context.Context, arg ListSubagentsParams) ([
 }
 
 const listUnfinalizedDelegatedSubagents = `-- name: ListUnfinalizedDelegatedSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'delegated' AND status IN ('queued','running','waiting') ORDER BY created_at,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE origin = 'delegated' AND status IN ('queued','running','waiting') ORDER BY created_at,id
 `
 
 func (q *Queries) ListUnfinalizedDelegatedSubagents(ctx context.Context) ([]SessionSubagent, error) {
@@ -925,6 +1169,21 @@ func (q *Queries) ListUnfinalizedDelegatedSubagents(ctx context.Context) ([]Sess
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -940,7 +1199,7 @@ func (q *Queries) ListUnfinalizedDelegatedSubagents(ctx context.Context) ([]Sess
 }
 
 const listUnfinalizedNativeSubagents = `-- name: ListUnfinalizedNativeSubagents :many
-SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'provider_native' AND status IN ('queued','running','waiting') ORDER BY parent_session_id,id
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number FROM session_subagents WHERE origin = 'provider_native' AND status IN ('queued','running','waiting') ORDER BY parent_session_id,id
 `
 
 func (q *Queries) ListUnfinalizedNativeSubagents(ctx context.Context) ([]SessionSubagent, error) {
@@ -987,6 +1246,21 @@ func (q *Queries) ListUnfinalizedNativeSubagents(ctx context.Context) ([]Session
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -1053,12 +1327,13 @@ func (q *Queries) MarkSubagentWakeSteerRequeued(ctx context.Context, arg MarkSub
 }
 
 const reserveSubagent = `-- name: ReserveSubagent :execrows
-INSERT INTO session_subagents (id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34)
+INSERT INTO session_subagents (isolation, id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35)
 ON CONFLICT(parent_session_id,idempotency_key) DO NOTHING
 `
 
 type ReserveSubagentParams struct {
+	Isolation              string         `json:"isolation"`
 	ID                     string         `json:"id"`
 	WorkspaceID            string         `json:"workspace_id"`
 	ParentSessionID        string         `json:"parent_session_id"`
@@ -1097,6 +1372,7 @@ type ReserveSubagentParams struct {
 
 func (q *Queries) ReserveSubagent(ctx context.Context, arg ReserveSubagentParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, reserveSubagent,
+		arg.Isolation,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.ParentSessionID,
@@ -1217,6 +1493,52 @@ func (q *Queries) SetSubagentWakeInput(ctx context.Context, arg SetSubagentWakeI
 	return result.RowsAffected()
 }
 
+const setSubagentWorktreeCleanup = `-- name: SetSubagentWorktreeCleanup :execrows
+UPDATE session_subagents SET worktree_cleanup = ?1 WHERE id = ?2
+`
+
+type SetSubagentWorktreeCleanupParams struct {
+	WorktreeCleanup sql.NullString `json:"worktree_cleanup"`
+	ID              string         `json:"id"`
+}
+
+func (q *Queries) SetSubagentWorktreeCleanup(ctx context.Context, arg SetSubagentWorktreeCleanupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSubagentWorktreeCleanup, arg.WorktreeCleanup, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setSubagentWorktreeFacts = `-- name: SetSubagentWorktreeFacts :exec
+UPDATE session_subagents SET git_head_sha = ?1, git_commits_ahead = ?2, git_dirty_files = ?3, git_observed_at = ?4, pr_status = ?5, pr_url = ?6, pr_number = ?7 WHERE id = ?8 AND isolation = 'worktree' AND pr_status IS NULL AND status IN ('completed','failed','canceled','interrupted')
+`
+
+type SetSubagentWorktreeFactsParams struct {
+	GitHeadSha      sql.NullString `json:"git_head_sha"`
+	GitCommitsAhead sql.NullInt64  `json:"git_commits_ahead"`
+	GitDirtyFiles   sql.NullInt64  `json:"git_dirty_files"`
+	GitObservedAt   sql.NullString `json:"git_observed_at"`
+	PrStatus        sql.NullString `json:"pr_status"`
+	PrUrl           sql.NullString `json:"pr_url"`
+	PrNumber        sql.NullInt64  `json:"pr_number"`
+	ID              string         `json:"id"`
+}
+
+func (q *Queries) SetSubagentWorktreeFacts(ctx context.Context, arg SetSubagentWorktreeFactsParams) error {
+	_, err := q.db.ExecContext(ctx, setSubagentWorktreeFacts,
+		arg.GitHeadSha,
+		arg.GitCommitsAhead,
+		arg.GitDirtyFiles,
+		arg.GitObservedAt,
+		arg.PrStatus,
+		arg.PrUrl,
+		arg.PrNumber,
+		arg.ID,
+	)
+	return err
+}
+
 const setSubagentsPending = `-- name: SetSubagentsPending :exec
 UPDATE session_subagents SET delivery = 'pending',wake_message_id = NULL,updated_at = ? WHERE id IN (SELECT value FROM json_each(?2)) AND status IN ('completed','failed','canceled','interrupted') AND delivery = 'none'
 `
@@ -1250,7 +1572,7 @@ func (q *Queries) SettleSubagentWake(ctx context.Context, arg SettleSubagentWake
 }
 
 const settleSubagentWakeRows = `-- name: SettleSubagentWakeRows :many
-UPDATE session_subagents SET delivery = ?1,wake_message_id = CASE WHEN ?1 = 'pending' AND (SELECT attempts FROM session_subagent_wakes WHERE session_subagent_wakes.wake_message_id = ?2) = 0 THEN NULL ELSE wake_message_id END,updated_at = ?3 WHERE wake_message_id = ?2 AND delivery = 'claimed' RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at
+UPDATE session_subagents SET delivery = ?1,wake_message_id = CASE WHEN ?1 = 'pending' AND (SELECT attempts FROM session_subagent_wakes WHERE session_subagent_wakes.wake_message_id = ?2) = 0 THEN NULL ELSE wake_message_id END,updated_at = ?3 WHERE wake_message_id = ?2 AND delivery = 'claimed' RETURNING id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number
 `
 
 type SettleSubagentWakeRowsParams struct {
@@ -1303,6 +1625,21 @@ func (q *Queries) SettleSubagentWakeRows(ctx context.Context, arg SettleSubagent
 			&i.SettledAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
 		); err != nil {
 			return nil, err
 		}

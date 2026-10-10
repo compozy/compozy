@@ -3,9 +3,11 @@ package hooks
 import "context"
 
 type SubagentSpawnPayload struct {
-	Title     string `json:"title"`
-	Role      string `json:"role"`
-	TaskChars int    `json:"task_chars"`
+	Isolation  string `json:"isolation"`
+	WorktreeID string `json:"worktree_id,omitempty"`
+	Title      string `json:"title"`
+	Role       string `json:"role"`
+	TaskChars  int    `json:"task_chars"`
 }
 
 type SubagentRuntimePayload struct {

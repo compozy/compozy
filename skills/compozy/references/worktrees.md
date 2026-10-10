@@ -133,3 +133,26 @@ scope or the recorded proof of the daemon's own authorized staging. A safety ref
 and requires a new reviewed intent; it cannot repeatedly stop a resumed caller after restart.
 Unreadable journals remain available for diagnosis while unmatched interrupted operation receipts
 settle as explicit failures without session, Git, or forge effects.
+
+## Isolated subagents
+
+Use `compozy__subagent_delegate` with `isolation: "worktree"` when a child should change code on
+its own branch. The branch is `<run_branch_namespace><title-slug>-<8 hex>` (the suffix comes from
+the subagent ID). `base_ref` accepts a commit-ish; omitted or blank uses the caller checkout's
+HEAD at delegation time. Commit intended starting changes first: uncommitted files are not copied.
+A shared child of an isolated subagent inherits that checkout; another isolated child starts from
+its HEAD. The workspace and permission boundaries remain those of the parent.
+
+The child commits on that branch and can run `compozy worktree deliver` to open a pull request.
+`compozy session subagents show <id>` and the status tool expose its branch, immutable base SHA,
+commits ahead, dirty-file count and PR facts, captured when it settles. These are snapshots, not
+live status; use `compozy worktree status --refresh --forge` for a fresh read.
+
+Completion, cancellation, stop cascades and archive retain admitted worktrees. Remove them through
+the existing worktree commands and their safety refusals. Before admission, cleanup stops and joins
+any child first; dirty files or commits preserve the checkout with `worktree_retained`. Failed
+cleanup remains anchored and is retried at the next daemon boot.
+
+Settlement fields, including `pull_request_status`, are omitted while the child is running.
+A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
+that no PR exists.

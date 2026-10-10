@@ -9,6 +9,9 @@ import (
 )
 
 func (s *subagentService) Recover(ctx context.Context) error {
+	if err := s.recoverIsolationCleanup(ctx); err != nil {
+		return err
+	}
 	// Every reservation that exists at boot belongs to the previous daemon run
 	// unless this process is still delegating it (an in-memory flight).
 	stale, err := s.store.ListStaleReserved(ctx, s.now().Add(time.Nanosecond))
@@ -17,6 +20,10 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	}
 	for _, row := range stale {
 		if s.inFlight(row.ID) {
+			continue
+		}
+		if row.Isolation == SubagentIsolationWorktree {
+			s.recoveryResult(ctx, row.ID, "isolation", s.recoverIsolation(ctx, row))
 			continue
 		}
 		child := ""
@@ -60,6 +67,10 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 		if row.ChildSessionID == nil || row.Status == store.SubagentStatusQueued {
 			continue
 		}
+		if row.Isolation == SubagentIsolationWorktree {
+			s.recoveryResult(ctx, row.ID, "isolation", s.recoverIsolation(ctx, row))
+			continue
+		}
 		s.recoveryResult(ctx, row.ID, "child_reconciled", s.recoverChild(ctx, row))
 	}
 	return nil
@@ -70,6 +81,9 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 	if err != nil {
 		return err
 	}
+	if snap.Delivering {
+		return nil
+	}
 	if snap.Info.State == StateStopped && snap.Info.StopReason == store.StopShutdown && row.PendingTask == nil {
 		result, err := s.runtime.Result(ctx, *row.ChildSessionID)
 		if err != nil {
@@ -79,12 +93,14 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 			info := *snap.Info
 			info.StopReason = store.StopCompleted
 			snap.Info = &info
+			row = s.observeSettledWorktree(ctx, row)
 			unlock := s.lock(row.ParentSessionID)
 			defer unlock()
 			return s.finalizeAvailable(ctx, row, snap, BadgeIdle)
 		}
 		if err := s.runtime.ResumeChild(ctx, row); err != nil {
 			s.recoveryResult(ctx, row.ID, "child_resume", err)
+			row = s.observeSettledWorktree(ctx, row)
 			unlock := s.lock(row.ParentSessionID)
 			defer unlock()
 			return s.finalizeAvailable(ctx, row, snap, BadgeIdle)
@@ -92,6 +108,9 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 		return nil
 	}
 	admitted, err := s.runtime.HasAdmission(ctx, row)
+	if row.Isolation == SubagentIsolationWorktree {
+		admitted, err = s.hasIsolatedAdmission(ctx, row)
+	}
 	if err != nil {
 		return err
 	}
@@ -99,7 +118,7 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 		if row.PendingTask == nil {
 			return s.failRecovered(ctx, row, *row.ChildSessionID)
 		}
-		if err := s.runtime.Admit(ctx, row, subagentPrompt(row.Role, *row.PendingTask), true); err != nil {
+		if err := s.runtime.Admit(ctx, row, subagentFirstPrompt(row, *row.PendingTask), true); err != nil {
 			return errors.Join(err, s.failRecovered(ctx, row, *row.ChildSessionID))
 		}
 	}

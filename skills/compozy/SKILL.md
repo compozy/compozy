@@ -23,6 +23,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 | Task                                                                                                                           | MUST read                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Delegate code changes on an isolated branch, inspect subagent Git/PR facts, or deliver its work                                | references/native-tools.md; references/worktrees.md                |
 | Start, inspect, prompt, stop, resume, compact, or debug CompozyOS sessions and daemon state                                    | references/runtime-operations.md                                   |
 | Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |

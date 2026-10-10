@@ -826,3 +826,136 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: isolation anchors and nullable settlement facts survive SQLite round trips.
+// Owner: global session repository; canonical subagent persistence suite (Migration B, UT-035).
+func TestSubagentWorktreePersistence(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve existing subagent state across Migration B and reopen", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00132_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
+		old.initializeRepositories(openConfig{})
+		ws := registerWorkspaceForGlobalTests(t, old, "isolation-upgrade", t.TempDir())
+		registerSubagentSession(t, old, ws, "parent", "", "", now)
+		_, err = prefix.ExecContext(
+			t.Context(),
+			`INSERT INTO session_subagents (id,workspace_id,parent_session_id,parent_turn_id,origin,idempotency_key,request_fingerprint,title,task_chars,pending_task,depth,status,work_state,wake_policy,created_at,updated_at) VALUES ('sub-old',?,'parent','turn','delegated','key','fingerprint','old task',4,'task',1,'queued','working','always',?,?)`,
+			ws,
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := prefix.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		row, err := upgraded.GetSubagent(t.Context(), ws, "sub-old")
+		if err != nil || row.Isolation != "shared" || row.PendingTask == nil || *row.PendingTask != "task" ||
+			row.WorktreeState().ID != "" ||
+			row.WorktreeState().Facts.CommitsAhead != nil {
+			t.Fatal(row, err)
+		}
+		var cleanDefaults bool
+		err = upgraded.DB().QueryRowContext(t.Context(), `SELECT
+            worktree_id IS NULL AND worktree_name IS NULL AND worktree_branch IS NULL
+            AND worktree_base_ref IS NULL AND worktree_base_sha IS NULL AND worktree_path IS NULL
+            AND worktree_cleanup IS NULL AND git_head_sha IS NULL AND git_commits_ahead IS NULL
+            AND git_dirty_files IS NULL AND git_observed_at IS NULL AND pr_status IS NULL
+            AND pr_url IS NULL AND pr_number IS NULL
+            FROM session_subagents WHERE id = 'sub-old'`).Scan(&cleanDefaults)
+		if err != nil || !cleanDefaults {
+			t.Fatal(cleanDefaults, err)
+		}
+		if err := upgraded.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		row, err = reopened.GetSubagent(t.Context(), ws, "sub-old")
+		if err != nil || row.RequestFingerprint != "fingerprint" || row.Status != "queued" {
+			t.Fatal(row, err)
+		}
+	})
+	t.Run("Should persist cleanup independently of terminal status and finalize facts atomically", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		row, _, err := db.ReserveSubagent(
+			t.Context(),
+			store.SessionSubagent{
+				ID:                 "sub-wt",
+				WorkspaceID:        ws,
+				ParentSessionID:    parent,
+				ParentTurnID:       "turn",
+				Origin:             store.SubagentOriginDelegated,
+				IdempotencyKey:     "isolation",
+				RequestFingerprint: "fp",
+				Title:              "Isolated",
+				Depth:              1,
+				WakePolicy:         store.SubagentWakePolicyAlways,
+				Isolation:          "worktree",
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		row.Worktree = &store.SubagentWorktreeState{ID: "wt-test"}
+		row.Worktree.Name = "test"
+		row.Worktree.Branch = "run/test"
+		row.Worktree.BaseRef = "main"
+		row.Worktree.BaseSHA = "base"
+		row.Worktree.Path = "/checkout"
+		if err := db.AssociateSubagentWorktree(t.Context(), row); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SetSubagentWorktreeCleanup(t.Context(), row.ID, "pending"); err != nil {
+			t.Fatal(err)
+		}
+		facts := store.SubagentWorktreeFacts{
+			HeadSHA:      "head",
+			CommitsAhead: new(1),
+			DirtyFiles:   new(0),
+			ObservedAt:   now,
+			PRStatus:     "unknown",
+		}
+		got, changed, err := db.FinalizeSubagent(
+			t.Context(),
+			store.SubagentFinalize{ID: row.ID, Status: "failed", SettledAt: now, WorktreeFacts: &facts},
+		)
+		if err != nil || !changed || got.WorktreeState().ID != row.WorktreeState().ID ||
+			got.WorktreeState().Facts.DirtyFiles == nil ||
+			*got.WorktreeState().Facts.DirtyFiles != 0 ||
+			got.WorktreeState().Facts.PRStatus != "unknown" ||
+			got.WorktreeState().Facts.PRNumber != nil {
+			t.Fatal(got, changed, err)
+		}
+		pending, err := db.ListSubagentWorktreeCleanupPending(t.Context())
+		if err != nil || len(pending) != 1 || pending[0].Status != "failed" {
+			t.Fatal(pending, err)
+		}
+		if err := db.SetSubagentWorktreeCleanup(t.Context(), row.ID, "done"); err != nil {
+			t.Fatal(err)
+		}
+		pending, err = db.ListSubagentWorktreeCleanupPending(t.Context())
+		if err != nil || len(pending) != 0 {
+			t.Fatal(pending, err)
+		}
+	})
+}

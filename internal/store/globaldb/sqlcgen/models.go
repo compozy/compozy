@@ -1598,6 +1598,21 @@ type SessionSubagent struct {
 	SettledAt              sql.NullString `json:"settled_at"`
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
+	Isolation              string         `json:"isolation"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
+	WorktreeName           sql.NullString `json:"worktree_name"`
+	WorktreeBranch         sql.NullString `json:"worktree_branch"`
+	WorktreeBaseRef        sql.NullString `json:"worktree_base_ref"`
+	WorktreePath           sql.NullString `json:"worktree_path"`
+	WorktreeBaseSha        sql.NullString `json:"worktree_base_sha"`
+	WorktreeCleanup        sql.NullString `json:"worktree_cleanup"`
+	GitHeadSha             sql.NullString `json:"git_head_sha"`
+	GitCommitsAhead        sql.NullInt64  `json:"git_commits_ahead"`
+	GitDirtyFiles          sql.NullInt64  `json:"git_dirty_files"`
+	GitObservedAt          sql.NullString `json:"git_observed_at"`
+	PrStatus               sql.NullString `json:"pr_status"`
+	PrUrl                  sql.NullString `json:"pr_url"`
+	PrNumber               sql.NullInt64  `json:"pr_number"`
 }
 
 type SessionSubagentWake struct {

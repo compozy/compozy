@@ -122,18 +122,31 @@ func (g *WorktreeRepo) DeleteRunMaterialization(
 	if err := g.checkReady(ctx, "delete run worktree materialization"); err != nil {
 		return err
 	}
-	count, err := g.queries.DeleteRunMaterialization(ctx, sqlcgen.DeleteRunMaterializationParams{
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		WorktreeID:  strings.TrimSpace(id),
-		RunID:       strings.TrimSpace(runID),
+	return g.withImmediateTransaction(ctx, "rollback run worktree materialization", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		// Stopped sessions retain immutable binding history, just as with ordinary worktree removal.
+		count, err := q.TombstoneBoundRunMaterialization(ctx, sqlcgen.TombstoneBoundRunMaterializationParams{
+			WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+			RunID: strings.TrimSpace(runID), UpdatedAt: store.FormatTimestamp(g.now()),
+		})
+		if err != nil || count > 0 {
+			return err
+		}
+		count, err = q.DeleteRunMaterialization(ctx, sqlcgen.DeleteRunMaterializationParams{
+			WorkspaceID: strings.TrimSpace(
+				workspaceID,
+			),
+			WorktreeID: strings.TrimSpace(id),
+			RunID:      strings.TrimSpace(runID),
+		})
+		if err != nil {
+			return fmt.Errorf("store: delete run worktree materialization: %w", err)
+		}
+		if count == 0 {
+			return worktree.ErrNotFound
+		}
+		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("store: delete run worktree materialization: %w", err)
-	}
-	if count == 0 {
-		return worktree.ErrNotFound
-	}
-	return nil
 }
 
 func (g *WorktreeRepo) UpdatePending(

@@ -4189,6 +4189,8 @@ export interface SpawnParentStoppedPayload {
 }
 
 export interface SubagentSpawnPayload {
+  isolation: string;
+  worktree_id?: string;
   title: string;
   role: string;
   task_chars: number;

@@ -2555,3 +2555,30 @@ The roster read E2E now owns a cancellation-driven retry fixture; the separate t
 node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
 LP-run-read-agent-journey and ET-skill-view-actionable-errors.
 Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.
+
+## Isolated delegated subagents and worktree facts — 2026-10-09
+
+Owner: `.compozy/tasks/agent-collaboration/_spec.md`, tasks 06–07, branch `ac-isolation`.
+Native `compozy__subagent_delegate` accepts additive `isolation` and `base_ref`; native status,
+HTTP/UDS/SSE and CLI subagent payloads expose the same optional worktree facts. Settlement fields,
+including pull_request_status, remain absent while running (NULL until settle). Shared delegation
+remains the default. `spawn.pre_create.subagent` includes read-only isolation and worktree IDs;
+no new hook, configuration key or extension RPC is introduced. Existing forge providers supply PR
+facts. Generated OpenAPI and Go/TypeScript/Web clients co-ship through `make codegen`.
+
+User data upgrades through generator-owned Migration B (`00132_schema.sql` in the isolated branch;
+the controller regenerates the integrated tail). Existing subagents retain shared mode and null
+worktree columns. Checkouts remain workspace-scoped and owned by their durable per-run subagent
+identity. Recovery stops unadmitted children before safe cleanup, retries pending cleanup, and never
+removes admitted, dirty or ahead worktrees. Rollback keeps a removed catalog tombstone when a
+stopped child references the checkout, preserving the existing session foreign key and history;
+unbound failed materializations are deleted. Managed delivery defers settlement facts until its
+existing worktree fence releases, after commit/push/PR effects.
+
+Official skill changes: delegation routing plus `references/native-tools.md` and
+`references/worktrees.md`; site `sessions/subagents` explains defaults, retention, delivery and
+unknown facts. Web rendering belongs to task 08; this slice supplies its generated contract.
+QA adds `RT-subagent-isolated-worktree` and resets `RT-subagent-delegate`,
+`ET-web-subagent-card`, `RT-session-spawn-wake`, and `ET-web-session-transcript-calm-grammar`.
+The controller owns the integrated scenario walk; this packet permits scoped automated tests and
+explicitly excludes QA labs, full E2E and Playwright runs.
