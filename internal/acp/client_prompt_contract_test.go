@@ -1688,3 +1688,68 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 		collectEvents(t, events)
 	})
 }
+
+func TestPromptOriginContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should normalize bound and clone immutable sender metadata", func(t *testing.T) {
+		t.Parallel()
+		raw := PromptOriginMeta{
+			Kind:        " session ",
+			SessionID:   " sess-a ",
+			WorkspaceID: " ws-1 ",
+			TitleAtSend: strings.Repeat("界", 250),
+			Hop:         1,
+		}
+		got := raw.Normalize()
+		if got.Kind != "session" || got.SessionID != "sess-a" || got.WorkspaceID != "ws-1" ||
+			len([]rune(got.TitleAtSend)) != 200 {
+			t.Fatal(got)
+		}
+		event := (AgentEvent{Type: EventTypeUserMessage}).WithPromptOrigin(&got)
+		got.TitleAtSend = "changed"
+		cloned := event.PromptOrigin()
+		cloned.Hop = 8
+		if event.PromptOrigin().Hop != 1 || event.PromptOrigin().TitleAtSend == "changed" {
+			t.Fatal("origin aliases its caller")
+		}
+		if ClonePromptOriginMeta(nil) != nil || !(PromptOriginMeta{}).IsZero() {
+			t.Fatal("absent origin is not zero")
+		}
+	})
+	for _, tc := range []struct {
+		name  string
+		meta  PromptOriginMeta
+		valid bool
+	}{
+		{"Should accept a session origin", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 1}, true},
+		{"Should reject another kind", PromptOriginMeta{Kind: "agent", SessionID: "a", WorkspaceID: "w", Hop: 1}, false},
+		{"Should reject an empty sender", PromptOriginMeta{Kind: "session", WorkspaceID: "w", Hop: 1}, false},
+		{"Should reject an empty workspace", PromptOriginMeta{Kind: "session", SessionID: "a", Hop: 1}, false},
+		{"Should reject hop zero", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w"}, false},
+		{"Should reject hop nine", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 9}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if (tc.meta.Validate() == nil) != tc.valid {
+				t.Fatal(tc.meta)
+			}
+		})
+	}
+	t.Run("Should restrict origin to user prompt metadata", func(t *testing.T) {
+		t.Parallel()
+		origin := &PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 1}
+		meta := PromptMeta{TurnSource: PromptTurnSourceUser, Origin: origin}
+		if err := meta.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		mapped, err := meta.ToMap()
+		if err != nil || mapped["origin"] == nil {
+			t.Fatal(mapped, err)
+		}
+		meta.TurnSource = PromptTurnSourceSynthetic
+		meta.Synthetic = &PromptSyntheticMeta{Kind: "subagent", Reason: "done"}
+		if meta.Validate() == nil {
+			t.Fatal("synthetic origin accepted")
+		}
+	})
+}

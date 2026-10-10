@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -11,6 +12,7 @@ import (
 
 // PendingInput is one daemon-owned operator input waiting for dispatch.
 type PendingInput struct {
+	Origin           json.RawMessage
 	ID               string
 	SessionID        string
 	OwnerKind        string
@@ -66,20 +68,26 @@ const (
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
-	Message         string
-	MessageID       string
-	IdempotencyKey  string
-	Mode            BusyInputMode
-	Runtime         *RuntimeSelection
-	ExpectedTurnID  string
-	DeliveryContext context.Context
-	Caller          PromptCaller
-	AllowCommands   bool
-	Attachments     []AttachmentMeta
+	Origin           *acp.PromptOriginMeta
+	NotifyOnComplete bool
+	Message          string
+	MessageID        string
+	IdempotencyKey   string
+	Mode             BusyInputMode
+	Runtime          *RuntimeSelection
+	ExpectedTurnID   string
+	DeliveryContext  context.Context
+	Caller           PromptCaller
+	AllowCommands    bool
+	Attachments      []AttachmentMeta
 }
+
+// ReplyWatchRef identifies the optional reply watch registered by the admission owner.
+type ReplyWatchRef struct{ ID, State string }
 
 // SendPromptResult reports how and when the daemon accepted input for delivery.
 type SendPromptResult struct {
+	ReplyWatch            *ReplyWatchRef
 	Status                string
 	Mode                  BusyInputMode
 	Delivery              string

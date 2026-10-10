@@ -82,6 +82,7 @@ type AgentMCPServerJSON struct {
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
 type AgentEventPayload struct {
+	Origin            *PromptOriginMeta            `json:"origin,omitzero"`
 	Type              string                       `json:"type"`
 	SessionID         string                       `json:"session_id,omitempty"`
 	TurnID            string                       `json:"turn_id,omitempty"`

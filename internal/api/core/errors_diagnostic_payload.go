@@ -40,6 +40,10 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = "send_conflict"
 	case errors.Is(err, store.ErrSessionInputQueueFull):
 		payload.Code = "queue_full"
+	case errors.Is(err, store.ErrSessionInputAgentAuthored):
+		payload.Code = "input_agent_authored"
+	case errors.Is(err, session.ErrSessionMessageHopLimit):
+		payload.Code = "message_hop_limit"
 	case errors.Is(err, store.ErrSessionInputSteerTextOnly):
 		payload.Code = "steer_attachments_unsupported"
 	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),

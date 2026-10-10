@@ -1767,6 +1767,7 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		"message",
 		"message_id",
 		"mode",
+		"notify_on_complete",
 		"runtime",
 		"session_id",
 		"wait",
@@ -1816,6 +1817,17 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			name:    "Should accept a text prompt",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello"}`,
 			valid:   true,
+		},
+		{
+			name:    "Should accept a notification request",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello","notify_on_complete":true}`,
+			valid:   true,
+		},
+		{
+			name:         "Should reject a non-boolean notification request",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello","notify_on_complete":"true"}`,
+			matchesKind:  validationErrorKindIsType,
+			expectedKind: "type",
 		},
 		{
 			name:    "Should accept an attachment-only prompt",
@@ -1930,6 +1942,11 @@ func validationErrorContainsKind(
 	return slices.ContainsFunc(err.Causes, func(cause *jsonschema.ValidationError) bool {
 		return validationErrorContainsKind(cause, matches)
 	})
+}
+
+func validationErrorKindIsType(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Type)
+	return ok
 }
 
 func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
@@ -2177,7 +2194,7 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "owner_id", "owner_kind",
+		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "origin", "owner_id", "owner_kind",
 		"queue_generation",
 		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
 	})
