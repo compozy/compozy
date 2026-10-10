@@ -1,5 +1,46 @@
 # Compozy Change Impact
 
+## Agent collaboration — 2026-10-09
+
+Owner: spec `.compozy/tasks/agent-collaboration/` (ADR-001..004, §Compozy Cross-Surface Impact
+Audit); branch `agent-collaboration`, integrated from the parallel task branches. Additive across
+public surfaces (SD-013) except one recorded exception: `compozy__session_prompt` now rejects the
+calling session as its target (`invalid_request`, "session_prompt cannot target the calling
+session."), shipped without the one-release window per Business Rule 18 / ADR-002, with replacement
+guidance in the release note. No delete targets. Native tools: `compozy__subagent_delegate` and
+`compozy__subagent_status` gain `isolation`, `base_ref`, and the `worktree` facts object;
+`compozy__session_prompt` stamps the sender from scope (no input override), adds
+`notify_on_complete` and the `reply_watch` result, the self-target rejection, `message_hop_limit`
+(8 hops), and `input_agent_authored` for edit/promote of a queued session message;
+`compozy__session_status` gains `reply_watches`; no new tool IDs. Extensibility/hooks/config:
+`spawn.pre_create` gains read-only `subagent.isolation` and `subagent.worktree_id` (a rebind patch is
+`capability_denied`); `subagent.settled` carries the new `SubagentPayload` fields; worktree lifecycle
+hooks fire for isolated worktrees; no config keys (reuses `[worktrees] run_branch_namespace`,
+`setup_command`, `copy_list`) and no extension RPC. Public wire: CLI `compozy session subagents show`
+(Isolation/Worktree/Branch/Pull request/Observed lines), `compozy session status` ("Waiting for
+replies"), `compozy session input list` (`FROM` column); HTTP/UDS DTOs add `isolation`/`worktree`,
+`origin` on session-message events, inputs and queue entries, typed `metadata.synthetic` on
+`session_reply` wakes, the `data-compozy-session-message` transcript part, and `reply_watches`;
+OpenAPI and the generated Web client co-ship. User state: two additive Goose migrations — admission
+and queue `origin_json` plus `session_prompt_reply_watches`, and the `session_subagents` isolation,
+worktree, git, and PR columns; lossless, existing rows default to `isolation = 'shared'`. Workspace
+data isolation: isolated worktrees belong to the delegating session's workspace and are removed only
+through the existing worktree access rules and refusals; origin records the sender workspace;
+`session_prompt` reach is unchanged (the cross-workspace question stays open); reply watches are read
+only through the sender session's read access. Official skill: `SKILL.md` routing,
+`references/native-tools.md`, `references/tasks-and-orchestration.md`, `references/worktrees.md`.
+Web/Docs: `_uiux.md` S1–S5 against the `docs/design/opendesign/agent-collaboration/` boards
+(VC-01..VC-07) — session message card, reply card, sent card, queue row, and isolated-subagent branch,
+PR link, hover facts and roster line; no new `@compozy/ui` primitive. Site reference pages
+`sessions/subagents.mdx` (isolation and worktree facts) and `sessions/orchestration.mdx` (session
+messages and replies), the new tutorial `sessions/isolated-subagents` ("Split work into pull requests
+with isolated subagents"), regenerated CLI and API references; glossary **Isolated Subagent**,
+**Session Message**, **Reply Wake**; `COPY.md` §6 "Session Message Terms" plus the isolated-subagent
+line in "Subagent Terms". QA: new `RT-session-message-origin`, `RT-session-message-reply`,
+`RT-subagent-isolated-worktree`, `ET-web-session-message-card`; reset to untested
+`RT-subagent-delegate`, `ET-web-subagent-card`, `RT-session-spawn-wake`,
+`ET-web-session-transcript-calm-grammar`.
+
 ## Explicit release asset verification — 2026-10-09
 
 Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds

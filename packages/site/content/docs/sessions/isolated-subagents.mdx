@@ -1,0 +1,317 @@
+---
+title: Split work into pull requests with isolated subagents
+description: Let one agent split a change into slices, give each slice its own branch and worktree, open one pull request per slice, and ask another session a question while it waits — then read every branch and PR from the card, the terminal, or the agent's own tools.
+---
+
+A [subagent](/docs/sessions/subagents) normally works in the same checkout as the agent that started
+it. That's fine for research and reviews, but two subagents editing code in one checkout step on each
+other. An **isolated subagent** gets its own [worktree](/docs/worktrees) and its own branch instead,
+so each one can commit and open its own pull request.
+
+At the end of this page you will have asked one Claude session to split a refactor into three pull
+requests, watched three isolated subagents work on three branches, seen their branches and PRs on
+their cards, asked a reviewer session a question and gotten the answer back automatically, and
+cleaned up the worktrees when you were done.
+
+## Before you start
+
+- CompozyOS is running (`compozy status`) and the Web UI is open on a project that is a Git
+  repository. This page uses a project named `billing`.
+- You have a session with an agent that has CompozyOS tools, for example the default `claude` agent.
+  This page calls it **Refactor billing**.
+- Optional: a forge provider is set up for the repository (for example the GitHub CLI signed in), so
+  CompozyOS can look up pull requests. Without one everything still works; the cards just say
+  "PR status unknown" instead of showing a PR.
+- Commit what you want the subagents to start from. Each worktree starts from a commit, so
+  uncommitted changes in your checkout are **not** copied into it.
+
+There is nothing to turn on. Isolation reuses your existing `[worktrees]` settings
+(`run_branch_namespace`, `setup_command`, `copy_list`); see
+[Worktree configuration](/docs/worktrees/configuration).
+
+## Step 1: Ask for one pull request per slice
+
+In the **Refactor billing** composer, write what you want and send it:
+
+```text
+Split the billing refactor into three pull requests, one subagent each, all from origin/main:
+extract the HTTP client into internal/billing/client, add per-request retries, and cap webhook
+retries. Each subagent should commit on its own branch and open a draft PR.
+```
+
+The agent delegates three subagents. Under the hood each call to `compozy__subagent_delegate` carries
+`"isolation": "worktree"` and, because you named a base, `"base_ref": "origin/main"`:
+
+```json
+{
+  "title": "Extract billing client",
+  "task": "Move the billing HTTP client into internal/billing/client. Commit, then open a draft PR with `compozy worktree deliver`.",
+  "isolation": "worktree",
+  "base_ref": "origin/main"
+}
+```
+
+The answer the agent gets back already names the branch and the worktree:
+
+```json
+{
+  "subagent_id": "sub-91c0e2d47a6b3f15",
+  "status": "running",
+  "isolation": "worktree",
+  "worktree": {
+    "id": "wt-5d1a7c0e",
+    "name": "extract-billing-client-3f9a0c12",
+    "branch": "run/extract-billing-client-3f9a0c12",
+    "base_ref": "origin/main",
+    "path": "/Users/you/.compozy/worktrees/billing/extract-billing-client-3f9a0c12"
+  }
+}
+```
+
+Each branch is your `run_branch_namespace` (default `run/`), the title as a slug, and a short hash, so
+two subagents with the same title still get different branches. When the agent doesn't name a base,
+the worktree starts from the commit your session's checkout is on right now.
+
+The subagent's first prompt starts with one extra line from CompozyOS, so it knows where it is and how
+to deliver:
+
+```text
+[You are working in an isolated worktree on branch run/extract-billing-client-3f9a0c12, based on origin/main. Commit your changes on this branch. To open a pull request, run `compozy worktree deliver`.]
+```
+
+## Step 2: Watch the branches on the cards
+
+The three subagents share one group card in the transcript, the same as any subagents started
+together. Expand it. Each card's second line now starts with the branch:
+
+```text
+3 subagents                                                        10m 12s
+1 working · 2 done
+  (claude●) Extract billing client                    ⎇ #731   9m 27s ›
+            ⎇ run/extract-billi…3f9a0c12 · Moved the client into internal/billing/client
+  (claude●) Add billing retries  Running                       10m 12s ›
+            ⎇ run/add-billing-r…0d2e7b51 · Editing internal/billing/retry.go
+  (codex●)  Cap webhook retries                                 5m 41s ›
+            ⎇ run/cap-webhook-r…a81c44e0 · Added a per-delivery cap in webhook/dispatch.go
+```
+
+- **The branch shows from the start.** Long names are shortened in the middle so the hash at the end
+  stays visible; hover the branch for the full name.
+- **The PR link appears once the subagent finishes and a PR exists.** `#731` with a pull-request
+  glyph whose color follows the PR: open, draft, merged, or closed. Clicking it opens the PR in your
+  browser. Clicking anywhere else on the card still opens the subagent's session.
+
+Hover or focus a finished card to see what CompozyOS observed when the subagent settled:
+
+```text
+Worktree   extract-billing-client-3f9a0c12
+Branch     run/extract-billing-client-3f9a0c12
+Base       origin/main · 4be1c9d
+Commits    3 ahead · clean
+PR         #731 open
+Observed   4m ago
+```
+
+CompozyOS reads these facts itself, from Git and from the forge. It never takes the agent's word for
+them. They are taken once, when the subagent settles:
+
+- While a subagent runs, the hover shows only **Worktree**, **Branch**, and **Base**. Facts that
+  haven't been read yet are left out, never shown as zero.
+- **"2 changed"** (or any count) (in warning color) means the subagent left uncommitted files. They stay in the
+  worktree; nothing is thrown away.
+- **"No pull request"** means the forge answered and there is no PR for the branch.
+- **"PR status unknown"** means CompozyOS could not check: no forge provider, or the lookup failed. It
+  never says "No pull request" when it doesn't know.
+
+The **Subagents** section of the session inspector shows the same branch under each isolated row and
+the same PR link in its trailing slot.
+
+## Step 3: Let the agent read branches and PRs
+
+When the subagents settle, the parent is woken the same way as for any subagent. For isolated ones,
+each line of the wake message also carries the branch and the PR:
+
+```text
+Subagent "Extract billing client" (sub-91c0e2d47a6b3f15) finished: completed. Branch run/extract-billing-client-3f9a0c12; PR https://github.com/compozy/billing/pull/731.
+Subagent "Cap webhook retries" (sub-a47e0b19c2d84f63) finished: completed. Branch run/cap-webhook-retries-a81c44e0; PR status unknown.
+Call compozy__subagent_status to read each result.
+```
+
+The PR part is left out when the forge said there is no PR. `compozy__subagent_status` returns the
+full `worktree` object, including `commits_ahead`, `dirty_files`, `observed_at`,
+`pull_request_status`, and `pull_request`, so the agent can report or chain PRs without parsing
+prose.
+
+## Step 4: Check it from the terminal
+
+```bash
+compozy session subagents show sub-91c0e2d47a6b3f15
+```
+
+```text
+Subagent      sub-91c0e2d47a6b3f15
+Title         Extract billing client
+Parent        sess-7f3a2c11d09e4b58 (turn turn-91aa04c2)
+Child         sess-2b8e5f907c1d4a33
+Runtime       claude · opus-5.5 · high · normal
+Status        completed (result available) · delivered
+Isolation     worktree
+Worktree      extract-billing-client-3f9a0c12 (wt-5d1a7c0e)
+Branch        run/extract-billing-client-3f9a0c12 ← origin/main · 3 ahead · clean
+Pull request  #731 open · https://github.com/compozy/billing/pull/731
+Observed      2026-10-09 22:41:07
+Started       2026-10-09 22:31:40 · settled 2026-10-09 22:41:07 (9m 27s)
+```
+
+A shared subagent prints `Isolation  shared` and none of the worktree lines. When CompozyOS couldn't
+check the PR, the line reads `Pull request  status unknown`. Add `--json` to get the same `isolation`
+and `worktree` fields the agent sees.
+
+## Step 5: Ask another session and wait for the answer
+
+Sometimes the orchestrator needs an answer from a session that already has the context, for example
+a **Billing reviewer** session you opened earlier. Ask in the composer:
+
+```text
+Before the retries PR lands, ask the Billing reviewer session whether the retry budget in
+billing.toml is per request or per job. Wait for its answer.
+```
+
+The agent sends the question with `compozy__session_prompt` and `"notify_on_complete": true`, then
+ends its turn instead of polling:
+
+```json
+{
+  "session_id": "sess-c03f9d61b2e84a07",
+  "message": "Is the retry budget in billing.toml per request or per job?",
+  "message_id": "msg-retry-q",
+  "idempotency_key": "retry-q-1",
+  "notify_on_complete": true
+}
+```
+
+```json
+{
+  "status": "accepted",
+  "message_id": "msg-retry-q",
+  "reply_watch": { "id": "rw-6e2d81a0", "state": "armed" }
+}
+```
+
+What you see:
+
+- **In Refactor billing:** a "Sent to Billing reviewer" card with the first line of the question and
+  "Waiting for reply".
+- **In Billing reviewer:** the question as a left-aligned card, "From Refactor billing", not as one
+  of your own messages. The reviewer agent is also told it came from another agent, and that its
+  final answer in that turn goes back automatically.
+- **When the reviewer's turn ends:** a "Reply from Billing reviewer" card lands in Refactor billing
+  with the answer, the sent card switches to "Replied", and the orchestrator is woken with the answer
+  in a new turn. This is the **reply wake**. If the orchestrator is busy, the reply waits ahead of
+  your queued prompts.
+
+```text
+Session "Billing reviewer" (sess-c03f9d61b2e84a07) replied to your message msg-retry-q: completed.
+---
+Per job. `retry_budget` in billing.toml caps total attempts across a job's requests …
+```
+
+If the reviewer's turn doesn't produce an answer, the reply still comes, with the reason:
+
+| Outcome     | When                                                       | What the reply says                                                  |
+| ----------- | ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| `completed` | The turn finished.                                         | The last answer of that turn, or "(no reply text)".                  |
+| `failed`    | The turn failed.                                           | The error summary.                                                   |
+| `canceled`  | The turn was canceled or interrupted, including by a stop. | Any answer the turn left.                                            |
+| `dropped`   | The message was removed from the queue before it ran.      | "The message was removed from the queue before it ran."              |
+| `unknown`   | CompozyOS can't tell whether the message was delivered.    | "The message may not have been delivered; check the target session." |
+
+Answers longer than 12,000 characters are cut with a note that points to
+`compozy__session_history`. Replies survive a CompozyOS restart and are delivered exactly once; if the
+orchestrator is stopped, the reply waits until it resumes. Check the open watches with:
+
+```bash
+compozy session status sess-7f3a2c11d09e4b58
+```
+
+```text
+Waiting for replies
+  rw-6e2d81a0  sess-c03f…  msg-retry-q  armed  since 22:30:12
+```
+
+A message from another agent can't be edited from the reviewer's queue, because you didn't write it.
+**Remove** still works, and it sends the orchestrator a `dropped` reply.
+
+## Step 6: Clean up the worktrees
+
+Worktrees outlive their subagents. Completed, failed, or canceled — even when you stop the parent —
+the worktree and its branch stay, so no work is lost and you decide when they go. They show up in
+`compozy worktree list` and the Worktrees UI with origin `per_run`.
+
+Remove one with the regular worktree commands once its PR is merged or you no longer need it:
+
+```bash
+compozy worktree exit extract-billing-client-3f9a0c12 -o json
+compozy worktree remove extract-billing-client-3f9a0c12
+```
+
+The usual safety checks apply: a worktree whose subagent is still running, or that has uncommitted
+files or unpushed commits, is refused instead of deleted. See
+[Removal and recovery](/docs/worktrees/removal-and-recovery).
+
+## Limits worth knowing
+
+- **Chains stop at 8 hops.** A message sent from a turn you started is hop 1; a message sent from a
+  turn that another agent's message (or reply) started is one hop higher. A send that would reach hop
+  9 fails with `message_hop_limit`: "Message chain limit reached (8 hops). Ask the operator to
+  continue." Steering a message into a running turn can't reset the count. A subagent or task wake
+  starts again at hop 0.
+- **A session can't message itself.** `compozy__session_prompt` with the caller's own session id fails
+  with `invalid_request`: "session_prompt cannot target the calling session." To keep working in the
+  same session, end the turn; to schedule work, use a subagent or `compozy session prompt` from the
+  terminal.
+- **`base_ref` needs isolation.** Passing `base_ref` without `"isolation": "worktree"` fails with
+  "base_ref requires isolation \"worktree\"."
+- **Nesting.** A shared subagent of an isolated subagent works in its parent's worktree; an isolated
+  one branches from its parent's current commit.
+- **Hooks can see isolation, not change it.** `spawn.pre_create` gets `subagent.isolation` and
+  `subagent.worktree_id`; a hook can deny the delegation but can't move the child to another
+  worktree.
+
+## If something goes wrong
+
+| What you see                                                                       | What to do                                                                                                              |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Could not create the subagent worktree: base_ref_not_found.`                      | The base doesn't exist locally. Fetch it (`git fetch origin`) or ask for a ref that exists.                             |
+| `Could not create the subagent worktree: branch_held.`                             | Another worktree already has that branch checked out. Remove that worktree, then ask again.                             |
+| `Could not create the subagent worktree: setup_failed.` followed by setup output   | Your `[worktrees] setup_command` failed in the new worktree. Fix the command; the half-made worktree is rolled back.    |
+| The card says "PR status unknown"                                                  | Set up a forge provider (for example, sign in to the GitHub CLI). The subagent's facts are taken once, when it settles. |
+| The hover shows "2 changed"                                                        | The subagent left uncommitted files. Open its session and ask it to commit, or commit in the worktree yourself.         |
+| `Message chain limit reached (8 hops). Ask the operator to continue.`              | Two agents kept messaging each other. Read both sessions and send the next prompt yourself.                             |
+| `This message was sent by another session and can't be edited. Cancel it instead.` | Remove the queued message; the sender is told it was dropped.                                                           |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/sessions/subagents"
+    label="Tutorial"
+    title="Delegate to subagents"
+    description="The basics: delegate, watch the card, let the parent pick up the answer, and cancel."
+    meta="Subagents"
+  />
+  <GuideCard
+    href="/docs/sessions/orchestration"
+    label="Reference"
+    title="Session orchestration"
+    description="Session messages, reply watches, spawned children, and waiting for session state."
+    meta="Sessions"
+  />
+  <GuideCard
+    href="/docs/worktrees/removal-and-recovery"
+    label="Guide"
+    title="Removal and recovery"
+    description="Safety checks before a worktree is removed, and how to recover one that disappeared."
+    meta="Worktrees"
+  />
+</GuideGrid>
