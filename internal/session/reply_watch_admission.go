@@ -84,20 +84,22 @@ func (m *Manager) promptDispatchIndeterminate(
 	return errors.Join(indeterminate, markErr)
 }
 
-func (m *Manager) refreshReplyWatchResult(ctx context.Context, result *SendPromptResult) error {
+// refreshReplyWatchResult reports the persisted watch state on a send receipt. A read failure after
+// dispatch must not turn a delivered message into a send error, so it keeps the admission-time state.
+func (m *Manager) refreshReplyWatchResult(ctx context.Context, result *SendPromptResult) {
 	if result.ReplyWatch == nil {
-		return nil
+		return
 	}
 	watches, ok := m.inputQueueStore.(store.ReplyWatchStore)
 	if !ok {
-		return nil
+		return
 	}
 	watch, err := watches.GetReplyWatch(ctx, result.ReplyWatch.ID)
 	if err != nil {
-		return err
+		m.logger.WarnContext(ctx, "reply_watch.state_refresh_failed", "id", result.ReplyWatch.ID, "error", err)
+		return
 	}
 	result.ReplyWatch.State = watch.State
-	return nil
 }
 
 func (m *Manager) replyWatchSteerResolved(ctx context.Context, sessionID string) {

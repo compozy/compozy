@@ -28,7 +28,7 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	}
 	defer func() {
 		if err == nil {
-			err = m.refreshReplyWatchResult(ctx, &result)
+			m.refreshReplyWatchResult(ctx, &result)
 		}
 	}()
 	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
