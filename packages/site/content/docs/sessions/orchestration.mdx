@@ -133,7 +133,9 @@ returns `queue-full` without consuming the pending interaction.
 ## Ask another session for a reply
 
 An agent can call `compozy__session_prompt` with `notify_on_complete: true` to receive a reply from an
-existing session. The tool returns `reply_watch: { id, state }`. The sender can then finish its turn;
+existing session. The tool returns `reply_watch: { id, state }`, using its current persisted state
+(`armed`, `fired`, `delivered`, or `abandoned`). Retrying the same message and idempotency key after a
+pre-dispatch failure re-arms the same watch. The sender can then finish its turn;
 CompozyOS delivers one synthetic reply wake after the turn that consumed the message settles.
 Queued messages retain their watches across a target stop. A busy sender receives the wake after its
 current turn; a stopped sender receives it after resume.
@@ -150,4 +152,6 @@ characters. Truncated replies include a pointer to `compozy__session_history`; e
 
 Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
 from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native
-tool; HTTP operator prompts have no equivalent option.
+tool; HTTP operator prompts have no equivalent option. Operator-scoped native calls with this
+option return `invalid_request`: `notify_on_complete requires an agent session`. Archiving or deleting
+an unconsumed target settles its outstanding watches as `unknown` without waiting for a restart.

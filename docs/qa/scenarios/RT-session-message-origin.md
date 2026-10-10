@@ -37,3 +37,9 @@ the trailing QA pair. Do not infer a real-provider pass from fixture evidence.
    a turn: the next send returns `message_hop_limit`. An operator turn starts at hop 0 again.
 8. Upgrade a database containing v4 receipts and queue rows. Values survive and `origin_json` starts
    NULL. Replaying the original request returns the original result without fabricated attribution.
+
+Review regression: while a hop-7 or hop-8 steer has reached the provider but its input receipt is
+blocked, send from the receiving turn. The outgoing message has hop 8 for the hop-7 input; the
+hop-8 input refuses the ninth hop. A failed injection must not lower the current-turn hop floor.
+Automated owner: `TestSessionMessageOriginResponseBeforeReceiptIntegration` (IT-029) and
+`TestManagerPromptOriginHopFence` (UT-016).

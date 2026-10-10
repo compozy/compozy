@@ -156,6 +156,10 @@ summary. `dropped` means the input was removed before it ran; `unknown` means de
 and the target session should be inspected. An offline sender receives its pending wake on resume.
 Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
 redelivery. `notify_on_complete` is an agent-facing option, not an HTTP operator prompt field.
+Operator-scoped native calls requesting it return `invalid_request` with
+`notify_on_complete requires an agent session`. A same-key retry after a pre-dispatch send failure
+re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
+`abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
 `compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.

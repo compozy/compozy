@@ -45,3 +45,7 @@ SELECT * FROM session_input_queue WHERE session_id = ? AND message_id = ? ORDER 
 
 -- name: ReplyWatchSenderExists :one
 SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ? AND archived_at IS NULL);
+
+-- name: RearmFailedReplyWatch :exec
+UPDATE session_prompt_reply_watches SET state = 'armed', abandon_reason = NULL
+WHERE admission_id = ? AND state = 'abandoned' AND abandon_reason = 'send_failed';

@@ -56,6 +56,17 @@ omitted. CLI input lists show `FROM you` or the sender title and session ID. Nat
 isolation/base_ref and enumerate all six PR states. The controller owns the integrated scenario walk;
 this packet validates scoped race suites and real isolated-subagent daemon integration, without QA labs.
 
+Review remediation (2026-10-10): reply admission retries re-arm only `send_failed` reservations;
+returned watch state reflects persisted state. Event lookup uses the admitted input ID and then its
+consuming turn; boot recovery tolerates individual row failures and warns for armed watches older
+than 24 hours. Target deletion/archive reconciles outstanding watches immediately. Sent transcript
+parts add actual `delivery` (`none`, `direct`, `after_turn`, `interrupt_then_prompt`); UI synthetic
+metadata contains only the agreed typed fields, with `summary` only for `session_reply`. No new
+hook, configuration, native tool ID, schema shape, or workspace access policy. The official native
+tool reference and orchestration site document operator notify refusal and retry behavior. QA
+ownership remains the scenarios above, linked by `J-session-collaboration`; the Web sent card gates
+its Steered/Interrupted chip on `delivery`.
+
 ## Explicit release asset verification — 2026-10-09
 
 Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds

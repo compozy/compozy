@@ -24,7 +24,12 @@ func (n *daemonNativeTools) sessionPromptOrigin(
 ) (*acp.PromptOriginMeta, error) {
 	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
 		if notify {
-			return nil, nativeInputError(toolID, errors.New("notify_on_complete requires an agent session"))
+			return nil, toolspkg.NewToolError(
+				toolspkg.ErrorCodeInvalidRequest,
+				toolID,
+				"notify_on_complete requires an agent session",
+				toolspkg.ErrToolInvalidInput,
+			)
 		}
 		return nil, nil
 	}

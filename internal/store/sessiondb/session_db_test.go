@@ -3265,7 +3265,13 @@ func TestSessionDBQueryFilters(t *testing.T) {
 	events := []SessionEvent{
 		{TurnID: "turn-1", Type: "agent_message", AgentName: "coder", Content: `{"text":"one"}`},
 		{TurnID: "turn-1", Type: "tool_call", AgentName: "coder", Content: `{"tool":"ls"}`},
-		{TurnID: "turn-2", Type: "agent_message", AgentName: "reviewer", Content: `{"text":"two"}`},
+		{
+			ID:        "input-identity",
+			TurnID:    "turn-2",
+			Type:      "agent_message",
+			AgentName: "reviewer",
+			Content:   `{"text":"two"}`,
+		},
 		{TurnID: "turn-3", Type: "error", AgentName: "coder", Content: `{"error":"boom"}`},
 	}
 	for _, event := range events {
@@ -3280,6 +3286,13 @@ func TestSessionDBQueryFilters(t *testing.T) {
 		wantSeqs  []int64
 		wantTypes []string
 	}{
+		// Reply evidence resolves one persisted identity without reading other turns.
+		{
+			name:      "Should filter by exact event identity",
+			query:     EventQuery{ID: "input-identity", Limit: 1},
+			wantSeqs:  []int64{3},
+			wantTypes: []string{"agent_message"},
+		},
 		{
 			name:      "type filter",
 			query:     EventQuery{Type: "agent_message"},

@@ -708,6 +708,7 @@ func promptSSEData(record string) string {
 	return data.String()
 }
 
+// UT-014: live session-message parts preserve tool-call correlation.
 func TestPromptStreamSessionMessage(t *testing.T) {
 	t.Run("Should emit running and completed reply cards with one stable id UT-014", func(t *testing.T) {
 		t.Parallel()

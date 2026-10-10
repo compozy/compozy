@@ -13099,6 +13099,7 @@ func (m originNativeSessionManager) CurrentTurnEffectiveHop(context.Context, str
 	return m.hop, nil
 }
 
+// UT-008 UT-009 UT-010 UT-011: trusted scope owns attribution, self-target refusal, and hop limits.
 func TestNativeSessionPromptOrigin(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -13107,12 +13108,14 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 		target   string
 		hop      int
 		code     toolspkg.ErrorCode
+		notify   bool
 	}{
-		{"Should stamp agent scope and notify", false, "target", 0, ""},
-		{"Should admit the eighth hop", false, "target", 7, ""},
-		{"Should reject the ninth hop", false, "target", 8, toolspkg.ErrorCodeSessionMessageHopLimit},
-		{"Should reject self targeting", false, "sender", 0, toolspkg.ErrorCodeInvalidRequest},
-		{"Should leave operator prompts unattributed", true, "target", 0, ""},
+		{"Should stamp agent scope and notify", false, "target", 0, "", true},
+		{"Should admit the eighth hop", false, "target", 7, "", true},
+		{"Should reject the ninth hop", false, "target", 8, toolspkg.ErrorCodeSessionMessageHopLimit, true},
+		{"Should reject self targeting", false, "sender", 0, toolspkg.ErrorCodeInvalidRequest, true},
+		{"Should leave operator prompts unattributed", true, "target", 0, "", false},
+		{"Should refuse operator reply notifications", true, "target", 0, toolspkg.ErrorCodeInvalidRequest, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -13147,7 +13150,7 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 					"message":            "Q?",
 					"message_id":         "msg",
 					"idempotency_key":    "key",
-					"notify_on_complete": !tc.operator,
+					"notify_on_complete": tc.notify,
 				},
 			)
 			if err != nil {
@@ -13168,6 +13171,9 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 			}
 			if tc.code != "" {
 				requireToolCode(t, err, tc.code)
+				if tc.operator && !strings.Contains(err.Error(), "notify_on_complete requires an agent session") {
+					t.Fatal(err)
+				}
 				if got != nil {
 					t.Fatal("rejected message admitted")
 				}

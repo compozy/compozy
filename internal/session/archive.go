@@ -66,6 +66,7 @@ func (m *Manager) setArchived(
 	}
 	if archived {
 		if service := m.ReplyWatches(); service != nil {
+			service.OnTargetGone(ctx, sessionID)
 			if err := service.OnSenderGone(ctx, sessionID); err != nil {
 				return nil, err
 			}

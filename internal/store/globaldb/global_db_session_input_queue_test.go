@@ -2851,6 +2851,7 @@ func replyHandoffFixture(t *testing.T) (*GlobalDB, store.ReplyWatch, store.Sessi
 	}
 }
 
+// UT-017: queued session messages reject edit/promote and still permit cancellation.
 func TestGlobalDBSessionOriginMutation(t *testing.T) {
 	t.Parallel()
 	t.Run("Should refuse editing and promotion but allow cancellation of agent input", func(t *testing.T) {
@@ -2934,6 +2935,7 @@ func TestGlobalDBSessionOriginMutation(t *testing.T) {
 	})
 }
 
+// IT-024: origin migration preserves existing queue/admission rows.
 func TestGlobalDBSessionOriginMigration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve pre-origin admissions and queue rows across upgrade and reopen", func(t *testing.T) {
@@ -3111,4 +3113,37 @@ func TestGlobalDBReplyWatchAdmission(t *testing.T) {
 			}
 		})
 	}
+}
+
+// IT-025: persisted reply lifecycle values reject invalid states, outcomes, and abandonment reasons.
+func TestGlobalDBReplyWatchConstraints(t *testing.T) {
+	t.Run("Should enforce the reply lifecycle CHECK constraints", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		target := registerInputQueueSession(t, db)
+		req := promptAdmissionRequest(
+			"ws-input-queue-workspace",
+			target,
+			"checks",
+			time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC),
+		)
+		req.FingerprintVersion = "session-prompt/v5"
+		req.Origin = json.RawMessage(
+			`{"kind":"session","session_id":"sender","workspace_id":"ws-sender","hop":1,"notify_on_complete":true}`,
+		)
+		if _, _, err := db.ClaimSessionPromptAdmission(t.Context(), req); err != nil {
+			t.Fatal(err)
+		}
+		for _, column := range []string{"state", "outcome", "abandon_reason"} {
+			_, err := db.DB().
+				ExecContext(t.Context(), "UPDATE session_prompt_reply_watches SET "+column+" = ? WHERE id = ?", "invalid", store.ReplyWatchID(target, req.MessageID))
+			if err == nil || !strings.Contains(err.Error(), "CHECK constraint failed") {
+				t.Fatalf("%s error = %v", column, err)
+			}
+		}
+		got, err := db.GetReplyWatch(t.Context(), store.ReplyWatchID(target, req.MessageID))
+		if err != nil || got.State != "armed" || got.Outcome != "" || got.AbandonReason != "" {
+			t.Fatalf("preserved row = %+v, %v", got, err)
+		}
+	})
 }
