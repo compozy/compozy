@@ -176,6 +176,8 @@ function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
   // A subagent still working outlives its turn: its card stays in view (UT-W04).
   if (row.kind === "subagents") return row.live;
+  // A message to another session is said, not worked: its "Sent to" card stays (S3).
+  if (row.kind === "session-message") return true;
   if (row.kind === "work") {
     return (
       row.summary === null &&

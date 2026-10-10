@@ -227,6 +227,12 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
     failure: "cancel a subagent",
     tried: "Tried to cancel a subagent",
   },
+  // A message to another session (S3); the call itself renders as the "Sent to" card.
+  compozy__session_prompt: {
+    active: "Sending a message",
+    past: "Sent a message",
+    failure: "send a message",
+  },
   compozy__terminal_request_input: {
     active: "Requesting input…",
     past: "Requested input",

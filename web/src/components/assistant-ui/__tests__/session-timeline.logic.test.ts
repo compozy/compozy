@@ -1588,3 +1588,86 @@ describe("session timeline subagent cards", () => {
     expect(mixed.summary?.label).toBe("Checked subagent capabilities, read subagent status");
   });
 });
+
+// Suite extension: "Sent to" projection (agent collaboration `_uiux.md` S3). Invariant: a
+// `compozy__session_prompt` call that has a `data-compozy-session-message` part draws once, as
+// its own "session-message" row outside work groups, failed or not, and that row survives the
+// settled turn fold. Owning layer: timeline derivation.
+function sessionMessagePart(
+  id: string,
+  toolCallId: string,
+  overrides: { state?: string; turnId?: string } = {}
+): SessionTimelinePart {
+  return {
+    kind: "data",
+    id,
+    name: "data-compozy-session-message",
+    data: {
+      tool_call_id: toolCallId,
+      target_session_id: "sess-c03f9d61b2e84a07",
+      target_workspace_id: "ws_alpha",
+      message_id: `msg-${id}`,
+      mode: "queue",
+      reply_watch_id: "rw-6e2d81a0",
+      state: overrides.state ?? "sent",
+    },
+    turnId: overrides.turnId ?? "turn-1",
+    timestamp: "2026-07-07T12:00:05Z",
+  };
+}
+
+const sessionPrompt = (index: number, overrides: Partial<SessionTimelineToolPart> = {}) =>
+  tool(index, {
+    toolName: "compozy__session_prompt",
+    args: { session_id: "sess-c03f9d61b2e84a07", message: "Is the retry budget per job?" },
+    result: { status: "accepted" },
+    ...overrides,
+  });
+
+describe("session timeline sent messages", () => {
+  it("UT-065: Should draw a session_prompt call as its own row outside the work group", () => {
+    const rows = deriveSessionRows([
+      tool(1),
+      sessionPrompt(2),
+      sessionMessagePart("sm-1", "tool-call-2"),
+      tool(3),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["work", "session-message", "work"]);
+    const [before, sent, after] = rows;
+    if (before?.kind !== "work" || after?.kind !== "work") throw new Error("expected work rows");
+    expect([...before.entries, ...after.entries].map(entry => entry.id)).toEqual([
+      "tool-1",
+      "tool-3",
+    ]);
+    if (sent?.kind !== "session-message") throw new Error("expected the sent row");
+    expect(sent.id).toBe("session-message:tool-call-2");
+    expect(sent.toolPart?.id).toBe("tool-2");
+  });
+
+  it("UT-065: Should keep a failed call inside its card instead of a failed tool row", () => {
+    const rows = deriveSessionRows([
+      sessionPrompt(1, { isError: true, result: { error: "Message chain limit reached." } }),
+      sessionMessagePart("sm-1", "tool-call-1", { state: "failed" }),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["session-message"]);
+    expect(rows[0]).toMatchObject({ toolPart: { isError: true } });
+  });
+
+  it("UT-065: Should leave a session_prompt call with no part as a tool row", () => {
+    expect(deriveSessionRows([sessionPrompt(1)]).map(row => row.kind)).toEqual(["work"]);
+  });
+
+  it("UT-065: Should keep the sent row visible when its settled turn folds", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1),
+        tool(2),
+        sessionPrompt(3),
+        sessionMessagePart("sm-1", "tool-call-3"),
+        text("t1", "Asked. Waiting for the answer.", "turn-1"),
+      ],
+      { foldSettledTurns: true }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "session-message", "text"]);
+  });
+});
