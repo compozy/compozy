@@ -4,7 +4,7 @@ import {
   type TextMessagePartProps,
   useAuiState,
 } from "@assistant-ui/react";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { SessionAttachmentGallery } from "@/systems/session/components/session-attachment-gallery";
@@ -24,12 +24,9 @@ import { sessionSkillInvocationDirectives } from "./session-directive-registry";
 import { SessionUserSteerMeta } from "./session-user-steer-meta";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
+import { MessageClampToggle } from "./message-clamp-toggle";
+import { MESSAGE_CLAMPED_CLASS, useMessageClamp } from "./use-message-clamp";
 import { SessionDataEventMarker } from "./session-message-parts";
-
-// The bubble clamps with a bottom mask at 176px — text is never truncated, the
-// mask lifts on "Show more". Slack beyond the cap avoids flapping on rounding.
-const USER_CLAMP_MAX_PX = 44 * 4;
-const USER_CLAMP_SLACK_PX = 8;
 
 function SessionTextPart({
   text,
@@ -62,23 +59,7 @@ export function UserMessageBubble({
   /** Guidance superseded by a later steer: one ink step quieter, never removed (US-001.EC-3). */
   subdued?: boolean;
 }) {
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [clampable, setClampable] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-
-  useLayoutEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
-    const measure = () => {
-      setClampable(node.scrollHeight > USER_CLAMP_MAX_PX + USER_CLAMP_SLACK_PX);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  const clamped = clampable && !expanded;
+  const { contentRef, clampable, clamped, expanded, toggle } = useMessageClamp();
 
   return (
     <>
@@ -91,25 +72,44 @@ export function UserMessageBubble({
           "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-transcript-message-y",
           "text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
           subdued ? "text-subtle" : "text-fg",
-          clamped
-            ? "max-h-44 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]"
-            : null
+          clamped ? MESSAGE_CLAMPED_CLASS : null
         )}
       >
         {children}
       </div>
-      {clampable ? (
-        <button
-          type="button"
-          data-testid="user-message-clamp-toggle"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(value => !value)}
-          className="rounded-xs px-1 text-transcript-caption text-subtle transition-colors duration-base ease-out hover:text-fg"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      ) : null}
+      <MessageClampToggle
+        clampable={clampable}
+        expanded={expanded}
+        onToggle={toggle}
+        testId="user-message-clamp-toggle"
+      />
     </>
+  );
+}
+
+/**
+ * The authored body of a user turn: text with its skill chips and data
+ * markers. Attachment refs render in the gallery above, not here. Shared by the
+ * operator bubble and the session message card (S1).
+ */
+export function UserMessageParts() {
+  const metadata = useAuiState(state => state.message.metadata);
+  const directives = sessionSkillInvocationDirectives(metadata);
+  return (
+    <MessagePrimitive.Parts>
+      {({ part }) => {
+        if (part.type === "text") {
+          return <SessionTextPart {...part} directives={directives} />;
+        }
+        if (part.type === "data") {
+          if (part.name === SESSION_ATTACHMENT_PART_NAME && isSessionAttachmentRef(part.data)) {
+            return null;
+          }
+          return part.dataRendererUI ?? <SessionDataPart {...part} />;
+        }
+        return null;
+      }}
+    </MessagePrimitive.Parts>
   );
 }
 
@@ -123,7 +123,6 @@ export function UserMessage() {
     context?.sessionId ?? ""
   );
   const hasText = userMessageHasText(message.content);
-  const directives = sessionSkillInvocationDirectives(message.metadata);
   // How this message reached the turn, bound by the daemon's explicit
   // message_id on its steer markers (VC-07) through this message's authored
   // identity — never by position, text, or the rendered (possibly uniquified) id.
@@ -138,23 +137,7 @@ export function UserMessage() {
         {attachments.length > 0 ? <SessionAttachmentGallery items={attachments} /> : null}
         {hasText ? (
           <UserMessageBubble subdued={superseded}>
-            <MessagePrimitive.Parts>
-              {({ part }) => {
-                if (part.type === "text") {
-                  return <SessionTextPart {...part} directives={directives} />;
-                }
-                if (part.type === "data") {
-                  if (
-                    part.name === SESSION_ATTACHMENT_PART_NAME &&
-                    isSessionAttachmentRef(part.data)
-                  ) {
-                    return null;
-                  }
-                  return part.dataRendererUI ?? <SessionDataPart {...part} />;
-                }
-                return null;
-              }}
-            </MessagePrimitive.Parts>
+            <UserMessageParts />
           </UserMessageBubble>
         ) : null}
         {steer ? (
