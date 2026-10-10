@@ -13,7 +13,7 @@ require (
 	github.com/charmbracelet/x/vt v0.0.0-20261004011457-ad85c59fdf4e
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/compozy/compozy-web-assets v0.0.324
+	github.com/compozy/compozy-web-assets v0.0.328
 	github.com/compozy/compozy/sdk/go v0.3.0-beta.29
 	github.com/creativeprojects/go-selfupdate v1.6.0
 	github.com/dave/jennifer v1.7.1
