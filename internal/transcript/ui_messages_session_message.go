@@ -15,6 +15,7 @@ type UISessionMessagePayload struct {
 	MessageID         string `json:"message_id,omitempty"`
 	Mode              string `json:"mode,omitempty"`
 	Delivery          string `json:"delivery,omitempty"`
+	SteerDelivery     string `json:"steer_delivery,omitempty"`
 	ReplyWatchID      string `json:"reply_watch_id,omitempty"`
 	State             string `json:"state"`
 }
@@ -94,6 +95,7 @@ func sessionMessagePartPayload(decoded *decodedStoredEvent) (UISessionMessagePay
 				payload.Mode = output.Mode
 			}
 			payload.Delivery = output.Delivery
+			payload.SteerDelivery = output.SteerDelivery
 			if output.ReplyWatch != nil {
 				payload.ReplyWatchID = output.ReplyWatch.ID
 			}
@@ -109,6 +111,7 @@ type sessionMessageOutput struct {
 	MessageID         string `json:"message_id"`
 	Mode              string `json:"mode"`
 	Delivery          string `json:"delivery"`
+	SteerDelivery     string `json:"steer_delivery"`
 	ReplyWatch        *struct {
 		ID string `json:"id"`
 	} `json:"reply_watch"`

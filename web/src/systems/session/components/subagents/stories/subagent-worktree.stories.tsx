@@ -9,7 +9,7 @@ import { SubagentCard } from "../subagent-card";
 import { SubagentGroup } from "../subagent-group";
 import { SubagentHoverContent } from "../subagent-hover-content";
 import type { SubagentView } from "../types";
-import { isolatedStates, secondsAgo } from "./subagent-story-fixtures";
+import { isolatedStates, secondsAgo, worktreeFixture } from "./subagent-story-fixtures";
 
 const onOpen = fn();
 
@@ -91,6 +91,7 @@ function RosterStates() {
           {
             ...isolatedStates.running,
             title: "Cap webhook retries",
+            worktree: worktreeFixture({ slug: "cap-webhook-retries-a81c44e0" }),
             created_at: secondsAgo(800),
           },
           { ...isolatedStates.prMerged, created_at: secondsAgo(700) },
