@@ -14,6 +14,7 @@ import (
 )
 
 type queuedInput struct {
+	origin            json.RawMessage
 	syntheticPrompt   *store.SessionInputSyntheticPrompt
 	id                string
 	promptAdmissionID string
@@ -64,6 +65,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
 		id:                entry.ID,
 		syntheticPrompt:   entry.SyntheticPrompt,
+		origin:            entry.Origin,
 		promptAdmissionID: entry.PromptAdmissionID,
 		messageID:         entry.MessageID,
 		idempotencyKey:    entry.IdempotencyKey,
@@ -168,6 +170,11 @@ func (m *Manager) newQueuedInputPromptRequest(
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 		attachments:      cloneAttachmentMeta(entry.attachments),
 	}
+	origin, err := decodePromptOrigin(entry.origin)
+	if err != nil {
+		return req, err
+	}
+	req.meta.Origin = origin
 	turnID := strings.TrimSpace(entry.turnID)
 	if turnID == "" {
 		var err error
@@ -192,7 +199,6 @@ func (m *Manager) newQueuedInputPromptRequest(
 		req.runID = entry.syntheticPrompt.RunID
 		return req, nil
 	}
-	var err error
 	req.runID, err = m.newPromptRunID()
 	if err != nil {
 		return req, err

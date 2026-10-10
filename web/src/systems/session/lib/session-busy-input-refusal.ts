@@ -14,6 +14,7 @@ export type SessionBusyInputRefusalCode =
   | "queue_full"
   | "entry_dispatching"
   | "send_conflict"
+  | "input_agent_authored"
   | "send_in_flight"
   | "disconnected"
   | "not_delivered";
@@ -55,6 +56,7 @@ const DAEMON_REFUSAL_CODES: ReadonlySet<string> = new Set([
   "queue_full",
   "entry_dispatching",
   "send_conflict",
+  "input_agent_authored",
 ]);
 
 function isDaemonRefusalCode(code: string): code is SessionBusyInputRefusalCode {
@@ -123,6 +125,8 @@ export function describeSessionBusyInputRefusal(refusal: SessionBusyInputRefusal
       return "That one is already sending — your edit is here as a new message.";
     case "send_conflict":
       return "Not sent — this message changed while it was sending. Send it again as a new message.";
+    case "input_agent_authored":
+      return "This message was sent by another session and can't be edited. Cancel it instead.";
     case "send_in_flight":
       return "Not sent — another send is still in flight. Your draft is back.";
     case "disconnected":

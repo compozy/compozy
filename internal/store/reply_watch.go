@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -83,4 +85,10 @@ type ReplyWatchStore interface {
 	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert) (bool, error)
 	AbandonReplyWatch(context.Context, string, string) error
 	ReplyWatchEvidence(context.Context, ReplyWatch) (SessionPromptAdmission, []SessionInputQueueEntry, error)
+}
+
+// ReplyWatchID is stable across admission retries and process restarts.
+func ReplyWatchID(target, message string) string {
+	digest := sha256.Sum256([]byte(target + "\x00" + message))
+	return fmt.Sprintf("rw-%x", digest[:8])
 }

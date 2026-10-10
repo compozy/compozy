@@ -348,7 +348,10 @@ func (m *Manager) promptDispatchMessage(
 	}
 	ctx, sections := acp.CollectPromptSections(ctx)
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
-	return preparedPromptInput{message: augmented, sections: sections()}, err
+	return preparedPromptInput{
+		message:  promptOriginMessage(session.CurrentPromptMeta().Origin, augmented),
+		sections: sections(),
+	}, err
 }
 
 func (m *Manager) augmentPromptMessage(ctx context.Context, session *Session, message string) (string, error) {

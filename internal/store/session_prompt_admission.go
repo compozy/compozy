@@ -68,6 +68,7 @@ type SessionPromptAdmission struct {
 	AuthoredText        string
 	Runtime             SessionInputRuntime
 	SkillInvocations    []commandpkg.Invocation
+	Origin              json.RawMessage
 	Attachments         []SessionInputAttachment
 	TurnID              string
 	EventID             string
@@ -81,22 +82,24 @@ type SessionPromptAdmission struct {
 
 // SessionPromptAdmissionRequest carries immutable command identity and request material.
 type SessionPromptAdmissionRequest struct {
-	ID                 string
-	WorkspaceID        string
-	SessionID          string
-	MessageID          string
-	IdempotencyKey     string
-	Operation          string
-	FingerprintVersion string
-	RequestFingerprint string
-	Mode               string
-	AuthoredText       string
-	Runtime            SessionInputRuntime
-	SkillInvocations   []commandpkg.Invocation
-	Attachments        []SessionInputAttachment
-	TurnID             string
-	EventID            string
-	Now                time.Time
+	ID                       string
+	WorkspaceID              string
+	SessionID                string
+	MessageID                string
+	IdempotencyKey           string
+	Operation                string
+	FingerprintVersion       string
+	RequestFingerprint       string
+	LegacyRequestFingerprint string
+	Mode                     string
+	AuthoredText             string
+	Runtime                  SessionInputRuntime
+	SkillInvocations         []commandpkg.Invocation
+	Origin                   json.RawMessage
+	Attachments              []SessionInputAttachment
+	TurnID                   string
+	EventID                  string
+	Now                      time.Time
 }
 
 // Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
@@ -114,6 +117,7 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 	normalized.AuthoredText = strings.TrimSpace(normalized.AuthoredText)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.Origin = append(json.RawMessage(nil), normalized.Origin...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.EventID = strings.TrimSpace(normalized.EventID)
@@ -128,6 +132,9 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 // Validate ensures an admission has complete, stable identity before persistence.
 func (r SessionPromptAdmissionRequest) Validate() error {
 	normalized := r.Normalize()
+	if err := validateSessionPromptOrigin(normalized.Origin); err != nil {
+		return err
+	}
 	if err := ValidateSessionInputRuntime(normalized.Runtime); err != nil {
 		return err
 	}
@@ -208,4 +215,11 @@ type SessionPromptAdmissionStore interface {
 		request SessionPromptAdmissionRequest,
 		queueInput SessionInputQueueInsert,
 	) (SessionPromptAdmission, SessionInputQueueEntry, bool, error)
+}
+
+func validateSessionPromptOrigin(origin json.RawMessage) error {
+	if len(origin) > 0 && (!json.Valid(origin) || strings.TrimSpace(string(origin)) == "null") {
+		return errors.New("store: invalid prompt origin")
+	}
+	return nil
 }

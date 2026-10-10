@@ -51,6 +51,7 @@ CREATE TABLE session_health (
 		authored_text TEXT NOT NULL DEFAULT '',
 		skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 		attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
+		origin_json TEXT,
 		runtime_provider TEXT NOT NULL DEFAULT '',
 		runtime_model TEXT NOT NULL DEFAULT '',
 		runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
@@ -88,6 +89,7 @@ CREATE TABLE session_health (
 			synthetic_prompt_json TEXT CHECK (synthetic_prompt_json IS NULL OR json_valid(synthetic_prompt_json)),
 			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 			attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
+		origin_json TEXT,
 			runtime_provider TEXT NOT NULL DEFAULT '',
 			runtime_model TEXT NOT NULL DEFAULT '',
 			runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
@@ -481,6 +483,21 @@ CREATE TABLE session_subagents (
  settled_at TEXT,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL,
+ isolation TEXT NOT NULL DEFAULT 'shared' CHECK (isolation IN ('shared','worktree')),
+ worktree_id TEXT,
+ worktree_name TEXT,
+ worktree_branch TEXT,
+ worktree_base_ref TEXT,
+ worktree_path TEXT,
+ worktree_base_sha TEXT,
+ worktree_cleanup TEXT CHECK (worktree_cleanup IN ('pending','done')),
+ git_head_sha TEXT,
+ git_commits_ahead INTEGER,
+ git_dirty_files INTEGER,
+ git_observed_at TEXT,
+ pr_status TEXT CHECK (pr_status IN ('unknown','none','open','draft','merged','closed')),
+ pr_url TEXT,
+ pr_number INTEGER,
  FOREIGN KEY (workspace_id,parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE,
  UNIQUE (parent_session_id,idempotency_key)
 );
@@ -490,3 +507,5 @@ CREATE INDEX idx_session_subagents_workspace_created ON session_subagents(worksp
 CREATE INDEX idx_session_subagents_wake_created ON session_subagents(wake_message_id,created_at,id);
 CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_session_id,delivery) WHERE delivery IN ('pending','claimed');
 CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';
+
+CREATE INDEX idx_session_subagents_worktree_cleanup ON session_subagents(worktree_cleanup) WHERE worktree_cleanup = 'pending';

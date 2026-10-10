@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,6 +40,10 @@ const (
 )
 
 var (
+	//nolint:revive,staticcheck // This sentinel carries the exact public queue mutation refusal message.
+	ErrSessionInputAgentAuthored = errors.New(
+		"This message was sent by another session and can't be edited. Cancel it instead.",
+	)
 	// ErrSessionInputQueueFull reports that accepting an entry would exceed the configured capacity.
 	ErrSessionInputQueueFull = errors.New("store: session input queue full")
 	// ErrSessionInputQueueEntryNotFound reports that a queued input entry does not exist for a session.
@@ -92,6 +97,7 @@ type SessionInputQueueEntry struct {
 	Text                     string
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
+	Origin                   json.RawMessage
 	Attachments              []SessionInputAttachment
 	SessionGeneration        int64
 	TaskRunID                string
@@ -160,6 +166,7 @@ type SessionInputQueueInsert struct {
 	Text              string
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
+	Origin            json.RawMessage
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string
@@ -187,6 +194,7 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.Text = strings.TrimSpace(normalized.Text)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.Origin = append(json.RawMessage(nil), normalized.Origin...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	normalized.OwnerKind = strings.TrimSpace(normalized.OwnerKind)

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
+
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -155,6 +157,20 @@ func (m *Manager) prepareSendPrompt(
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
+	req.meta.Origin = acp.ClonePromptOriginMeta(opts.Origin)
+	req.notifyOnComplete = opts.NotifyOnComplete
+	if req.meta.Origin == nil && opts.NotifyOnComplete {
+		return sendPromptPreparation{}, nil, errors.New("session: notify_on_complete requires origin")
+	}
+	if req.meta.Origin != nil {
+		req.meta.Origin.NotifyOnComplete = opts.NotifyOnComplete
+		if req.meta.Origin.Hop > acp.MaxSessionMessageHops {
+			return sendPromptPreparation{}, nil, ErrSessionMessageHopLimit
+		}
+		if err := req.meta.Origin.Validate(); err != nil {
+			return sendPromptPreparation{}, nil, err
+		}
+	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
@@ -167,6 +183,9 @@ func (m *Manager) prepareSendPrompt(
 	}
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
+	}
+	if req.meta.Origin != nil && !req.hasPromptAdmissionIdentity() {
+		return sendPromptPreparation{}, nil, errors.New("session: session message requires admission identity")
 	}
 	if req.hasPromptAdmissionIdentity() {
 		return sendPromptPreparation{request: req, mode: mode}, nil, nil

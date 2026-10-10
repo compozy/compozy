@@ -2,11 +2,9 @@ package globaldb
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
@@ -20,6 +18,17 @@ func (g *SessionRepo) InsertReplyWatchTx(
 	exec store.DBTX,
 	w store.ReplyWatchRegistration,
 ) (store.ReplyWatch, error) {
+	if w.CreatedAt.IsZero() {
+		w.CreatedAt = g.now()
+	}
+	return insertReplyWatchTx(ctx, exec, w)
+}
+
+func insertReplyWatchTx(
+	ctx context.Context,
+	exec store.DBTX,
+	w store.ReplyWatchRegistration,
+) (store.ReplyWatch, error) {
 	if w.WorkspaceID == "" || w.SenderSessionID == "" || w.TargetWorkspaceID == "" || w.TargetSessionID == "" ||
 		w.MessageID == "" ||
 		w.AdmissionID == "" ||
@@ -29,11 +38,7 @@ func (g *SessionRepo) InsertReplyWatchTx(
 			"store: reply watch requires sender, target, admission, message, and hop 1..8",
 		)
 	}
-	digest := sha256.Sum256([]byte(w.TargetSessionID + "\x00" + w.MessageID))
-	id := fmt.Sprintf("rw-%x", digest[:8])
-	if w.CreatedAt.IsZero() {
-		w.CreatedAt = g.now()
-	}
+	id := store.ReplyWatchID(w.TargetSessionID, w.MessageID)
 	q := sqlcgen.New(exec)
 	admission, err := q.ReplyWatchAdmission(ctx, w.AdmissionID)
 	if err != nil {

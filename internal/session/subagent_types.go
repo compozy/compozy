@@ -23,8 +23,10 @@ var (
 
 // Subagent modes.
 const (
-	SubagentModeAsync = "async"
-	SubagentModeWait  = "wait"
+	SubagentIsolationWorktree    = "worktree"
+	subagentCapabilityDeniedCode = "capability_denied"
+	SubagentModeAsync            = "async"
+	SubagentModeWait             = "wait"
 )
 
 // SubagentCaller identifies the agent tool call that invokes a subagent operation.
@@ -64,6 +66,8 @@ type SubagentPermissionNarrowing struct {
 
 // SubagentRequest is one delegation request.
 type SubagentRequest struct {
+	Isolation      string
+	BaseRef        string
 	Caller         SubagentCaller
 	Task           string
 	Title          string

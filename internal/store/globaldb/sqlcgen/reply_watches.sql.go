@@ -260,7 +260,7 @@ func (q *Queries) ListReplyWatches(ctx context.Context, arg ListReplyWatchesPara
 }
 
 const replyWatchAdmission = `-- name: ReplyWatchAdmission :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions WHERE id = ?
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions WHERE id = ?
 `
 
 func (q *Queries) ReplyWatchAdmission(ctx context.Context, id string) (SessionPromptAdmission, error) {
@@ -280,6 +280,7 @@ func (q *Queries) ReplyWatchAdmission(ctx context.Context, id string) (SessionPr
 		&i.AuthoredText,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
+		&i.OriginJson,
 		&i.RuntimeProvider,
 		&i.RuntimeModel,
 		&i.RuntimeReasoningEffort,
@@ -298,7 +299,7 @@ func (q *Queries) ReplyWatchAdmission(ctx context.Context, id string) (SessionPr
 }
 
 const replyWatchMessageInputs = `-- name: ReplyWatchMessageInputs :many
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority FROM session_input_queue WHERE session_id = ? AND message_id = ? ORDER BY enqueued_at, id
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority FROM session_input_queue WHERE session_id = ? AND message_id = ? ORDER BY enqueued_at, id
 `
 
 type ReplyWatchMessageInputsParams struct {
@@ -332,6 +333,7 @@ func (q *Queries) ReplyWatchMessageInputs(ctx context.Context, arg ReplyWatchMes
 			&i.SyntheticPromptJson,
 			&i.SkillInvocationsJson,
 			&i.AttachmentsJson,
+			&i.OriginJson,
 			&i.RuntimeProvider,
 			&i.RuntimeModel,
 			&i.RuntimeReasoningEffort,

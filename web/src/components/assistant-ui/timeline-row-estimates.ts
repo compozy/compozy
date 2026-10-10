@@ -48,6 +48,8 @@ const ROW_KIND_ESTIMATE: Record<SessionRow["kind"], number> = {
   "changed-files": 26,
   // A framed subagent card or a collapsed group header (min-h 46px + gap).
   subagents: 50,
+  // The "Sent to" card: min-h 46px + gap (S3).
+  "session-message": 50,
 };
 
 const estimateCache = new WeakMap<object, number>();

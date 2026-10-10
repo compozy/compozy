@@ -10,14 +10,15 @@ import (
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID            string `json:"id"`
-	SessionID     string `json:"session_id"`
-	Sequence      int64  `json:"sequence"`
-	TurnID        string `json:"turn_id"`
-	Type          string `json:"type"`
-	AgentName     string `json:"agent_name"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
+	Origin        *PromptOriginMeta `json:"origin,omitzero"`
+	ID            string            `json:"id"`
+	SessionID     string            `json:"session_id"`
+	Sequence      int64             `json:"sequence"`
+	TurnID        string            `json:"turn_id"`
+	Type          string            `json:"type"`
+	AgentName     string            `json:"agent_name"`
+	WorkspaceID   string            `json:"workspace_id,omitempty"`
+	WorkspacePath string            `json:"workspace_path,omitempty"`
 	store.EventCorrelation
 	ParentSessionID string                       `json:"parent_session_id,omitempty"`
 	RootSessionID   string                       `json:"root_session_id,omitempty"`

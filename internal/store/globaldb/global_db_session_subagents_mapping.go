@@ -11,7 +11,25 @@ import (
 
 func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error) {
 	out := store.SessionSubagent{
-		ID:                 row.ID,
+		ID:        row.ID,
+		Isolation: row.Isolation,
+		Worktree: &store.SubagentWorktreeState{
+			ID:      row.WorktreeID.String,
+			Name:    row.WorktreeName.String,
+			Branch:  row.WorktreeBranch.String,
+			BaseRef: row.WorktreeBaseRef.String,
+			BaseSHA: row.WorktreeBaseSha.String,
+			Path:    row.WorktreePath.String,
+			Cleanup: row.WorktreeCleanup.String,
+			Facts: store.SubagentWorktreeFacts{
+				HeadSHA:      row.GitHeadSha.String,
+				CommitsAhead: subagentIntPointer(row.GitCommitsAhead),
+				DirtyFiles:   subagentIntPointer(row.GitDirtyFiles),
+				PRStatus:     row.PrStatus.String,
+				PRURL:        row.PrUrl.String,
+				PRNumber:     subagentIntPointer(row.PrNumber),
+			},
+		},
 		WorkspaceID:        row.WorkspaceID,
 		ParentSessionID:    row.ParentSessionID,
 		ParentTurnID:       row.ParentTurnID,
@@ -43,6 +61,12 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 		AcknowledgedTurnID: row.AcknowledgedTurnID,
 	}
 	var err error
+	if row.GitObservedAt.Valid {
+		out.Worktree.Facts.ObservedAt, err = store.ParseTimestamp(row.GitObservedAt.String)
+		if err != nil {
+			return out, err
+		}
+	}
 	out.StartedAt, err = parseOptionalSessionInputTimestamp(row.StartedAt)
 	if err != nil {
 		return out, fmt.Errorf("store: subagent StartedAt: %w", err)
@@ -58,6 +82,9 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 	out.UpdatedAt, err = store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
 		return out, fmt.Errorf("store: subagent UpdatedAt: %w", err)
+	}
+	if out.Worktree.ID == "" && out.Worktree.Cleanup == "" {
+		out.Worktree = nil
 	}
 	return out, nil
 }
@@ -119,6 +146,7 @@ func subagentWakeFromSQL(row sqlcgen.SessionSubagentWake) (store.SessionSubagent
 func subagentInsertParams(row store.SessionSubagent) sqlcgen.ReserveSubagentParams {
 	return sqlcgen.ReserveSubagentParams{
 		ID:                     row.ID,
+		Isolation:              row.Isolation,
 		WorkspaceID:            row.WorkspaceID,
 		ParentSessionID:        row.ParentSessionID,
 		ParentTurnID:           row.ParentTurnID,

@@ -14,6 +14,7 @@ type agentEventPayload struct {
 	toolStatus         string
 	subagentCard       json.RawMessage
 	sessionMessageCard json.RawMessage
+	origin             *PromptOriginMeta
 	goal               *GoalPromptMeta
 	delivery           *DeliveryManifest
 	eventID            string
@@ -51,6 +52,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	}
 	cloned := *e.payload
 	cloned.goal = CloneGoalPromptMeta(e.payload.goal)
+	cloned.origin = ClonePromptOriginMeta(e.payload.origin)
 	cloned.delivery = cloneDeliveryManifest(e.payload.delivery)
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.subagentCard = CloneRawMessage(e.payload.subagentCard)
@@ -70,7 +72,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 		payload.providerToolName == "" && payload.toolStatus == "" && len(payload.subagentCard) == 0 &&
 		len(payload.sessionMessageCard) == 0 &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
-		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil &&
+		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil && payload.origin == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
@@ -287,4 +289,17 @@ func (e AgentEvent) GoalPromptMeta() *GoalPromptMeta {
 		return nil
 	}
 	return CloneGoalPromptMeta(e.payload.goal)
+}
+
+func (e AgentEvent) WithPromptOrigin(origin *PromptOriginMeta) AgentEvent {
+	payload := e.clonePayload()
+	payload.origin = ClonePromptOriginMeta(origin)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+func (e AgentEvent) PromptOrigin() *PromptOriginMeta {
+	if e.payload == nil {
+		return nil
+	}
+	return ClonePromptOriginMeta(e.payload.origin)
 }

@@ -6,6 +6,31 @@ import { throwSessionRequestError } from "./session-api-errors";
 export type SubagentListQuery = OperationQuery<"listSessionSubagents">;
 export type SubagentListResponse = OperationResponse<"listSessionSubagents", 200>;
 export type SubagentPayload = SubagentListResponse["subagents"][number];
+
+/**
+ * `SubagentPayload.worktree` as `_dx.md` defines it. Declared here until the
+ * generated contract carries `isolation` and `worktree`; then this shape and
+ * `SubagentWirePayload` collapse into the generated `SubagentPayload`.
+ */
+export interface SubagentWorktreePayload {
+  id: string;
+  name: string;
+  branch: string;
+  base_ref: string;
+  base_sha?: string;
+  path: string;
+  head_sha?: string;
+  commits_ahead?: number;
+  dirty_files?: number;
+  observed_at?: string;
+  pull_request_status?: string;
+  pull_request?: { url: string; number: number; state: string };
+}
+
+export type SubagentWirePayload = SubagentPayload & {
+  isolation?: string;
+  worktree?: SubagentWorktreePayload | null;
+};
 export type SubagentCancelResponse = OperationResponse<"cancelSubagent", 202>;
 
 /** One page of a parent session's direct subagents, newest first. */
