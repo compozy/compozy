@@ -3958,6 +3958,7 @@ func TestSessionInputOriginContract(t *testing.T) {
 							`{"kind":"session","session_id":"sender","workspace_id":"ws-other","hop":2}`,
 						),
 					},
+					{ID: "inq-operator", SessionID: "sess-123", Text: "operator input"},
 				}, nil
 			},
 			ReplacePendingInputFn: func(context.Context, string, string, session.ReplacePendingInputOpts) (session.PendingInput, error) {
@@ -3974,10 +3975,19 @@ func TestSessionInputOriginContract(t *testing.T) {
 		if err := json.Unmarshal(listed.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
 		}
-		if listed.Code != http.StatusOK || len(payload.Inputs) != 1 || payload.Inputs[0].Origin == nil ||
+		if listed.Code != http.StatusOK || len(payload.Inputs) != 2 || payload.Inputs[0].Origin == nil ||
 			payload.Inputs[0].Origin.SessionID != "sender" ||
 			payload.Inputs[0].Origin.WorkspaceID != "ws-other" {
 			t.Fatal(listed.Code, listed.Body.String())
+		}
+		var raw struct {
+			Inputs []map[string]json.RawMessage `json:"inputs"`
+		}
+		if err := json.Unmarshal(listed.Body.Bytes(), &raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := raw.Inputs[1]["origin"]; exists {
+			t.Fatal("operator input carries origin", listed.Body.String())
 		}
 		for _, route := range []struct{ method, path string }{{http.MethodPut, base + "/inq-1"}, {http.MethodPost, base + "/inq-1/steer"}} {
 			response := performRequest(
