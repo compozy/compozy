@@ -3622,8 +3622,7 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 		cmd.Env = append(os.Environ(), "COMPOZY_REPLY_CRASH_MANIFEST="+manifest, "TMPDIR="+childTemp)
 		cmd.Stdout, cmd.Stderr = output, output
 		err = cmd.Run()
-		var exit *exec.ExitError
-		if !errors.As(err, &exit) || exit.ExitCode() != 19 {
+		if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 19 {
 			data, _ := os.ReadFile(output.Name())
 			t.Fatalf("crash child = %v\n%s", err, data)
 		}
