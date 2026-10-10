@@ -16,6 +16,7 @@ import {
 import {
   SESSION_MESSAGE_FRAME_CLASS,
   sessionPartyPhrase,
+  type SessionPartyVerb,
   type SessionMessageOpen,
   type SessionMessageParty,
 } from "./session-message-party";
@@ -23,7 +24,7 @@ import {
 /** The sent card's right side: no state when no reply was asked for; waiting until the reply exists. */
 export type SessionSentReplyState = "none" | "waiting" | SessionReplyOutcome;
 
-const VERB: Record<SessionSentCallState, string> = {
+const VERB: Record<SessionSentCallState, SessionPartyVerb> = {
   sending: "Sending to",
   sent: "Sent to",
   failed: "Could not send to",
