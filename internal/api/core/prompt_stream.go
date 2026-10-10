@@ -148,23 +148,24 @@ type promptErrorPayload struct {
 // PromptStreamEncoder converts raw ACP agent events into the typed public
 // prompt stream envelope used by HTTP, UDS, and CLI streaming surfaces.
 type PromptStreamEncoder struct {
-	now               func() string
-	sessionID         string
-	messageID         string
-	textParent        string
-	textBlockID       string
-	reasoningBlockID  string
-	textBlockSeq      int
-	reasoningBlockSeq int
-	messageStarted    bool
-	textStarted       bool
-	reasoningStarted  bool
-	toolStarted       map[string]struct{}
-	toolCompleted     map[string]struct{}
-	toolInputsReady   map[string]struct{}
-	toolInputPending  map[string]struct{}
-	toolNames         map[string]string
-	finished          bool
+	sessionMessageCards map[string]transcript.UISessionMessagePayload
+	now                 func() string
+	sessionID           string
+	messageID           string
+	textParent          string
+	textBlockID         string
+	reasoningBlockID    string
+	textBlockSeq        int
+	reasoningBlockSeq   int
+	messageStarted      bool
+	textStarted         bool
+	reasoningStarted    bool
+	toolStarted         map[string]struct{}
+	toolCompleted       map[string]struct{}
+	toolInputsReady     map[string]struct{}
+	toolInputPending    map[string]struct{}
+	toolNames           map[string]string
+	finished            bool
 }
 
 // NewPromptStreamEncoder constructs a prompt-stream encoder with deterministic

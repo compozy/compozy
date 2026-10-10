@@ -59,6 +59,11 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		return
 	}
 	response.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
+	response.ReplyWatches, err = sessionReplyWatchPayloads(c.Request.Context(), h.Sessions, info.WorkspaceID, info.ID)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	if manager, available := h.Sessions.(SessionAttentionManager); available {
 		interactions, err := manager.PendingInteractions(c.Request.Context(), health.SessionID, nil)
 		if err != nil {

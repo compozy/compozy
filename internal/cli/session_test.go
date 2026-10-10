@@ -4713,3 +4713,40 @@ func subagentCLIRecord() contract.SubagentPayload {
 		Result:     new("Recommendation"),
 	}
 }
+
+func TestSessionReplyWatchOutput(t *testing.T) {
+	t.Run("Should expose waiting replies in every status format UT-047", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+				return SessionStatusRecord{
+					SessionID: "sender",
+					ReplyWatches: []contract.ReplyWatchPayload{
+						{
+							ID:              "rw-123",
+							TargetSessionID: "target",
+							MessageID:       "message",
+							State:           "armed",
+							CreatedAt:       time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC),
+						},
+					},
+				}, nil
+			}},
+		)
+		for _, format := range []string{"human", "json", "toon"} {
+			output, _, err := executeRootCommand(t, deps, "session", "status", "sender", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []string{"rw-123", "target", "message", "armed"} {
+				if !strings.Contains(output, value) {
+					t.Fatalf("%s omits %s: %s", format, value, output)
+				}
+			}
+			if format == "human" && !strings.Contains(output, "Waiting for replies") {
+				t.Fatal(output)
+			}
+		}
+	})
+}

@@ -29,6 +29,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	defer func() {
 		unlockConversation()
 		if err == nil && resumed != nil {
+			if service := m.ReplyWatches(); service != nil {
+				service.OnSessionResumed(ctx, target)
+			}
 			m.startNextQueuedInputPrompt(target)
 		}
 	}()

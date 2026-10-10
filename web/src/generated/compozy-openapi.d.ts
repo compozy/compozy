@@ -11402,6 +11402,14 @@ export interface operations {
                   cap: number;
                   entries: number;
                 } | null;
+                reply_watches?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  id: string;
+                  message_id: string;
+                  state: string;
+                  target_session_id: string;
+                }[];
                 runtime: {
                   acp_caps?: {
                     config_options?: {
@@ -45467,6 +45475,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -45969,6 +45985,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -46927,6 +46951,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -47756,6 +47788,14 @@ export interface operations {
               cap: number;
               entries: number;
             } | null;
+            reply_watches?: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              message_id: string;
+              state: string;
+              target_session_id: string;
+            }[];
             session_id: string;
             /** @enum {string} */
             state: "idle" | "prompting" | "stopped" | "detached";
@@ -85519,6 +85559,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -103011,6 +103059,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -103506,6 +103562,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -103997,6 +104061,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -104585,6 +104657,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -105059,6 +105139,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -106322,6 +106410,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -107119,6 +107215,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -107461,6 +107565,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -108396,6 +108508,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -108738,6 +108858,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -114027,6 +114155,14 @@ export interface operations {
                   cap: number;
                   entries: number;
                 } | null;
+                reply_watches?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  id: string;
+                  message_id: string;
+                  state: string;
+                  target_session_id: string;
+                }[];
                 runtime: {
                   acp_caps?: {
                     config_options?: {
@@ -114638,6 +114774,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -115146,6 +115290,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -115607,6 +115759,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -116255,6 +116415,14 @@ export interface operations {
               cap: number;
               entries: number;
             } | null;
+            reply_watches?: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              message_id: string;
+              state: string;
+              target_session_id: string;
+            }[];
             session_id: string;
             /** @enum {string} */
             state: "idle" | "prompting" | "stopped" | "detached";
@@ -119707,6 +119875,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {
@@ -120725,6 +120901,14 @@ export interface operations {
                 cap: number;
                 entries: number;
               } | null;
+              reply_watches?: {
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                message_id: string;
+                state: string;
+                target_session_id: string;
+              }[];
               runtime: {
                 acp_caps?: {
                   config_options?: {

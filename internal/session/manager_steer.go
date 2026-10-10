@@ -15,6 +15,11 @@ func (m *Manager) activateSteeringInput(
 	session *Session,
 	entry *store.SessionInputQueueEntry,
 ) error {
+	defer func() {
+		if service := m.ReplyWatches(); service != nil {
+			service.OnSteerResolved(context.WithoutCancel(ctx), session.ID, "")
+		}
+	}()
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
 	if err != nil {

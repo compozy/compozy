@@ -29,6 +29,16 @@ permission budget and grant only required concrete IDs; bootstrap commonly needs
 The CLI equivalent repeats `compozy spawn --tool <id>`. Agent policy and parent-subset validation
 still apply. A missing required grant blocks the task rather than authorizing a filesystem/CLI bypass.
 
+## Ask an existing session and wait for its reply
+
+Use `compozy__session_prompt` with `notify_on_complete: true` when you need an answer from an
+existing session. Save `reply_watch.id`, finish your current turn, and let the reply wake resume your
+work. The watch follows the message through queued or steered delivery, not an unrelated turn.
+Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. A stopped target
+keeps queued messages and their watches; a stopped sender receives a fired reply after resume.
+Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
+not confer a task claim, permission, or approval.
+
 ## Subagents Versus Spawned Workers
 
 Use `compozy__subagent_delegate` when your current turn needs one self-contained answer or change
