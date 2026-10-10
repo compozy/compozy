@@ -33,12 +33,30 @@ export type SessionMessageOpen = (
 
 export const DELETED_SESSION_LABEL = "a deleted session";
 
+/** The verb phrases that name the other session in an accessible name. */
+export type SessionPartyVerb =
+  | "Message from"
+  | "Reply from"
+  | "Sending to"
+  | "Sent to"
+  | "Could not send to";
+
+// While the label read is pending nothing is named, so each verb phrase
+// stands alone as a noun phrase instead of dangling ("Reply from, …").
+const PENDING_PHRASE: Record<SessionPartyVerb, string> = {
+  "Message from": "Message",
+  "Reply from": "Reply",
+  "Sending to": "Sending message",
+  "Sent to": "Sent message",
+  "Could not send to": "Message not sent",
+};
+
 /**
  * "{verb} {title}" for accessible names; the deleted form never names a title,
- * and a pending one names nothing until the read settles.
+ * and a pending one names nothing until the read settles ("Reply", "Sent message").
  */
-export function sessionPartyPhrase(verb: string, party: SessionMessageParty): string {
-  if (party.pending) return verb;
+export function sessionPartyPhrase(verb: SessionPartyVerb, party: SessionMessageParty): string {
+  if (party.pending) return PENDING_PHRASE[verb];
   return `${verb} ${party.title ?? DELETED_SESSION_LABEL}`;
 }
 

@@ -419,12 +419,50 @@ describe("SessionReplyCard", () => {
       />,
       { wrapper }
     );
-    const card = screen.getByRole("article", { name: "Reply from, completed" });
+    const card = screen.getByRole("article", { name: "Reply, completed" });
     expect(card).toHaveAttribute("aria-busy", "true");
     expect(within(card).queryByText("a deleted session")).not.toBeInTheDocument();
     expect(
       within(card).queryByRole("button", { name: /Billing reviewer/ })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should name pending message and sent cards as standalone phrases (N-4)", () => {
+    const pending = { ...target, title: null, pending: true };
+    render(
+      <>
+        <SessionMessageCard
+          sender={pending}
+          delivery={null}
+          replyRequested={false}
+          timestampMs={AT}
+        >
+          Hi
+        </SessionMessageCard>
+        <SessionSentCard
+          target={pending}
+          callState="sent"
+          mode="queue"
+          firstLine="Hi"
+          error={null}
+          reply="waiting"
+          timestampMs={AT}
+        />
+        <SessionSentCard
+          target={pending}
+          callState="failed"
+          mode="queue"
+          firstLine="Hi"
+          error="Message chain limit reached."
+          reply="none"
+          timestampMs={AT}
+        />
+      </>,
+      { wrapper }
+    );
+    for (const name of ["Message", "Sent message, waiting for reply", "Message not sent"]) {
+      expect(screen.getByRole("article", { name })).toHaveAttribute("aria-busy", "true");
+    }
   });
 
   it.each([
