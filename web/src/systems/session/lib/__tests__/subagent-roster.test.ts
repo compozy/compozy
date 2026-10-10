@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SubagentPayload, SubagentWirePayload } from "../../adapters/subagent-api";
+import type { SubagentPayload } from "../../adapters/subagent-api";
 import {
   applySubagentsSnapshot,
   applySubagentUpdated,
@@ -17,7 +17,7 @@ import {
 const T0 = Date.parse("2026-10-08T21:00:00.000Z");
 const at = (seconds: number) => new Date(T0 + seconds * 1_000).toISOString();
 
-function row(id: string, overrides: Partial<SubagentWirePayload> = {}): SubagentWirePayload {
+function row(id: string, overrides: Partial<SubagentPayload> = {}): SubagentPayload {
   return {
     subagent_id: id,
     workspace_id: "ws-01",
@@ -39,6 +39,7 @@ function row(id: string, overrides: Partial<SubagentWirePayload> = {}): Subagent
     error: null,
     wait_timed_out: false,
     delivery: "none",
+    isolation: "shared",
     created_at: at(0),
     started_at: at(0),
     settled_at: null,
@@ -108,7 +109,7 @@ describe("subagent isolation and worktree facts (UT-070, UT-072)", () => {
     dirty_files: 0,
     observed_at: at(60),
   };
-  const view = (overrides: Partial<SubagentWirePayload>) => snapshot(row("a", overrides)).rows[0]!;
+  const view = (overrides: Partial<SubagentPayload>) => snapshot(row("a", overrides)).rows[0]!;
 
   it("Should map an isolated payload's worktree and keep unobserved facts absent, not zero", () => {
     const running = view({ isolation: "worktree", worktree });
@@ -144,7 +145,7 @@ describe("subagent isolation and worktree facts (UT-070, UT-072)", () => {
   });
 
   it("Should keep unknown and none distinct and read an unreadable PR as unknown, never none", () => {
-    const status = (worktreePayload: SubagentWirePayload["worktree"]) =>
+    const status = (worktreePayload: SubagentPayload["worktree"]) =>
       view({ isolation: "worktree", worktree: worktreePayload }).worktree;
     expect(status({ ...settled, pull_request_status: "unknown" })).toMatchObject({
       pull_request_status: "unknown",
@@ -168,7 +169,7 @@ describe("subagent isolation and worktree facts (UT-070, UT-072)", () => {
     }
   });
 
-  it("Should give shared subagents no facts, including rows from daemons without isolation", () => {
+  it("Should give shared subagents no facts, even when a payload carries some", () => {
     expect(view({})).toMatchObject({ isolation: "shared", worktree: null });
     expect(view({ isolation: "shared", worktree })).toMatchObject({
       isolation: "shared",
