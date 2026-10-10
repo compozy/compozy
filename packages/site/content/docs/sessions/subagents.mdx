@@ -190,11 +190,13 @@ See [`[subagents]`](/docs/configuration/config-toml#subagents) in the config ref
 
 Extensions and config hooks can observe every finished subagent with the `subagent.settled` hook.
 Its payload names the subagent, its parent and child sessions, the final status, the provider and
-model, and how long it ran:
+model, and how long it ran. It also includes `isolation` and, for isolated subagents, a `worktree`
+object with checkout identity and available Git/PR settlement facts:
 
 ```json
 {
   "event": "subagent.settled",
+  "isolation": "shared",
   "workspace_id": "ws-01",
   "subagent_id": "sub-3c9e1f0a7b2d4e61",
   "parent_session_id": "sess-7f3a2c11d09e4b58",

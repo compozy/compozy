@@ -669,11 +669,45 @@ func newManagedDeliveryBusyEvents(t *testing.T, db *globaldb.GlobalDB) (*managed
 // Owner: daemon worktree adapter; canonical worktree wiring suite (UT-038, UT-039).
 func TestSubagentWorktreeAdapter(t *testing.T) {
 	t.Parallel()
+	for _, nested := range []bool{false, true} {
+		name := "Should resolve omitted base from caller HEAD UT-020"
+		if nested {
+			name = "Should resolve nested caller HEAD UT-026"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{item: worktree.Worktree{Path: "/nested"}}
+			req := session.SubagentWorktreeRequest{CallerPath: "/caller"}
+			want := "/caller"
+			if nested {
+				req.CallerWorktreeID = "parent-wt"
+				want = "/nested"
+			}
+			base, err := subagentWorktreeBase(t.Context(), svc, req)
+			if err != nil || base != "caller-head" || svc.resolvedPath != want || svc.resolvedRef != "HEAD" {
+				t.Fatal(base, err, svc.resolvedPath, svc.resolvedRef)
+			}
+		})
+	}
+	for _, state := range []worktree.State{worktree.StatePending, worktree.StateReady, worktree.StateRemoved, worktree.StateMissing, worktree.StateDismissed} {
+		t.Run("Should find only live run materializations "+string(state), func(t *testing.T) {
+			t.Parallel()
+			svc := &subagentWorktreeServiceStub{
+				items: []worktree.Worktree{{ID: "wt", RunID: "sub", Origin: worktree.OriginPerRun, State: state}},
+			}
+			adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return svc }}
+			got, err := adapter.FindByRun(t.Context(), "ws", "sub")
+			want := state == worktree.StatePending || state == worktree.StateReady
+			if err != nil || (got != nil) != want {
+				t.Fatal(got, err)
+			}
+		})
+	}
 	t.Run("Should rollback failed setup and preserve hook denial identity", func(t *testing.T) {
 		t.Parallel()
 		service := &subagentWorktreeServiceStub{
 			item:   worktree.Worktree{ID: "wt", SetupState: worktree.SetupFailed},
-			status: worktree.Status{DirtyFiles: new(0)},
+			status: worktree.Status{DirtyFiles: new(1)},
 		}
 		adapter := daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return service }}
 		req := session.SubagentWorktreeRequest{WorkspaceID: "ws", SubagentID: "sub", BaseRef: "main"}
@@ -748,7 +782,7 @@ func TestSubagentWorktreeAdapter(t *testing.T) {
 		}
 		svc.forge = &worktree.ForgeStatus{
 			PRNumber: new(7),
-			PRState:  new("open"),
+			PRState:  new(" OPEN "),
 			PRURL:    "https://example.test/pull/7",
 			Draft:    new(true),
 		}
@@ -776,22 +810,29 @@ func TestSubagentWorktreeAdapter(t *testing.T) {
 
 type subagentWorktreeServiceStub struct {
 	subagentWorktreeService
-	item                   worktree.Worktree
-	status                 worktree.Status
-	forge                  *worktree.ForgeStatus
-	provisionErr, forgeErr error
-	ahead, rollbacks       int
-	base                   string
+	item                      worktree.Worktree
+	status                    worktree.Status
+	forge                     *worktree.ForgeStatus
+	provisionErr, forgeErr    error
+	ahead, rollbacks          int
+	base                      string
+	items                     []worktree.Worktree
+	resolvedPath, resolvedRef string
 }
 
 var _ subagentWorktreeService = (*subagentWorktreeServiceStub)(nil)
+
+func (s *subagentWorktreeServiceStub) ResolveCommit(_ context.Context, path, ref string) (string, error) {
+	s.resolvedPath, s.resolvedRef = path, ref
+	return "caller-head", nil
+}
 
 func (s *subagentWorktreeServiceStub) Get(context.Context, string, string) (*worktree.Worktree, error) {
 	return &s.item, nil
 }
 
 func (s *subagentWorktreeServiceStub) List(context.Context, string, bool) (*worktree.Listing, error) {
-	return &worktree.Listing{}, nil
+	return &worktree.Listing{Worktrees: s.items}, nil
 }
 
 func (s *subagentWorktreeServiceStub) MaterializeForRun(

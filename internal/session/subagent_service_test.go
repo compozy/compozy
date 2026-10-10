@@ -1911,6 +1911,9 @@ func TestSubagentIsolatedWorktree(t *testing.T) {
 			if !errors.Is(err, ErrSubagentInvalidRequest) {
 				t.Fatalf("validation = %v", err)
 			}
+			if input.Isolation == "copy" && err.Error() != "isolation must be shared or worktree." {
+				t.Fatal(err)
+			}
 			if input.BaseRef != "" && err.Error() != `base_ref requires isolation "worktree".` {
 				t.Fatal(err)
 			}
@@ -1945,6 +1948,7 @@ func TestSubagentIsolatedWorktree(t *testing.T) {
 				t.Fatal(r.spawned)
 			}
 			if !strings.HasPrefix(r.admitted[row.ID], "[You are working in an isolated worktree on branch run/a") ||
+				!strings.Contains(r.admitted[row.ID], "based on origin/main.") ||
 				!strings.Contains(r.admitted[row.ID], "compozy worktree deliver") {
 				t.Fatal(r.admitted)
 			}
@@ -1958,6 +1962,21 @@ func TestSubagentIsolatedWorktree(t *testing.T) {
 			}
 		},
 	)
+	t.Run("Should pass the omitted base and describe the resolved caller SHA UT-020 UT-023", func(t *testing.T) {
+		t.Parallel()
+		s, _, runtime := newSubagentTestService(t)
+		wt := &subagentWorktreeStub{
+			worktree: SubagentWorktree{ID: "wt", Branch: "run/default", BaseRef: "caller-sha", BaseSHA: "caller-sha"},
+		}
+		s.worktrees = wt
+		req := subagentTestRequest()
+		req.Isolation = "worktree"
+		row := requireSubagent(t, s, req)
+		if len(wt.requests) != 1 || wt.requests[0].BaseRef != "" ||
+			!strings.Contains(runtime.admitted[row.ID], "based on caller-sha.") {
+			t.Fatal(wt.requests, runtime.admitted)
+		}
+	})
 	t.Run("Should leave shared delegates on the inherited checkout UT-022", func(t *testing.T) {
 		t.Parallel()
 		s, _, r := newSubagentTestService(t)
@@ -2127,7 +2146,7 @@ func TestSubagentIsolatedWorktree(t *testing.T) {
 // Owner: subagent service recovery; canonical suite (UT-030).
 func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 	t.Parallel()
-	for _, state := range []string{"reserved", "unassociated", "associated", "linked-reserved", "dispatch_committed", "indeterminate", "admitted"} {
+	for _, state := range []string{"reserved", "unassociated", "associated", "linked-reserved", "dispatch_committed", "indeterminate", "admitted", "admitted-no-worktree"} {
 		t.Run("Should recover "+state, func(t *testing.T) {
 			t.Parallel()
 			s, db, runtime := newSubagentTestService(t)
@@ -2142,7 +2161,7 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state != "reserved" {
+			if state != "reserved" && state != "admitted-no-worktree" {
 				wt.worktree = SubagentWorktree{ID: "wt", BaseSHA: "base"}
 			}
 			if state != "reserved" && state != "unassociated" {
@@ -2152,7 +2171,7 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 				}
 			}
 			linked := state == "linked-reserved" || state == "dispatch_committed" || state == "indeterminate" ||
-				state == "admitted"
+				(state == "admitted" || state == "admitted-no-worktree")
 			if linked {
 				child := subagentChildSessionID(row.ParentSessionID, row.ID)
 				runtime.snapshots[child] = subagentSnapshot{
@@ -2165,7 +2184,7 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 				}
 			}
 			db.committedAdmission = state == "dispatch_committed" || state == "indeterminate"
-			if state == "admitted" {
+			if state == "admitted" || state == "admitted-no-worktree" {
 				runtime.admitted[row.ID] = "task"
 			}
 			if err := s.Recover(t.Context()); err != nil {
@@ -2175,7 +2194,10 @@ func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			retain := db.committedAdmission || state == "admitted"
+			retain := db.committedAdmission || (state == "admitted" || state == "admitted-no-worktree")
+			if got.WorktreeState().Cleanup != "done" {
+				t.Fatal("cleanup not completed", got)
+			}
 			if retain {
 				if wt.rollbacks != 0 || len(runtime.stopped) != 0 || got.Status != store.SubagentStatusRunning {
 					t.Fatal(got, wt.rollbacks, runtime.stopped)
