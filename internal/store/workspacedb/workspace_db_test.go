@@ -148,6 +148,70 @@ func TestOpen(t *testing.T) {
 		}
 	})
 
+	// Invariant: close tolerates retained snapshots and preserves committed data; owner: workspace lifecycle, TestOpen.
+	t.Run("Should close with a retained reader and preserve later writes across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		workspaceRoot := t.TempDir()
+		db := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
+			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+		) VALUES ('rec-before', 'term-1', 'profile-1', 'digest-before', '/tmp/before', 10, 12, 100)`); err != nil {
+			t.Fatal(err)
+		}
+		readerDB, err := store.OpenSQLiteDatabase(ctx, db.Path(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := readerDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := store.Checkpoint(ctx, db.DB()); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := readerDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := reader.QueryRowContext(ctx, `SELECT COUNT(*) FROM terminal_recordings`).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("reader recordings = %d, %v; want one", count, err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
+			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+		) VALUES ('rec-after', 'term-1', 'profile-1', 'digest-after', '/tmp/after', 20, 24, 100)`); err != nil {
+			t.Fatal(err)
+		}
+		closeCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := db.Close(closeCtx); err != nil {
+			t.Fatalf("Close with retained reader error = %v", err)
+		}
+		if err := reader.QueryRowContext(ctx, `SELECT COUNT(*) FROM terminal_recordings`).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("retained snapshot after close = %d, %v; want one", count, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		var bytes int
+		if err := reopened.DB().QueryRowContext(ctx, `SELECT bytes FROM terminal_recordings WHERE id = 'rec-after'`).
+			Scan(&bytes); err != nil || bytes != 24 {
+			t.Fatalf("recording committed after snapshot = %d bytes, %v; want 24", bytes, err)
+		}
+	})
+
 	t.Run("Should reject invalid open and close inputs", func(t *testing.T) {
 		t.Parallel()
 

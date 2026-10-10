@@ -100,7 +100,8 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 		return nil
 	}
 
-	checkpointErr := store.Checkpoint(ctx, g.db)
+	// A reader retaining a WAL snapshot must not block database shutdown.
+	checkpointErr := store.CheckpointPassive(ctx, g.db)
 	closeErr := g.db.Close()
 	return errors.Join(checkpointErr, closeErr)
 }

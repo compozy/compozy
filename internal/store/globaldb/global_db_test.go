@@ -393,6 +393,60 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// Invariant: closing preserves committed rows without waiting for an external reader's snapshot.
+	t.Run("Should close with a retained reader and preserve committed metadata across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		globalDB := openTestGlobalDB(t)
+		const key = "close.snapshot"
+		if err := globalDB.SetAppMetadata(ctx, key, "before"); err != nil {
+			t.Fatal(err)
+		}
+		externalDB, err := sql.Open(sqliteDriverName, sqliteDSN(globalDB.Path()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := externalDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, err := externalDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var snapshot string
+		if err := reader.QueryRowContext(ctx, "SELECT value FROM app_metadata WHERE key = ?", key).
+			Scan(&snapshot); err != nil || snapshot != "before" {
+			t.Fatalf("initial reader snapshot = %q, error = %v, want before", snapshot, err)
+		}
+		if err := globalDB.SetAppMetadata(ctx, key, "after"); err != nil {
+			t.Fatal(err)
+		}
+		closeCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := globalDB.Close(closeCtx); err != nil {
+			t.Fatalf("Close with retained reader error = %v", err)
+		}
+		if err := reader.QueryRowContext(ctx, "SELECT value FROM app_metadata WHERE key = ?", key).
+			Scan(&snapshot); err != nil || snapshot != "before" {
+			t.Fatalf("retained reader snapshot = %q, error = %v, want before", snapshot, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openGlobalDBForTest(t, globalDB.Path())
+		value, found, err := reopened.GetAppMetadata(ctx, key)
+		if err != nil || !found || value != "after" {
+			t.Fatalf("metadata after reopen = %q, found = %t, error = %v, want after", value, found, err)
+		}
+	})
+
 	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
 	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
 		t.Parallel()

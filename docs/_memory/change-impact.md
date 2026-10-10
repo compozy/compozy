@@ -7,6 +7,8 @@ Owner: branch `perf/sqlite-contention`; evidence and verification are recorded i
 transcript fold/cache/redaction already implemented in PR #715. Shared cancellation-aware
 write admission, transaction cleanup, bounded queries, no-op maintenance, connection reuse,
 and additive indexes reduce contention while retaining the existing public contracts.
+Database shutdown uses passive checkpoints so retained readers do not prevent close;
+committed WAL state survives reopen and explicit truncation still reports contention.
 
 Native tools and CLI/HTTP/UDS/Web session, subagent, task, Loop, automation, extension,
 and observation consumers keep their IDs, DTOs, ordering, scope, and mutation semantics.

@@ -31,6 +31,8 @@ passed; fresh Grok 4.5/High/Fast and Grok 4.6/xhigh/Fast binds preserved logical
 
 SQLite audit 2026-10-09: Persist prompt activity and health while other SQLite mutations are active. Preserve activity/presence timestamps, wake eligibility, transition hooks, and durable success acknowledgement; canceled writes must not leak partial transactions through pooled connections. Existing session health/lifecycle integration and shared write suites own these backend checks.
 
+Stop a session while an independent reader retains an earlier snapshot. Close must succeed without waiting for that reader, preserve its snapshot, and retain later committed events after reopen. The existing session database close lifecycle suite owns this real-SQLite check.
+
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.

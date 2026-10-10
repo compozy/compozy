@@ -33,7 +33,9 @@ also inspects ignored Go files.
   the existing contention budget. Ambiguous cancellation or failed rollback
   discards the connection so a pooled handle cannot expose a partial transaction.
   WAL truncation uses the same cancellation boundary and reports a busy checkpoint
-  instead of claiming truncation succeeded; passive checkpoints remain best effort.
+  instead of claiming truncation succeeded. Database close uses a passive checkpoint
+  so retained readers do not block shutdown; SQL/context/close failures still propagate.
+  The WAL remains part of durable database state until SQLite can checkpoint it.
 - Embedded migration bytes are validated once per immutable embedded stream.
   Mutable filesystems and live database version/refusal checks are still checked
   on every use. This removes repeated hashing and multi-megabyte allocations on
@@ -137,6 +139,7 @@ new indexes without a demonstrated hot-path benefit.
 | No-op retention and retained output references | Existing observability, terminal journal, and Loop output suites |
 | Summary equality and health/lifecycle behavior | Existing observe integration and session health/lifecycle suites |
 | Profile planning and lifecycle behavior | Existing complete profile race suite |
+| Close with a retained reader preserves its snapshot and committed data across reopen | Existing global/workspace/session database lifecycle suites |
 
 ## Verification status
 
@@ -164,7 +167,8 @@ the package alarm fired. No race or data-equality failure was reported. The host
 had observed load averages of 64–112 with 16 logical CPUs during the late phase;
 that resource contention is evidence, not proof that every failure is environmental.
 The complete failed run is retained in `.cache/sqlite-audit/gate-final.log` and
-`.cache/gate/logs/go-test-1791611767-28033.log`. Full gate validation remains pending.
+`.cache/gate/logs/go-test-1791611767-28033.log`. These local failures are retained as
+historical evidence; the rebased CI result below is separate validation.
 An unchanged `TestGlobalDBSessionAttentionMigration` rerun with one test worker
 also exceeded its existing five-minute upgrade context at migration 111, before
 the preservation assertions (308.856s package duration). Host load remained above
@@ -176,6 +180,16 @@ pushes for remediation. The resumed local gate passed code generation, then was
 stopped during lint at that direction, before starting another global test run.
 The checkpoint and rebase completed under that explicit delivery override;
 complete validation will be reported from CI for the final branch head.
+The first rebased [CI run](https://github.com/compozy/compozy/actions/runs/38074287804)
+passed on `232d63067a819bdeacf2dff939967eb279f5e229`, including all eight Go race
+shards, four Web E2E shards, runtime/desktop E2E, Windows/Darwin checks, code
+generation, lint, and builds. Subsequent shutdown review reproduced a retained
+reader causing session close to exhaust its deadline. The three close owners now
+use the existing passive checkpoint; explicit truncation keeps its busy and
+cancellation contract. The owning lifecycle regressions use real SQLite reader
+snapshots and reopen checks. Focused race runs passed for all three close owners
+and the explicit checkpoint helper, with no new test-convention findings.
+Final-head checks are tracked on [PR #723](https://github.com/compozy/compozy/pull/723).
 A parallel historical migration test reused its replay-phase context for a separate
 ahead-version fixture after that context expired. That fixture phase now receives
 its own existing-budget context; replay, equivalence, integrity, and refusal
