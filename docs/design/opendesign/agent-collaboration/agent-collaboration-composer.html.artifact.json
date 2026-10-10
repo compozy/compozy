@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-collaboration/agent-collaboration-composer.html",
+  "entry": "agent-collaboration/agent-collaboration-composer.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-10T05:51:42.817Z",
+  "updatedAt": "2026-10-10T05:51:42.817Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Transcript · Agent collaboration · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../subagents/subagents.css">
+<link rel="stylesheet" href="agent-collaboration.css">
+<!--
+  agent-collaboration-transcript · S1 session message card · S2 reply card · S3 sent card.
+  Contract: DESIGN-NOTES.md. Spec: .compozy/tasks/agent-collaboration/_uiux.md S1–S3, _dx.md.
+  Provenance:
+    production — UserMessageBubble clamp (176px + mask, Show more), SessionUserSteerMeta glyphs
+                 (corner-down-right steer, scissors interrupt), SubagentCard frame + SubagentAvatar,
+                 StatusDot tones from subagentDot, thread column 720px.
+    delta      — a left-aligned framed card for agent-authored user turns; the operator bubble
+                 stays the only right-aligned surface.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Agent collaboration</a><span class="w2-sep">/</span><h1 class="w2-title">01 · Transcript</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="index.html">← Overview</a><a class="btn btn--sm" href="agent-collaboration-composer.html">Next: Queue →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="sa-contract" data-od-id="tr-contract" aria-label="What this board is">
+      <div class="sa-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="sa-contract__what"><b>A message from another agent no longer looks like you typed it.</b> When one session sends a message to another with <code>compozy__session_prompt</code>, the receiving transcript shows it as a left-aligned card: who sent it (provider mark + "From {title}", a link), how it arrived, whether a reply was asked for, and when.</p>
+        <p class="sa-contract__what">On the sender's side, the send becomes a "Sent to" card that waits for the answer. The answer comes back as a "Reply from" card with its outcome. Your own prompts stay right-aligned bubbles, exactly as today.</p>
+        <p class="sa-contract__file">agent-collaboration-transcript.html · S1 · S2 · S3 · metadata.custom.origin · metadata.custom.synthetic · part data-compozy-session-message</p>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="sa-mods">
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SessionMessageFrame</b><i>web/src/systems/session/components/session-messages/session-message-frame.tsx</i>shared left-aligned frame: avatar column · header · body (S1 S2 S3)</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>SessionMessageCard · SessionReplyCard · SessionSentCard</b><i>session-messages/</i>S1 receiver card · S2 reply · S3 sent with reply state</span></li>
+          <li><span class="sa-mod sa-mod--new">new</span><span><b>useSessionLabel · useMessageClamp</b><i>session-messages/use-session-label.ts · assistant-ui/</i>title / agent / deleted resolution; clamp extracted from UserMessageBubble</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>SessionThreadMessage</b><i>web/src/components/assistant-ui/session-thread-messages.tsx</i>origin.kind = session → card; system + synthetic.kind = session_reply → reply card</span></li>
+          <li><span class="sa-mod sa-mod--modify">modify</span><span><b>session-timeline.logic.ts · tool-labels.ts</b><i>assistant-ui/ · systems/session/lib/</i>new SessionRow "session-message" outside work groups; Send / Sending / Sent "a message"</span></li>
+          <li><span class="sa-mod sa-mod--reuse">reuse</span><span><b>Avatar · KindIcon · StatusDot · Time · Tooltip · Button · SessionAttachmentGallery</b><i>@compozy/ui + session — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="sa-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="sa-states">
+          <li><a href="#tr-rhythm">Receiver transcript — in-thread rhythm</a><code>VC-02</code></li>
+          <li><a href="#tr-card">Session message card — 10 states</a><code>VC-01</code></li>
+          <li><a href="#tr-sender">Sender transcript — send, wait, reply</a><code>VC-04 · VC-03</code></li>
+          <li><a href="#tr-reply">Reply card — 8 states</a><code>VC-03</code></li>
+          <li><a href="#tr-sent">Sent card — 10 states</a><code>VC-04</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · RECEIVER RHYTHM ===== -->
+    <section class="lab-sec" id="tr-rhythm" data-od-id="tr-rhythm">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Receiver transcript — a message from another session, between yours</h2><span class="lab-sec__gist">VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Three voices, three shapes.</b> Your prompts are right-aligned washes. The agent's answers are plain text. A message another session sent is a left-aligned framed card with that session's provider mark and a "From" link. Click the link to open the sender (⌘-click opens a new window). Only the presentation changes: the message is still a user turn, so scroll anchoring, row estimates and thread status treat it like yours.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tr-rhythm-stage">
+            <section class="win win--inline is-focused sa-win" style="--sa-win-w:900px" data-od-id="tr-rhythm-window">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Billing reviewer</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col">
+                    <div class="ac-user" style="position:relative" data-od-id="tr-rhythm-operator">Read <code style="font-family:var(--font-mono);font-size:11.5px">billing.toml</code> and the retry middleware. Stay around — other sessions will ask you about billing config.<i class="sa-n sa-n--pin">1</i></div>
+                    <p class="ac-asst">Read both. Retries are configured per job in <code>billing.toml</code> and enforced in <code>internal/billing/retry.go</code>. Ready for questions.</p>
+
+                    <article class="session-message session-message--from" style="position:relative" aria-label="Message from Refactor billing" data-od-id="tr-rhythm-card">
+                      <i class="sa-n sa-n--left">2</i>
+                      <span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span>
+                      <div class="session-message__head">
+                        <span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><i class="sa-n">3</i>
+                        <span class="session-message__chip"><svg data-lucide="reply"></svg>Reply requested</span><i class="sa-n">4</i>
+                        <time class="session-message__time">22:30</time>
+                      </div>
+                      <div class="session-message__body" data-ac-clamp><p>Is the retry budget in billing.toml per request or per job?</p></div>
+                      <button class="session-message__more" type="button" hidden>Show more</button>
+                    </article>
+
+                    <p class="ac-asst">Per job. <code>retry_budget</code> in <code>billing.toml</code> caps total attempts across all of a job's requests; <code>retry.go:41</code> decrements one shared counter per job id. Per-request limits don't exist today.</p>
+                    <div class="ac-user" style="position:relative">Good. Note that down in the review doc too.<i class="sa-n sa-n--pin">5</i></div>
+                  </div></div>
+                  <div class="sa-composer-wrap"><div class="sa-composer-col">
+                    <div class="sa-composer"><div class="sa-composer__input">Ask a follow-up…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/openai.svg" alt="">gpt-5.6-sol</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+                  </div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>UserMessage</b> <em>unchanged.</em> Operator prompts (Web, CLI, HTTP) carry no origin and stay right-aligned on <code>chat-fill-user</code>.</span></li>
+            <li><i class="sa-n">2</i><span><b>SessionMessageCard</b> <em>left-aligned, framed.</em> <code>rounded-md · line-soft · canvas-soft</code>, max-w-140, 24px avatar column. Article named "Message from Refactor billing".</span></li>
+            <li><i class="sa-n">3</i><span><b>From {current title}</b> <em>a link.</em> Enter opens the sender; ⌘/Ctrl opens a new window through <code>SubagentNavigationContext.openSession</code>.</span></li>
+            <li><i class="sa-n">4</i><span><b>Reply requested</b> <em>neutral chip.</em> Shown when <code>origin.notify_on_complete</code>. This turn's final answer goes back to the sender automatically.</span></li>
+            <li><i class="sa-n">5</i><span><b>Rhythm.</b> <em>Same turn gap as operator bubbles.</em> No divider and no role label: the frame and the "From" link are the distinction.</span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionMessageCard · UserMessage (unchanged)</span><span class="sa-tag"><b>VC</b>VC-02</span><span class="sa-tag"><b>accent</b>0 — identity is the provider mark</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · S1 STATES ===== -->
+    <section class="lab-sec" id="tr-card" data-od-id="tr-card">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Session message card — states</h2><span class="lab-sec__gist">VC-01 · 10 states</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One header line, one body.</b> Avatar (the sender's provider mark, no status dot) · "From {title}" · a mode chip only for Steered, Interrupted or Superseded (queue and direct delivery show none) · "Reply requested" · time. The body uses the operator bubble's type and its 176px clamp with "Show more". A superseded steer drops one ink step but is never removed.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-card-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">default <code>direct or from the queue · no chips</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><time class="session-message__time">22:30</time></div><div class="session-message__body"><p>FYI: I moved the billing client to <code>internal/billing/client</code>. No action needed.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">reply requested <code>US-006.AC-3</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip"><svg data-lucide="reply"></svg>Reply requested</span><time class="session-message__time">22:30</time></div><div class="session-message__body"><p>Is the retry budget in billing.toml per request or per job?</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">steered <code>delivered into the live turn · US-008.AC-2</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip" data-kind="steered"><svg data-lucide="corner-down-right"></svg>Steered</span><time class="session-message__time">22:34</time></div><div class="session-message__body"><p>Also check whether webhook retries share that budget.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">interrupted <code>interrupt-and-replace</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip" data-kind="interrupted"><svg data-lucide="scissors"></svg>Interrupted</span><span class="session-message__chip"><svg data-lucide="reply"></svg>Reply requested</span><time class="session-message__time">22:36</time></div><div class="session-message__body"><p>Stop the audit. The budget question is all I need — answer that first.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">superseded <code>subdued · never removed</code></span>
+                <article class="session-message" data-subdued="true" aria-label="Message from Refactor billing, superseded"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip" data-kind="superseded"><svg data-lucide="corner-down-right"></svg>Superseded</span><time class="session-message__time">22:35</time></div><div class="session-message__body"><p>Check webhook retries first.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">sender deleted <code>no link · avatar from stored agent_name · US-006.EC-1</code></span>
+                <article class="session-message" aria-label="Message from a deleted session"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <span class="session-message__gone">a deleted session</span></span><time class="session-message__time">Yesterday</time></div><div class="session-message__body"><p>Is the retry budget in billing.toml per request or per job?</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">sender renamed <code>current title · US-006.EC-2</code></span>
+                <article class="session-message" aria-label="Message from Billing refactor · PR split"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Billing refactor · PR split">Billing refactor · PR split</a></span><time class="session-message__time">22:30</time></div><div class="session-message__body"><p>Is the retry budget in billing.toml per request or per job?</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">cross-workspace sender <code>link opens it in its workspace · US-006.EC-4</code></span>
+                <article class="session-message" aria-label="Message from Docs sweep in compozy-site"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Docs sweep (compozy-site)">Docs sweep</a></span><span class="session-message__ws"><svg data-lucide="folder"></svg>compozy-site</span><time class="session-message__time">22:41</time></div><div class="session-message__body"><p>Which config key replaced <code>billing.retry_max</code>? The docs still mention it.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">long · clamped <code>176px + mask · Show more · US-006.EC-3</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip"><svg data-lucide="reply"></svg>Reply requested</span><time class="session-message__time">22:44</time></div>
+                  <div class="session-message__body" data-ac-clamp><p>I'm splitting the billing refactor into two PRs and need you to review the boundary before I open them.</p><p>PR 1 moves the HTTP client into <code>internal/billing/client</code> with no behavior change. PR 2 adds per-request retries on top of the existing per-job budget.</p><p>Questions: does anything outside <code>internal/billing</code> import the client directly? Is it safe to keep the per-job budget as the outer cap while adding a per-request cap of 3? And does the webhook path go through the same middleware, or does it retry on its own?</p><p>Answer each in one line; I'll paste them into the PR description.</p></div>
+                  <button class="session-message__more" type="button" aria-expanded="false" hidden>Show more</button></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">attachments + skill <code>reused from UserMessage</code></span>
+                <article class="session-message" aria-label="Message from Refactor billing"><span class="subagent-avatar"><img src="assets/claude.svg" alt="Claude"></span><div class="session-message__head"><span class="session-message__from">From <a class="session-message__link" href="#" data-sa-open="Refactor billing">Refactor billing</a></span><span class="session-message__chip"><svg data-lucide="reply"></svg>Reply requested</span><time class="session-message__time">22:47</time></div><div class="session-message__body"><p><span class="session-directive">/review</span> Check the boundary in the attached diff against the config.</p></div><div class="session-message__attach"><span class="session-attachment"><span class="session-attachment__mark">DIFF</span>billing-client.diff<span class="session-attachment__size">14 KB</span></span><span class="session-attachment"><span class="session-attachment__mark">TOML</span>billing.toml<span class="session-attachment__size">2 KB</span></span></div></article></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionMessageCard · SessionMessageFrame · useSessionLabel · useMessageClamp</span><span class="sa-tag"><b>VC</b>VC-01</span><span class="sa-tag"><b>tone</b>chips neutral · no status dot on the sender · subdued = superseded only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SENDER FLOW ===== -->
+    <section class="lab-sec" id="tr-sender" data-od-id="tr-sender">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Sender transcript — send, wait, get the reply</h2><span class="lab-sec__gist">VC-04 · VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Try it.</b> Step through the send. The <code>compozy__session_prompt</code> call leaves the work group and becomes a "Sent to" card. With a reply requested, it reads "Waiting for reply" with a live dot until a later system message whose <code>synthetic.wake_event_id</code> matches the card's <code>reply_watch_id</code> appears. Then the "Reply from" card lands as the wake turn's first row, and the sent card resolves to "Replied".</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tr-sender-stage">
+            <section class="win win--inline is-focused sa-win" style="--sa-win-w:900px" data-od-id="tr-sender-window" data-ac-flow data-step="sending">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Refactor billing</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <span class="ac-flow" style="margin:0"><span class="ac-flow__step" data-ac-step="sending">sending</span><span class="ac-flow__step" data-ac-step="waiting">waiting</span><span class="ac-flow__step" data-ac-step="replied">replied</span><button class="btn btn--sm" type="button" data-ac-advance>Admit the send →</button></span>
+              </header>
+              <div class="win-body">
+                <div class="sa-thread">
+                  <div class="sa-thread__scroll"><div class="sa-thread__col">
+                    <div class="ac-user">Split the billing refactor into PRs. Before you add retries, ask the billing reviewer how the budget works.</div>
+                    <p class="ac-asst">I'll ask the reviewer session and wait for its answer before touching retries.</p>
+                    <div class="tool-call-row"><span class="tool-call-row__well"><svg data-lucide="file-text"></svg></span><span class="tool-call-row__tool">Read 2 files</span><span class="tool-call-row__preview">billing.toml · retry.go</span><span class="tool-call-row__end"><span data-sg="done" data-size="sm"></span></span></div>
+
+                    <article class="session-sent-card" style="position:relative" aria-label="Sent to Billing reviewer" data-state="sending" data-od-id="tr-sender-sent">
+                      <i class="sa-n sa-n--left">1</i>
+                      <span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span>
+                      <span class="session-sent-card__main">
+                        <span class="session-sent-card__line1"><span class="session-message__from"><span data-ac-sent-verb>Sending to</span> <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span>
+                        <span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span>
+                      </span>
+                      <span class="session-sent-card__end"><span data-ac-reply-slot></span><i class="sa-n" style="margin:0">2</i><time class="session-message__time">22:30</time></span>
+                    </article>
+
+                    <p class="ac-asst" data-ac-after>Asked. I'll end the turn here and pick up when the answer arrives.</p>
+
+                    <article class="session-message session-message--reply" style="position:relative" aria-label="Reply from Billing reviewer" data-ac-reply hidden data-od-id="tr-sender-reply">
+                      <i class="sa-n sa-n--left">3</i>
+                      <span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--success"></span></span>
+                      <div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Completed</span><time class="session-message__time">22:31</time></div>
+                      <div class="session-message__body"><p>Per job. <code>retry_budget</code> in <code>billing.toml</code> caps total attempts across all of a job's requests; <code>retry.go:41</code> decrements one shared counter per job id. Per-request limits don't exist today.</p></div>
+                    </article>
+                  </div></div>
+                  <div class="sa-composer-wrap"><div class="sa-composer-col">
+                    <div class="sa-composer"><div class="sa-composer__input">Ask a follow-up…</div><div class="sa-composer__row"><span class="sa-runtime"><img src="assets/claude.svg" alt="">Opus 5.5</span><span class="w2-flex"></span><span class="sa-send"><svg data-lucide="arrow-up"></svg></span></div></div>
+                  </div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="sa-legend">
+            <li><i class="sa-n">1</i><span><b>SessionSentCard</b> <em>arrow-out tile, not an avatar.</em> "Sent to {title}" link · mode chip (Steered / Interrupted only) · first line of the message. Never folded into a work group.</span></li>
+            <li><i class="sa-n">2</i><span><b>Reply state</b> <em>derived client-side.</em> Sending… → "Waiting for reply" (success, pulsing) → outcome word. No reply requested → no state at all.</span></li>
+            <li><i class="sa-n">3</i><span><b>SessionReplyCard</b> <em>the S1 frame, target's mark + outcome dot.</em> Identity and outcome come only from typed <code>metadata.synthetic</code>; the wake body is never parsed.</span></li>
+          </ul>
+          <div class="sa-tags"><span class="sa-tag"><b>state</b>sending · waiting · replied</span><span class="sa-tag"><b>component</b>SessionSentCard · SessionReplyCard</span><span class="sa-tag"><b>VC</b>VC-04 · VC-03</span><span class="sa-tag"><b>tone</b>success = waiting (pulse) and completed (still)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · S2 STATES ===== -->
+    <section class="lab-sec" id="tr-reply" data-od-id="tr-reply">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Reply card — outcomes</h2><span class="lab-sec__gist">VC-03 · 8 states</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Outcome = dot + word, never colour alone.</b> Completed is success. Failed is danger, with the error summary as the body. Canceled, dropped and unknown are faint, each with a fixed sentence. A reply cut at 12,000 characters gets a "Reply truncated" footnote that opens the target session. Every other synthetic kind still renders nothing.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-reply-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">completed <code>US-011.AC-4</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, completed"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--success"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Completed</span><time class="session-message__time">22:31</time></div><div class="session-message__body"><p>Per job. <code>retry_budget</code> caps total attempts across all of a job's requests.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">completed, no text <code>US-011.EC-1</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, completed"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--success"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Completed</span><time class="session-message__time">22:31</time></div><div class="session-message__body session-message__body--quiet"><p>No reply text.</p></div></article></div>
+              <div class="lab-cell" style="grid-column:1 / -1"><span class="lab-cell__t">truncated <code>reply_truncated · 12,000 characters · US-011.AC-2</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, completed, truncated"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--success"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Completed</span><time class="session-message__time">22:52</time></div>
+                  <div class="session-message__body" data-ac-clamp><p>Boundary review, one line each:</p><p>1. Outside <code>internal/billing</code>, only <code>internal/checkout/charge.go</code> imports the client directly; move it behind the new package in PR 1.</p><p>2. Keeping the per-job budget as the outer cap is safe. A per-request cap of 3 never exceeds it because the shared counter is checked first.</p><p>3. Webhooks retry on their own in <code>webhook/dispatch.go</code> and bypass the middleware; that path needs its own cap or it will ignore both budgets.</p><p>Detailed notes per call site follow, including the 14 places that construct the client…</p></div>
+                  <button class="session-message__more" type="button" aria-expanded="false" hidden>Show more</button>
+                  <div class="session-message__note"><svg data-lucide="scissors-line-dashed"></svg>Reply truncated · <a href="#" data-sa-open="Billing reviewer">Read the full turn</a></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">failed <code>error summary · US-012.AC-1</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, failed"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--danger"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word" data-tone="danger">Failed</span><time class="session-message__time">22:33</time></div><div class="session-message__body session-message__body--danger"><p>Provider error: rate limit exceeded (429). Try again later.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">canceled <code>turn canceled, interrupted or stopped · US-012.AC-2</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, canceled"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--faint"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Canceled</span><time class="session-message__time">22:33</time></div><div class="session-message__body session-message__body--quiet"><p>No reply text.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">dropped <code>removed from the queue · US-012.AC-3</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, dropped"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--faint"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Dropped</span><time class="session-message__time">22:34</time></div><div class="session-message__body session-message__body--quiet"><p>The message was removed from the queue before it ran.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">unknown <code>dispatch uncertain, nothing recorded · US-012.EC-4</code></span>
+                <article class="session-message" aria-label="Reply from Billing reviewer, unknown"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--faint"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__word">Unknown</span><time class="session-message__time">22:40</time></div><div class="session-message__body session-message__body--quiet"><p>The message may not have been delivered; check the target session.</p></div></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">target deleted <code>no link · mark from child_agent_name</code></span>
+                <article class="session-message" aria-label="Reply from a deleted session, completed"><span class="subagent-avatar"><img src="assets/openai.svg" alt="OpenAI"><span class="status-dot status-dot--success"></span></span><div class="session-message__head"><span class="session-message__from">Reply from <span class="session-message__gone">a deleted session</span></span><span class="session-message__word">Completed</span><time class="session-message__time">Yesterday</time></div><div class="session-message__body"><p>Per job. <code>retry_budget</code> caps total attempts across all of a job's requests.</p></div></article></div>
+            </div>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionReplyCard · SessionMessageFrame</span><span class="sa-tag"><b>source</b>metadata.synthetic: child_session_id · child_workspace_id · child_agent_name · reason · reply_truncated · wake_event_id</span><span class="sa-tag"><b>VC</b>VC-03</span><span class="sa-tag"><b>tone</b>success · danger · faint (subagentDot)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · S3 STATES ===== -->
+    <section class="lab-sec" id="tr-sent" data-od-id="tr-sent">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Sent card — states</h2><span class="lab-sec__gist">VC-04 · 10 states</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One row; the right side answers "did they answer?"</b> The reply state appears only when a reply was requested. It stays "Waiting for reply" until the matching reply card exists, then shows the outcome word: Replied · Failed · Canceled · Dropped · Unknown. A failed call turns the row danger: "Could not send to {title}" with the error, and no reply state.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="tr-sent-states">
+            <div class="lab-grid lab-grid--2">
+              <div class="lab-cell"><span class="lab-cell__t">sending <code>call in flight</code></span>
+                <article class="session-sent-card" aria-label="Sending to Billing reviewer"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sending to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state"><svg class="spin" data-lucide="loader-circle"></svg>Sending…</span><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">sent · no reply requested <code>no reply state</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">FYI: I moved the billing client to internal/billing/client.</span></span><span class="session-sent-card__end"><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">waiting for reply <code>success · pulse</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, waiting for reply"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="success"><span class="status-dot status-dot--success status-dot--pulse"></span>Waiting for reply</span><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">replied <code>matched wake_event_id</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, replied"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="success"><span class="status-dot status-dot--success"></span>Replied</span><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">steered · waiting <code>mode chip</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, steered, waiting for reply"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__chip"><svg data-lucide="corner-down-right"></svg>Steered</span></span><span class="session-sent-card__line2">Also check whether webhook retries share that budget.</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="success"><span class="status-dot status-dot--success status-dot--pulse"></span>Waiting for reply</span><time class="session-message__time">22:34</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">reply failed <code>danger</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, reply failed"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="danger"><span class="status-dot status-dot--danger"></span>Failed</span><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">reply canceled <code>faint</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, canceled"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span><span class="session-message__chip"><svg data-lucide="scissors"></svg>Interrupted</span></span><span class="session-sent-card__line2">Stop the audit. The budget question is all I need.</span></span><span class="session-sent-card__end"><span class="session-reply-state"><span class="status-dot status-dot--faint"></span>Canceled</span><time class="session-message__time">22:36</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">reply dropped <code>faint · operator canceled the queued row</code></span>
+                <article class="session-sent-card" aria-label="Sent to Billing reviewer, dropped"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state"><span class="status-dot status-dot--faint"></span>Dropped</span><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">call failed <code>"Could not send to" + error · US-015.AC-3</code></span>
+                <article class="session-sent-card" data-state="failed" aria-label="Could not send to Billing reviewer"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Could not send to <a class="session-message__link" href="#" data-sa-open="Billing reviewer">Billing reviewer</a></span></span><span class="session-sent-card__line2">Message chain limit reached (8 hops). Ask the operator to continue.</span></span><span class="session-sent-card__end"><time class="session-message__time">22:30</time></span></article></div>
+              <div class="lab-cell"><span class="lab-cell__t">target deleted <code>no link</code></span>
+                <article class="session-sent-card" aria-label="Sent to a deleted session, replied"><span class="session-sent-card__glyph"><svg data-lucide="arrow-up-right"></svg></span><span class="session-sent-card__main"><span class="session-sent-card__line1"><span class="session-message__from">Sent to <span class="session-message__gone">a deleted session</span></span></span><span class="session-sent-card__line2">Is the retry budget in billing.toml per request or per job?</span></span><span class="session-sent-card__end"><span class="session-reply-state" data-tone="success"><span class="status-dot status-dot--success"></span>Replied</span><time class="session-message__time">Yesterday</time></span></article></div>
+            </div>
+            <table class="lab-table" style="margin-top:18px">
+              <thead><tr><th>Surface</th><th>Copy</th></tr></thead>
+              <tbody>
+                <tr><td><code>TOOL_LABELS</code></td><td>Send / Sending / Sent "a message" — used where the call is summarised (work-group counts, tool search), never as the row itself</td></tr>
+                <tr><td>Accessible names</td><td>"Message from {title}" · "Reply from {title}" · "Sent to {title}" · status words are text, never colour only</td></tr>
+                <tr><td>Deleted</td><td>"From a deleted session" · "Reply from a deleted session" · "Sent to a deleted session"</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sa-tags"><span class="sa-tag"><b>component</b>SessionSentCard · session-timeline.logic.ts (SessionRow "session-message") · tool-labels.ts</span><span class="sa-tag"><b>VC</b>VC-04</span><span class="sa-tag"><b>tone</b>danger = reply failed / call failed only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Sources: _uiux.md S1–S3 · _dx.md (sender header, reply wake, errors) · _user_stories.md US-006 · US-008 · US-011 · US-012 · US-015. Production read: session-user-message.tsx (UserMessageBubble clamp) · session-user-steer-meta.tsx · steer-marker.ts · subagents/subagent-card.tsx · subagent-avatar.tsx. Titles, times and texts are fixtures; runtime truth owns values.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="../subagents/subagents.js"></script>
+<script src="agent-collaboration.js"></script>
+</body>
+</html>
