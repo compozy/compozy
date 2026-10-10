@@ -3,6 +3,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import type {
+  PromptOriginPayload,
   SessionInputPayload,
   SessionInputsResponse,
   SessionPayload,
@@ -56,7 +57,7 @@ export interface QueueStoryEntry {
   owner_kind?: string;
   owner_id?: string;
   /** `PromptOriginMeta` of a message another session sent (S4). */
-  origin?: Record<string, unknown>;
+  origin?: PromptOriginPayload;
 }
 
 export const QUEUE_STORY_ENTRIES: QueueStoryEntry[] = [
@@ -91,11 +92,11 @@ const QUEUE_STORY_PEERS: Record<string, SessionPayload> = {
   },
 };
 
-function sessionOrigin(sessionId: string, titleAtSend: string): Record<string, unknown> {
+function sessionOrigin(sessionId: string, titleAtSend: string): PromptOriginPayload {
   return {
     kind: "session",
     session_id: sessionId,
-    workspace_id: primarySessionFixture.workspace_id,
+    workspace_id: primarySessionFixture.workspace_id ?? "",
     agent_name: "claude",
     title_at_send: titleAtSend,
     hop: 1,

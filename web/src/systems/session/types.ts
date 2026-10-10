@@ -163,6 +163,8 @@ export interface SessionPromptDirectTurn {
 export type SessionPromptSendResult = SessionPromptResult | SessionPromptDirectTurn;
 export type SessionInputsResponse = OperationResponse<"listSessionInputs", 200>;
 export type SessionInputPayload = SessionInputsResponse["inputs"][number];
+/** The daemon-stamped sender of a session message (`PromptOriginMeta`); absent for operator input. */
+export type PromptOriginPayload = NonNullable<SessionInputPayload["origin"]>;
 /** Daemon-owned queue summary riding the queue list: how many are parked and the cap. */
 export type SessionQueueSummary = NonNullable<SessionInputsResponse["queue"]>;
 export type SessionInputClearResponse = OperationResponse<"clearSessionInputs", 200>;
