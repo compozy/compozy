@@ -177,7 +177,10 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	req = bindPromptAdmissionRequest(req, admission)
+	req, err = bindPromptAdmissionRequest(req, admission)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	committed := false
 	req.commitDispatch = func(dispatchCtx context.Context) error {
 		if err := m.commitPromptAdmissionDispatch(dispatchCtx, admission); err != nil {
@@ -377,7 +380,10 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	preparation.request = bindPromptAdmissionRequest(preparation.request, admission)
+	preparation.request, err = bindPromptAdmissionRequest(preparation.request, admission)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	if session == nil {
 		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
 		if err != nil {

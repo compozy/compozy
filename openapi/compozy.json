@@ -115422,6 +115422,42 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "parent_session_id": {
                             "type": "string"
                           },
@@ -116003,6 +116039,42 @@
                                   "format": "date-time",
                                   "nullable": true,
                                   "type": "string"
+                                },
+                                "origin": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "agent_name": {
+                                      "type": "string"
+                                    },
+                                    "hop": {
+                                      "type": "integer"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "notify_on_complete": {
+                                      "type": "boolean"
+                                    },
+                                    "reply_watch_id": {
+                                      "type": "string"
+                                    },
+                                    "session_id": {
+                                      "type": "string"
+                                    },
+                                    "title_at_send": {
+                                      "type": "string"
+                                    },
+                                    "workspace_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "hop",
+                                    "kind",
+                                    "session_id",
+                                    "workspace_id"
+                                  ],
+                                  "type": "object"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -117525,6 +117597,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -117768,6 +117876,42 @@
                           "format": "date-time",
                           "nullable": true,
                           "type": "string"
+                        },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
                         },
                         "parent_session_id": {
                           "type": "string"
@@ -191208,6 +191352,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -192794,6 +192939,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -193226,6 +193372,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -194209,6 +194356,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -194602,6 +194750,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195000,6 +195149,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -195569,6 +195719,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195933,6 +196084,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -196324,6 +196476,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -196722,6 +196875,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -197265,6 +197419,7 @@
                               "input_request_superseded",
                               "invalid_cwd",
                               "journal_unavailable",
+                              "message_hop_limit",
                               "model_not_found",
                               "profile_archived",
                               "profile_selection_conflict",
@@ -197704,6 +197859,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -198095,6 +198251,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -198459,6 +198616,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -198850,6 +199008,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199243,6 +199402,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199607,6 +199767,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -199969,6 +200130,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200331,6 +200493,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200769,6 +200932,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -201429,6 +201593,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -202098,6 +202263,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -202491,6 +202657,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -202889,6 +203056,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -272499,6 +272667,42 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "parent_session_id": {
                             "type": "string"
                           },
@@ -278887,6 +279091,42 @@
                                   "nullable": true,
                                   "type": "string"
                                 },
+                                "origin": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "agent_name": {
+                                      "type": "string"
+                                    },
+                                    "hop": {
+                                      "type": "integer"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "notify_on_complete": {
+                                      "type": "boolean"
+                                    },
+                                    "reply_watch_id": {
+                                      "type": "string"
+                                    },
+                                    "session_id": {
+                                      "type": "string"
+                                    },
+                                    "title_at_send": {
+                                      "type": "string"
+                                    },
+                                    "workspace_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "hop",
+                                    "kind",
+                                    "session_id",
+                                    "workspace_id"
+                                  ],
+                                  "type": "object"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -283796,6 +284036,42 @@
                           "mode": {
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "owner_id": {
                             "type": "string"
                           },
@@ -284295,6 +284571,42 @@
                           },
                           "mode": {
                             "type": "string"
+                          },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
                           },
                           "owner_id": {
                             "type": "string"
@@ -285333,6 +285645,42 @@
                         },
                         "mode": {
                           "type": "string"
+                        },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
                         },
                         "owner_id": {
                           "type": "string"
@@ -295846,6 +296194,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -296089,6 +296473,42 @@
                           "format": "date-time",
                           "nullable": true,
                           "type": "string"
+                        },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
                         },
                         "parent_session_id": {
                           "type": "string"
@@ -298481,6 +298901,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -299439,6 +299860,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -299801,6 +300223,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -317776,6 +318199,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -318138,6 +318562,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -318500,6 +318925,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",

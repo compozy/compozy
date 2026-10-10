@@ -90,6 +90,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		ProviderError:     acp.CloneProviderErrorDiagnostic(event.ProviderError),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
 		Goal:              event.GoalPromptMeta(),
+		Origin:            event.PromptOrigin(),
 		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
 		Attachments:       event.Attachments(),
@@ -182,6 +183,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}.WithProviderToolMetadata(decoded.ParentToolCallID, decoded.ProviderToolName, decoded.Status).
 		WithGoalPromptMeta(decoded.Goal).
+		WithPromptOrigin(decoded.Origin).
 		WithRequestID(decoded.RequestID).
 		WithResolvedBy(decoded.ResolvedBy).
 		WithDelivery(decoded.Delivery)

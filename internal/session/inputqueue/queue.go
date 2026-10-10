@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -55,6 +56,7 @@ type Service struct {
 }
 
 type insertSpec struct {
+	origin           json.RawMessage
 	sessionID        string
 	text             string
 	mode             string
@@ -277,6 +279,7 @@ func (s *Service) prepareAdmittedEntry(
 		)
 	}
 	spec.sessionID = admission.SessionID
+	spec.origin = append(json.RawMessage(nil), admission.Origin...)
 	spec.text = admission.AuthoredText
 	spec.runtime = admission.Runtime
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
@@ -403,6 +406,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 	}
 	return store.SessionInputQueueInsert{
 		ID:                entryID,
+		Origin:            append(json.RawMessage(nil), spec.origin...),
 		SessionID:         target,
 		Mode:              spec.mode,
 		Delivery:          spec.delivery,
