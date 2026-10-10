@@ -255,6 +255,7 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
 - Sidebar chip aria: "{live} of {total} subagents running" or "{total} subagents, {failed} failed"; the hover preview ends with "+{N} more" and no other helper text.
 - Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
+- Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
 - Never in this feature's copy: "thread", "worker", "child task", "Click to see all", or a "{N} failed" accessory on the previous-subagents group.
 
 ### Surface Aliases

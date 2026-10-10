@@ -4,9 +4,9 @@ area: ET
 title: Watch, open, and stop subagents from the session view
 persona: Bruno
 journey: J-13-follow-a-live-run
-expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the card flips to Completed and the wake turn renders before the parent's final reply; every surface matches its board VC in docs/design/opendesign/subagents/.
-entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner and working status line; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03)
-qa_status: pass
+expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the card flips to Completed and the wake turn renders before the parent's final reply; an isolated subagent (delegated with isolation "worktree") prepends its middle-truncated branch to line 2, links its PR as "#N" with a state glyph beside (never inside) the open control, lists Worktree, Branch, Base, Commits, PR and Observed in the hover only for facts the daemon observed, says "PR status unknown" when it could not check and "No pull request" when the forge answered none, and repeats the branch and PR link on its inspector roster row, while shared subagents stay unchanged; every surface matches its board VC in docs/design/opendesign/subagents/ and docs/design/opendesign/agent-collaboration/ (VC-06, VC-07).
+entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner and working status line; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03); docs/design/opendesign/agent-collaboration/agent-collaboration-subagents.html (VC-06, VC-07)
+qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-card-hosted-tool-name; BUG-20261009-subagent-card-live-missing; BUG-20261009-subagent-running-count-settled; BUG-20261009-subagent-preview-raw-markdown
 fix_status: fixed
 retest_status: pass
@@ -52,7 +52,16 @@ component stories. This scenario is the real-provider walk with visual parity ag
    `Working for … · N agents running`, counting live subagents of both origins once.
 8. **Accessibility.** Cards are buttons with `aria-label="Open <title>"` and the status as
    `aria-description`; group disclosure exposes `aria-expanded`; elapsed is text, not color only.
-9. **Visual parity.** Capture each state with `eng-ui-screenshot` and compare with the cited board
+9. **Isolated subagents (agent-collaboration S5, VC-06/VC-07, E2E-004).** Ask the agent to delegate
+   with `isolation: "worktree"`. While it runs, line 2 starts with the branch (mono, middle-truncated,
+   full name on hover of the branch) and the hover shows only Worktree, Branch and Base. After it
+   commits and runs `compozy worktree deliver`, the card shows `#N` with the PR state glyph; clicking
+   the link opens the PR in the browser and does not open the child session, while the rest of the
+   card still opens it. The hover adds `N ahead · clean` (or `N changed` in warning ink), `#N open`,
+   and `Observed … ago`. Without a forge provider the card shows no link and the hover reads
+   `PR status unknown`; with a forge and no PR it reads `No pull request`. The inspector roster row
+   grows a branch line and carries the same PR link. A shared subagent shows no branch, PR or facts.
+10. **Visual parity.** Capture each state with `eng-ui-screenshot` and compare with the cited board
    VC ids; record differences in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
@@ -69,3 +78,7 @@ QA walk 2026-10-09: no card renders for real Claude delegations on the stock bui
 Re-walk 2026-10-09 (stock 980d51fbe): cards, group, hover (pointer and keyboard focus, Escape), drill-in divider, ⌘-click second window, waiting banner, plain-text previews, and the running count pass. The card still lags behind a delegate tool row in a composer-submitted live turn. Verdict: fail. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
 
 Re-walk round 3 2026-10-09 (stock 1d7f690e5): with the prompt sent from the open window's composer, the group card appeared within 5 s of delegation mid-turn and followed both children to `2 done`; prose blocks around the card stay separate paragraphs. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+QA impact 2026-10-09 (agent-collaboration task 08): isolated subagents add the branch, PR link,
+hover worktree facts and roster branch line, and the card's open control became a stretched button
+beside the PR link. Stale verdict reset to untested; historical evidence preserved; no QA session ran.
