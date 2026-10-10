@@ -171,12 +171,13 @@ describe("session message payload adapter", () => {
       "failed",
     ]);
     // The chip follows the daemon's delivery, not the requested mode (m-4).
-    const mode = (requested: string, delivery?: string) =>
+    const mode = (requested: string, delivery?: string, steerDelivery?: string) =>
       sessionSentMessagePart("data-compozy-session-message", {
         tool_call_id: "call-1",
         target_session_id: target.sessionId,
         mode: requested,
         ...(delivery ? { delivery } : {}),
+        ...(steerDelivery ? { steer_delivery: steerDelivery } : {}),
         state: "done",
       })?.mode;
     expect([
@@ -186,7 +187,8 @@ describe("session message payload adapter", () => {
       mode("interrupt", "direct"),
       mode("queue", "after_turn"),
       mode("steer"),
-    ]).toEqual(["steer", "interrupt", "queue", "queue", "queue", "queue"]);
+      mode("steer", "interrupt_then_prompt", "interrupt_fallback"),
+    ]).toEqual(["steer", "interrupt", "queue", "queue", "queue", "queue", "interrupt"]);
     expect(sessionSentMessagePart("data-compozy-subagent", { target_session_id: "x" })).toBeNull();
 
     const reply = (watch: string, reason: string) => ({

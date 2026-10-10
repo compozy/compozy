@@ -197,6 +197,8 @@ interface SessionMessagePartPayload {
   mode?: string;
   /** The result's delivery: `none` · `direct` · `after_turn` · `interrupt_then_prompt`; absent until the call returns. */
   delivery?: string;
+  /** How a steer landed: `injected` · `pending_injection` · `interrupt_fallback`. */
+  steer_delivery?: string;
   reply_watch_id?: string;
   /** `running` while the call is in flight, `done` once it returned, `error` when it failed. */
   state: string;
@@ -214,6 +216,7 @@ function sessionMessagePartPayload(data: unknown): SessionMessagePartPayload | n
     message_id: stringField(data, "message_id"),
     mode: stringField(data, "mode"),
     delivery: stringField(data, "delivery"),
+    steer_delivery: stringField(data, "steer_delivery"),
     reply_watch_id: stringField(data, "reply_watch_id"),
     state: stringField(data, "state") ?? "",
   };
@@ -229,9 +232,15 @@ const INTERRUPT_THEN_PROMPT = "interrupt_then_prompt";
 
 // The requested mode earns its chip only when the result says the target's
 // turn was steered or interrupted; `direct` (idle target), `after_turn` and
-// `none` read as plain delivery, and so does a call with no result yet.
-function sentMode(mode: string | undefined, delivery: string | undefined): SessionMessageMode {
+// `none` read as plain delivery, and so does a call with no result yet. A steer
+// that fell back to interrupt-and-replace reads as Interrupted.
+function sentMode(
+  mode: string | undefined,
+  delivery: string | undefined,
+  steerDelivery: string | undefined
+): SessionMessageMode {
   if (delivery !== INTERRUPT_THEN_PROMPT) return "queue";
+  if (mode === "steer" && steerDelivery === "interrupt_fallback") return "interrupt";
   return mode === "steer" || mode === "interrupt" ? mode : "queue";
 }
 
@@ -246,7 +255,7 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
     targetSessionId,
     targetWorkspaceId: part.target_workspace_id?.trim() ?? "",
     messageId: trimmedOrNull(part.message_id),
-    mode: sentMode(part.mode?.trim(), part.delivery?.trim()),
+    mode: sentMode(part.mode?.trim(), part.delivery?.trim(), part.steer_delivery?.trim()),
     replyWatchId: trimmedOrNull(part.reply_watch_id),
     // An unknown state from a newer daemon reads as admitted: no spinner it cannot end.
     state: SENT_CALL_STATE[part.state.trim()] ?? "sent",

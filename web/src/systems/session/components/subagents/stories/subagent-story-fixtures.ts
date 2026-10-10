@@ -210,7 +210,7 @@ interface WorktreeFixture extends Partial<SubagentWorktreeView> {
 }
 
 /** Static facts from creation; settle facts only where the override supplies them. */
-function worktreeFixture({ slug, ...overrides }: WorktreeFixture): SubagentWorktreeView {
+export function worktreeFixture({ slug, ...overrides }: WorktreeFixture): SubagentWorktreeView {
   return {
     id: `wt-${slug}`,
     name: slug,

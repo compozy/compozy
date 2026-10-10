@@ -1024,7 +1024,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			TurnID:     "turn",
 		}.WithTool(
 			"compozy__session_prompt",
-			json.RawMessage(`{"session_id":"target","message_id":"message","mode":"queue"}`),
+			json.RawMessage(`{"session_id":"target","message_id":"message","mode":"steer"}`),
 			false,
 		)
 		result := acp.AgentEvent{
@@ -1032,7 +1032,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			ToolCallID: "send",
 			TurnID:     "turn",
 			Raw: json.RawMessage(
-				`{"rawOutput":{"prompt":{"message_id":"message","mode":"queue","delivery":"direct","reply_watch":{"id":"rw-123","state":"armed"},"target_workspace_id":"ws-target"}}}`,
+				`{"rawOutput":{"prompt":{"message_id":"message","mode":"steer","delivery":"interrupt_then_prompt","steer_delivery":"interrupt_fallback","reply_watch":{"id":"rw-123","state":"armed"},"target_workspace_id":"ws-target"}}}`,
 			),
 		}.WithTool(
 			"compozy__session_prompt",
@@ -1072,8 +1072,8 @@ func TestSessionMessageUIProjection(t *testing.T) {
 				if err := json.Unmarshal(part.Data, &p); err != nil {
 					t.Fatal(err)
 				}
-				if p.TargetSessionID != "target" || p.MessageID != "message" || p.Mode != "queue" ||
-					p.Delivery != "direct" ||
+				if p.TargetSessionID != "target" || p.MessageID != "message" || p.Mode != "steer" ||
+					p.Delivery != "interrupt_then_prompt" || p.SteerDelivery != "interrupt_fallback" ||
 					p.ReplyWatchID != "rw-123" ||
 					p.TargetWorkspaceID != "ws-target" ||
 					p.State != "done" ||
