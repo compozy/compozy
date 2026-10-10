@@ -291,6 +291,24 @@ A child agent session that a parent session's turn delegates one self-contained 
 
 **UI label:** "subagent". Never "thread", "worker", or "task" (`task` is the Tasks domain). Copy rules in `COPY.md` §6 "Subagent Terms".
 
+### Isolated Subagent
+
+A delegated subagent started with `isolation: "worktree"` on `compozy__subagent_delegate`. CompozyOS creates a new `per_run` worktree on branch `<worktrees.run_branch_namespace><title-slug>-<8 hex>` from `base_ref` (or the caller checkout's current HEAD commit) and runs the child there; uncommitted parent changes are not copied. `SubagentPayload` carries `isolation` and a `worktree` object: static facts (id, name, branch, `base_ref`, `base_sha`, path) from creation, and git/PR facts (`head_sha`, `commits_ahead`, `dirty_files`, `observed_at`, `pull_request_status`, `pull_request`) snapshotted once by the daemon when the subagent settles. Unobserved facts are absent, never zero; `pull_request_status = "unknown"` (no forge or lookup failed) is distinct from `"none"` (the forge answered with no PR). The worktree is retained after any terminal status and removed only through the existing worktree surfaces. The default, `isolation: "shared"`, keeps today's behavior and has no facts.
+
+**UI label:** "subagent"; the card shows the branch and a "#{n}" PR link. Never "sandbox" or "workspace" for the worktree.
+
+### Session Message
+
+A prompt one agent session sends to another with `compozy__session_prompt`. The daemon stamps the sender from the calling session's scope (no input overrides it) as a typed `origin` (`kind = "session"`, sender session/workspace/agent, `title_at_send`, `hop`, `notify_on_complete`, `reply_watch_id`) that survives queue, steer, interrupt, and restart. The receiving agent gets a provider-only sender header; transcripts, history, and the UI keep the original text with the origin as metadata. A session message is agent-authored: operators can cancel it from the queue but not edit or promote it (`input_agent_authored`). A session cannot message itself, and a chain stops at 8 hops (`message_hop_limit`). Operator prompts over HTTP/CLI carry no origin.
+
+**UI label:** "message from {session}" ("From {title}" on the receiver's card, "Sent to {title}" on the sender's). Never "DM", "inbox", or "thread".
+
+### Reply Wake
+
+The synthetic turn (`synthetic.kind = "session_reply"`) that brings a target session's answer back to the sender of a session message sent with `notify_on_complete: true`. The send arms a durable reply watch (`rw-…`, states `armed → fired → delivered`, or `abandoned`); when the target's turn that consumed the message ends, the watch fires once and the sender is woken with the outcome (`completed`, `failed`, `canceled`, `dropped`, `unknown`) and the turn's last assistant message, truncated at 12,000 runes. Delivery is exactly once across restarts; an offline sender receives it on resume, an archived or deleted sender abandons it. `wake_event_id` equals the watch id. Distinct from the subagent wake (a pointer to settled subagents) and the creator wake of spawned children.
+
+**UI label:** "Reply from {title}". Copy rules in `COPY.md` §6 "Session Message Terms".
+
 ---
 
 ## OS Shell
