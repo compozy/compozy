@@ -58,7 +58,7 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	encoded, err := json.Marshal(struct {
-		Synthetic        *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
+		Synthetic        *inputUISyntheticMeta    `json:"synthetic,omitempty"`
 		TurnID           string                   `json:"turn_id,omitempty"`
 		Timestamp        string                   `json:"timestamp,omitempty"`
 		MessageID        string                   `json:"message_id,omitempty"`
@@ -67,7 +67,7 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
 		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
 	}{
-		Synthetic: clonePromptSyntheticMeta(event.Synthetic),
+		Synthetic: inputUISynthetic(event.Synthetic),
 		TurnID:    turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal, Origin: origin,
 		SkillInvocations: invocations, Attachments: attachments,
 	})
@@ -119,4 +119,33 @@ func runtimeMarkerUIMessage(decoded *decodedStoredEvent) UIMessage {
 			Data: decoded.dataPayload(),
 		}},
 	}
+}
+
+type inputUISyntheticMeta struct {
+	Kind             string `json:"kind"`
+	WakeEventID      string `json:"wake_event_id,omitempty"`
+	ChildSessionID   string `json:"child_session_id,omitempty"`
+	ChildWorkspaceID string `json:"child_workspace_id,omitempty"`
+	ChildAgentName   string `json:"child_agent_name,omitempty"`
+	Reason           string `json:"reason,omitempty"`
+	ReplyTruncated   bool   `json:"reply_truncated,omitzero"`
+	Hop              int    `json:"hop,omitzero"`
+	Summary          string `json:"summary,omitempty"`
+}
+
+func inputUISynthetic(meta *acp.PromptSyntheticMeta) *inputUISyntheticMeta {
+	normalized := clonePromptSyntheticMeta(meta)
+	if normalized == nil {
+		return nil
+	}
+	result := &inputUISyntheticMeta{
+		Kind: normalized.Kind, WakeEventID: normalized.WakeEventID,
+		ChildSessionID: normalized.ChildSessionID, ChildWorkspaceID: normalized.ChildWorkspaceID,
+		ChildAgentName: normalized.ChildAgentName, Reason: normalized.Reason,
+		ReplyTruncated: normalized.ReplyTruncated, Hop: normalized.Hop,
+	}
+	if normalized.Kind == acp.PromptSyntheticKindSessionReply {
+		result.Summary = normalized.Summary
+	}
+	return result
 }

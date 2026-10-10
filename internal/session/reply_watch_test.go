@@ -586,6 +586,18 @@ func replyWatchFixture(
 func recordReplyEvent(t *testing.T, h *harness, target *Session, event acp.AgentEvent) {
 	t.Helper()
 	event.SessionID, event.Timestamp = target.ID, h.manager.now()
+	if event.Type == acp.EventTypeUserMessage && event.MessageIDValue() == "reply-message" {
+		if err := h.manager.recordPromptInputWithAuthoredText(
+			t.Context(),
+			target,
+			event,
+			event.Text,
+			"input-event",
+		); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	if err := h.manager.recordEvent(t.Context(), target, event); err != nil {
 		t.Fatal(err)
 	}
@@ -657,7 +669,10 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 				h.manager.hooks = fullHookSet(
 					&spyHookDispatcher{
 						dispatchInputPreSubmitFn: func(_ context.Context, p hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
-							return p, errors.New("input hook fault")
+							if p.SessionID == target.ID {
+								return p, errors.New("input hook fault")
+							}
+							return p, nil
 						},
 					},
 				)
@@ -666,7 +681,7 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 					return nil, errors.New("provider dispatch fault")
 				}
 			}
-			_, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+			opts := SendPromptOpts{
 				Message:          "question",
 				MessageID:        "fault-message",
 				IdempotencyKey:   "fault-key",
@@ -677,7 +692,8 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 					WorkspaceID: h.workspaceID,
 					Hop:         3,
 				},
-			})
+			}
+			_, err := h.manager.SendPrompt(t.Context(), target.ID, opts)
 			if err == nil {
 				t.Fatal("fault did not fail the send")
 			}
@@ -691,6 +707,46 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 					watch.AbandonReason != "send_failed" {
 					t.Fatalf("precommit = %+v, %v", watch, err)
 				}
+				if _, err := db.DB().ExecContext(t.Context(), "DROP TRIGGER reject_reply_dispatch"); err != nil {
+					t.Fatal(err)
+				}
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					return completedSyntheticPromptEvents(req.TurnID), nil
+				}
+				result, err := h.manager.SendPrompt(t.Context(), target.ID, opts)
+				if err != nil || result.ReplyWatch == nil || result.ReplyWatch.ID != id ||
+					result.ReplyWatch.State == "abandoned" {
+					t.Fatalf("retry = %+v, %v", result, err)
+				}
+				collectEvents(t, result.Events)
+				waitForCondition(
+					t,
+					"retry settles",
+					func() bool { w, err := db.GetReplyWatch(t.Context(), id); return err == nil && w.State == "fired" },
+				)
+				replay, err := h.manager.SendPrompt(t.Context(), target.ID, opts)
+				if err != nil || replay.ReplyWatch.State != "fired" {
+					t.Fatalf("replay state = %+v, %v", replay, err)
+				}
+				if _, err := h.manager.Resume(t.Context(), sender.ID); err != nil {
+					t.Fatal(err)
+				}
+				waitForCondition(
+					t,
+					"retry delivers once",
+					func() bool { w, err := db.GetReplyWatch(t.Context(), id); return err == nil && w.State == "delivered" },
+				)
+				if err := service.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				waitForCondition(t, "one retry wake", func() bool {
+					rows, err := h.manager.Events(
+						t.Context(),
+						sender.ID,
+						store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
+					)
+					return err == nil && len(rows) == 1
+				})
 				return
 			}
 			if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) || watch.State != "armed" {
@@ -725,6 +781,23 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 			}
 			if err != nil || watch.State != "fired" || watch.Outcome != want {
 				t.Fatalf("settled = %+v, %v", watch, err)
+			}
+			if fault == "before input" {
+				if _, err := h.manager.Resume(t.Context(), sender.ID); err != nil {
+					t.Fatal(err)
+				}
+				waitForCondition(t, "unknown wake delivered", func() bool {
+					rows, err := h.manager.Events(
+						t.Context(),
+						sender.ID,
+						store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
+					)
+					return err == nil && len(rows) == 1 &&
+						strings.Contains(
+							rows[0].Content,
+							"The message may not have been delivered; check the target session.",
+						)
+				})
 			}
 		})
 	}
@@ -801,6 +874,7 @@ func TestReplyWatchFastSettlement(t *testing.T) {
 			t.Fatal(result, err)
 		}
 		for range result.Events {
+			continue
 		}
 		replay, err := h.manager.SendPrompt(
 			t.Context(),
@@ -916,7 +990,247 @@ func TestReplyWatchSteerSupersession(t *testing.T) {
 			}
 			once.Do(func() { close(release) })
 			for range held.Events {
+				continue
 			}
 		})
 	}
+}
+
+// Invariant: reconciliation reads only the admitted input and its consuming turn (M-2).
+func TestReplyWatchScopedEvidence(t *testing.T) {
+	t.Run("Should ignore undecodable events outside the consuming turn", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		recordReplyEvent(
+			t,
+			h,
+			target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID),
+		)
+		recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "watched"})
+		recorder := target.recorderHandle()
+		if err := recorder.Record(
+			t.Context(),
+			store.SessionEvent{
+				ID:        "broken-other",
+				SessionID: target.ID,
+				AgentName: target.Info().AgentName,
+				TurnID:    "other",
+				Type:      acp.EventTypeUserMessage,
+				Content:   `{"type":"user_message","synthetic":"invalid"}`,
+				Timestamp: h.manager.now(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		target.mu.Lock()
+		target.recorder = replyScopedRecorder{EventRecorder: recorder}
+		target.mu.Unlock()
+		defer func() { target.mu.Lock(); target.recorder = recorder; target.mu.Unlock() }()
+		if err := service.Reconcile(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.Outcome != store.ReplyOutcomeCompleted {
+			t.Fatalf("watch = %+v, %v", got, err)
+		}
+	})
+}
+
+type replyScopedRecorder struct{ EventRecorder }
+
+func (r replyScopedRecorder) Query(ctx context.Context, q store.EventQuery) ([]store.SessionEvent, error) {
+	if q.ID != "input-event" && q.TurnID != "watched" {
+		return nil, fmt.Errorf("out-of-turn query: %+v", q)
+	}
+	return r.EventRecorder.Query(ctx, q)
+}
+
+func (r replyScopedRecorder) AppendEventIfAbsent(
+	ctx context.Context,
+	e store.SessionEvent,
+) (store.SessionEvent, error) {
+	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, e)
+}
+
+// Invariant: one broken watch cannot prevent recovery of a healthy row (M-3).
+func TestReplyWatchRecoveryIsolation(t *testing.T) {
+	t.Run("Should continue recovery after one watch fails", func(t *testing.T) {
+		t.Parallel()
+		h, db, _, sender, target, w := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		recordReplyEvent(
+			t,
+			h,
+			target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID),
+		)
+		recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "watched"})
+		service, err := NewReplyWatchService(replyRecoveryStore{ReplyWatchStore: db}, h.manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.State != "fired" {
+			t.Fatalf("healthy watch = %+v, %v", got, err)
+		}
+	})
+}
+
+type replyRecoveryStore struct{ store.ReplyWatchStore }
+
+func (s replyRecoveryStore) ListReplyWatches(
+	ctx context.Context,
+	f store.ReplyWatchFilter,
+) ([]store.ReplyWatch, error) {
+	rows, err := s.ReplyWatchStore.ListReplyWatches(ctx, f)
+	return append(
+		[]store.ReplyWatch{
+			{ID: "broken", State: store.ReplyWatchArmed, CreatedAt: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
+		},
+		rows...), err
+}
+
+// Invariant: disappearance of the target settles unconsumed watches immediately (M-4).
+func TestReplyWatchTargetGone(t *testing.T) {
+	for _, archive := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should settle target disappearance with archive=%t", archive), func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, w := replyWatchFixture(t)
+			h.manager.SetReplyWatchService(service)
+			if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+				t.Fatal(err)
+			}
+			replyQueuedInput(t, h, db, target, w)
+			if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+				t.Fatal(err)
+			}
+			if archive {
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, target.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := h.manager.Delete(t.Context(), target.ID); err != nil {
+				t.Fatal(err)
+			}
+			got, err := db.GetReplyWatch(t.Context(), w.ID)
+			if err != nil || got.State != "fired" || got.Outcome != "unknown" {
+				t.Fatalf("target gone = %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+// Invariant: an earlier settle cannot resolve a later uncertain dispatch (m-2).
+func TestReplyWatchDispatchAnchor(t *testing.T) {
+	t.Run("Should wait for a settle after the dispatch commit", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "earlier"})
+		committed := h.manager.now().Add(time.Hour)
+		if err := db.CommitSessionPromptDispatch(
+			t.Context(),
+			h.workspaceID,
+			target.ID,
+			"reply-key",
+			committed,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Reconcile(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.State != "armed" {
+			t.Fatalf("premature settle = %+v, %v", got, err)
+		}
+	})
+}
+
+// UT-043: a failed queue dispatch without an input receipt produces one dropped reply.
+func TestReplyWatchDispatchFailed(t *testing.T) {
+	t.Run("Should settle dispatch failed queue evidence as dropped", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		entry := replyQueuedInput(t, h, db, target, w)
+		if _, claimed, err := db.ClaimNextSessionInput(
+			t.Context(),
+			target.ID,
+			h.manager.now(),
+		); err != nil ||
+			!claimed {
+			t.Fatal(claimed, err)
+		}
+		if err := db.MarkSessionInputFailed(
+			t.Context(),
+			target.ID,
+			entry.ID,
+			"dispatch_failed",
+			h.manager.now(),
+		); err != nil {
+			t.Fatal(err)
+		}
+		failed, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entry.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service.OnQueueEntryTerminal(t.Context(), &failed)
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.Outcome != "dropped" || got.State != "fired" {
+			t.Fatalf("dispatch failed = %+v, %v", got, err)
+		}
+	})
+}
+
+// m-1: an activation refusal abandons its watch before cancellation emits a terminal edge.
+func TestReplyWatchActivationFailure(t *testing.T) {
+	t.Run("Should return the send error without also delivering a dropped wake", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		entry := replyQueuedInput(t, h, db, target, w)
+		origin, err := encodePromptOrigin(
+			&acp.PromptOriginMeta{
+				Kind:             "session",
+				SessionID:        sender.ID,
+				WorkspaceID:      h.workspaceID,
+				Hop:              1,
+				NotifyOnComplete: true,
+				ReplyWatchID:     w.ID,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry.Origin = origin
+		refused := errors.New("activation refused")
+		err = h.manager.cleanupInterruptingInputActivationFailure(t.Context(), &entry, refused)
+		if !errors.Is(err, refused) {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.State != "abandoned" || got.AbandonReason != "send_failed" || got.DeliveredInputID != "" {
+			t.Fatalf("activation failure = %+v, %v", got, err)
+		}
+		canceled, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entry.ID)
+		if err != nil || canceled.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatalf("queue = %+v, %v", canceled, err)
+		}
+	})
 }

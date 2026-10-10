@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -308,6 +309,13 @@ func newSubagentDaemonWithExecutable(
 	steer ...string,
 ) (*Daemon, *session.Manager, string) {
 	t.Helper()
+	return newSubagentDaemonWithSetup(t, mutate, executable, nil, steer...)
+}
+
+func newSubagentDaemonWithSetup(
+	t *testing.T, mutate func(*compozyconfig.Config), executable string, setup func(*Daemon), steer ...string,
+) (*Daemon, *session.Manager, string) {
+	t.Helper()
 	home := testHomePaths(t)
 	fixture := acpmock.Fixture{
 		Version: 2,
@@ -566,6 +574,9 @@ func newSubagentDaemonWithExecutable(
 		}
 	}
 	d := newTestDaemon(t, home, &cfg)
+	if setup != nil {
+		setup(d)
+	}
 	if executable != "" {
 		d.executable = func() (string, error) { return executable, nil }
 	}
@@ -2903,6 +2914,7 @@ func (f *subagentDeliveryForge) CreatePR(
 }
 
 // Origin admission and delivery share this real daemon/ACP harness with subagent orchestration.
+// IT-001 IT-002 IT-003: direct, queued, steered, and restarted inputs retain their sender.
 func TestSessionMessageOriginDaemonIntegration(t *testing.T) {
 	for _, mode := range []string{"direct", "queue", "steer", "interrupt", "restart"} {
 		t.Run("Should preserve session message origin through "+mode, func(t *testing.T) {
@@ -3109,6 +3121,7 @@ func writeSessionOriginFixture(t *testing.T, path string, fixture acpmock.Fixtur
 }
 
 // IT-020: the public native registry and two real ACP turns enforce a shared chain budget.
+// IT-020: successive native steers accumulate the active turn hop budget.
 func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 	t.Run("Should refuse the ninth send between two active operator turns", func(t *testing.T) {
 		d, m, ws := newSubagentDaemonIntegration(t, "injected")
@@ -3476,6 +3489,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		for range result.Events {
+			continue
 		}
 		waitForRuntimeCondition(t, "ninth native send refused", 30*time.Second, func() bool {
 			rows, e := m.Events(t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeToolResult, Limit: 100})
@@ -3500,11 +3514,19 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 			watches != 8 {
 			t.Fatal(watches, err)
 		}
-		rows, err := m.Events(t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100, Forward: true})
+		rows, err := m.Events(
+			t.Context(),
+			sender.ID,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100, Forward: true},
+		)
 		if err != nil || len(rows) != 8 {
 			t.Fatal(len(rows), err)
 		}
-		targetRows, err := m.Events(t.Context(), target.ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
+		targetRows, err := m.Events(
+			t.Context(),
+			target.ID,
+			store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+		)
 		if err != nil || len(targetRows) != 8 {
 			t.Fatalf("target turns = %d, %v", len(targetRows), err)
 		}
@@ -3642,4 +3664,182 @@ func runReplyWatchCrashChild(t *testing.T, manifest string) {
 	}
 	// Deliberately bypass daemon shutdown, SQLite close and test cleanups.
 	os.Exit(19)
+}
+
+// IT-029: the receiver's native send observes the hop fence before the steer receipt exists.
+func TestSessionMessageOriginResponseBeforeReceiptIntegration(t *testing.T) {
+	for _, incomingHop := range []int{7, 8} {
+		t.Run(fmt.Sprintf("Should fence a response before recording hop %d", incomingHop), func(t *testing.T) {
+			reached, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			defer unblock()
+			d, m, ws := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+				factory := d.newSessionManager
+				d.newSessionManager = func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error) {
+					manager, err := factory(ctx, deps)
+					if err != nil {
+						return nil, err
+					}
+					session.WithStore(
+						func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
+							db, err := sessiondb.OpenSessionDB(ctx, owner, path)
+							if err != nil {
+								return nil, err
+							}
+							return &originReceiptBarrier{SessionDB: db, reached: reached, release: release}, nil
+						},
+					)(
+						manager.(*session.Manager),
+					)
+					return manager, nil
+				}
+			}, "injected")
+			var peers [3]*session.Session
+			for i := range peers {
+				peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+				if err != nil {
+					t.Fatal(err)
+				}
+				peers[i] = peer
+				held, err := m.SendPrompt(t.Context(), peer.ID, session.SendPromptOpts{Message: "hold parent"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				go func() {
+					for range held.Events {
+						continue
+					}
+				}()
+			}
+			_, err := m.SendPrompt(t.Context(), peers[0].ID, session.SendPromptOpts{
+				Message:        "seed chain",
+				MessageID:      "seed",
+				IdempotencyKey: "seed",
+				Mode:           session.BusyInputModeSteer,
+				Origin: &acp.PromptOriginMeta{
+					Kind:        "session",
+					SessionID:   peers[2].ID,
+					WorkspaceID: ws,
+					Hop:         incomingHop - 1,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			send := func(sender, target *session.Session, id string) error {
+				input, err := json.Marshal(
+					map[string]any{
+						"session_id":      target.ID,
+						"message":         "chain guidance",
+						"mode":            "steer",
+						"message_id":      id,
+						"idempotency_key": id,
+					},
+				)
+				if err != nil {
+					return err
+				}
+				_, err = d.toolRegistry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						SessionID:   sender.ID,
+						WorkspaceID: ws,
+						AgentName:   "subagent-test",
+						ProfileID:   sender.ProfileID,
+					},
+					toolspkg.CallRequest{
+						ToolID:     toolspkg.ToolIDSessionPrompt,
+						ToolCallID: id,
+						TurnID:     sender.CurrentTurnID(),
+						Input:      input,
+					},
+				)
+				return err
+			}
+			sent := make(chan error, 1)
+			go func() { sent <- send(peers[0], peers[1], "receipt-held") }()
+			select {
+			case <-reached:
+			case <-time.After(10 * time.Second):
+				t.Fatal("steer never reached receipt barrier")
+			}
+			rows, err := m.Events(
+				t.Context(),
+				peers[1].ID,
+				store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+			)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("pre-receipt events = %d, %v", len(rows), err)
+			}
+			err = send(peers[1], peers[2], "response")
+			if incomingHop == 8 {
+				requireToolCode(t, err, toolspkg.ErrorCodeSessionMessageHopLimit)
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				hop, err := m.CurrentTurnEffectiveHop(t.Context(), peers[2].ID)
+				if err != nil || hop != incomingHop+1 {
+					t.Fatalf("response hop = %d, %v", hop, err)
+				}
+				responseRows, err := m.Events(
+					t.Context(),
+					peers[2].ID,
+					store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, row := range responseRows {
+					event, err := transcript.UnmarshalAgentEvent(row.Content)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if event.MessageIDValue() == "response" {
+						found = event.PromptOrigin() != nil && event.PromptOrigin().Hop == 8
+					}
+				}
+				if !found {
+					t.Fatal("response origin did not persist hop 8")
+				}
+			}
+			unblock()
+			select {
+			case err := <-sent:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("send did not finish")
+			}
+		})
+	}
+}
+
+type originReceiptBarrier struct {
+	*sessiondb.SessionDB
+	reached chan struct{}
+	release <-chan struct{}
+}
+
+func (b *originReceiptBarrier) RecordPersisted(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	if event.Type == acp.EventTypeUserMessage {
+		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			return store.SessionEvent{}, err
+		}
+		if decoded.MessageIDValue() == "receipt-held" {
+			close(b.reached)
+			select {
+			case <-b.release:
+			case <-ctx.Done():
+				return store.SessionEvent{}, ctx.Err()
+			}
+		}
+	}
+	return b.SessionDB.RecordPersisted(ctx, event)
 }

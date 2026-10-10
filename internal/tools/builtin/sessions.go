@@ -128,7 +128,8 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; "+
 			"steering uses the expected active turn. Agent calls carry an immutable sender origin; "+
 			"self-targeting is rejected and message chains are limited to 8 hops. "+
-			"Use notify_on_complete to request a reply wake.",
+			"Use notify_on_complete to request a reply wake. It requires an agent session; "+
+			"operator-scoped calls are refused with invalid_request.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -328,7 +329,9 @@ const sessionPromptOutputSchema = `{
 				"new_turn_id":{"type":"string"},
 				"canceled_queued_entries":{"type":"integer"},
  "target_workspace_id":{"type":"string"},
- "reply_watch":{"type":"object","required":["id","state"],"properties":{"id":{"type":"string"},"state":{"type":"string","enum":["armed"]}},"additionalProperties":false},
+ "reply_watch":{"type":"object","required":["id","state"],
+ "properties":{"id":{"type":"string"},
+ "state":{"type":"string","enum":["armed","fired","delivered","abandoned"]}},"additionalProperties":false},
 				"goal":{"type":"object"}
 			},
 			"additionalProperties":false

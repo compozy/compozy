@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,7 @@ type ReplyWatchService interface {
 	OnSenderTurnSettled(context.Context, string)
 	OnSessionResumed(context.Context, string)
 	OnSenderGone(context.Context, string) error
+	OnTargetGone(context.Context, string)
 	Recover(context.Context) error
 	ListForSender(context.Context, string, string) ([]store.ReplyWatch, error)
 }
@@ -82,9 +82,11 @@ func (s *replyWatchService) reconcile(ctx context.Context, id string, recovering
 	}
 	// A deleted target has no recoverable admission or transcript. Preserve the
 	// sender's watch as an explicit uncertain reply instead of failing daemon boot.
-	if _, err := s.manager.Status(ctx, w.TargetSessionID); errors.Is(err, ErrSessionNotFound) {
+	target, err := s.manager.Status(ctx, w.TargetSessionID)
+	if errors.Is(err, ErrSessionNotFound) {
 		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
-	} else if err != nil {
+	}
+	if err != nil {
 		return err
 	}
 	admission, inputs, err := s.store.ReplyWatchEvidence(ctx, w)
@@ -95,12 +97,15 @@ func (s *replyWatchService) reconcile(ctx context.Context, id string, recovering
 	for i := range inputs {
 		queueID = inputs[i].ID
 	}
-	turn, err := s.manager.replyMessageTurn(ctx, w.TargetSessionID, w.MessageID)
+	turn, err := s.manager.replyMessageTurn(ctx, w, admission, inputs, recovering)
 	if err != nil {
 		return err
 	}
 	if turn != "" {
 		return s.reconcileConsumedTurn(ctx, w, turn, queueID)
+	}
+	if target.ArchivedAt != nil {
+		return s.fire(ctx, w, store.ReplyOutcomeUnknown, "")
 	}
 	if err := s.store.BindReplyWatch(ctx, id, "", queueID); err != nil {
 		return err
@@ -117,7 +122,7 @@ func (s *replyWatchService) reconcileUnconsumed(
 		return nil
 	}
 	if outcome == store.ReplyOutcomeUnknown && !recovering {
-		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, admission.CreatedAt)
+		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
 		if err != nil {
 			return err
 		}
@@ -277,6 +282,10 @@ func (s *replyWatchService) retry(ctx context.Context, sender string) {
 		s.logError(ctx, s.Deliver(ctx, w.ID))
 	}
 }
+func (s *replyWatchService) OnTargetGone(ctx context.Context, target string) {
+	s.reconcileTarget(ctx, target, "")
+}
+
 func (s *replyWatchService) OnSenderGone(ctx context.Context, sender string) error {
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{SenderSessionID: sender})
 	if err != nil {
@@ -301,8 +310,11 @@ func (s *replyWatchService) Recover(ctx context.Context) error {
 		return err
 	}
 	for _, w := range rows {
+		if w.State == store.ReplyWatchArmed && s.manager.now().Sub(w.CreatedAt) >= 24*time.Hour {
+			s.manager.logger.WarnContext(ctx, "reply_watch.armed_stale", "id", w.ID, "created_at", w.CreatedAt)
+		}
 		if err := s.reconcile(ctx, w.ID, true); err != nil {
-			return fmt.Errorf("recover reply watch %s: %w", w.ID, err)
+			s.manager.logger.ErrorContext(ctx, "reply_watch.recover_failed", "id", w.ID, "error", err)
 		}
 	}
 	s.manager.logger.InfoContext(ctx, "reply_watch.recovered", "count", len(rows))

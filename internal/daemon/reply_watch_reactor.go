@@ -21,9 +21,9 @@ func (d *Daemon) bootReplyWatches(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return err
 	}
+	manager.SetReplyWatchService(service)
 	if err := service.Recover(ctx); err != nil {
 		return err
 	}
-	manager.SetReplyWatchService(service)
 	return nil
 }

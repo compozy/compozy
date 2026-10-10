@@ -1032,7 +1032,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			ToolCallID: "send",
 			TurnID:     "turn",
 			Raw: json.RawMessage(
-				`{"rawOutput":{"prompt":{"message_id":"message","mode":"queue","reply_watch":{"id":"rw-123","state":"armed"},"target_workspace_id":"ws-target"}}}`,
+				`{"rawOutput":{"prompt":{"message_id":"message","mode":"queue","delivery":"direct","reply_watch":{"id":"rw-123","state":"armed"},"target_workspace_id":"ws-target"}}}`,
 			),
 		}.WithTool(
 			"compozy__session_prompt",
@@ -1073,7 +1073,9 @@ func TestSessionMessageUIProjection(t *testing.T) {
 					t.Fatal(err)
 				}
 				if p.TargetSessionID != "target" || p.MessageID != "message" || p.Mode != "queue" ||
-					p.ReplyWatchID != "rw-123" || p.TargetWorkspaceID != "ws-target" ||
+					p.Delivery != "direct" ||
+					p.ReplyWatchID != "rw-123" ||
+					p.TargetWorkspaceID != "ws-target" ||
 					p.State != "done" ||
 					part.ID != "send" {
 					t.Fatalf("card = %+v", p)
@@ -1106,7 +1108,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			t.Fatalf("failure card = %+v, %v", p, ok)
 		}
 	})
-	t.Run("Should preserve typed synthetic reply metadata UT-012", func(t *testing.T) {
+	t.Run("Should preserve typed synthetic reply metadata UT-013", func(t *testing.T) {
 		t.Parallel()
 		event := acp.AgentEvent{
 			Type:   acp.EventTypeSyntheticReentry,
@@ -1157,6 +1159,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 	})
 }
 
+// UT-013: operator inputs remain unattributed while session origins reach the UI.
 func TestPromptOriginUIProjection(t *testing.T) {
 	t.Parallel()
 	t.Run("Should project daemon origin while leaving operator metadata unattributed", func(t *testing.T) {
@@ -1178,4 +1181,64 @@ func TestPromptOriginUIProjection(t *testing.T) {
 			t.Fatal("operator acquired origin")
 		}
 	})
+}
+
+// UT-013: the transcript exposes only typed UI metadata; reply bodies remain available.
+func TestSyntheticUIMetadataBoundary(t *testing.T) {
+	for _, kind := range []string{"session_reply", "task_wake", "subagent_wake"} {
+		t.Run("Should project only UI fields for "+kind, func(t *testing.T) {
+			t.Parallel()
+			event := acp.AgentEvent{Synthetic: &acp.PromptSyntheticMeta{
+				Kind:                 kind,
+				WakeEventID:          "wake",
+				ChildSessionID:       "child",
+				ChildWorkspaceID:     "ws",
+				ChildAgentName:       "coder",
+				Reason:               "completed",
+				ReplyTruncated:       true,
+				Hop:                  2,
+				Summary:              "answer",
+				TaskID:               "task",
+				TaskRunID:            "run",
+				ClaimTokenHash:       "private-hash",
+				SubagentIDs:          []string{"subagent"},
+				WorkflowID:           "workflow",
+				Badge:                "badge",
+				CoordinatorSessionID: "coordinator",
+				PolicySnapshotID:     "policy",
+				PolicyDigest:         "digest",
+				ConfigDigest:         "config",
+			}}
+			var meta struct {
+				Synthetic map[string]json.RawMessage `json:"synthetic"`
+			}
+			if err := json.Unmarshal(inputUIMessageMetadata(event), &meta); err != nil {
+				t.Fatal(err)
+			}
+			expected := []string{
+				"kind",
+				"wake_event_id",
+				"child_session_id",
+				"child_workspace_id",
+				"child_agent_name",
+				"reason",
+				"reply_truncated",
+				"hop",
+			}
+			if kind == "session_reply" {
+				expected = append(expected, "summary")
+			}
+			if len(meta.Synthetic) != len(expected) {
+				t.Fatalf("metadata = %s", inputUIMessageMetadata(event))
+			}
+			for _, key := range expected {
+				if _, ok := meta.Synthetic[key]; !ok {
+					t.Errorf("missing %s", key)
+				}
+			}
+			if kind == "session_reply" && string(meta.Synthetic["summary"]) != `"answer"` {
+				t.Fatal("reply body missing")
+			}
+		})
+	}
 }

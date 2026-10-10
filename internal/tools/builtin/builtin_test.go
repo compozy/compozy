@@ -2045,6 +2045,18 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 			prompt.Required,
 		)
 	}
+	// The public receipt can observe any persisted watch state, including a fast reply or replay.
+	var watch nativeObjectSchema
+	if err := json.Unmarshal(prompt.Properties["reply_watch"], &watch); err != nil {
+		t.Fatal(err)
+	}
+	assertStringEnumSchema(
+		t,
+		owner+" prompt.reply_watch.state",
+		watch.Properties["state"],
+		[]string{"armed", "fired", "delivered", "abandoned"},
+	)
+
 	assertStringEnumSchema(
 		t,
 		owner+" prompt.delivery",

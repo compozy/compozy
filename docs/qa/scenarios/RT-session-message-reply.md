@@ -34,9 +34,16 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 7. Inject dispatch uncertainty without a recorded input. After B settles, stops or the daemon
    restarts, confirm the `unknown` sentence. When an input event exists, its turn's outcome wins.
 8. Archive or delete A with an outstanding watch: it is abandoned and no wake is delivered.
-   Delete B while its message remains unconsumed: recovery still boots and A receives `unknown`
-   with the deleted-session label. Cancel or clear an already delivered wake: no replacement wake
+   Delete or archive B while its message remains unconsumed: A receives `unknown` immediately,
+   without a daemon restart (deletion uses the deleted-session label). Cancel or clear an already delivered wake: no replacement wake
    appears, including after restart.
+
+9. Fail a send before dispatch commit, then retry with the same message ID and idempotency key.
+   The same watch is re-armed, the result reports its persisted state, and the eventual answer is
+   delivered once. Activation refusal returns the send error without a second `dropped` wake.
+10. Recover a broken watch alongside a healthy one. Boot completes, the healthy watch reconciles,
+    and the broken row is logged as `reply_watch.recover_failed`. Armed watches older than 24 hours
+    produce a warning. Unrelated transcript turns do not affect normal reconciliation.
 
 Task 04 automated evidence covers admission/watch atomicity, legacy replay exclusion, native
 receipts in every prompt mode, exact reply content, queue priority, restart, abrupt process loss,

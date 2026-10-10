@@ -4344,6 +4344,7 @@ func TestSubagentCanceledErrorPrecedence(t *testing.T) {
 	}
 }
 
+// UT-003 UT-005: identical bound origins survive direct and queued delivery.
 func TestManagerPromptOriginDelivery(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []BusyInputMode{"", BusyInputModeQueue, BusyInputModeInterrupt, BusyInputModeSteer} {
@@ -4391,7 +4392,11 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				AgentName:        "coder",
 				TitleAtSend:      "Original",
 				Hop:              3,
-				NotifyOnComplete: mode == "",
+				NotifyOnComplete: mode == "" || mode == BusyInputModeQueue,
+			}
+			wantOrigin := *origin
+			if origin.NotifyOnComplete {
+				wantOrigin.ReplyWatchID = store.ReplyWatchID(sess.ID, "msg-origin")
 			}
 			result, err := h.manager.SendPrompt(
 				t.Context(),
@@ -4414,7 +4419,7 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 					t.Fatal(err)
 				}
 				decoded, err := decodePromptOrigin(entry.Origin)
-				if err != nil || *decoded != *origin {
+				if err != nil || *decoded != wantOrigin {
 					t.Fatal(decoded, err)
 				}
 				unblock()
@@ -4430,7 +4435,7 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				}
 				want := `[Message from session "Original" (sender, agent coder) via compozy__session_prompt — another agent, not the operator. ` + reply + "]\n\nQ?"
 				if req.Message != want || req.Meta.Origin == nil ||
-					*req.Meta.Origin != *origin {
+					*req.Meta.Origin != wantOrigin {
 					t.Fatal(req)
 				}
 			case <-time.After(5 * time.Second):
@@ -4439,7 +4444,7 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 			waitForCondition(t, "origin input persisted", func() bool {
 				for _, event := range managerUserPromptEvents(t, h, sess.ID) {
 					if event.MessageIDValue() == "msg-origin" {
-						return event.Text == "Q?" && event.PromptOrigin() != nil && *event.PromptOrigin() == *origin
+						return event.Text == "Q?" && event.PromptOrigin() != nil && *event.PromptOrigin() == wantOrigin
 					}
 				}
 				return false
@@ -4448,6 +4453,7 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 	}
 }
 
+// UT-006 UT-016: fence the active turn before provider steering and retain the floor after failure.
 func TestManagerPromptOriginHopFence(t *testing.T) {
 	t.Parallel()
 	for _, failed := range []bool{false, true} {
@@ -4509,6 +4515,10 @@ func TestManagerPromptOriginHopFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			if failed {
+				hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID)
+				if err != nil || hop != 8 {
+					t.Fatalf("post-failure floor = %d, %v", hop, err)
+				}
 				return
 			}
 			sess.raiseTurnHop(sess.CurrentTurnID(), 2)
@@ -4529,6 +4539,7 @@ func TestManagerPromptOriginHopFence(t *testing.T) {
 	}
 }
 
+// UT-010 UT-016: effective hop is the maximum of consumed origins and the active floor.
 func TestManagerPromptOriginEffectiveHop(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -4580,4 +4591,19 @@ func TestManagerPromptOriginEffectiveHop(t *testing.T) {
 			}
 		})
 	}
+}
+
+// n-4: optional agent names never leave an empty fragment in the provider header.
+func TestPromptOriginHeader(t *testing.T) {
+	t.Run("Should omit an absent agent name", func(t *testing.T) {
+		t.Parallel()
+		got := promptOriginMessage(
+			&acp.PromptOriginMeta{Kind: "session", SessionID: "sender", TitleAtSend: "Sender", Hop: 1},
+			"question",
+		)
+		want := "[Message from session \"Sender\" (sender) via compozy__session_prompt — another agent, not the operator. To reply, call compozy__session_prompt with session_id \"sender\".]\n\nquestion"
+		if got != want {
+			t.Fatalf("header = %q", got)
+		}
+	})
 }
