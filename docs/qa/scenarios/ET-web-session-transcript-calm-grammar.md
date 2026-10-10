@@ -6,7 +6,7 @@ persona: Théo
 journey: J-14
 expected: One or multiple live tool rows appear above a calm completed-tools summary. Settled turns fold once; interrupted turns remain open with a truthful stop cause. Absorbed failures keep the group neutral and expose the individual failed row. Find searches the full retained projection, opens the exact field/fold, preserves focus through live updates and archive invalidation, and downloads complete payloads; the message trail supports previews and deliberate jumps.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
 retest_status: pass
@@ -131,3 +131,10 @@ report's session matrix in a future QA cycle.
 QA impact 2026-10-09 (session-transcript-ui): grouping, live-row, fold, and find semantics are unchanged; the presentation changed. Work-group headers show the dominant kind glyph, which hands its place to a chevron on hover or open (no trailing chevron, no grey check). Opened groups hang their steps off a curved rail. Tool rows read verb + mono object chip with copy and chevron on hover and no success glyph. The live row shimmers the verb beside the same chip. Group sentences count calls by the kind their rows show ("searched once"/"searched N times" replaces "searched N files"). The user message's actions surface on hover. Needs a fresh walk; no QA session ran.
 
 QA impact 2026-10-10 (session-transcript-ui, second MonoCode pass): the settled-turn fold loses its bottom rule. Its clock glyph hands its place to a chevron on hover or open, and an opened fold sets its rows beside one spine with interim prose a step quieter than the answer. Group and fold sentences join their clauses with " · " ("Worked for 4m 12s · Ran 6 commands · Edited 2 files"), and a one-file clause names the file ("Read app.ts"); directory listings count as "Listed N directories". Live reasoning rests as one pulsing line of its latest paragraph and opens only on toggle or inside a disclosed group. Edit and Write rows open a diff card: path, a colored +a −d stat, aligned removed/added/context lines collapsed to 12 with "Show full diff". The error detail turns danger only when the failure ended the turn. Needs a fresh walk; no QA session ran.
+
+
+QA impact 2026-10-09 (agent-collaboration tasks 03/05): the transcript gains three row shapes — the
+left-aligned session message card on agent-sent user turns, the "Reply from" card on
+`session_reply` wakes, and the "Sent to" card that replaces `compozy__session_prompt` tool rows
+outside work groups and stays visible when a settled turn folds. Re-walk the fold and work-group
+steps with a session message in the turn. Coverage for the new rows: `ET-web-session-message-card`.
