@@ -4593,6 +4593,28 @@ func TestWaitSessionCompaction(t *testing.T) {
 // UT-046/UT-047: session subagent commands preserve documented output and errors.
 func TestSubagentCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should render isolated checkout facts and unknown pull request UT-036", func(t *testing.T) {
+		t.Parallel()
+		row := subagentCLIRecord()
+		row.Isolation = "worktree"
+		row.Worktree = &contract.SubagentWorktreePayload{
+			ID:                "wt",
+			Name:              "test",
+			Branch:            "run/test",
+			BaseRef:           "main",
+			BaseSHA:           "base",
+			Path:              "/checkout",
+			CommitsAhead:      new(2),
+			DirtyFiles:        new(0),
+			PullRequestStatus: "unknown",
+		}
+		got := subagentDetails(row, fixedTestNow)
+		for _, text := range []string{"Isolation     worktree", "Branch        run/test", "Commits ahead 2", "Dirty files   0", "Pull request  status unknown"} {
+			if !strings.Contains(got, text) {
+				t.Fatalf("missing %q in %s", text, got)
+			}
+		}
+	})
 	t.Run("Should show a subagent without resolving the current directory", func(t *testing.T) {
 		t.Parallel()
 		client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(&stubClient{})}

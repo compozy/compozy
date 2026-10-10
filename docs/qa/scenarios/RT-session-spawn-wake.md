@@ -6,10 +6,10 @@ persona: Cora
 journey: J-respond-to-agent-attention
 expected: A governed child that stops, fails, enters a needs-you state, or completes its turn normally queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason; a canceled child turn delivers no completed wake while its catalog, wait-badge, and attention effects still fire.
 entry_points: compozy spawn --no-notify-creator; POST /api/agent/spawn over HTTP and UDS; compozy__session_spawn; parent session transcript
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; internal/session/manager_lifecycle_contract_test.go
 last_report: docs/qa/reports/2026-08-24-eng-147-ttl-cleanup.md

@@ -23,6 +23,9 @@ func (r managerSubagentRuntime) Snapshot(ctx context.Context, id string) (subage
 		return subagentSnapshot{}, err
 	}
 	snap := subagentSnapshot{Info: info}
+	r.m.lifecycleMu.Lock()
+	snap.Delivering = r.m.worktreeDeliveryFences[info.WorkspaceID+"\x00"+info.WorktreeID]
+	r.m.lifecycleMu.Unlock()
 	if child, ok := r.m.Get(id); ok {
 		snap.Active = info.Liveness != nil && info.Liveness.Activity != nil && info.Liveness.Activity.TurnID != ""
 		snap.TurnID = child.CurrentTurnID()

@@ -43,7 +43,7 @@ func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (Tur
 			}
 			if info.State == StateStopped {
 				result.Outcome = store.ReplyOutcomeCanceled
-				if info.Failure != nil {
+				if info.Failure != nil && info.Failure.Kind != store.FailureCanceled {
 					result.Outcome, result.Error = store.ReplyOutcomeFailed, info.Failure.Summary
 				}
 			}
@@ -73,10 +73,13 @@ func replyTurnOutcome(events []store.SessionEvent) (TurnResult, error) {
 		case acp.EventTypeError:
 			result.Outcome = store.ReplyOutcomeFailed
 			result.Error = firstTrimmedNonEmpty(decoded.Error, decoded.Text, "turn failed")
+			if decoded.Failure != nil && decoded.Failure.Kind == store.FailureCanceled {
+				result.Outcome, result.Error = store.ReplyOutcomeCanceled, ""
+			}
 		case EventTypeSessionStopped:
 			if result.Outcome == "" {
 				result.Outcome = store.ReplyOutcomeCanceled
-				if decoded.Error != "" {
+				if decoded.Error != "" && (decoded.Failure == nil || decoded.Failure.Kind != store.FailureCanceled) {
 					result.Outcome, result.Error = store.ReplyOutcomeFailed, decoded.Error
 				}
 			}

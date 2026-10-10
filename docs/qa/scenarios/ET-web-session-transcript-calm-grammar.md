@@ -6,10 +6,10 @@ persona: Théo
 journey: J-14
 expected: One or multiple live tool rows appear above a calm completed-tools summary. Settled turns fold once; interrupted turns remain open with a truthful stop cause. Absorbed failures keep the group neutral and expose the individual failed row. Find searches the full retained projection, opens the exact field/fold, preserves focus through live updates and archive invalidation, and downloads complete payloads; the message trail supports previews and deliberate jumps.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260906-injected-guidance-missing-history
 fix_status: pending
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence: docs/qa/reports/2026-09-06-sessions-stability.md
 last_report: docs/qa/reports/2026-10-02-untested.md
@@ -127,3 +127,9 @@ frontmatter status is left as recorded because the last real-runtime walk predat
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-09 (agent-collaboration tasks 03/05): the transcript gains three row shapes — the
+left-aligned session message card on agent-sent user turns, the "Reply from" card on
+`session_reply` wakes, and the "Sent to" card that replaces `compozy__session_prompt` tool rows
+outside work groups and stays visible when a settled turn folds. Re-walk the fold and work-group
+steps with a session message in the turn. Coverage for the new rows: `ET-web-session-message-card`.

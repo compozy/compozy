@@ -2165,3 +2165,71 @@ func TestSessionDeriveWireFixtures(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: unknown worktree numbers stay absent while known zero stays zero (UT-034).
+// Owner: public payload mapping; canonical contract suite.
+func TestSubagentWorktreePayload(t *testing.T) {
+	t.Parallel()
+	// Invariant: unobserved settlement facts remain absent on the public wire (UT-034).
+	// Owner: contract projection; this canonical suite also owns known-zero preservation.
+	t.Run("Should omit all settlement facts while the isolated child is running", func(t *testing.T) {
+		t.Parallel()
+		row := session.Subagent{
+			Isolation: "worktree",
+			Status:    "running",
+			Worktree: &store.SubagentWorktreeState{
+				ID:      "wt",
+				Name:    "name",
+				Branch:  "run/name",
+				BaseRef: "main",
+				Path:    "/checkout",
+			},
+		}
+		raw, err := json.Marshal(contract.SubagentFromDomain(&row).Worktree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"base_sha", "head_sha", "commits_ahead", "dirty_files", "observed_at", "pull_request_status", "pull_request"} {
+			if _, present := decoded[key]; present {
+				t.Fatalf("unobserved %s was emitted: %s", key, raw)
+			}
+		}
+	})
+	t.Run("Should map static and observed facts without fabricating unknown integers", func(t *testing.T) {
+		t.Parallel()
+		row := session.Subagent{Isolation: "worktree", Worktree: &store.SubagentWorktreeState{
+			ID: "wt", Name: "name", Branch: "run/name", BaseRef: "main", BaseSHA: "base", Path: "/checkout",
+			Facts: store.SubagentWorktreeFacts{HeadSHA: "head", DirtyFiles: new(0), PRStatus: "unknown"},
+		}}
+		payload := contract.SubagentFromDomain(&row)
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		var wt map[string]any
+		if err := json.Unmarshal(decoded["worktree"], &wt); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := wt["commits_ahead"]; ok {
+			t.Fatal(wt)
+		}
+		if _, ok := wt["pull_request"]; ok {
+			t.Fatal(wt)
+		}
+		if wt["dirty_files"] != float64(0) || wt["base_sha"] != "base" || wt["branch"] != "run/name" {
+			t.Fatal(wt)
+		}
+		row.Isolation = "shared"
+		if contract.SubagentFromDomain(&row).Worktree != nil {
+			t.Fatal("shared checkout exposed worktree facts")
+		}
+	})
+}

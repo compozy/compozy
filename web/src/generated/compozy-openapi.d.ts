@@ -47249,6 +47249,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -47459,6 +47469,16 @@ export interface operations {
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
+                origin?: {
+                  agent_name?: string;
+                  hop: number;
+                  kind: string;
+                  notify_on_complete?: boolean;
+                  reply_watch_id?: string;
+                  session_id: string;
+                  title_at_send?: string;
+                  workspace_id: string;
+                } | null;
                 parent_session_id?: string;
                 provider_error?: {
                   code: string;
@@ -48016,6 +48036,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -48096,6 +48126,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -48156,6 +48196,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -48184,6 +48225,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               };
             } | null;
             subagents_snapshot?: {
@@ -48196,6 +48256,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -48224,6 +48285,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               }[];
             } | null;
             transcript_delta?: {
@@ -75705,6 +75785,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -76563,6 +76644,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -76855,6 +76937,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -77423,6 +77506,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77693,6 +77777,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77970,6 +78055,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78315,6 +78401,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78577,6 +78664,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78847,6 +78935,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -79124,6 +79213,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79458,6 +79548,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79741,6 +79832,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80011,6 +80103,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80273,6 +80366,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80543,6 +80637,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80813,6 +80908,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81075,6 +81171,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81337,6 +81434,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81599,6 +81697,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81891,6 +81990,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82319,6 +82419,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82743,6 +82844,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83013,6 +83115,7 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
+                    | "message_hop_limit"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83290,6 +83393,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -108156,6 +108260,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -110718,6 +110832,16 @@ export interface operations {
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
+                origin?: {
+                  agent_name?: string;
+                  hop: number;
+                  kind: string;
+                  notify_on_complete?: boolean;
+                  reply_watch_id?: string;
+                  session_id: string;
+                  title_at_send?: string;
+                  workspace_id: string;
+                } | null;
                 parent_session_id?: string;
                 provider_error?: {
                   code: string;
@@ -111742,9 +111866,14 @@ export interface operations {
               queue_generation?: number;
               queue_position: number;
               replayed: boolean;
+              reply_watch?: {
+                id: string;
+                state: string;
+              } | null;
               status: string;
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_workspace_id?: string;
               turn_id?: string;
             };
           };
@@ -111926,9 +112055,14 @@ export interface operations {
               queue_generation?: number;
               queue_position: number;
               replayed: boolean;
+              reply_watch?: {
+                id: string;
+                state: string;
+              } | null;
               status: string;
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_workspace_id?: string;
               turn_id?: string;
             };
           };
@@ -112163,9 +112297,14 @@ export interface operations {
                   queue_generation?: number;
                   queue_position: number;
                   replayed: boolean;
+                  reply_watch?: {
+                    id: string;
+                    state: string;
+                  } | null;
                   status: string;
                   /** @enum {string} */
                   steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  target_workspace_id?: string;
                   turn_id?: string;
                 };
               };
@@ -112370,9 +112509,14 @@ export interface operations {
                   queue_generation?: number;
                   queue_position: number;
                   replayed: boolean;
+                  reply_watch?: {
+                    id: string;
+                    state: string;
+                  } | null;
                   status: string;
                   /** @enum {string} */
                   steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  target_workspace_id?: string;
                   turn_id?: string;
                 };
               };
@@ -112607,9 +112751,14 @@ export interface operations {
                   queue_generation?: number;
                   queue_position: number;
                   replayed: boolean;
+                  reply_watch?: {
+                    id: string;
+                    state: string;
+                  } | null;
                   status: string;
                   /** @enum {string} */
                   steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  target_workspace_id?: string;
                   turn_id?: string;
                 };
               };
@@ -112806,6 +112955,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -112954,6 +113113,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -113140,6 +113309,16 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               owner_id?: string;
               owner_kind?: string;
               /** Format: int64 */
@@ -113465,9 +113644,14 @@ export interface operations {
               queue_generation?: number;
               queue_position: number;
               replayed: boolean;
+              reply_watch?: {
+                id: string;
+                state: string;
+              } | null;
               status: string;
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_workspace_id?: string;
               turn_id?: string;
             };
           };
@@ -113737,9 +113921,14 @@ export interface operations {
               queue_generation?: number;
               queue_position: number;
               replayed: boolean;
+              reply_watch?: {
+                id: string;
+                state: string;
+              } | null;
               status: string;
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_workspace_id?: string;
               turn_id?: string;
             };
           };
@@ -116757,9 +116946,14 @@ export interface operations {
               queue_generation?: number;
               queue_position: number;
               replayed: boolean;
+              reply_watch?: {
+                id: string;
+                state: string;
+              } | null;
               status: string;
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_workspace_id?: string;
               turn_id?: string;
             };
           };
@@ -117164,6 +117358,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -117244,6 +117448,16 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              origin?: {
+                agent_name?: string;
+                hop: number;
+                kind: string;
+                notify_on_complete?: boolean;
+                reply_watch_id?: string;
+                session_id: string;
+                title_at_send?: string;
+                workspace_id: string;
+              } | null;
               parent_session_id?: string;
               provider_error?: {
                 code: string;
@@ -117304,6 +117518,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -117332,6 +117547,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               };
             } | null;
             subagents_snapshot?: {
@@ -117344,6 +117578,7 @@ export interface operations {
                 depth: number;
                 error: string | null;
                 hint?: string;
+                isolation: string;
                 origin: string;
                 parent_session_id: string;
                 parent_turn_id: string;
@@ -117372,6 +117607,25 @@ export interface operations {
                 wait_timed_out: boolean;
                 work_state: string;
                 workspace_id: string;
+                worktree?: {
+                  base_ref: string;
+                  base_sha?: string;
+                  branch: string;
+                  commits_ahead?: number | null;
+                  dirty_files?: number | null;
+                  head_sha?: string;
+                  id: string;
+                  name: string;
+                  /** Format: date-time */
+                  observed_at?: string | null;
+                  path: string;
+                  pull_request?: {
+                    number: number;
+                    state: string;
+                    url: string;
+                  } | null;
+                  pull_request_status?: string;
+                } | null;
               }[];
             } | null;
             transcript_delta?: {
@@ -117628,6 +117882,7 @@ export interface operations {
               depth: number;
               error: string | null;
               hint?: string;
+              isolation: string;
               origin: string;
               parent_session_id: string;
               parent_turn_id: string;
@@ -117656,6 +117911,25 @@ export interface operations {
               wait_timed_out: boolean;
               work_state: string;
               workspace_id: string;
+              worktree?: {
+                base_ref: string;
+                base_sha?: string;
+                branch: string;
+                commits_ahead?: number | null;
+                dirty_files?: number | null;
+                head_sha?: string;
+                id: string;
+                name: string;
+                /** Format: date-time */
+                observed_at?: string | null;
+                path: string;
+                pull_request?: {
+                  number: number;
+                  state: string;
+                  url: string;
+                } | null;
+                pull_request_status?: string;
+              } | null;
             }[];
           };
         };
@@ -118092,6 +118366,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -118654,6 +118929,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -118916,6 +119192,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -121247,6 +121524,7 @@ export interface operations {
             depth: number;
             error: string | null;
             hint?: string;
+            isolation: string;
             origin: string;
             parent_session_id: string;
             parent_turn_id: string;
@@ -121275,6 +121553,25 @@ export interface operations {
             wait_timed_out: boolean;
             work_state: string;
             workspace_id: string;
+            worktree?: {
+              base_ref: string;
+              base_sha?: string;
+              branch: string;
+              commits_ahead?: number | null;
+              dirty_files?: number | null;
+              head_sha?: string;
+              id: string;
+              name: string;
+              /** Format: date-time */
+              observed_at?: string | null;
+              path: string;
+              pull_request?: {
+                number: number;
+                state: string;
+                url: string;
+              } | null;
+              pull_request_status?: string;
+            } | null;
           };
         };
       };
@@ -125741,6 +126038,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126003,6 +126301,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126265,6 +126564,7 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
+                | "message_hop_limit"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"

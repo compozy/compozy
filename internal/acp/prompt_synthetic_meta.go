@@ -77,6 +77,12 @@ func (m PromptSyntheticMeta) IsZero() bool {
 // Validate ensures the synthetic metadata carries the minimum wake-up identity.
 func (m PromptSyntheticMeta) Validate() error {
 	normalized := m.Normalize()
+	if normalized.Hop < 0 || normalized.Hop > MaxSessionMessageHops {
+		return invalidPromptMetadata("acp: invalid synthetic prompt hop")
+	}
+	if normalized.Kind != PromptSyntheticKindSessionReply && normalized.Hop != 0 {
+		return invalidPromptMetadata("acp: only session replies carry a synthetic hop")
+	}
 	if normalized.Reason == "" {
 		return invalidPromptMetadata("acp: synthetic prompt metadata requires a reason")
 	}

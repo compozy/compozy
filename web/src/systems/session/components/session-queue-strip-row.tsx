@@ -12,6 +12,10 @@ import {
 } from "../lib/queued-prompt";
 import { queuedPromptPreview } from "../lib/queued-prompt-preview";
 import type { UnconfirmedSend } from "../lib/session-unconfirmed-send";
+import type { SessionMessageOrigin } from "../lib/session-message-payload";
+import { SubagentAvatar } from "./subagents/subagent-avatar";
+import { DELETED_SESSION_LABEL } from "./session-messages/session-message-party";
+import { useSessionLabel } from "./session-messages/use-session-label";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
   const parts: string[] = [];
@@ -133,6 +137,97 @@ function SessionQueuePosition({ children }: { children: ReactNode }) {
   );
 }
 
+function SessionQueuedRemove({
+  label,
+  disabled,
+  onRemove,
+}: {
+  label: string;
+  disabled: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      onClick={onRemove}
+      disabled={disabled}
+      data-testid="composer-queued-remove"
+      aria-label={label}
+      className="text-faint hover:text-fg"
+    >
+      <Trash2 aria-hidden="true" className="size-3" />
+    </Button>
+  );
+}
+
+/**
+ * A message another session sent (S4, VC-05): the sender's provider mark and
+ * "From {title}" in the owner slot. Its text is agent-authored, so it can only
+ * be removed; the daemon refuses edit and promote (409 `input_agent_authored`).
+ */
+function SessionQueuedSessionMessageRow({
+  prompt,
+  sender,
+  disabled,
+  actionsHidden,
+  onRemove,
+}: {
+  prompt: QueuedPrompt;
+  sender: SessionMessageOrigin;
+  disabled: boolean;
+  actionsHidden: boolean;
+  onRemove: (id: string) => void;
+}) {
+  const party = useSessionLabel({
+    sessionId: sender.sessionId,
+    workspaceId: sender.workspaceId,
+    currentWorkspaceId: sender.workspaceId,
+    agentName: sender.agentName,
+    titleAtSend: sender.titleAtSend,
+  });
+  const dispatching = prompt.status === "dispatching";
+  const title = party.title ?? DELETED_SESSION_LABEL;
+  return (
+    <SessionQueueRowFrame data-status={prompt.status} data-origin="session">
+      <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
+      <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
+      <span
+        data-testid="composer-queued-sender"
+        className="inline-flex max-w-[44%] min-w-0 shrink-0 items-center gap-1.5 text-micro text-muted"
+      >
+        <SubagentAvatar provider={party.agentName} size="sm" className="size-4.5" />
+        <span className="shrink-0">From</span>
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            party.title === null ? "font-medium text-muted" : "font-medium text-fg-2"
+          )}
+        >
+          {title}
+        </span>
+      </span>
+      {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
+      <SessionQueuedPreview text={prompt.text} />
+      {dispatching ? (
+        <SessionQueuedState spinning testId="composer-queued-state">
+          Sending…
+        </SessionQueuedState>
+      ) : null}
+      {isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden ? (
+        <div className="flex shrink-0 items-center gap-px">
+          <SessionQueuedRemove
+            label={`Remove message from ${title}`}
+            disabled={disabled}
+            onRemove={() => onRemove(prompt.id)}
+          />
+        </div>
+      ) : null}
+    </SessionQueueRowFrame>
+  );
+}
+
 export interface SessionQueueEntryRowProps {
   prompt: QueuedPrompt;
   /** Row verbs are suspended (a mutation or send is in flight). */
@@ -159,8 +254,20 @@ export function SessionQueueEntryRow({
   onEdit,
   onRemove,
 }: SessionQueueEntryRowProps) {
+  if (prompt.sender) {
+    return (
+      <SessionQueuedSessionMessageRow
+        prompt={prompt}
+        sender={prompt.sender}
+        disabled={disabled}
+        actionsHidden={actionsHidden}
+        onRemove={onRemove}
+      />
+    );
+  }
   const dispatching = prompt.status === "dispatching";
-  const mutable = isQueuedPromptMutable(prompt) && prompt.owner === null;
+  const mutable =
+    isQueuedPromptMutable(prompt) && prompt.owner === null && !dispatching && !actionsHidden;
   return (
     <SessionQueueRowFrame data-status={prompt.status} data-owner-kind={prompt.owner?.kind}>
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
@@ -173,7 +280,7 @@ export function SessionQueueEntryRow({
           Sending…
         </SessionQueuedState>
       ) : null}
-      {mutable && !dispatching && !actionsHidden ? (
+      {mutable ? (
         <div className="flex shrink-0 items-center gap-px">
           <Button
             type="button"
@@ -206,18 +313,11 @@ export function SessionQueueEntryRow({
               <Pencil aria-hidden="true" className="size-3" />
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => onRemove(prompt.id)}
+          <SessionQueuedRemove
+            label="Remove from queue"
             disabled={disabled}
-            data-testid="composer-queued-remove"
-            aria-label="Remove from queue"
-            className="text-faint hover:text-fg"
-          >
-            <Trash2 aria-hidden="true" className="size-3" />
-          </Button>
+            onRemove={() => onRemove(prompt.id)}
+          />
         </div>
       ) : null}
     </SessionQueueRowFrame>

@@ -30,6 +30,8 @@ type nativeSubagentTargetInput struct {
 }
 
 type nativeSubagentDelegateInput struct {
+	Isolation      string                    `json:"isolation"`
+	BaseRef        string                    `json:"base_ref"`
 	Task           string                    `json:"task"`
 	Title          string                    `json:"title"`
 	Role           string                    `json:"role"`
@@ -71,9 +73,17 @@ func (in nativeSubagentDelegateInput) request(caller session.SubagentCaller) (se
 		}
 	}
 	return session.SubagentRequest{
-		Caller: caller, Task: in.Task, Title: title, Role: cmp.Or(in.Role, "general"),
-		Mode: cmp.Or(in.Mode, session.SubagentModeAsync), Timeout: time.Duration(timeout) * time.Millisecond,
-		IdempotencyKey: cmp.Or(in.IdempotencyKey, caller.ToolCallID), PermissionMode: mode, Narrowing: narrowing,
+		Isolation:      in.Isolation,
+		BaseRef:        in.BaseRef,
+		Caller:         caller,
+		Task:           in.Task,
+		Title:          title,
+		Role:           cmp.Or(in.Role, "general"),
+		Mode:           cmp.Or(in.Mode, session.SubagentModeAsync),
+		Timeout:        time.Duration(timeout) * time.Millisecond,
+		IdempotencyKey: cmp.Or(in.IdempotencyKey, caller.ToolCallID),
+		PermissionMode: mode,
+		Narrowing:      narrowing,
 		Target: session.SubagentTarget{
 			Agent:           in.Target.Agent,
 			Provider:        in.Target.Provider,

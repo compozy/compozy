@@ -115546,6 +115546,42 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "parent_session_id": {
                             "type": "string"
                           },
@@ -116127,6 +116163,42 @@
                                   "format": "date-time",
                                   "nullable": true,
                                   "type": "string"
+                                },
+                                "origin": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "agent_name": {
+                                      "type": "string"
+                                    },
+                                    "hop": {
+                                      "type": "integer"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "notify_on_complete": {
+                                      "type": "boolean"
+                                    },
+                                    "reply_watch_id": {
+                                      "type": "string"
+                                    },
+                                    "session_id": {
+                                      "type": "string"
+                                    },
+                                    "title_at_send": {
+                                      "type": "string"
+                                    },
+                                    "workspace_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "hop",
+                                    "kind",
+                                    "session_id",
+                                    "workspace_id"
+                                  ],
+                                  "type": "object"
                                 },
                                 "parent_session_id": {
                                   "type": "string"
@@ -117680,6 +117752,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -117924,6 +118032,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -118096,6 +118240,9 @@
                             "hint": {
                               "type": "string"
                             },
+                            "isolation": {
+                              "type": "string"
+                            },
                             "origin": {
                               "type": "string"
                             },
@@ -118183,6 +118330,76 @@
                             },
                             "workspace_id": {
                               "type": "string"
+                            },
+                            "worktree": {
+                              "nullable": true,
+                              "properties": {
+                                "base_ref": {
+                                  "type": "string"
+                                },
+                                "base_sha": {
+                                  "type": "string"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                },
+                                "commits_ahead": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "dirty_files": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "head_sha": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "pull_request": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "number": {
+                                      "type": "integer"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "number",
+                                    "state",
+                                    "url"
+                                  ],
+                                  "type": "object"
+                                },
+                                "pull_request_status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base_ref",
+                                "branch",
+                                "id",
+                                "name",
+                                "path"
+                              ],
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -118191,6 +118408,7 @@
                             "delivery",
                             "depth",
                             "error",
+                            "isolation",
                             "origin",
                             "parent_session_id",
                             "parent_turn_id",
@@ -118248,6 +118466,9 @@
                                 "type": "string"
                               },
                               "hint": {
+                                "type": "string"
+                              },
+                              "isolation": {
                                 "type": "string"
                               },
                               "origin": {
@@ -118337,6 +118558,76 @@
                               },
                               "workspace_id": {
                                 "type": "string"
+                              },
+                              "worktree": {
+                                "nullable": true,
+                                "properties": {
+                                  "base_ref": {
+                                    "type": "string"
+                                  },
+                                  "base_sha": {
+                                    "type": "string"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  },
+                                  "commits_ahead": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "dirty_files": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "head_sha": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "pull_request": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "number": {
+                                        "type": "integer"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "number",
+                                      "state",
+                                      "url"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "pull_request_status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "base_ref",
+                                  "branch",
+                                  "id",
+                                  "name",
+                                  "path"
+                                ],
+                                "type": "object"
                               }
                             },
                             "required": [
@@ -118345,6 +118636,7 @@
                               "delivery",
                               "depth",
                               "error",
+                              "isolation",
                               "origin",
                               "parent_session_id",
                               "parent_turn_id",
@@ -191215,6 +191507,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -192801,6 +193094,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -193233,6 +193527,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -194216,6 +194511,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -194609,6 +194905,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195007,6 +195304,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -195576,6 +195874,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195940,6 +196239,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -196331,6 +196631,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -196729,6 +197030,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -197272,6 +197574,7 @@
                               "input_request_superseded",
                               "invalid_cwd",
                               "journal_unavailable",
+                              "message_hop_limit",
                               "model_not_found",
                               "profile_archived",
                               "profile_selection_conflict",
@@ -197711,6 +198014,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -198102,6 +198406,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -198466,6 +198771,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -198857,6 +199163,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199250,6 +199557,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199614,6 +199922,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -199976,6 +200285,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200338,6 +200648,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200776,6 +201087,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -201436,6 +201748,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -202105,6 +202418,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -202498,6 +202812,7 @@
                                 "input_request_superseded",
                                 "invalid_cwd",
                                 "journal_unavailable",
+                                "message_hop_limit",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -202896,6 +203211,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -272785,6 +273101,42 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "parent_session_id": {
                             "type": "string"
                           },
@@ -279235,6 +279587,42 @@
                                   "nullable": true,
                                   "type": "string"
                                 },
+                                "origin": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "agent_name": {
+                                      "type": "string"
+                                    },
+                                    "hop": {
+                                      "type": "integer"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "notify_on_complete": {
+                                      "type": "boolean"
+                                    },
+                                    "reply_watch_id": {
+                                      "type": "string"
+                                    },
+                                    "session_id": {
+                                      "type": "string"
+                                    },
+                                    "title_at_send": {
+                                      "type": "string"
+                                    },
+                                    "workspace_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "hop",
+                                    "kind",
+                                    "session_id",
+                                    "workspace_id"
+                                  ],
+                                  "type": "object"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -281774,6 +282162,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -281783,6 +282187,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -282147,6 +282554,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -282156,6 +282579,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -282667,6 +283093,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -282676,6 +283118,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -283113,6 +283558,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -283122,6 +283583,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -283635,6 +284099,22 @@
                             "replayed": {
                               "type": "boolean"
                             },
+                            "reply_watch": {
+                              "nullable": true,
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
                             "status": {
                               "type": "string"
                             },
@@ -283644,6 +284124,9 @@
                                 "pending_injection",
                                 "interrupt_fallback"
                               ],
+                              "type": "string"
+                            },
+                            "target_workspace_id": {
                               "type": "string"
                             },
                             "turn_id": {
@@ -284144,6 +284627,42 @@
                           "mode": {
                             "type": "string"
                           },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
                           "owner_id": {
                             "type": "string"
                           },
@@ -284643,6 +285162,42 @@
                           },
                           "mode": {
                             "type": "string"
+                          },
+                          "origin": {
+                            "nullable": true,
+                            "properties": {
+                              "agent_name": {
+                                "type": "string"
+                              },
+                              "hop": {
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "notify_on_complete": {
+                                "type": "boolean"
+                              },
+                              "reply_watch_id": {
+                                "type": "string"
+                              },
+                              "session_id": {
+                                "type": "string"
+                              },
+                              "title_at_send": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "hop",
+                              "kind",
+                              "session_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
                           },
                           "owner_id": {
                             "type": "string"
@@ -285357,6 +285912,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -285366,6 +285937,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -285681,6 +286255,42 @@
                         },
                         "mode": {
                           "type": "string"
+                        },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
                         },
                         "owner_id": {
                           "type": "string"
@@ -286483,6 +287093,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -286492,6 +287118,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -295275,6 +295904,22 @@
                         "replayed": {
                           "type": "boolean"
                         },
+                        "reply_watch": {
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "type": "object"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -295284,6 +295929,9 @@
                             "pending_injection",
                             "interrupt_fallback"
                           ],
+                          "type": "string"
+                        },
+                        "target_workspace_id": {
                           "type": "string"
                         },
                         "turn_id": {
@@ -296349,6 +296997,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -296593,6 +297277,42 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "origin": {
+                          "nullable": true,
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "hop": {
+                              "type": "integer"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "notify_on_complete": {
+                              "type": "boolean"
+                            },
+                            "reply_watch_id": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "title_at_send": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "hop",
+                            "kind",
+                            "session_id",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
                         "parent_session_id": {
                           "type": "string"
                         },
@@ -296765,6 +297485,9 @@
                             "hint": {
                               "type": "string"
                             },
+                            "isolation": {
+                              "type": "string"
+                            },
                             "origin": {
                               "type": "string"
                             },
@@ -296852,6 +297575,76 @@
                             },
                             "workspace_id": {
                               "type": "string"
+                            },
+                            "worktree": {
+                              "nullable": true,
+                              "properties": {
+                                "base_ref": {
+                                  "type": "string"
+                                },
+                                "base_sha": {
+                                  "type": "string"
+                                },
+                                "branch": {
+                                  "type": "string"
+                                },
+                                "commits_ahead": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "dirty_files": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "head_sha": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "pull_request": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "number": {
+                                      "type": "integer"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "number",
+                                    "state",
+                                    "url"
+                                  ],
+                                  "type": "object"
+                                },
+                                "pull_request_status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base_ref",
+                                "branch",
+                                "id",
+                                "name",
+                                "path"
+                              ],
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -296860,6 +297653,7 @@
                             "delivery",
                             "depth",
                             "error",
+                            "isolation",
                             "origin",
                             "parent_session_id",
                             "parent_turn_id",
@@ -296917,6 +297711,9 @@
                                 "type": "string"
                               },
                               "hint": {
+                                "type": "string"
+                              },
+                              "isolation": {
                                 "type": "string"
                               },
                               "origin": {
@@ -297006,6 +297803,76 @@
                               },
                               "workspace_id": {
                                 "type": "string"
+                              },
+                              "worktree": {
+                                "nullable": true,
+                                "properties": {
+                                  "base_ref": {
+                                    "type": "string"
+                                  },
+                                  "base_sha": {
+                                    "type": "string"
+                                  },
+                                  "branch": {
+                                    "type": "string"
+                                  },
+                                  "commits_ahead": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "dirty_files": {
+                                    "nullable": true,
+                                    "type": "integer"
+                                  },
+                                  "head_sha": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "observed_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "pull_request": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "number": {
+                                        "type": "integer"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "number",
+                                      "state",
+                                      "url"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "pull_request_status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "base_ref",
+                                  "branch",
+                                  "id",
+                                  "name",
+                                  "path"
+                                ],
+                                "type": "object"
                               }
                             },
                             "required": [
@@ -297014,6 +297881,7 @@
                               "delivery",
                               "depth",
                               "error",
+                              "isolation",
                               "origin",
                               "parent_session_id",
                               "parent_turn_id",
@@ -297737,6 +298605,9 @@
                           "hint": {
                             "type": "string"
                           },
+                          "isolation": {
+                            "type": "string"
+                          },
                           "origin": {
                             "type": "string"
                           },
@@ -297824,6 +298695,76 @@
                           },
                           "workspace_id": {
                             "type": "string"
+                          },
+                          "worktree": {
+                            "nullable": true,
+                            "properties": {
+                              "base_ref": {
+                                "type": "string"
+                              },
+                              "base_sha": {
+                                "type": "string"
+                              },
+                              "branch": {
+                                "type": "string"
+                              },
+                              "commits_ahead": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "dirty_files": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "head_sha": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "observed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "pull_request": {
+                                "nullable": true,
+                                "properties": {
+                                  "number": {
+                                    "type": "integer"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "number",
+                                  "state",
+                                  "url"
+                                ],
+                                "type": "object"
+                              },
+                              "pull_request_status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "base_ref",
+                              "branch",
+                              "id",
+                              "name",
+                              "path"
+                            ],
+                            "type": "object"
                           }
                         },
                         "required": [
@@ -297832,6 +298773,7 @@
                           "delivery",
                           "depth",
                           "error",
+                          "isolation",
                           "origin",
                           "parent_session_id",
                           "parent_turn_id",
@@ -298762,6 +299704,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -299720,6 +300663,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -300082,6 +301026,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -306248,6 +307193,9 @@
                     "hint": {
                       "type": "string"
                     },
+                    "isolation": {
+                      "type": "string"
+                    },
                     "origin": {
                       "type": "string"
                     },
@@ -306335,6 +307283,76 @@
                     },
                     "workspace_id": {
                       "type": "string"
+                    },
+                    "worktree": {
+                      "nullable": true,
+                      "properties": {
+                        "base_ref": {
+                          "type": "string"
+                        },
+                        "base_sha": {
+                          "type": "string"
+                        },
+                        "branch": {
+                          "type": "string"
+                        },
+                        "commits_ahead": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "dirty_files": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "head_sha": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "observed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "pull_request": {
+                          "nullable": true,
+                          "properties": {
+                            "number": {
+                              "type": "integer"
+                            },
+                            "state": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "number",
+                            "state",
+                            "url"
+                          ],
+                          "type": "object"
+                        },
+                        "pull_request_status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "base_ref",
+                        "branch",
+                        "id",
+                        "name",
+                        "path"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -306343,6 +307361,7 @@
                     "delivery",
                     "depth",
                     "error",
+                    "isolation",
                     "origin",
                     "parent_session_id",
                     "parent_turn_id",
@@ -318045,6 +319064,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -318407,6 +319427,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -318769,6 +319790,7 @@
                             "input_request_superseded",
                             "invalid_cwd",
                             "journal_unavailable",
+                            "message_hop_limit",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",

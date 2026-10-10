@@ -33,6 +33,7 @@ type promptRequest struct {
 	commitDispatch         func(context.Context) error
 	skillInvocations       []commandpkg.Invocation
 	attachments            []AttachmentMeta
+	notifyOnComplete       bool
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -58,6 +59,7 @@ func (m *Manager) recordPromptInputEvent(
 		Timestamp: m.now(),
 		Text:      req.message,
 	}
+	event = event.WithPromptOrigin(req.meta.Origin)
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
 	event = event.WithSkillInvocations(req.skillInvocations)
 	event = event.WithAttachments(promptEventAttachments(req.attachments))

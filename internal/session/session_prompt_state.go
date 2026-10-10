@@ -33,6 +33,7 @@ func (s *Session) beginExclusivePromptSetupForRequest(
 	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
 	s.currentPromptDelivery = req.delivery
 	s.currentPromptMeta = req.meta.Normalize()
+	s.currentTurnHopFloor = promptMetaHop(s.currentPromptMeta)
 	s.currentSkillInvocations = cloneSkillInvocations(req.skillInvocations)
 	s.currentPromptCancel = cancel
 	s.currentPromptCancelTurn = ""
@@ -156,6 +157,7 @@ func (s *Session) setCurrentPromptMeta(meta acp.PromptMeta) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptMeta = meta.Normalize()
+	s.currentTurnHopFloor = max(s.currentTurnHopFloor, promptMetaHop(s.currentPromptMeta))
 }
 
 func (s *Session) setCurrentPromptMessage(message string) {

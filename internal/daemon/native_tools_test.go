@@ -12636,6 +12636,27 @@ func requireNativeDerivePartial(t *testing.T, err error, want string) {
 
 // The native binding suite owns caller resolution, request translation, and public error mapping.
 func TestNativeSubagentBindings(t *testing.T) {
+	t.Run("Should carry isolation inputs and expose optional worktree facts", func(t *testing.T) {
+		t.Parallel()
+		input := nativeSubagentDelegateInput{Task: "work", Isolation: "worktree", BaseRef: "origin/main"}
+		req, err := input.request(session.SubagentCaller{ToolCallID: "call"})
+		if err != nil || req.Isolation != "worktree" || req.BaseRef != "origin/main" {
+			t.Fatal(req, err)
+		}
+		row := session.Subagent{
+			Isolation: "worktree",
+			Worktree:  &store.SubagentWorktreeState{ID: "wt", Branch: "run/a"},
+		}
+		output := subagentPayload(&row)
+		if output["isolation"] != "worktree" || output["worktree"] == nil {
+			t.Fatal(output)
+		}
+		row.Isolation = "shared"
+		output = subagentPayload(&row)
+		if _, ok := output["worktree"]; ok {
+			t.Fatal(output)
+		}
+	})
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -13062,6 +13083,111 @@ func TestNativeSubagentHostedCaller(t *testing.T) {
 				}
 			} else if !errors.Is(err, session.ErrSubagentParentNotActive) {
 				t.Fatalf("hosted caller error = %v", err)
+			}
+		})
+	}
+}
+
+type originNativeSessionManager struct {
+	core.SessionManager
+	hop int
+}
+
+var _ nativeSessionHopReader = originNativeSessionManager{}
+
+func (m originNativeSessionManager) CurrentTurnEffectiveHop(context.Context, string) (int, error) {
+	return m.hop, nil
+}
+
+func TestNativeSessionPromptOrigin(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		operator bool
+		target   string
+		hop      int
+		code     toolspkg.ErrorCode
+	}{
+		{"Should stamp agent scope and notify", false, "target", 0, ""},
+		{"Should admit the eighth hop", false, "target", 7, ""},
+		{"Should reject the ninth hop", false, "target", 8, toolspkg.ErrorCodeSessionMessageHopLimit},
+		{"Should reject self targeting", false, "sender", 0, toolspkg.ErrorCodeInvalidRequest},
+		{"Should leave operator prompts unattributed", true, "target", 0, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got *session.SendPromptOpts
+			base := nativeTestSessionManager("ws-origin")
+			base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					ProfileID:   store.DefaultProfileID,
+					Name:        "Sender title",
+					WorkspaceID: "ws-origin",
+					AgentName:   "coder",
+					State:       session.StateActive,
+				}, nil
+			}
+			base.SendPromptFn = func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				got = &opts
+				return session.SendPromptResult{Status: "accepted", MessageID: opts.MessageID}, nil
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions:   originNativeSessionManager{SessionManager: base, hop: tc.hop},
+					Workspaces: nativeTestWorkspaceService(t),
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input, err := json.Marshal(
+				map[string]any{
+					"workspace":          "ws-origin",
+					"session_id":         tc.target,
+					"message":            "Q?",
+					"message_id":         "msg",
+					"idempotency_key":    "key",
+					"notify_on_complete": !tc.operator,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					SessionID:   "sender",
+					WorkspaceID: "ws-origin",
+					AgentName:   "coder",
+					Operator:    tc.operator,
+				},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input},
+			)
+			if err != nil {
+				t.Logf("native cause: %v", errors.Unwrap(err))
+			}
+			if tc.code != "" {
+				requireToolCode(t, err, tc.code)
+				if got != nil {
+					t.Fatal("rejected message admitted")
+				}
+				return
+			}
+			if err != nil || got == nil {
+				t.Fatal(got, err)
+			}
+			if tc.operator {
+				if got.Origin != nil {
+					t.Fatal(got.Origin)
+				}
+				return
+			}
+			if got.Origin == nil || got.Origin.SessionID != "sender" || got.Origin.WorkspaceID != "ws-origin" ||
+				got.Origin.TitleAtSend != "Sender title" ||
+				got.Origin.AgentName != "coder" ||
+				got.Origin.Hop != tc.hop+1 ||
+				!got.NotifyOnComplete {
+				t.Fatal(got)
 			}
 		})
 	}

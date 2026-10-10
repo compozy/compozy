@@ -8,8 +8,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -630,4 +633,290 @@ func replyQueuedInput(
 		t.Fatalf("admission = %+v", admitted)
 	}
 	return entry
+}
+
+// Invariant: real admission faults preserve the dispatch boundary and never invent a reply.
+// Owner: session admission/service; canonical reply suite (IT-019).
+func TestReplyWatchAdmissionFaults(t *testing.T) {
+	for _, fault := range []string{"precommit", "before input", "after input"} {
+		t.Run("Should reconcile a real fault "+fault, func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, _ := replyWatchFixture(t)
+			h.manager.SetReplyWatchService(service)
+			if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+				t.Fatal(err)
+			}
+			switch fault {
+			case "precommit":
+				_, err := db.DB().
+					ExecContext(t.Context(), `CREATE TRIGGER reject_reply_dispatch BEFORE UPDATE OF state ON session_prompt_admissions WHEN NEW.message_id='fault-message' AND NEW.state='dispatch_committed' BEGIN SELECT RAISE(ABORT, 'dispatch commit fault'); END`)
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "before input":
+				h.manager.hooks = fullHookSet(
+					&spyHookDispatcher{
+						dispatchInputPreSubmitFn: func(_ context.Context, p hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+							return p, errors.New("input hook fault")
+						},
+					},
+				)
+			case "after input":
+				h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					return nil, errors.New("provider dispatch fault")
+				}
+			}
+			_, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+				Message:          "question",
+				MessageID:        "fault-message",
+				IdempotencyKey:   "fault-key",
+				NotifyOnComplete: true,
+				Origin: &acp.PromptOriginMeta{
+					Kind:        "session",
+					SessionID:   sender.ID,
+					WorkspaceID: h.workspaceID,
+					Hop:         3,
+				},
+			})
+			if err == nil {
+				t.Fatal("fault did not fail the send")
+			}
+			id := store.ReplyWatchID(target.ID, "fault-message")
+			watch, getErr := db.GetReplyWatch(t.Context(), id)
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if fault == "precommit" {
+				if errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) || watch.State != "abandoned" ||
+					watch.AbandonReason != "send_failed" {
+					t.Fatalf("precommit = %+v, %v", watch, err)
+				}
+				return
+			}
+			if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) || watch.State != "armed" {
+				t.Fatalf("postcommit = %+v, %v", watch, err)
+			}
+			rows, err := h.manager.Events(
+				t.Context(),
+				target.ID,
+				store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantInputs := 0
+			if fault == "after input" {
+				wantInputs = 1
+			}
+			if len(rows) != wantInputs {
+				t.Fatalf("inputs = %d, want %d", len(rows), wantInputs)
+			}
+			if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+				t.Fatal(err)
+			}
+			waitForCondition(t, "reply reconciled after stop finalization", func() bool {
+				current, err := db.GetReplyWatch(t.Context(), id)
+				return err == nil && current.State == store.ReplyWatchFired
+			})
+			watch, err = db.GetReplyWatch(t.Context(), id)
+			want := "unknown"
+			if fault == "after input" {
+				want = "canceled"
+			}
+			if err != nil || watch.State != "fired" || watch.Outcome != want {
+				t.Fatalf("settled = %+v, %v", watch, err)
+			}
+		})
+	}
+}
+
+// The store decorator gates the result write, leaving real admission and event transactions intact.
+type replyAdmissionCompletionBarrier struct {
+	store.SessionPromptAdmissionStore
+	beforeComplete func(context.Context) error
+}
+
+func (b replyAdmissionCompletionBarrier) CompleteSessionPromptAdmission(
+	ctx context.Context,
+	workspace, target, key string,
+	result store.SessionPromptAdmissionResult,
+	now time.Time,
+) (store.SessionPromptAdmission, error) {
+	if err := b.beforeComplete(ctx); err != nil {
+		return store.SessionPromptAdmission{}, err
+	}
+	return b.SessionPromptAdmissionStore.CompleteSessionPromptAdmission(ctx, workspace, target, key, result, now)
+}
+
+// Invariant: settlement before the result receipt binds still fires exactly once (IT-017).
+func TestReplyWatchFastSettlement(t *testing.T) {
+	t.Run("Should reconcile a completed turn before returning its admission receipt", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, _ := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		id := store.ReplyWatchID(target.ID, "fast-message")
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "fast answer"}
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			close(events)
+			return events, nil
+		}
+		h.manager.promptAdmissionStore = replyAdmissionCompletionBarrier{
+			SessionPromptAdmissionStore: db,
+			beforeComplete: func(ctx context.Context) error {
+				if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+					return err
+				}
+				w, err := db.GetReplyWatch(ctx, id)
+				if err != nil {
+					return err
+				}
+				if w.State != "fired" || w.ReplyText != "fast answer" {
+					return fmt.Errorf("pre-receipt watch = %+v", w)
+				}
+				return nil
+			},
+		}
+		result, err := h.manager.SendPrompt(
+			t.Context(),
+			target.ID,
+			SendPromptOpts{
+				Message:          "fast",
+				MessageID:        "fast-message",
+				IdempotencyKey:   "fast-key",
+				NotifyOnComplete: true,
+				Origin: &acp.PromptOriginMeta{
+					Kind:        "session",
+					SessionID:   sender.ID,
+					WorkspaceID: h.workspaceID,
+					Hop:         1,
+				},
+			},
+		)
+		if err != nil || result.ReplyWatch == nil || result.ReplyWatch.ID != id {
+			t.Fatal(result, err)
+		}
+		for range result.Events {
+		}
+		replay, err := h.manager.SendPrompt(
+			t.Context(),
+			target.ID,
+			SendPromptOpts{
+				Message:          "fast",
+				MessageID:        "fast-message",
+				IdempotencyKey:   "fast-key",
+				NotifyOnComplete: true,
+				Origin: &acp.PromptOriginMeta{
+					Kind:        "session",
+					SessionID:   sender.ID,
+					WorkspaceID: h.workspaceID,
+					Hop:         1,
+				},
+			},
+		)
+		if err != nil || !replay.Replayed || replay.ReplyWatch == nil || *replay.ReplyWatch != *result.ReplyWatch {
+			t.Fatal(replay, err)
+		}
+		if len(managerPromptCalls(h)) != 1 {
+			t.Fatal("replay started another prompt")
+		}
+	})
+}
+
+// Invariant: an unconsumed pending steer follows fallback, or drops when stop supersedes it, never the old turn (IT-018).
+func TestReplyWatchSteerSupersession(t *testing.T) {
+	for _, requeue := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should resolve pending guidance with requeue=%t", requeue), func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, _ := replyWatchFixture(t)
+			h.manager.SetReplyWatchService(service)
+			if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+				t.Fatal(err)
+			}
+			target.processHandle().caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+			completion := make(chan error, 2)
+			release := make(chan struct{})
+			var once sync.Once
+			t.Cleanup(func() { close(completion); once.Do(func() { close(release) }) })
+			h.manager.driver = &steeringTestDriver{
+				fakeDriver: h.driver,
+				completion: completion,
+				steer: func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error) {
+					return acp.SteerAttemptPendingInjection, nil
+				},
+			}
+			h.driver.cancelHook = func(*fakeProcess) error { once.Do(func() { close(release) }); return nil }
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				go func() {
+					defer close(events)
+					if req.Message == "hold" {
+						<-release
+					}
+					events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "new turn answer"}
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+				}()
+				return events, nil
+			}
+			held, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{Message: "hold"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := target.CurrentTurnID()
+			result, err := h.manager.SendPrompt(
+				t.Context(),
+				target.ID,
+				SendPromptOpts{
+					Message:          "guidance",
+					MessageID:        "pending-message",
+					IdempotencyKey:   "pending-key",
+					Mode:             BusyInputModeSteer,
+					NotifyOnComplete: true,
+					Origin: &acp.PromptOriginMeta{
+						Kind:        "session",
+						SessionID:   sender.ID,
+						WorkspaceID: h.workspaceID,
+						Hop:         2,
+					},
+				},
+			)
+			if err != nil || result.SteerDelivery != store.SteerDeliveryPendingInjection || result.ReplyWatch == nil {
+				t.Fatal(result, err)
+			}
+			watch, err := db.GetReplyWatch(t.Context(), result.ReplyWatch.ID)
+			if err != nil || watch.State != "armed" {
+				t.Fatal(watch, err)
+			}
+			if requeue {
+				completion <- errors.New("pending injection superseded by provider")
+			} else {
+				if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+					t.Fatal(err)
+				}
+				completion <- errors.New("pending injection superseded by stop")
+			}
+			waitForCondition(t, "pending watch resolved", func() bool {
+				w, e := db.GetReplyWatch(t.Context(), result.ReplyWatch.ID)
+				return e == nil && w.State == "fired"
+			})
+			watch, err = db.GetReplyWatch(t.Context(), result.ReplyWatch.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if requeue {
+				if watch.Outcome != "completed" || watch.TurnID == original || watch.ReplyText != "new turn answer" {
+					t.Fatal(watch)
+				}
+			} else if watch.Outcome != "dropped" || watch.TurnID != "" {
+				t.Fatal(watch)
+			}
+			once.Do(func() { close(release) })
+			for range held.Events {
+			}
+		})
+	}
 }

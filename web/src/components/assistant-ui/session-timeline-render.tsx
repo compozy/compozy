@@ -28,6 +28,7 @@ import { SessionToolGroupRow } from "./session-tool-group-row";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
 import { SessionSubagentRowView } from "./session-subagent-row";
+import { SessionSentMessageRowView } from "./session-sent-message-row";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
@@ -290,6 +291,8 @@ const TimelineRowContent = memo(
         return <SessionTurnFoldRowContent row={row} />;
       case "subagents":
         return <SessionSubagentRowContent row={row} />;
+      case "session-message":
+        return <SessionSentMessageRowView row={row} />;
     }
   },
   (previous, next) => sessionRowEqual(previous.row, next.row)

@@ -38,6 +38,9 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
    with the deleted-session label. Cancel or clear an already delivered wake: no replacement wake
    appears, including after restart.
 
-Task 04 phase-1 scope: store/session/projection checks provide component evidence. The native
-ask-and-wait walk requires phase-2 origin admission wiring; this scenario remains untested until the
-controller's integrated QA run. This worker packet prohibits starting QA labs or full E2E runs.
+Task 04 automated evidence covers admission/watch atomicity, legacy replay exclusion, native
+receipts in every prompt mode, exact reply content, queue priority, restart, abrupt process loss,
+provider/commit faults, pending steering, and the automatic eight-hop reply limit. The canonical
+owners are the session reply suite, global admission/queue suite, and daemon subagent integration
+suite. Public Web/real-provider QA remains untested until the controller's integrated QA run;
+this worker packet prohibits QA labs and full E2E runs.

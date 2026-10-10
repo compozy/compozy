@@ -12,12 +12,13 @@ import (
 )
 
 type subagentSnapshot struct {
-	Info      *Info
-	TurnID    string
-	Active    bool
-	Queued    int
-	UserSteer bool
-	CanSteer  bool
+	Info       *Info
+	TurnID     string
+	Active     bool
+	Delivering bool
+	Queued     int
+	UserSteer  bool
+	CanSteer   bool
 }
 
 type subagentRuntime interface {
@@ -79,6 +80,7 @@ type subagentFlight struct {
 }
 
 type subagentService struct {
+	worktrees    SubagentWorktrees
 	store        store.SubagentStore
 	runtime      subagentRuntime
 	ctx          context.Context

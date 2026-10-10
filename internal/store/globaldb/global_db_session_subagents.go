@@ -32,6 +32,9 @@ func (g *SessionRepo) ReserveSubagent(
 	if row.Delivery == "" {
 		row.Delivery = store.SubagentDeliveryNone
 	}
+	if row.Isolation == "" {
+		row.Isolation = "shared"
+	}
 	if row.Role == "" {
 		row.Role = "general"
 	}
@@ -160,6 +163,11 @@ func (g *SessionRepo) FinalizeSubagent(
 		)
 		if e != nil {
 			return e
+		}
+		if in.WorktreeFacts != nil && in.WorktreeFacts.PRStatus != "" {
+			if e := persistSubagentWorktreeFacts(ctx, q, in.ID, *in.WorktreeFacts); e != nil {
+				return e
+			}
 		}
 		out, e = readSubagent(ctx, q, in.ID)
 		changed = n == 1

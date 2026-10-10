@@ -6,6 +6,7 @@
         "control-plane",
         "orchestration",
         "subagents",
+        "isolated-subagents",
         "health",
         "resume",
         "compaction",

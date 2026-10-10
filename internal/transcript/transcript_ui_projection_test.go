@@ -1156,3 +1156,26 @@ func TestSessionMessageUIProjection(t *testing.T) {
 		}
 	})
 }
+
+func TestPromptOriginUIProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project daemon origin while leaving operator metadata unattributed", func(t *testing.T) {
+		t.Parallel()
+		origin := &acp.PromptOriginMeta{Kind: "session", SessionID: "sess-a", WorkspaceID: "ws-a", Hop: 2}
+		event := (acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-a", Text: "question"}).WithPromptOrigin(
+			origin,
+		)
+		var got struct {
+			Origin *acp.PromptOriginMeta `json:"origin"`
+		}
+		if err := json.Unmarshal(inputUIMessageMetadata(event), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Origin == nil || *got.Origin != *origin {
+			t.Fatal(got)
+		}
+		if strings.Contains(string(inputUIMessageMetadata(event.WithPromptOrigin(nil))), `"origin"`) {
+			t.Fatal("operator acquired origin")
+		}
+	})
+}
