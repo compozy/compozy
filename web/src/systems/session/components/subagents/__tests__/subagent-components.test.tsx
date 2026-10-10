@@ -430,9 +430,11 @@ describe("Isolated subagent worktree facts (UT-070, UT-071, UT-072)", () => {
       return node as HTMLElement;
     });
   }
+  const factLabels = (facts: HTMLElement) =>
+    [...facts.querySelectorAll('[data-slot="property-row-label"]')].map(label => label.textContent);
   const factText = (facts: HTMLElement) =>
-    [...facts.querySelectorAll("dt")].map(
-      dt => `${dt.textContent}: ${dt.nextElementSibling?.textContent}`
+    [...facts.querySelectorAll('[data-slot="property-row-label"]')].map(
+      label => `${label.textContent}: ${label.nextElementSibling?.textContent}`
     );
 
   it("Should begin line two with the branch and link the PR beside, not inside, the open control (UT-070)", () => {
@@ -488,11 +490,7 @@ describe("Isolated subagent worktree facts (UT-070, UT-071, UT-072)", () => {
     expect(screen.getByTitle("run/extract-billing-client-3f9a0c12")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     const facts = await focusHover();
-    expect([...facts.querySelectorAll("dt")].map(dt => dt.textContent)).toEqual([
-      "Worktree",
-      "Branch",
-      "Base",
-    ]);
+    expect(factLabels(facts)).toEqual(["Worktree", "Branch", "Base"]);
   });
 
   it("Should show no link for an unknown PR and say PR status unknown (UT-072)", async () => {

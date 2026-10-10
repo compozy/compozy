@@ -22,8 +22,9 @@ export interface SessionLabelInput {
  * Any session a message names (S1–S4), read through the canonical detail
  * cache like `useSubagentOrigin`: the current title (a rename shows the new
  * one), the provider mark, and "a deleted session" once the read answers 404.
- * While the read is in flight the recorded title stands in; a failed read
- * that is not a 404 keeps it, because the session may still exist.
+ * While the read is in flight the recorded title stands in; with none, the
+ * label is `pending` and names nothing. A failed read that is not a 404 keeps
+ * the recorded title, or the session id, because the session may still exist.
  */
 export function useSessionLabel({
   sessionId,
@@ -42,15 +43,18 @@ export function useSessionLabel({
   const crossWorkspace = resolvedWorkspaceId !== "" && resolvedWorkspaceId !== currentWorkspaceId;
   const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
   const deleted = detail.error instanceof SessionNotFoundError;
+  const recorded = titleAtSend || null;
+  const pending = !detail.data && !detail.isError && recorded === null;
   const title = deleted
     ? null
     : detail.data
       ? getSessionDisplayTitle(detail.data)
-      : titleAtSend || "another session";
+      : (recorded ?? (detail.isError ? sessionId : null));
   return {
     sessionId,
     workspaceId: resolvedWorkspaceId,
     title,
+    ...(pending ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
     workspaceName: crossWorkspace ? (workspace.data?.workspace.name ?? null) : null,
   };

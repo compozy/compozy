@@ -36,4 +36,16 @@ describe("PropertyRow", () => {
 
     expect(screen.getByTitle(value)).toHaveTextContent(value);
   });
+
+  it("Should lay a facts row out as a fixed label column with the value beside it", () => {
+    render(
+      <PropertyRow data-testid="row" variant="facts" label="Branch" mono>
+        run/extract-billing-client-3f9a0c12
+      </PropertyRow>
+    );
+    const row = screen.getByTestId("row");
+    expect(row).toHaveAttribute("data-variant", "facts");
+    expect(row.querySelector('[data-slot="property-row-label"]')).toHaveTextContent("Branch");
+    expect(screen.getByTitle("run/extract-billing-client-3f9a0c12")).toBeInTheDocument();
+  });
 });
