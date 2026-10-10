@@ -1,6 +1,6 @@
 import { Zap } from "lucide-react";
 
-import { Icon, KindIcon, StateGlyph, Time, cn } from "@compozy/ui";
+import { Icon, KindIcon, PropertyRow, StateGlyph, Time, cn } from "@compozy/ui";
 
 import { SubagentElapsed } from "./subagent-elapsed";
 import {
@@ -12,10 +12,8 @@ import {
   subagentLocationRows,
   subagentRuntimeLabel,
 } from "./subagent-format";
+import { SubagentPullRequestLink } from "./subagent-row-trail";
 import {
-  SUBAGENT_PR_GLYPH,
-  SUBAGENT_PR_TONE,
-  subagentPullRequestLabel,
   subagentWorktree,
   subagentWorktreeFacts,
   type SubagentWorktreeFact,
@@ -24,23 +22,14 @@ import type { SubagentLocationView, SubagentView } from "./types";
 
 type HoverFact = SubagentWorktreeFact | { label: "Workspace"; kind: "mono"; value: string };
 
-function HoverFactValue({ fact }: { fact: HoverFact }) {
+/** A composed fact value; plain strings go straight to `PropertyRow` (its truncation and title). */
+function HoverFactValue({ fact }: { fact: Exclude<HoverFact, { kind: "mono" }> }) {
   switch (fact.kind) {
-    case "mono":
-      return (
-        <span className="min-w-0 truncate font-mono text-mono-id" title={fact.value}>
-          {fact.value}
-        </span>
-      );
     case "base":
       return (
         <>
-          <span className="min-w-0 truncate font-mono text-mono-id" title={fact.ref}>
-            {fact.ref}
-          </span>
-          {fact.sha ? (
-            <span className="shrink-0 font-mono text-mono-id text-subtle">· {fact.sha}</span>
-          ) : null}
+          <span className="min-w-0 truncate">{fact.ref}</span>
+          {fact.sha ? <span className="shrink-0 text-subtle">· {fact.sha}</span> : null}
         </>
       );
     case "commits":
@@ -56,20 +45,7 @@ function HoverFactValue({ fact }: { fact: HoverFact }) {
     case "pull-request":
       return (
         <>
-          <Icon
-            as={SUBAGENT_PR_GLYPH[fact.pr.state]}
-            size="sm"
-            aria-hidden="true"
-            className={SUBAGENT_PR_TONE[fact.pr.state]}
-          />
-          <a
-            href={fact.pr.url}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xxs text-fg outline-none hover:text-fg-strong hover:underline hover:underline-offset-2 focus-visible:shadow-focus-ring"
-          >
-            {subagentPullRequestLabel(fact.pr)}
-          </a>
+          <SubagentPullRequestLink pr={fact.pr} size="row" className="-ml-1" />
           <span>{fact.pr.state}</span>
         </>
       );
@@ -78,6 +54,11 @@ function HoverFactValue({ fact }: { fact: HoverFact }) {
     case "observed":
       return <Time iso={fact.iso} className="text-subtle" />;
   }
+}
+
+function hoverFactTitle(fact: HoverFact): string | undefined {
+  if (fact.kind === "base") return fact.sha ? `${fact.ref} · ${fact.sha}` : fact.ref;
+  return undefined;
 }
 
 export interface SubagentHoverContentProps {
@@ -148,19 +129,22 @@ export function SubagentHoverContent({
         </div>
       </div>
       {facts.length > 0 ? (
-        <dl
-          className="grid grid-cols-[62px_minmax(0,1fr)] gap-x-2.5 gap-y-1 border-t border-line-soft pt-2 text-transcript-caption"
+        <div
+          className="flex flex-col gap-1 border-t border-line-soft pt-2"
           data-slot="subagent-hover-facts"
         >
           {facts.map(fact => (
-            <div key={fact.label} className="contents">
-              <dt className="text-subtle">{fact.label}</dt>
-              <dd className="flex min-w-0 items-center gap-1.25 text-fg-2">
-                <HoverFactValue fact={fact} />
-              </dd>
-            </div>
+            <PropertyRow
+              key={fact.label}
+              variant="facts"
+              label={fact.label}
+              mono={fact.kind === "mono" || fact.kind === "base"}
+              valueTitle={hoverFactTitle(fact)}
+            >
+              {fact.kind === "mono" ? fact.value : <HoverFactValue fact={fact} />}
+            </PropertyRow>
           ))}
-        </dl>
+        </div>
       ) : null}
       {preview ? (
         <p

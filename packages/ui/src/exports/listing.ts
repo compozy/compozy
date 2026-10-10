@@ -113,7 +113,11 @@ export {
   DETAIL_INSPECTOR_INLINE_WIDTH,
 } from "../components/custom/detail-inspector-constants";
 export { useInlineLayout } from "../components/custom/hooks/use-inline-layout";
-export { PropertyRow, type PropertyRowProps } from "../components/custom/property-row";
+export {
+  PropertyRow,
+  type PropertyRowProps,
+  type PropertyRowVariant,
+} from "../components/custom/property-row";
 export {
   StatusCard,
   type StatusCardActionProps,

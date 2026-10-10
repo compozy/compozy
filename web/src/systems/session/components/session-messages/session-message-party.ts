@@ -8,8 +8,13 @@
 export interface SessionMessageParty {
   sessionId: string;
   workspaceId: string;
-  /** `null` = deleted: the label reads "a deleted session" and is not a link. */
+  /**
+   * `null` = deleted: the label reads "a deleted session" and is not a link —
+   * unless `pending`, when the read has not answered yet and nothing is named.
+   */
   title: string | null;
+  /** The detail read is in flight and no title was recorded: the label waits (aria-busy). */
+  pending?: boolean;
   /** Provider mark for the avatar; `null` draws the bot glyph. */
   agentName: string | null;
   /** Set only when the party lives in another workspace than this transcript (Gap 5). */
@@ -28,8 +33,12 @@ export type SessionMessageOpen = (
 
 export const DELETED_SESSION_LABEL = "a deleted session";
 
-/** "{verb} {title}" for accessible names; the deleted form never names a title. */
+/**
+ * "{verb} {title}" for accessible names; the deleted form never names a title,
+ * and a pending one names nothing until the read settles.
+ */
 export function sessionPartyPhrase(verb: string, party: SessionMessageParty): string {
+  if (party.pending) return verb;
   return `${verb} ${party.title ?? DELETED_SESSION_LABEL}`;
 }
 
