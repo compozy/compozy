@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,4 +114,50 @@ func benchmarkSessionAgentName(idx int) string {
 		return "coder"
 	}
 	return "reviewer"
+}
+
+func BenchmarkSessionDBAppendLongAssistantTurn(b *testing.B) {
+	b.ReportAllocs()
+
+	sessionDB := openBenchmarkSessionDB(b, "sess-bench-long-turn")
+	ctx := b.Context()
+	output := strings.Repeat("compiled ok\n", 400)
+	record := func(index int, payload string) {
+		if err := sessionDB.Record(ctx, store.SessionEvent{
+			TurnID: "turn-long", Type: benchmarkLongTurnEventType(index), AgentName: "coder", Content: payload,
+		}); err != nil {
+			b.Fatalf("Record(%d) error = %v", index, err)
+		}
+	}
+	appendStep := func(index int) {
+		call := fmt.Sprintf("call-%d", index)
+		if index%2 == 0 {
+			record(index, fmt.Sprintf(
+				`{"type":"tool_call","turn_id":"turn-long","tool_call_id":%q,"title":"Bash","tool_input":{"command":"go test ./..."}}`,
+				call,
+			))
+			return
+		}
+		record(index, fmt.Sprintf(
+			`{"type":"tool_result","turn_id":"turn-long","tool_call_id":%q,"tool_result":{"content":%q}}`,
+			fmt.Sprintf("call-%d", index-1), output,
+		))
+	}
+	for index := range 600 {
+		appendStep(index)
+	}
+
+	b.ResetTimer()
+	index := 600
+	for b.Loop() {
+		appendStep(index)
+		index++
+	}
+}
+
+func benchmarkLongTurnEventType(index int) string {
+	if index%2 == 0 {
+		return "tool_call"
+	}
+	return "tool_result"
 }

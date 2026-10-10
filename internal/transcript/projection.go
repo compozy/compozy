@@ -111,20 +111,12 @@ func ProjectAssignedEntry(events []store.SessionEvent, identity EntryIdentity) (
 			Marker:        &marker,
 		}, nil
 	case EntryKindAssistant:
-		toolLifecycles := make(map[string]*uiToolLifecycle)
-		builder := newUIMessageBuilder(messageID, identity.LogicalID, UIRoleAssistant, toolLifecycles)
-		for _, stored := range sorted {
-			applyDecodedEvent(builder, decodeStoredEvent(stored))
+		fold, err := NewEntryFold(identity)
+		if err != nil {
+			return nil, err
 		}
-		message := builder.build(identity.Complete || builder.finished)
-		if message == nil {
-			return nil, nil
-		}
-		return &Entry{
-			Message:       *message,
-			StartSequence: identity.StartSequence,
-			Sequence:      identity.UpdatedSequence,
-		}, nil
+		fold.applySorted(sorted)
+		return fold.Entry(identity), nil
 	default:
 		return nil, fmt.Errorf("%w: unsupported entry kind %q", ErrProjectionCorrupt, identity.Kind)
 	}

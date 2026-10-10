@@ -81,14 +81,17 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 	case sessionWriteHookRun:
 		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
 	case sessionWriteArchive:
+		s.transcriptFolds.reset()
 		result, err := s.writeArchiveEvents(req.ctx, req.archive)
 		return sessionWriteResult{archive: result, err: err}
 	case sessionWriteConversationRewindBaselineRefresh:
 		return sessionWriteResult{err: s.writeConversationRewindBaselineRefresh(req.ctx, req.baseline)}
 	case sessionWriteConversationRewind:
+		s.transcriptFolds.reset()
 		result, err := s.writeConversationRewind(req.ctx, req.rewind)
 		return sessionWriteResult{rewind: result, err: err}
 	case sessionWriteClear:
+		s.transcriptFolds.reset()
 		err := clearSessionSQLite(req.ctx, s.db)
 		if err != nil {
 			err = fmt.Errorf("store: clear session database: %w", err)

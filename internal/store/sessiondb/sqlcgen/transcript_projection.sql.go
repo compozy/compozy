@@ -72,6 +72,29 @@ func (q *Queries) GetLatestAssistantTranscriptIdentity(ctx context.Context, arg 
 	return i, err
 }
 
+const getTranscriptEntryEventBounds = `-- name: GetTranscriptEntryEventBounds :one
+SELECT COUNT(*) AS event_count, CAST(COALESCE(MAX(sequence), 0) AS INTEGER) AS max_sequence
+FROM events
+WHERE transcript_entry_key = ?1 AND sequence <= ?2
+`
+
+type GetTranscriptEntryEventBoundsParams struct {
+	TranscriptEntryKey string `json:"transcript_entry_key"`
+	ThroughSequence    int64  `json:"through_sequence"`
+}
+
+type GetTranscriptEntryEventBoundsRow struct {
+	EventCount  int64 `json:"event_count"`
+	MaxSequence int64 `json:"max_sequence"`
+}
+
+func (q *Queries) GetTranscriptEntryEventBounds(ctx context.Context, arg GetTranscriptEntryEventBoundsParams) (GetTranscriptEntryEventBoundsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTranscriptEntryEventBounds, arg.TranscriptEntryKey, arg.ThroughSequence)
+	var i GetTranscriptEntryEventBoundsRow
+	err := row.Scan(&i.EventCount, &i.MaxSequence)
+	return i, err
+}
+
 const getTranscriptEntryIdentity = `-- name: GetTranscriptEntryIdentity :one
 SELECT entry_key, kind, logical_id, turn_id, base_message_id,
        COALESCE(message_id, '') AS message_id,
@@ -193,6 +216,61 @@ func (q *Queries) ListEventsForTranscriptEntry(ctx context.Context, transcriptEn
 	items := []ListEventsForTranscriptEntryRow{}
 	for rows.Next() {
 		var i ListEventsForTranscriptEntryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sequence,
+			&i.TurnID,
+			&i.Type,
+			&i.AgentName,
+			&i.Content,
+			&i.Archived,
+			&i.Timestamp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventsForTranscriptEntryAfter = `-- name: ListEventsForTranscriptEntryAfter :many
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
+FROM events
+WHERE transcript_entry_key = ?1 AND sequence > ?2
+ORDER BY sequence ASC
+`
+
+type ListEventsForTranscriptEntryAfterParams struct {
+	TranscriptEntryKey string `json:"transcript_entry_key"`
+	AfterSequence      int64  `json:"after_sequence"`
+}
+
+type ListEventsForTranscriptEntryAfterRow struct {
+	ID        string `json:"id"`
+	Sequence  int64  `json:"sequence"`
+	TurnID    string `json:"turn_id"`
+	Type      string `json:"type"`
+	AgentName string `json:"agent_name"`
+	Content   string `json:"content"`
+	Archived  int64  `json:"archived"`
+	Timestamp string `json:"timestamp"`
+}
+
+func (q *Queries) ListEventsForTranscriptEntryAfter(ctx context.Context, arg ListEventsForTranscriptEntryAfterParams) ([]ListEventsForTranscriptEntryAfterRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEventsForTranscriptEntryAfter, arg.TranscriptEntryKey, arg.AfterSequence)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEventsForTranscriptEntryAfterRow{}
+	for rows.Next() {
+		var i ListEventsForTranscriptEntryAfterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Sequence,

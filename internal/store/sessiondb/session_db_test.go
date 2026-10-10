@@ -1673,6 +1673,88 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep entries appended one event at a time equal to a full replay", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		const sessionID = "sess-transcript-fold"
+		sessionDB := openTestSessionDB(t, sessionID)
+		at := time.Date(2026, 10, 9, 20, 40, 0, 0, time.UTC)
+		var stream []acp.AgentEvent
+		stream = append(stream, acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-long", Text: "migrate"})
+		for i := range 12 {
+			call := fmt.Sprintf("call-%02d", i)
+			stream = append(stream,
+				acp.AgentEvent{Type: acp.EventTypeThought, TurnID: "turn-long", Text: fmt.Sprintf("plan %d", i)},
+				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: "step "},
+				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: fmt.Sprintf("%d", i)},
+				acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn-long", ToolCallID: call, Title: "Bash",
+					Raw: json.RawMessage(fmt.Sprintf(`{"rawInput":{"command":"echo %d"}}`, i))},
+			)
+			if i%3 != 2 {
+				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":"%d"}}`, i)
+				stream = append(stream, acp.AgentEvent{
+					Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: call, Raw: json.RawMessage(result),
+				})
+			}
+		}
+		stream = append(stream,
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "turn-long", PromptStopReason: acp.PromptStopReasonEndTurn},
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "turn-next", Text: "continue"},
+			acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: "call-02",
+				Raw: json.RawMessage(`{"status":"completed","rawOutput":{"stdout":"late"}}`)},
+			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-next", Text: "resumed"},
+		)
+		for i, event := range stream {
+			event.SessionID, event.Timestamp = sessionID, at.Add(time.Duration(i)*time.Millisecond)
+			if err := sessionDB.Record(ctx, canonicalStoreEvent(t, event, "coder")); err != nil {
+				t.Fatalf("Record(%d %s) error = %v", i, event.Type, err)
+			}
+		}
+
+		events, err := sessionDB.Query(ctx, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 100})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		replay, err := transcript.BuildProjection(events, page.Generation)
+		if err != nil {
+			t.Fatalf("BuildProjection() error = %v", err)
+		}
+		encode := func(message transcript.UIMessage) string {
+			t.Helper()
+			raw, err := json.Marshal(message)
+			if err != nil {
+				t.Fatalf("marshal message: %v", err)
+			}
+			return string(raw)
+		}
+		var want []transcript.Entry
+		for _, segment := range replay.Segments {
+			if segment.Entry != nil {
+				want = append(want, *segment.Entry)
+			}
+		}
+		if len(page.Entries) != len(want) {
+			t.Fatalf("len(page.Entries) = %d, want full replay %d", len(page.Entries), len(want))
+		}
+		for i := range want {
+			got, wantJSON := encode(page.Entries[i].Message), encode(want[i].Message)
+			if got != wantJSON || page.Entries[i].StartSequence != want[i].StartSequence ||
+				page.Entries[i].Sequence != want[i].Sequence {
+				t.Fatalf("entry %d diverged from full replay:\n got %d/%d %s\nwant %d/%d %s", i,
+					page.Entries[i].StartSequence, page.Entries[i].Sequence, got,
+					want[i].StartSequence, want[i].Sequence, wantJSON)
+			}
+		}
+		if !strings.Contains(encode(page.Entries[1].Message), "late") {
+			t.Fatalf("late tool result missing from its routed entry: %s", encode(page.Entries[1].Message))
+		}
+	})
+
 	t.Run("Should publish a completed assistant upsert with its boundary entry", func(t *testing.T) {
 		t.Parallel()
 

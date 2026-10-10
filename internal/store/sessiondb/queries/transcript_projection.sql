@@ -66,6 +66,17 @@ FROM events
 WHERE transcript_entry_key = sqlc.arg(transcript_entry_key)
 ORDER BY sequence ASC;
 
+-- name: ListEventsForTranscriptEntryAfter :many
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
+FROM events
+WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence > sqlc.arg(after_sequence)
+ORDER BY sequence ASC;
+
+-- name: GetTranscriptEntryEventBounds :one
+SELECT COUNT(*) AS event_count, CAST(COALESCE(MAX(sequence), 0) AS INTEGER) AS max_sequence
+FROM events
+WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence <= sqlc.arg(through_sequence);
+
 -- name: ListTranscriptTextEventsForUpgrade :many
 SELECT sequence, transcript_entry_key, content
 FROM events
