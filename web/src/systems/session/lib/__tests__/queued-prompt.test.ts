@@ -96,7 +96,10 @@ describe("queued prompt read model", () => {
       reply_watch_id: "rw-6e2d81a0",
     };
     const [sent, own] = queuedPromptsFromInputs(
-      [{ ...base, origin } as SessionInputPayload, { ...base, id: "inp-41ab" }],
+      [
+        { ...base, origin },
+        { ...base, id: "inp-41ab" },
+      ],
       "ws",
       "sess-c03f"
     );
