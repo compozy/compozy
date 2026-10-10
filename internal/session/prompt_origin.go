@@ -49,11 +49,14 @@ func promptOriginMessage(origin *acp.PromptOriginMeta, message string) string {
 	if origin.NotifyOnComplete {
 		reply = "Your final answer in this turn is sent back to it automatically."
 	}
+	identity := origin.SessionID
+	if origin.AgentName != "" {
+		identity += ", agent " + origin.AgentName
+	}
 	return fmt.Sprintf(
-		"[Message from session %q (%s, agent %s) via compozy__session_prompt — another agent, not the operator. %s]\n\n%s",
+		"[Message from session %q (%s) via compozy__session_prompt — another agent, not the operator. %s]\n\n%s",
 		origin.TitleAtSend,
-		origin.SessionID,
-		origin.AgentName,
+		identity,
 		reply,
 		message,
 	)

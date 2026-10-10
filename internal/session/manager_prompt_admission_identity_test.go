@@ -95,6 +95,7 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 	})
 }
 
+// UT-003 UT-015 UT-018: bind origin once, preserve replay identity, and retain the v4 boundary.
 func TestPromptOriginAdmissionIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Should freeze sender origin and scope replay to actor and notify", func(t *testing.T) {
