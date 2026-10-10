@@ -6,9 +6,12 @@
 // - `metadata.custom.synthetic` with kind `session_reply` on a system message (S2);
 // - the `data-compozy-session-message` part beside a `compozy__session_prompt` call (S3);
 // - `origin` on a queued input (`SessionInputPayload.origin`, S4).
+// S1/S4 read the generated `PromptOriginPayload`; S2/S3 still follow the
+// `_dx.md` shapes until their generated types land.
 // The reply wake's text is daemon-authored; identity, outcome and links come
 // only from the typed fields, never from that text.
 
+import type { PromptOriginPayload, SessionInputPayload } from "../types";
 import { isRecord, stringField } from "./timeline-message-parts";
 
 export const SESSION_MESSAGE_PART_NAME = "data-compozy-session-message";
@@ -80,30 +83,55 @@ function customMetadata(metadata: unknown): Record<string, unknown> | null {
   return isRecord(metadata.custom) ? metadata.custom : metadata;
 }
 
-/** A `PromptOriginMeta` record, or `null` when it is absent or not a session origin. */
-export function sessionMessageOriginFromRecord(value: unknown): SessionMessageOrigin | null {
-  if (!isRecord(value) || value.kind !== ORIGIN_KIND_SESSION) return null;
-  const sessionId = trimmed(value, "session_id");
+function trimmedOrNull(value: string | undefined): string | null {
+  const text = value?.trim();
+  return text ? text : null;
+}
+
+/** The generated `PromptOriginMeta` DTO, or `null` when it is absent or not a session origin. */
+export function sessionMessageOriginFromPayload(
+  origin: PromptOriginPayload | null | undefined
+): SessionMessageOrigin | null {
+  if (!origin || origin.kind !== ORIGIN_KIND_SESSION) return null;
+  const sessionId = origin.session_id.trim();
   if (!sessionId) return null;
   return {
     sessionId,
-    workspaceId: trimmed(value, "workspace_id") ?? "",
-    agentName: trimmed(value, "agent_name"),
-    titleAtSend: trimmed(value, "title_at_send"),
-    hop: typeof value.hop === "number" && Number.isFinite(value.hop) ? value.hop : 0,
-    notifyOnComplete: value.notify_on_complete === true,
-    replyWatchId: trimmed(value, "reply_watch_id"),
+    workspaceId: origin.workspace_id.trim(),
+    agentName: trimmedOrNull(origin.agent_name),
+    titleAtSend: trimmedOrNull(origin.title_at_send),
+    hop: Number.isFinite(origin.hop) ? origin.hop : 0,
+    notifyOnComplete: origin.notify_on_complete === true,
+    replyWatchId: trimmedOrNull(origin.reply_watch_id),
+  };
+}
+
+// UI message metadata is untyped on the wire (`metadata: unknown`): the origin
+// key carries the same DTO as the event and queue payloads, checked here once.
+function originPayloadFromRecord(value: unknown): PromptOriginPayload | null {
+  if (!isRecord(value)) return null;
+  const { kind, session_id: sessionId, workspace_id: workspaceId, hop } = value;
+  if (typeof kind !== "string" || typeof sessionId !== "string") return null;
+  return {
+    kind,
+    session_id: sessionId,
+    workspace_id: typeof workspaceId === "string" ? workspaceId : "",
+    hop: typeof hop === "number" ? hop : 0,
+    agent_name: stringField(value, "agent_name"),
+    title_at_send: stringField(value, "title_at_send"),
+    notify_on_complete: value.notify_on_complete === true,
+    reply_watch_id: stringField(value, "reply_watch_id"),
   };
 }
 
 /** The sender of a user message (S1); `null` for the operator's own prompts. */
 export function sessionMessageOrigin(metadata: unknown): SessionMessageOrigin | null {
-  return sessionMessageOriginFromRecord(customMetadata(metadata)?.origin);
+  return sessionMessageOriginFromPayload(originPayloadFromRecord(customMetadata(metadata)?.origin));
 }
 
 /** The sender of a queued input (S4); `null` for operator and other-actor entries. */
-export function queuedInputOrigin(input: object): SessionMessageOrigin | null {
-  return sessionMessageOriginFromRecord((input as { origin?: unknown }).origin);
+export function queuedInputOrigin(input: SessionInputPayload): SessionMessageOrigin | null {
+  return sessionMessageOriginFromPayload(input.origin);
 }
 
 /** The reply wake of a system message (S2); `null` for every other synthetic kind. */

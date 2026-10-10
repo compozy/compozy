@@ -9,7 +9,7 @@ import { UIProvider } from "@compozy/ui";
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import {
-  queuedInputOrigin,
+  sessionMessageOriginFromPayload,
   sessionMessageOrigin,
   sessionReplyMeta,
   sessionReplyOutcomes,
@@ -113,8 +113,8 @@ describe("session message payload adapter", () => {
     });
     expect(sessionMessageOrigin({ custom: { origin: { ...origin, kind: "goal" } } })).toBeNull();
     expect(sessionMessageOrigin({ custom: { turn_id: "turn-1" } })).toBeNull();
-    expect(queuedInputOrigin({ id: "inp-1", origin })?.sessionId).toBe(SENDER_ID);
-    expect(queuedInputOrigin({ id: "inp-2" })).toBeNull();
+    expect(sessionMessageOriginFromPayload(origin)?.sessionId).toBe(SENDER_ID);
+    expect(sessionMessageOriginFromPayload(null)).toBeNull();
   });
 
   it("Should read only session_reply wakes and fold an unknown reason to unknown (UT-066)", () => {
