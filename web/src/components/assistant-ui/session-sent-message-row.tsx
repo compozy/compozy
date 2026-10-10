@@ -78,7 +78,7 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         callState={callState(part, tool)}
         mode={part.mode}
         firstLine={firstLine(message)}
-        error={part.error ?? toolError(tool)}
+        error={toolError(tool)}
         reply={reply}
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
