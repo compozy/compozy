@@ -66,6 +66,9 @@ type SessionDB struct {
 
 	drainTimeout time.Duration
 	now          func() time.Time
+
+	// transcriptFolds is touched only by the writer goroutine.
+	transcriptFolds transcriptFoldCache
 }
 
 var _ store.EventRecorder = (*SessionDB)(nil)

@@ -197,7 +197,7 @@ func (s *SessionDB) writeEventIfAbsent(
 		event.Timestamp = s.now()
 	}
 	var persisted store.SessionEvent
-	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+	err := s.writeWithTranscriptFolds(ctx, func(ctx context.Context, tx *store.WriteTx) error {
 		row, err := sqlcgen.New(tx).GetEventByID(ctx, event.ID)
 		if err == nil {
 			existing, mapErr := sessionEventFromSQLC(
@@ -254,7 +254,7 @@ func (s *SessionDB) writeEventIfAbsent(
 		for _, key := range assignment.CompletedKeys {
 			affected[key] = struct{}{}
 		}
-		if err := persistIncrementalTranscriptProjection(ctx, tx, s.owner.SessionID, projector, affected); err != nil {
+		if err := s.persistIncrementalTranscriptProjection(ctx, tx, projector, affected); err != nil {
 			return err
 		}
 		persisted = event
@@ -299,7 +299,7 @@ func (s *SessionDB) writeEventBatch(
 		return nil, err
 	}
 
-	if err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+	if err := s.writeWithTranscriptFolds(ctx, func(ctx context.Context, tx *store.WriteTx) error {
 		state, err := loadProjectionState(ctx, tx)
 		if err != nil {
 			return err
@@ -333,7 +333,7 @@ func (s *SessionDB) writeEventBatch(
 				affected[key] = struct{}{}
 			}
 		}
-		return persistIncrementalTranscriptProjection(ctx, tx, s.owner.SessionID, projector, affected)
+		return s.persistIncrementalTranscriptProjection(ctx, tx, projector, affected)
 	}); err != nil {
 		return nil, err
 	}
@@ -363,10 +363,9 @@ func insertSessionEvent(
 	return nil
 }
 
-func persistIncrementalTranscriptProjection(
+func (s *SessionDB) persistIncrementalTranscriptProjection(
 	ctx context.Context,
 	tx *store.WriteTx,
-	sessionID string,
 	projector *transcript.Projector,
 	affected map[string]struct{},
 ) error {
@@ -383,20 +382,17 @@ func persistIncrementalTranscriptProjection(
 	})
 
 	// Each append rewrites only the independently rebuildable entries it affects.
-	// This bounded write amplification is required to preserve full-message
-	// semantics while reads stay proportional to the requested result window.
+	// Assistant entries extend a cached fold, so a long turn is not replayed
+	// from its first event on every append.
+	generation := projector.State().Generation
 	for _, identity := range identities {
-		events, err := loadAssignedEvents(ctx, tx, sessionID, identity.Key)
-		if err != nil {
-			return err
-		}
 		candidate := identity
 		if candidate.MessageID == "" {
 			candidate.MessageID = candidate.BaseMessageID
 		}
-		entry, err := transcript.ProjectAssignedEntry(events, candidate)
+		entry, err := s.projectAssignedEntry(ctx, tx, generation, candidate)
 		if err != nil {
-			return fmt.Errorf("store: project transcript entry %q: %w", identity.Key, err)
+			return err
 		}
 		if entry != nil && identity.MessageID == "" {
 			identity.MessageID, err = allocateProjectionMessageID(
@@ -408,9 +404,9 @@ func persistIncrementalTranscriptProjection(
 			if err != nil {
 				return err
 			}
-			entry, err = transcript.ProjectAssignedEntry(events, identity)
+			entry, err = s.projectAssignedEntry(ctx, tx, generation, identity)
 			if err != nil {
-				return fmt.Errorf("store: reproject transcript entry %q: %w", identity.Key, err)
+				return err
 			}
 		}
 		if err := persistProjectionEntry(ctx, tx, identity, entry); err != nil {
@@ -426,4 +422,24 @@ func persistIncrementalTranscriptProjection(
 		}
 	}
 	return persistProjectionState(ctx, tx, projector.State())
+}
+
+func (s *SessionDB) projectAssignedEntry(
+	ctx context.Context,
+	tx *store.WriteTx,
+	generation int64,
+	identity transcript.EntryIdentity,
+) (*transcript.Entry, error) {
+	if identity.Kind == transcript.EntryKindAssistant {
+		return s.projectAssistantEntry(ctx, tx, generation, identity)
+	}
+	events, err := loadAssignedEvents(ctx, tx, s.owner.SessionID, identity.Key)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := transcript.ProjectAssignedEntry(events, identity)
+	if err != nil {
+		return nil, fmt.Errorf("store: project transcript entry %q: %w", identity.Key, err)
+	}
+	return entry, nil
 }
