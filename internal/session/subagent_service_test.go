@@ -292,6 +292,29 @@ func TestSubagentDelegate(t *testing.T) {
 	})
 }
 func TestSubagentDeliveryPlanner(t *testing.T) {
+	t.Run("Should include isolated branch and pull request facts UT-033", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ status, url, suffix string }{{"open", "https://x/pull/7", "Branch run/a-1; PR https://x/pull/7."}, {"unknown", "", "Branch run/a-1; PR status unknown."}, {"none", "", "Branch run/a-1."}} {
+			row := store.SessionSubagent{
+				ID:        "sub-a",
+				Title:     "A",
+				Status:    "completed",
+				Isolation: "worktree",
+				Worktree: &store.SubagentWorktreeState{
+					Branch: "run/a-1",
+					Facts:  store.SubagentWorktreeFacts{PRStatus: tc.status, PRURL: tc.url},
+				},
+			}
+			if got := subagentWakeText(
+				[]store.SessionSubagent{row},
+			); !strings.HasPrefix(
+				got,
+				`Subagent "A" (sub-a) finished: completed. `+tc.suffix,
+			) {
+				t.Fatal(got)
+			}
+		}
+	})
 	t.Parallel()
 	for _, tc := range []struct {
 		name         string
@@ -1870,6 +1893,350 @@ func TestSubagentPendingSteerInterruption(t *testing.T) {
 					len(runtime.queues) != 1 {
 					t.Fatal(current, runtime.queues)
 				}
+			}
+		})
+	}
+}
+
+// Invariant: isolated delegation owns one retained checkout and compensates only unadmitted work.
+// Owner: session subagent service; canonical delegate, recovery and lifecycle suite (UT-020–037).
+func TestSubagentIsolatedWorktree(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate isolation and include it in replay identity UT-025", func(t *testing.T) {
+		t.Parallel()
+		for _, input := range []SubagentRequest{{Isolation: "copy"}, {Isolation: "shared", BaseRef: "main"}} {
+			input.Task = "work"
+			input.Caller.ToolCallID = "call"
+			_, err := normalizeSubagentRequest(input)
+			if !errors.Is(err, ErrSubagentInvalidRequest) {
+				t.Fatalf("validation = %v", err)
+			}
+			if input.BaseRef != "" && err.Error() != `base_ref requires isolation "worktree".` {
+				t.Fatal(err)
+			}
+		}
+		req := subagentTestRequest()
+		req.Isolation = "worktree"
+		req.BaseRef = "  "
+		got, err := normalizeSubagentRequest(req)
+		if err != nil || got.BaseRef != "" {
+			t.Fatal(got, err)
+		}
+	})
+	t.Run(
+		"Should provision once bind the child and include delivery instructions UT-020 UT-023 UT-024 UT-027",
+		func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			w := &subagentWorktreeStub{
+				worktree: SubagentWorktree{ID: "wt-a", Branch: "run/a", BaseRef: "origin/main", BaseSHA: "sha"},
+			}
+			s.worktrees = w
+			req := subagentTestRequest()
+			req.Isolation = "worktree"
+			req.BaseRef = "origin/main"
+			row := requireSubagent(t, s, req)
+			again := requireSubagent(t, s, req)
+			if row.ID != again.ID || len(w.requests) != 1 || w.requests[0].SubagentID != row.ID ||
+				w.requests[0].BaseRef != "origin/main" {
+				t.Fatal(row, again, w.requests)
+			}
+			if r.spawned[0].IsolatedWorktreeID != "wt-a" || r.spawned[0].Subagent.WorktreeID != "wt-a" {
+				t.Fatal(r.spawned)
+			}
+			if !strings.HasPrefix(r.admitted[row.ID], "[You are working in an isolated worktree on branch run/a") ||
+				!strings.Contains(r.admitted[row.ID], "compozy worktree deliver") {
+				t.Fatal(r.admitted)
+			}
+			persisted, err := db.GetSubagentByID(t.Context(), row.ID)
+			if err != nil || persisted.WorktreeState().BaseSHA != "sha" {
+				t.Fatal(persisted, err)
+			}
+			req.BaseRef = "other"
+			if _, err := s.Delegate(t.Context(), req); !errors.Is(err, ErrSubagentInvalidRequest) {
+				t.Fatal(err)
+			}
+		},
+	)
+	t.Run("Should leave shared delegates on the inherited checkout UT-022", func(t *testing.T) {
+		t.Parallel()
+		s, _, r := newSubagentTestService(t)
+		w := &subagentWorktreeStub{}
+		s.worktrees = w
+		row := requireSubagent(t, s, subagentTestRequest())
+		if row.Isolation != "shared" || len(w.requests) != 0 || r.spawned[0].IsolatedWorktreeID != "" {
+			t.Fatal(row, w.requests, r.spawned)
+		}
+	})
+	t.Run("Should remove a failed provision reservation UT-028", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		w := &subagentWorktreeStub{provisionErr: &ErrSubagentIsolationFailed{Cause: "base_ref_not_found"}}
+		s.worktrees = w
+		req := subagentTestRequest()
+		req.Isolation = "worktree"
+		_, err := s.Delegate(t.Context(), req)
+		detail, ok := errors.AsType[*SubagentError](err)
+		if !ok || detail.Code != "isolation_failed" || len(db.rows) != 0 || w.rollbacks != 0 {
+			t.Fatal(err, db.rows, w.rollbacks)
+		}
+	})
+	for _, retain := range []bool{false, true} {
+		name := "Should rollback spawn failure UT-029"
+		if retain {
+			name = "Should retain changed checkout during rollback UT-030"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s, db, r := newSubagentTestService(t)
+			w := &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt", BaseSHA: "sha"}, retained: retain}
+			s.worktrees = w
+			r.spawnErr = testSubagentError()
+			req := subagentTestRequest()
+			req.Isolation = "worktree"
+			if _, err := s.Delegate(t.Context(), req); !errors.Is(err, r.spawnErr) {
+				t.Fatal(err)
+			}
+			row, err := db.GetSubagentByID(t.Context(), subagentID("parent", "call"))
+			if err != nil || row.Status != "failed" || row.WorktreeState().Cleanup != "done" {
+				t.Fatal(row, err)
+			}
+			if retain && (w.rollbacks != 0 || row.Error == nil || !strings.Contains(*row.Error, "worktree_retained")) {
+				t.Fatal(row, w.rollbacks)
+			}
+			if !retain && w.rollbacks != 1 {
+				t.Fatal(w.rollbacks)
+			}
+		})
+	}
+	t.Run("Should recover the exact unlinked spawn identity and retry cleanup UT-030", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		w := &subagentWorktreeStub{
+			worktree:      SubagentWorktree{ID: "wt", BaseSHA: "sha"},
+			errorRollback: testSubagentError(),
+		}
+		s.worktrees = w
+		req, err := normalizeSubagentRequest(subagentTestRequest())
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Isolation = "worktree"
+		row, _, err := s.reserveDelegation(t.Context(), req, SubagentTarget{}, 0, "fingerprint")
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.lookupErr = testSubagentError()
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := db.GetSubagentByID(t.Context(), row.ID)
+		if err != nil || pending.WorktreeState().Cleanup != "pending" {
+			t.Fatal(pending, err)
+		}
+		w.lookupErr = nil
+		child := subagentChildSessionID(row.ParentSessionID, row.ID)
+		r.snapshots[child] = subagentSnapshot{
+			Info:   &Info{ID: child, WorkspaceID: "ws", State: StateActive},
+			Active: true,
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		current, err := db.GetSubagentByID(t.Context(), row.ID)
+		if err != nil || current.WorktreeState().ID != "wt" || current.WorktreeState().Cleanup != "pending" {
+			t.Fatal(current, err)
+		}
+		if !slices.Contains(r.stopped, child) {
+			t.Fatalf("recovery did not stop spawn identity %s: %v", child, r.stopped)
+		}
+		w.errorRollback = nil
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		current, err = db.GetSubagentByID(t.Context(), row.ID)
+		if err != nil || current.WorktreeState().Cleanup != "done" {
+			t.Fatal(current, err)
+		}
+	})
+	t.Run("Should persist settlement facts without removing admitted checkout UT-031 UT-035", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		w := &subagentWorktreeStub{
+			worktree: SubagentWorktree{ID: "wt", Branch: "run/a", BaseSHA: "sha"},
+			facts: SubagentWorktreeFacts{
+				HeadSHA:      "head",
+				CommitsAhead: new(1),
+				DirtyFiles:   new(0),
+				PRStatus:     "unknown",
+			},
+		}
+		s.worktrees = w
+		req := subagentTestRequest()
+		req.Isolation = "worktree"
+		row := requireSubagent(t, s, req)
+		settleTestChild(t, s, r, &row)
+		current, err := db.GetSubagentByID(t.Context(), row.ID)
+		if err != nil || current.WorktreeState().Facts.PRStatus != "unknown" ||
+			current.WorktreeState().Facts.CommitsAhead == nil ||
+			*current.WorktreeState().Facts.CommitsAhead != 1 ||
+			w.rollbacks != 0 {
+			t.Fatal(current, err, w.rollbacks)
+		}
+	})
+	t.Run("Should release the parent lock while observing git and forge UT-037", func(t *testing.T) {
+		t.Parallel()
+		s, _, r := newSubagentTestService(t)
+		entered, release := make(chan struct{}), make(chan struct{})
+		w := &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt"}, observe: func() { close(entered); <-release }}
+		s.worktrees = w
+		req := subagentTestRequest()
+		req.Isolation = "worktree"
+		row := requireSubagent(t, s, req)
+		siblingReq := subagentTestRequest()
+		siblingReq.Caller.ToolCallID = "sibling"
+		sibling := requireSubagent(t, s, siblingReq)
+		r.mu.Lock()
+		snap := r.snapshots[*row.ChildSessionID]
+		snap.Active = false
+		r.snapshots[*row.ChildSessionID] = snap
+		r.mu.Unlock()
+		done := make(chan error, 1)
+		go func() { done <- s.OnChildSettled(t.Context(), *row.ChildSessionID) }()
+		<-entered
+		acquired := make(chan error, 1)
+		go func() { _, err := s.Status(t.Context(), req.Caller, sibling.ID); acquired <- err }()
+		select {
+		case err := <-acquired:
+			if err != nil {
+				close(release)
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("observer held parent lock")
+		}
+		close(release)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// Invariant: only unadmitted children are stopped and compensated at boot; durable admission wins.
+// Owner: subagent service recovery; canonical suite (UT-030).
+func TestSubagentIsolationRecoveryMatrix(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{"reserved", "unassociated", "associated", "linked-reserved", "dispatch_committed", "indeterminate", "admitted"} {
+		t.Run("Should recover "+state, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			wt := &subagentWorktreeStub{}
+			s.worktrees = wt
+			req, err := normalizeSubagentRequest(subagentTestRequest())
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Isolation = "worktree"
+			row, _, err := s.reserveDelegation(t.Context(), req, SubagentTarget{}, 0, "fingerprint")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state != "reserved" {
+				wt.worktree = SubagentWorktree{ID: "wt", BaseSHA: "base"}
+			}
+			if state != "reserved" && state != "unassociated" {
+				associateSubagentWorktree(&row, wt.worktree)
+				if err := db.AssociateSubagentWorktree(t.Context(), row); err != nil {
+					t.Fatal(err)
+				}
+			}
+			linked := state == "linked-reserved" || state == "dispatch_committed" || state == "indeterminate" ||
+				state == "admitted"
+			if linked {
+				child := subagentChildSessionID(row.ParentSessionID, row.ID)
+				runtime.snapshots[child] = subagentSnapshot{
+					Info:   &Info{ID: child, WorkspaceID: "ws", State: StateActive},
+					Active: true,
+				}
+				row, err = db.LinkChild(t.Context(), row.ID, child, time.Now())
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			db.committedAdmission = state == "dispatch_committed" || state == "indeterminate"
+			if state == "admitted" {
+				runtime.admitted[row.ID] = "task"
+			}
+			if err := s.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			got, err := db.GetSubagentByID(t.Context(), row.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			retain := db.committedAdmission || state == "admitted"
+			if retain {
+				if wt.rollbacks != 0 || len(runtime.stopped) != 0 || got.Status != store.SubagentStatusRunning {
+					t.Fatal(got, wt.rollbacks, runtime.stopped)
+				}
+			} else {
+				if got.Status != store.SubagentStatusFailed {
+					t.Fatal(got)
+				}
+				if state != "reserved" && wt.rollbacks != 1 {
+					t.Fatal(wt.rollbacks)
+				}
+				if linked && !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+					t.Fatal(runtime.stopped)
+				}
+			}
+		})
+	}
+}
+
+// Invariant: all settled outcomes and stop cascades preserve admitted worktrees and snapshot facts.
+// Owner: subagent lifecycle; canonical suite (UT-031, UT-035).
+func TestSubagentIsolationRetention(t *testing.T) {
+	t.Parallel()
+	for _, outcome := range []string{"completed", "failed", "canceled", "cascade"} {
+		t.Run("Should retain checkout after "+outcome, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			s.launch = func(run func()) { run() }
+			wt := &subagentWorktreeStub{
+				worktree: SubagentWorktree{ID: "wt"},
+				facts:    SubagentWorktreeFacts{PRStatus: "none"},
+			}
+			s.worktrees = wt
+			req := subagentTestRequest()
+			req.Isolation = "worktree"
+			row := requireSubagent(t, s, req)
+			switch outcome {
+			case "failed":
+				runtime.turnErrors[*row.ChildSessionID] = "failed turn"
+				settleTestChild(t, s, runtime, &row)
+			case "completed":
+				settleTestChild(t, s, runtime, &row)
+			case "canceled":
+				if _, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "cancel"); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+					t.Fatal(err)
+				}
+			case "cascade":
+				if err := s.OnParentStopped(t.Context(), "parent"); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnChildSettled(t.Context(), *row.ChildSessionID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := db.GetSubagentByID(t.Context(), row.ID)
+			if err != nil || wt.rollbacks != 0 || got.WorktreeState().ID != "wt" ||
+				got.WorktreeState().Facts.PRStatus != "none" {
+				t.Fatal(got, err, wt.rollbacks)
 			}
 		})
 	}

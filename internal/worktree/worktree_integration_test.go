@@ -2527,3 +2527,42 @@ func (f *integrationHTTPForge) CreatePR(ctx context.Context, request ForgePRRequ
 	err = json.NewDecoder(response.Body).Decode(&created)
 	return &created, err
 }
+
+// Invariant: isolated runs start from a pinned commit and count work against that commit.
+// Owner: worktree service; canonical real Git suite (UT-050, UT-051, UT-039).
+func TestIsolatedRunBaseIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should pin the requested base and preserve ahead count when the ref moves", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		base := f.git(f.workspace.Root, "rev-parse", "HEAD")
+		f.git(f.workspace.Root, "commit", "--allow-empty", "-m", "second")
+		f.git(f.workspace.Root, "commit", "--allow-empty", "-m", "third")
+		wt, err := f.service.MaterializeForRun(
+			t.Context(),
+			f.workspace.ID,
+			RunWorktreeRequest{
+				ProfileID: testWorktreeProfileID,
+				TaskSlug:  "Isolated",
+				RunID:     "sub-isolated",
+				BaseRef:   base,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := f.git(wt.Path, "rev-parse", "HEAD"); got != base || wt.CreatedHead != base {
+			t.Fatalf("head=%s created=%s base=%s", got, wt.CreatedHead, base)
+		}
+		f.git(wt.Path, "commit", "--allow-empty", "-m", "child one")
+		f.git(wt.Path, "commit", "--allow-empty", "-m", "child two")
+		f.git(f.workspace.Root, "commit", "--allow-empty", "-m", "moving base")
+		ahead, err := f.service.CommitsAheadOf(t.Context(), f.workspace.ID, wt.ID, base)
+		if err != nil || ahead != 2 {
+			t.Fatalf("ahead=%d err=%v", ahead, err)
+		}
+		if _, err := f.service.CommitsAheadOf(t.Context(), f.workspace.ID, wt.ID, "missing-ref"); err == nil {
+			t.Fatal("unreadable base was treated as zero commits")
+		}
+	})
+}

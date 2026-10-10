@@ -29,6 +29,14 @@ func (s *Service) RollbackRunMaterialization(
 		(item.State != StatePending && item.State != StateReady) {
 		return ErrNotFound
 	}
+	releaseUsage, acquired := s.usage.tryAcquireExclusive(worktreeUsageKey(workspaceID, worktreeID))
+	if !acquired {
+		return ErrOperationInProgress
+	}
+	defer releaseUsage()
+	if err := s.requireNoActiveSession(ctx, *item); err != nil {
+		return err
+	}
 	workspace, err := s.resolveWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err

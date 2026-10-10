@@ -25,6 +25,7 @@ type CreateOptions struct {
 }
 
 type RunWorktreeRequest struct {
+	BaseRef   string
 	ProfileID string
 	TaskSlug  string
 	RunID     string
@@ -106,7 +107,7 @@ func (s *Service) MaterializeForRun(
 	item, err := s.create(ctx, workspaceID, CreateOptions{
 		ProfileID: request.ProfileID,
 		Name:      name, Branch: branch, Origin: OriginPerRun, RunID: request.RunID,
-		RunNamespace: settings.RunBranchNamespace,
+		RunNamespace: settings.RunBranchNamespace, BaseRef: request.BaseRef,
 	})
 	if err != nil {
 		if errors.Is(err, ErrDeniedByHook) {

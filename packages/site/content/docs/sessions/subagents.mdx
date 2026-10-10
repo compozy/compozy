@@ -149,7 +149,7 @@ compozy session list --subagents exclude
   good agent writes the task with everything the subagent needs.
 - **Permissions only narrow.** A subagent can do what its parent can do, or less. It never gets more.
 - **No limits on depth or count.** A subagent can start its own subagents. Nothing expires on a timer.
-- **Shared files.** Subagents work in the same project and worktree as the parent. Two subagents
+- **Shared files.** By default, subagents work in the same project and worktree as the parent. Two subagents
   editing the same file at once can step on each other, so ask for separate files or read-only work.
 - **Stop means stop.** Stopping the parent session stops all its running subagents. Interrupting one
   turn doesn't stop them, but their answers no longer wake the parent; read them with
@@ -282,3 +282,47 @@ its own TTL that you prompt repeatedly.
     meta="config.toml"
   />
 </GuideGrid>
+
+## Give a subagent its own branch
+
+For independent code changes, ask the agent to delegate with `isolation: "worktree"`:
+
+```json
+{
+  "title": "Add billing retries",
+  "task": "Implement billing retries, commit the changes, then run compozy worktree deliver.",
+  "isolation": "worktree",
+  "base_ref": "origin/main"
+}
+```
+
+`base_ref` is optional and only valid with worktree isolation. Without it, the new branch starts
+from the caller checkout's current HEAD commit. Uncommitted changes are not copied. The branch
+name combines the configured run namespace, task title and an ID suffix, so concurrent delegates
+with the same title have distinct branches. Shared children inherit the parent's checkout;
+isolated children of an isolated subagent start from that checkout's HEAD.
+
+The first prompt tells the child its branch and how to deliver. A failed setup returns
+`isolation_failed`; a denying worktree or spawn hook returns `capability_denied`.
+
+When the child settles, its wake names the branch and pull request when available. Inspect the
+same snapshot with `compozy__subagent_status` or:
+
+```sh
+compozy session subagents show <subagent-id>
+compozy session subagents show <subagent-id> --json
+```
+
+The `worktree` object includes the ID, name, path, branch, requested `base_ref`, resolved `base_sha`,
+and observed Git/PR facts. `commits_ahead` counts from the creation commit, even if the requested
+ref moves later. Missing Git fields mean unavailable information. PR status `unknown` means no
+provider or a failed lookup; `none` means a successful lookup found no PR. Shared subagents have
+`isolation: "shared"` and no `worktree` object.
+
+The isolated worktree remains after completion, cancellation, parent stop and archive. Use the
+existing worktree commands to inspect, deliver or remove it. Recovery removes only unadmitted,
+clean checkouts with no commits beyond the creation commit; changed checkouts are retained.
+
+Settlement fields, including `pull_request_status`, are omitted while the child is running.
+A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
+that no PR exists.
