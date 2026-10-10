@@ -49,6 +49,56 @@ interface RosterRowProps {
   stale: boolean;
 }
 
+interface RosterRowLabelProps {
+  subagent: SubagentView;
+  branch: string | undefined;
+  stale: boolean;
+}
+
+// Isolated rows grow a branch line (S5) under the title.
+function RosterRowLabel({ subagent, branch, stale }: RosterRowLabelProps) {
+  return (
+    <>
+      <SubagentAvatar
+        provider={subagent.runtime.provider}
+        status={subagent.status}
+        size="sm"
+        surface="rail"
+        still={stale}
+        className={branch ? "mt-px" : undefined}
+      />
+      {branch ? (
+        <span className="flex min-w-0 flex-col gap-px">
+          <span className="truncate text-transcript-meta">{subagent.title}</span>
+          <SubagentBranch branch={branch} className="min-w-0 text-micro" />
+        </span>
+      ) : (
+        <span className="truncate text-transcript-meta">{subagent.title}</span>
+      )}
+    </>
+  );
+}
+
+function RosterRowStop({ pending, onStop }: { pending: boolean; onStop: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      aria-label={pending ? "Stopping subagent" : "Stop subagent"}
+      disabled={pending}
+      onClick={onStop}
+      className={cn(
+        "text-muted",
+        !pending &&
+          "hidden group-hover/roster-row:inline-flex group-has-focus-visible/roster-row:inline-flex"
+      )}
+    >
+      {pending ? <StateGlyph size="sm" state="running" /> : <Square aria-hidden="true" />}
+    </Button>
+  );
+}
+
 function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
   const stoppable = isSubagentStoppable(subagent) && onStop !== undefined;
   const { pending, stop } = useSubagentStop(
@@ -101,22 +151,7 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
             )
           }
         >
-          <SubagentAvatar
-            provider={subagent.runtime.provider}
-            status={subagent.status}
-            size="sm"
-            surface="rail"
-            still={stale}
-            className={branch ? "mt-px" : undefined}
-          />
-          {branch ? (
-            <span className="flex min-w-0 flex-col gap-px">
-              <span className="truncate text-transcript-meta">{subagent.title}</span>
-              <SubagentBranch branch={branch} className="min-w-0 text-micro" />
-            </span>
-          ) : (
-            <span className="truncate text-transcript-meta">{subagent.title}</span>
-          )}
+          <RosterRowLabel subagent={subagent} branch={branch} stale={stale} />
         </HoverCardTrigger>
         <HoverCardContent side="left" align="start">
           <SubagentHoverContent subagent={subagent} stale={stale} />
@@ -134,23 +169,7 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
             pending && "hidden"
           )}
         />
-        {stoppable ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={pending ? "Stopping subagent" : "Stop subagent"}
-            disabled={pending}
-            onClick={stop}
-            className={cn(
-              "text-muted",
-              !pending &&
-                "hidden group-hover/roster-row:inline-flex group-has-focus-visible/roster-row:inline-flex"
-            )}
-          >
-            {pending ? <StateGlyph size="sm" state="running" /> : <Square aria-hidden="true" />}
-          </Button>
-        ) : null}
+        {stoppable ? <RosterRowStop pending={pending} onStop={stop} /> : null}
       </span>
     </li>
   );
