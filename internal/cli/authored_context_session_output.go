@@ -55,13 +55,14 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				{Label: "Ineligibility Reason", Value: stringOrDash(string(record.IneligibilityReason))},
 				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
 			}, derivationLines(record.Lineage, record.Derivation)...))
+			status = renderHumanBlocks(status, sessionReplyWatchesHuman(record.ReplyWatches))
 			if record.WakeState == nil {
 				return status, nil
 			}
 			return renderHumanBlocks(status, wakeStateSection("Wake State", *record.WakeState)), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("session_status", []string{
+			base := renderToonObject("session_status", []string{
 				sessionSessionKey,
 				workspaceSkillSource,
 				agentAgentKey,
@@ -86,7 +87,8 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				string(record.Health),
 				boolString(record.EligibleForWake),
 				string(record.IneligibilityReason),
-			}), nil
+			})
+			return renderHumanBlocks(base, sessionReplyWatchesToon(record.ReplyWatches)), nil
 		},
 	}
 }

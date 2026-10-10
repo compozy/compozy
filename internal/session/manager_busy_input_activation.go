@@ -95,9 +95,12 @@ func (m *Manager) cancelUndeliverableInput(
 	entryID string,
 	cause error,
 ) error {
-	_, cancelErr := m.inputQueue.Cancel(context.WithoutCancel(ctx), sessionID, entryID)
+	entry, cancelErr := m.inputQueue.Cancel(context.WithoutCancel(ctx), sessionID, entryID)
 	if cancelErr != nil {
 		return errors.Join(cause, fmt.Errorf("session: cancel undeliverable input: %w", cancelErr))
+	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnQueueEntryTerminal(context.WithoutCancel(ctx), &entry)
 	}
 	return cause
 }

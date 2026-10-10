@@ -13,6 +13,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 	m.stopDeletedSessionWindowReconciliation()
 	var shutdownErr error
+	if service := m.ReplyWatches(); service != nil {
+		shutdownErr = errors.Join(shutdownErr, service.Close(ctx))
+	}
 	if m.waitRegistry != nil {
 		m.waitRegistry.close()
 	}

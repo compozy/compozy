@@ -2,7 +2,17 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ResourceSnapshotRecord struct {
+	Kind  ResourceKind    `json:"kind"`
+	ID    string          `json:"id"`
+	Scope ResourceScope   `json:"scope"`
+	Spec  json.RawMessage `json:"spec"`
+}
 
 type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
@@ -178,5 +188,3 @@ type SessionAttentionChangedPayload struct {
 	Class          string    `json:"class"`
 	At             time.Time `json:"at"`
 }
-
-type SessionAttentionObservationPatch struct{}

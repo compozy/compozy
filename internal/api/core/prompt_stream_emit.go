@@ -44,7 +44,10 @@ func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEv
 	}); err != nil {
 		return err
 	}
-	return e.emitSubagentPart(writer, event)
+	if err := e.emitSubagentPart(writer, event); err != nil {
+		return err
+	}
+	return e.emitSessionMessagePart(writer, event)
 }
 
 // emitSubagentPart writes the card the transcript projection derives from this
@@ -103,7 +106,10 @@ func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.Agent
 		return err
 	}
 	e.toolCompleted[toolCallID] = struct{}{}
-	return e.emitSubagentPart(writer, event)
+	if err := e.emitSubagentPart(writer, event); err != nil {
+		return err
+	}
+	return e.emitSessionMessagePart(writer, event)
 }
 
 func (e *PromptStreamEncoder) emitUnresolvedToolResults(writer FlushWriter, event acp.AgentEvent) error {

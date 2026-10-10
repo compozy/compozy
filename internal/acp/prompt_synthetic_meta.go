@@ -4,8 +4,13 @@ import (
 	"strings"
 )
 
+const PromptSyntheticKindSessionReply = "session_reply"
+
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
+	Hop                  int             `json:"hop,omitzero"`
+	ChildWorkspaceID     string          `json:"child_workspace_id,omitempty"`
+	ReplyTruncated       bool            `json:"reply_truncated,omitzero"`
 	Kind                 string          `json:"kind,omitempty"`
 	SubagentIDs          []string        `json:"subagent_ids,omitempty"`
 	TaskID               string          `json:"task_id,omitempty"`
@@ -28,6 +33,7 @@ type PromptSyntheticMeta struct {
 // Normalize returns a trimmed copy of the synthetic metadata.
 func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 	return PromptSyntheticMeta{
+		Hop: m.Hop, ChildWorkspaceID: strings.TrimSpace(m.ChildWorkspaceID), ReplyTruncated: m.ReplyTruncated,
 		Kind:                 strings.TrimSpace(m.Kind),
 		SubagentIDs:          append([]string(nil), m.SubagentIDs...),
 		TaskID:               strings.TrimSpace(m.TaskID),
@@ -51,9 +57,11 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 // IsZero reports whether the synthetic metadata carries any fields.
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.Kind == "" && len(normalized.SubagentIDs) == 0 &&
+	return normalized.ChildWorkspaceID == "" && !normalized.ReplyTruncated && normalized.Hop == 0 &&
+		normalized.Kind == "" && len(normalized.SubagentIDs) == 0 &&
 		normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
-		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
+		normalized.ClaimTokenHash == "" &&
+		normalized.CoordinatorSessionID == "" &&
 		normalized.ChildSessionID == "" &&
 		normalized.ChildAgentName == "" &&
 		normalized.Badge == "" &&

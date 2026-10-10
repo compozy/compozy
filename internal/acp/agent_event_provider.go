@@ -53,3 +53,17 @@ func (e AgentEvent) SubagentCard() json.RawMessage {
 	}
 	return CloneRawMessage(e.payload.subagentCard)
 }
+
+func (e AgentEvent) WithSessionMessageCard(card json.RawMessage) AgentEvent {
+	payload := e.clonePayload()
+	payload.sessionMessageCard = CloneRawMessage(card)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+func (e AgentEvent) SessionMessageCard() json.RawMessage {
+	if e.payload == nil {
+		return nil
+	}
+	return CloneRawMessage(e.payload.sessionMessageCard)
+}

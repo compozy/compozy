@@ -47,7 +47,8 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	goal := event.GoalPromptMeta()
 	invocations := inputUISkillInvocations(event.SkillInvocations())
 	attachments := event.Attachments()
-	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 && len(attachments) == 0 {
+	if event.Synthetic == nil && turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 &&
+		len(attachments) == 0 {
 		return nil
 	}
 	timestamp := ""
@@ -55,6 +56,7 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	encoded, err := json.Marshal(struct {
+		Synthetic        *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
 		TurnID           string                   `json:"turn_id,omitempty"`
 		Timestamp        string                   `json:"timestamp,omitempty"`
 		MessageID        string                   `json:"message_id,omitempty"`
@@ -62,7 +64,8 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
 		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
 	}{
-		TurnID: turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal,
+		Synthetic: clonePromptSyntheticMeta(event.Synthetic),
+		TurnID:    turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal,
 		SkillInvocations: invocations, Attachments: attachments,
 	})
 	if err != nil {

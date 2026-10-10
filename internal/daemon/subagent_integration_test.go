@@ -24,6 +24,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -332,6 +333,19 @@ func newSubagentDaemonConfigured(
 	}
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
+		acpmock.TurnFixture{
+			Name:  "reply-failure",
+			Match: acpmock.TurnMatch{UserText: "reply failure"},
+			Steps: []acpmock.Step{
+				{
+					Kind: acpmock.StepKindDriverControl,
+					DriverControl: &acpmock.DriverControlStep{
+						Action:       acpmock.DriverControlFailPrompt,
+						ErrorMessage: "reply provider failed",
+					},
+				},
+			},
+		},
 		acpmock.TurnFixture{Name: "slow-child", Match: acpmock.TurnMatch{UserText: "slow child"}, Steps: []acpmock.Step{
 			{
 				Kind:          acpmock.StepKindDriverControl,
@@ -1885,7 +1899,14 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 				for _, current := range list.Subagents {
 					if current.SubagentID == row.SubagentID {
 						info, err := h.GetSession(ctx, *row.ChildSessionID)
-						state := fmt.Sprintf("%s %s %s %s %v", current.SubagentID, current.Status, current.Delivery, info.State, err)
+						state := fmt.Sprintf(
+							"%s %s %s %s %v",
+							current.SubagentID,
+							current.Status,
+							current.Delivery,
+							info.State,
+							err,
+						)
 						if state != last {
 							t.Log(state)
 							last = state
@@ -1936,4 +1957,266 @@ func readSubagentsHTTP(
 		t.Fatal(err)
 	}
 	return page
+}
+
+// Invariant: reply delivery survives daemon restart and executes through the existing ACP queue.
+func TestReplyWatchDaemonIntegration(t *testing.T) {
+	// Invariant: real lifecycle and queue edges settle only the message's consuming turn.
+	// Phase 1 registers explicitly; native admission registration is covered after origin integration.
+	for _, action := range []string{"cancel", "clear", "stop queued", "stop active", "provider failure"} {
+		t.Run("Should reconcile real target edge "+action+" IT-008 IT-009 IT-010", func(t *testing.T) {
+			d, manager, workspace := newSubagentDaemonIntegration(t)
+			ctx := t.Context()
+			sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Stop(ctx, sender.ID); err != nil {
+				t.Fatal(err)
+			}
+			target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			if err != nil {
+				t.Fatal(err)
+			}
+			held, err := manager.SendPrompt(ctx, target.ID, session.SendPromptOpts{Message: "hold parent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			drained := make(chan struct{})
+			go func() {
+				for range held.Events {
+					continue
+				}
+				close(drained)
+			}()
+			message := "child work"
+			if action == "stop active" {
+				message = "hold parent"
+			}
+			if action == "provider failure" {
+				message = "reply failure"
+			}
+			sent, err := manager.SendPrompt(ctx, target.ID, session.SendPromptOpts{
+				Message:        message,
+				MessageID:      "question",
+				IdempotencyKey: "question-key",
+				Mode:           session.BusyInputModeQueue,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := d.registry.(*globaldb.GlobalDB)
+			watch := registerIntegrationReplyWatch(t, db, workspace, sender.ID, target.ID, sent)
+			want := "completed"
+			switch action {
+			case "cancel":
+				want = "dropped"
+				if _, err := manager.CancelQueuedPrompt(ctx, target.ID, sent.QueueEntryID); err != nil {
+					t.Fatal(err)
+				}
+			case "clear":
+				want = "dropped"
+				if _, err := manager.ClearPendingInputs(
+					ctx,
+					target.ID,
+					session.PromptCaller{Kind: "operator", ID: "test", Source: "cli"},
+				); err != nil {
+					t.Fatal(err)
+				}
+			case "stop queued":
+				if err := manager.Stop(ctx, target.ID); err != nil {
+					t.Fatal(err)
+				}
+				<-drained
+				row, err := db.GetReplyWatch(ctx, watch.ID)
+				if err != nil || row.State != "armed" {
+					t.Fatalf("stopped queued = %+v, %v", row, err)
+				}
+				if _, err := manager.Resume(ctx, target.ID); err != nil {
+					t.Fatal(err)
+				}
+			case "stop active", "provider failure":
+				if err := manager.CancelTurn(ctx, target.ID, held.NewTurnID, session.CauseUserRequested); err != nil {
+					t.Fatal(err)
+				}
+				<-drained
+				if action == "stop active" {
+					want = "canceled"
+					waitForRuntimeCondition(t, "watched input consumed", 10*time.Second, func() bool {
+						row, err := db.GetSessionInputQueueEntry(ctx, target.ID, sent.QueueEntryID)
+						return err == nil && row.Status == store.SessionInputQueueStatusSent && target.IsPrompting()
+					})
+					if err := manager.Stop(ctx, target.ID); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					want = "failed"
+				}
+			}
+			waitForRuntimeCondition(t, "reply outcome "+want, 10*time.Second, func() bool {
+				row, err := db.GetReplyWatch(ctx, watch.ID)
+				return err == nil && row.State == "fired" && row.Outcome == want
+			})
+			row, err := db.GetReplyWatch(ctx, watch.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want == "failed" && !strings.Contains(row.ReplyText, "reply provider failed") {
+				t.Fatalf("failure summary = %q", row.ReplyText)
+			}
+			if want == "completed" && row.ReplyText != "child answer" {
+				t.Fatalf("reply text = %q", row.ReplyText)
+			}
+		})
+	}
+	t.Run("Should recover a fired reply and never replay a sent wake IT-021", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		ctx := t.Context()
+		sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		warm, err := manager.SendPrompt(ctx, sender.ID, session.SendPromptOpts{Message: "child work"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range warm.Events {
+			continue
+		}
+		held, err := manager.SendPrompt(ctx, target.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		go func() {
+			for range held.Events {
+				continue
+			}
+			close(drained)
+		}()
+		waitForRuntimeCondition(t, "held target turn", 10*time.Second, func() bool { return target.IsPrompting() })
+		sent, err := manager.SendPrompt(
+			ctx,
+			target.ID,
+			session.SendPromptOpts{
+				Message:        "child work",
+				MessageID:      "question",
+				IdempotencyKey: "question-key",
+				Mode:           session.BusyInputModeQueue,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, ok := d.registry.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("global store unavailable")
+		}
+		watch := registerIntegrationReplyWatch(t, db, workspace, sender.ID, target.ID, sent)
+		if err := manager.Stop(ctx, sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.CancelTurn(ctx, target.ID, target.CurrentTurnID(), session.CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		<-drained
+		waitForRuntimeCondition(t, "fired deferred reply", 10*time.Second, func() bool {
+			row, err := db.GetReplyWatch(ctx, watch.ID)
+			return err == nil && row.State == "fired" && row.Outcome == "completed" && row.ReplyText == "child answer"
+		})
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		manager = restarted.sessions.(*session.Manager)
+		if _, err := manager.Resume(ctx, sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		db = restarted.registry.(*globaldb.GlobalDB)
+		waitForRuntimeCondition(t, "sent reply wake", 10*time.Second, func() bool {
+			row, err := db.GetReplyWatch(ctx, watch.ID)
+			if err != nil || row.State != "delivered" {
+				return false
+			}
+			input, err := db.GetSessionInputQueueEntry(ctx, sender.ID, row.DeliveredInputID)
+			return err == nil && input.Status == store.SessionInputQueueStatusSent
+		})
+		if err := manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted = reopenSubagentIntegrationDaemon(t, home, &cfg)
+		manager = restarted.sessions.(*session.Manager)
+		if _, err := manager.Resume(ctx, sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		history, err := manager.Events(
+			ctx,
+			sender.ID,
+			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		for _, row := range history {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.Synthetic != nil && event.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {
+				count++
+				if event.Synthetic.WakeEventID != watch.ID || event.Synthetic.Hop != 1 ||
+					!strings.Contains(event.Text, "child answer") {
+					t.Fatalf("wake = %+v", event)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("reply turns = %d", count)
+		}
+	})
+}
+
+func registerIntegrationReplyWatch(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	workspace, sender, target string,
+	sent session.SendPromptResult,
+) store.ReplyWatch {
+	t.Helper()
+	entry, err := db.GetSessionInputQueueEntry(t.Context(), target, sent.QueueEntryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var watch store.ReplyWatch
+	err = store.ExecuteWriteOperation(
+		t.Context(),
+		db.DB(),
+		"register integration reply watch",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			registered, err := db.InsertReplyWatchTx(ctx, tx, store.ReplyWatchRegistration{
+				WorkspaceID: workspace, SenderSessionID: sender, TargetWorkspaceID: workspace, TargetSessionID: target,
+				MessageID: sent.MessageID, AdmissionID: entry.PromptAdmissionID, QueueEntryID: entry.ID, Hop: 1,
+			})
+			watch = registered
+			return err
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return watch
 }

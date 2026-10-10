@@ -304,6 +304,9 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	m.publishSubagentWakeCanceled(ctx, &entry)
+	if service := m.ReplyWatches(); service != nil {
+		service.OnQueueEntryTerminal(ctx, &entry)
+	}
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusCanceled,
 		Mode:            BusyInputMode(entry.Mode),
