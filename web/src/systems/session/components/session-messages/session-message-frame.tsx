@@ -177,7 +177,8 @@ export function SessionMessageFrame({
         data-clamped={clamped || undefined}
         className={cn(
           "col-start-2 min-w-0 text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
-          subdued ? "text-subtle" : BODY_TONE[bodyTone],
+          // The markdown inside sets its own ink: a superseded body lowers all of it.
+          subdued ? "text-subtle [&_*]:text-subtle" : BODY_TONE[bodyTone],
           clamped ? MESSAGE_CLAMPED_CLASS : null
         )}
       >

@@ -12,10 +12,9 @@ import {
   userMessageAttachmentItems,
   userMessageHasText,
 } from "@/systems/session/lib/session-attachment-items";
-import {
-  sessionReplyText,
-  type SessionMessageOrigin,
-  type SessionReplyMeta,
+import type {
+  SessionMessageOrigin,
+  SessionReplyMeta,
 } from "@/systems/session/lib/session-message-payload";
 import type { SteerMarkerKind } from "@/systems/session/lib/steer-marker";
 
@@ -47,17 +46,6 @@ function customTimestampMs(metadata: unknown): number | null {
 
 function messageTimestampMs(message: { content?: unknown; metadata?: unknown }): number | null {
   return customTimestampMs(message.metadata) ?? deriveMessageActions(message).timestampMs;
-}
-
-function messageText(content: unknown): string {
-  if (!Array.isArray(content)) return typeof content === "string" ? content : "";
-  return content
-    .map(part =>
-      typeof part === "object" && part !== null && "type" in part && part.type === "text"
-        ? String((part as { text?: unknown }).text ?? "")
-        : ""
-    )
-    .join("");
 }
 
 /**
@@ -127,7 +115,7 @@ export function SessionReplyMessage({ reply }: { reply: SessionReplyMeta }) {
       <SessionReplyCard
         target={target}
         outcome={reply.outcome}
-        text={sessionReplyText(messageText(message.content))}
+        text={reply.text}
         truncated={reply.truncated}
         timestampMs={messageTimestampMs(message)}
         onOpenTarget={onOpen}

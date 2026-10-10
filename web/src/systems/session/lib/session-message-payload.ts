@@ -6,10 +6,12 @@
 // - `metadata.custom.synthetic` with kind `session_reply` on a system message (S2);
 // - the `data-compozy-session-message` part beside a `compozy__session_prompt` call (S3);
 // - `origin` on a queued input (`SessionInputPayload.origin`, S4).
-// S1/S4 read the generated `PromptOriginPayload`; S2/S3 still follow the
-// `_dx.md` shapes until their generated types land.
-// The reply wake's text is daemon-authored; identity, outcome and links come
-// only from the typed fields, never from that text.
+// S1/S4 read the generated `PromptOriginPayload`. The UI transcript's metadata
+// and data parts are untyped in the OpenAPI document (`metadata: unknown`), so
+// S2/S3 read DTOs that mirror the daemon structs (`acp.PromptSyntheticMeta`,
+// `transcript.UISessionMessagePayload`), checked here once. The reply wake's
+// text is daemon-authored and never parsed: identity, outcome, links and the
+// answer come only from the typed fields.
 
 import type { PromptOriginPayload, SessionInputPayload } from "../types";
 import { isRecord, stringField } from "./timeline-message-parts";
@@ -43,6 +45,8 @@ export interface SessionReplyMeta {
   targetWorkspaceId: string;
   targetAgentName: string | null;
   outcome: SessionReplyOutcome;
+  /** The target's answer (or the error summary when it failed); `""` when the turn left none. */
+  text: string;
   truncated: boolean;
 }
 
@@ -61,8 +65,6 @@ export interface SessionSentMessagePart {
   mode: SessionMessageMode;
   replyWatchId: string | null;
   state: SessionSentCallState;
-  /** The daemon's refusal sentence when the part carries one. */
-  error: string | null;
 }
 
 const REPLY_OUTCOMES: ReadonlySet<string> = new Set<SessionReplyOutcome>([
@@ -72,11 +74,6 @@ const REPLY_OUTCOMES: ReadonlySet<string> = new Set<SessionReplyOutcome>([
   "dropped",
   "unknown",
 ]);
-
-function trimmed(record: Record<string, unknown>, key: string): string | null {
-  const value = stringField(record, key)?.trim();
-  return value ? value : null;
-}
 
 function customMetadata(metadata: unknown): Record<string, unknown> | null {
   if (!isRecord(metadata)) return null;
@@ -134,78 +131,106 @@ export function queuedInputOrigin(input: SessionInputPayload): SessionMessageOri
   return sessionMessageOriginFromPayload(input.origin);
 }
 
+/** `acp.PromptSyntheticMeta` as a `session_reply` wake projects it (`metadata.synthetic`). */
+interface SessionReplySyntheticPayload {
+  kind: string;
+  wake_event_id?: string;
+  child_session_id?: string;
+  child_workspace_id?: string;
+  child_agent_name?: string;
+  reason?: string;
+  /** The reply text, bounded to 12,000 runes by the daemon. */
+  summary?: string;
+  reply_truncated?: boolean;
+  hop?: number;
+}
+
+function replySyntheticPayload(value: unknown): SessionReplySyntheticPayload | null {
+  if (!isRecord(value) || value.kind !== SYNTHETIC_KIND_SESSION_REPLY) return null;
+  return {
+    kind: SYNTHETIC_KIND_SESSION_REPLY,
+    wake_event_id: stringField(value, "wake_event_id"),
+    child_session_id: stringField(value, "child_session_id"),
+    child_workspace_id: stringField(value, "child_workspace_id"),
+    child_agent_name: stringField(value, "child_agent_name"),
+    reason: stringField(value, "reason"),
+    summary: stringField(value, "summary"),
+    reply_truncated: value.reply_truncated === true,
+  };
+}
+
 /** The reply wake of a system message (S2); `null` for every other synthetic kind. */
 export function sessionReplyMeta(metadata: unknown): SessionReplyMeta | null {
-  const synthetic = customMetadata(metadata)?.synthetic;
-  if (!isRecord(synthetic) || synthetic.kind !== SYNTHETIC_KIND_SESSION_REPLY) return null;
-  const watchId = trimmed(synthetic, "wake_event_id");
-  const targetSessionId = trimmed(synthetic, "child_session_id");
+  const synthetic = replySyntheticPayload(customMetadata(metadata)?.synthetic);
+  if (!synthetic) return null;
+  const watchId = trimmedOrNull(synthetic.wake_event_id);
+  const targetSessionId = trimmedOrNull(synthetic.child_session_id);
   if (!watchId || !targetSessionId) return null;
-  const reason = trimmed(synthetic, "reason") ?? "";
+  const reason = synthetic.reason?.trim() ?? "";
   return {
     watchId,
     targetSessionId,
-    targetWorkspaceId: trimmed(synthetic, "child_workspace_id") ?? "",
-    targetAgentName: trimmed(synthetic, "child_agent_name"),
+    targetWorkspaceId: synthetic.child_workspace_id?.trim() ?? "",
+    targetAgentName: trimmedOrNull(synthetic.child_agent_name),
     outcome: REPLY_OUTCOMES.has(reason) ? (reason as SessionReplyOutcome) : "unknown",
+    text: synthetic.summary?.trim() ?? "",
     truncated: synthetic.reply_truncated === true,
   };
 }
 
-const NO_REPLY_TEXT = "(no reply text)";
-const REPLY_SEPARATOR = "\n---\n";
-const TRUNCATION_NOTE = "[Reply truncated at";
-
-/**
- * The target's answer inside the daemon's reply wake (`_dx.md` §Reply wake):
- * the text between the header's `---` and the truncation note, or `""` when the
- * turn left none. Only the body is lifted; identity and outcome never come from
- * this text.
- */
-export function sessionReplyText(wakeText: string): string {
-  const separator = wakeText.indexOf(REPLY_SEPARATOR);
-  let body = separator === -1 ? wakeText : wakeText.slice(separator + REPLY_SEPARATOR.length);
-  const note = body.lastIndexOf(TRUNCATION_NOTE);
-  if (note !== -1) body = body.slice(0, note);
-  body = body.trim();
-  return body === NO_REPLY_TEXT ? "" : body;
+/** `transcript.UISessionMessagePayload`: the `data-compozy-session-message` part. */
+interface SessionMessagePartPayload {
+  tool_call_id: string;
+  target_session_id: string;
+  target_workspace_id?: string;
+  message_id?: string;
+  mode?: string;
+  reply_watch_id?: string;
+  /** `running` while the call is in flight, `done` once it returned, `error` when it failed. */
+  state: string;
 }
 
-function sentCallState(raw: string | null): SessionSentCallState {
-  switch (raw) {
-    case "failed":
-    case "error":
-    case "output-error":
-      return "failed";
-    case "sending":
-    case "running":
-    case "streaming":
-    case "input-streaming":
-    case "input-available":
-      return "sending";
-    default:
-      return "sent";
-  }
+function sessionMessagePartPayload(data: unknown): SessionMessagePartPayload | null {
+  if (!isRecord(data)) return null;
+  const toolCallId = stringField(data, "tool_call_id");
+  const targetSessionId = stringField(data, "target_session_id");
+  if (toolCallId === undefined || targetSessionId === undefined) return null;
+  return {
+    tool_call_id: toolCallId,
+    target_session_id: targetSessionId,
+    target_workspace_id: stringField(data, "target_workspace_id"),
+    message_id: stringField(data, "message_id"),
+    mode: stringField(data, "mode"),
+    reply_watch_id: stringField(data, "reply_watch_id"),
+    state: stringField(data, "state") ?? "",
+  };
 }
 
-function sentMode(raw: string | null): SessionMessageMode {
+const SENT_CALL_STATE: Record<string, SessionSentCallState> = {
+  running: "sending",
+  done: "sent",
+  error: "failed",
+};
+
+function sentMode(raw: string | undefined): SessionMessageMode {
   return raw === "steer" || raw === "interrupt" ? raw : "queue";
 }
 
 /** The S3 part, or `null` when the value is not one the card can name. */
 export function sessionSentMessagePart(name: string, data: unknown): SessionSentMessagePart | null {
-  if (name !== SESSION_MESSAGE_PART_NAME || !isRecord(data)) return null;
-  const targetSessionId = trimmed(data, "target_session_id");
-  if (!targetSessionId) return null;
+  if (name !== SESSION_MESSAGE_PART_NAME) return null;
+  const part = sessionMessagePartPayload(data);
+  const targetSessionId = trimmedOrNull(part?.target_session_id);
+  if (!part || !targetSessionId) return null;
   return {
-    toolCallId: trimmed(data, "tool_call_id") ?? "",
+    toolCallId: part.tool_call_id.trim(),
     targetSessionId,
-    targetWorkspaceId: trimmed(data, "target_workspace_id") ?? "",
-    messageId: trimmed(data, "message_id"),
-    mode: sentMode(trimmed(data, "mode")),
-    replyWatchId: trimmed(data, "reply_watch_id"),
-    state: sentCallState(trimmed(data, "state")),
-    error: trimmed(data, "error"),
+    targetWorkspaceId: part.target_workspace_id?.trim() ?? "",
+    messageId: trimmedOrNull(part.message_id),
+    mode: sentMode(part.mode?.trim()),
+    replyWatchId: trimmedOrNull(part.reply_watch_id),
+    // An unknown state from a newer daemon reads as admitted: no spinner it cannot end.
+    state: SENT_CALL_STATE[part.state.trim()] ?? "sent",
   };
 }
 
