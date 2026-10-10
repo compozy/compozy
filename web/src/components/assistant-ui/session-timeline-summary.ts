@@ -25,6 +25,7 @@ export type SessionToolSummaryCategory =
   | "command"
   | "edit"
   | "read"
+  | "list"
   | "search"
   | "subagent"
   | "tool";
@@ -44,11 +45,12 @@ export interface SessionToolGroupSummary {
   failedCount: number;
 }
 
-/** Fixed presentation order: Ran → Edited → Read → Searched → subagent tools → Used. */
+/** Fixed presentation order: Ran → Edited → Read → Listed → Searched → subagent tools → Used. */
 const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
   "command",
   "edit",
   "read",
+  "list",
   "search",
   "subagent",
   "tool",
@@ -76,13 +78,14 @@ export function classifyToolSummaryCategory(
   if (isSubagentToolName(name)) return "subagent";
   // The same kind the row shows: a title-named shell tool counts as a command,
   // a `cat`/`rg` command as the read or search it performs.
-  switch (resolveToolDisplay({ toolName: part.toolName, args: part.args }, "past").kind) {
+  const display = resolveToolDisplay({ toolName: part.toolName, args: part.args }, "past");
+  switch (display.kind) {
     case "command":
       return "command";
     case "edit":
       return "edit";
     case "read":
-      return "read";
+      return display.listing ? "list" : "read";
     case "search":
     case "web":
       return "search";
@@ -91,10 +94,13 @@ export function classifyToolSummaryCategory(
   }
 }
 
-// Distinct-file identity for an edit/read entry. Entries with no file info
-// count as one unit each so the total never under-reports work.
+// Distinct-file identity for an edit/read entry: the full path its row names,
+// whether a tool argument or a shell read carried it (`Read a.ts` and `cat a.ts`
+// are one file). Entries with no file info count as one unit each so the total
+// never under-reports work.
 function entryFileKeys(part: SessionTimelineToolPart): string[] {
-  const raw = part.args.file_path ?? part.args.filePath ?? part.args.notebook_path;
+  const display = resolveToolDisplay({ toolName: part.toolName, args: part.args }, "past");
+  const raw = display.targetKind === "file" ? display.fullTarget : undefined;
   if (typeof raw !== "string") return [];
   const trimmed = raw.trim();
   return trimmed.length > 0 ? [trimmed] : [];
@@ -112,6 +118,8 @@ function summaryPartLabel(category: SessionToolSummaryCategory, count: number): 
       return `Edited ${count} ${pluralNoun(count, "file")}`;
     case "read":
       return `Read ${count} ${pluralNoun(count, "file")}`;
+    case "list":
+      return `Listed ${count} ${count === 1 ? "directory" : "directories"}`;
     case "search":
       return count === 1 ? "Searched once" : `Searched ${count} times`;
     case "subagent":
@@ -147,7 +155,7 @@ export function summarizeToolGroup(
 
   for (const part of summarizable) {
     const category = classifyToolSummaryCategory(part);
-    if (category === "edit" || category === "read") {
+    if (category === "edit" || category === "read" || category === "list") {
       const fileKeys = entryFileKeys(part);
       if (fileKeys.length === 0) {
         countByCategory.set(category, (countByCategory.get(category) ?? 0) + 1);

@@ -466,6 +466,41 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     );
   });
 
+  // Invariant: an opened row never hides a field its payload carries.
+  it("Should keep a title-named shell tool's extra fields on the generic renderer", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Terminal",
+          toolInput: { command: "bun test", cwd: "/repo/web", timeout: 120 },
+          toolResult: { stdout: "ok" },
+        })}
+      />
+    );
+    fireEvent.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+
+    expect(queryToolName()).toHaveTextContent(/^Ran$/);
+    expect(document.querySelector('[data-slot="tool-call-row-input"]')).toHaveTextContent(
+      '"cwd": "/repo/web"'
+    );
+    expect(document.querySelector('[data-slot="tool-call-row-output"]')).toHaveTextContent("ok");
+  });
+
+  it("Should render a title-named shell tool through the command view when it holds the payload", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Terminal",
+          toolInput: { command: "bun test" },
+          toolResult: { stdout: "ok" },
+        })}
+      />
+    );
+    fireEvent.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+
+    expect(screen.getByTestId("bash-command")).toHaveTextContent("$ bun test");
+  });
+
   it("Should render specialized tool output while the tool is still running", () => {
     render(<SessionToolCallRow message={makeToolMessage()} />);
     const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');

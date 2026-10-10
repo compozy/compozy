@@ -289,5 +289,22 @@ describe("inferShellIntent", () => {
     expect(inferShellIntent("cat a.ts b.ts")).toBeNull();
     expect(inferShellIntent("git status")).toBeNull();
     expect(inferShellIntent("rg TODO | xargs rm")).toBeNull();
+    // Write-capable options and stages never shorten to a read.
+    expect(inferShellIntent("sed -n -i.bak 's/a/b/p' a.ts")).toBeNull();
+    expect(inferShellIntent("sed -n 'w out.txt' a.ts")).toBeNull();
+    expect(inferShellIntent("cat a.ts | sort -o b.ts")).toBeNull();
+    expect(inferShellIntent("cat a.ts | uniq - b.ts")).toBeNull();
+    // An option whose value could be mistaken for the pattern keeps the raw command.
+    expect(inferShellIntent("rg -g '*.ts' TODO web")).toBeNull();
+  });
+
+  it("Should parse each command's options so the object is the real file or pattern", () => {
+    expect(inferShellIntent("rg 404 web")).toEqual({ action: "search", target: "404" });
+    expect(inferShellIntent("head -n 20 a.ts")).toEqual({ action: "read", target: "a.ts" });
+    expect(inferShellIntent("sed -n '3,$p' a.ts")).toEqual({ action: "read", target: "a.ts" });
+    expect(inferShellIntent("rg -n TODO web | head -20")).toEqual({
+      action: "search",
+      target: "TODO",
+    });
   });
 });

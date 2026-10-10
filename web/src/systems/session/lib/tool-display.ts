@@ -43,6 +43,8 @@ export interface ToolDisplay {
   target?: string;
   fullTarget?: string;
   targetKind?: ToolDisplayTargetKind;
+  /** A directory listing: a read that names a folder, not a file. */
+  listing?: true;
   icon: LucideIcon;
 }
 
@@ -118,7 +120,10 @@ function commandDisplay(command: string, tense: ToolDisplayTense): ToolDisplay {
     case "read":
       return display("read", VERBS.read, tense, FileText, intent.target, "file");
     case "list":
-      return display("read", VERBS.list, tense, FolderOpen, intent.target, "file");
+      return {
+        ...display("read", VERBS.list, tense, FolderOpen, intent.target, "file"),
+        listing: true,
+      };
     case "search":
       return display("search", VERBS.search, tense, Search, intent.target);
     default:

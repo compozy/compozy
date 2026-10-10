@@ -1,4 +1,13 @@
-import { Bot, FileEdit, FileText, LoaderCircle, Search, Terminal, Wrench } from "lucide-react";
+import {
+  Bot,
+  FileEdit,
+  FileText,
+  FolderOpen,
+  LoaderCircle,
+  Search,
+  Terminal,
+  Wrench,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createElement } from "react";
 
@@ -22,6 +31,7 @@ const CATEGORY_ICON: Record<SessionToolSummaryCategory, LucideIcon> = {
   command: Terminal,
   edit: FileEdit,
   read: FileText,
+  list: FolderOpen,
   search: Search,
   subagent: Bot,
   tool: Wrench,

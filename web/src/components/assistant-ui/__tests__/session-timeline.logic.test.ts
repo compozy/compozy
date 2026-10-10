@@ -578,6 +578,20 @@ describe("session timeline derivation", () => {
     expect(workRow.summary?.label).toBe("Ran 1 command, read 1 file, searched once");
   });
 
+  // Invariant: a file counts once however its reads were spelled, and a directory listing is not a file.
+  it("Should count shell and tool reads of one path as one file and listings as directories", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(3, { toolName: "Read", args: { file_path: "web/a.ts" } }),
+      tool(4, { toolName: "Bash", args: { command: "ls web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read 1 file, listed 1 directory");
+  });
+
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
     const parts = Object.freeze([tool(1), tool(2), tool(3)]) as readonly SessionTimelinePart[];
     const snapshot = parts.map(part => ({ ...part }));
