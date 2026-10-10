@@ -190,6 +190,14 @@ cancellation contract. The owning lifecycle regressions use real SQLite reader
 snapshots and reopen checks. Focused race runs passed for all three close owners
 and the explicit checkpoint helper, with no new test-convention findings.
 Final-head checks are tracked on [PR #723](https://github.com/compozy/compozy/pull/723).
+The subsequent [CI run](https://github.com/compozy/compozy/actions/runs/38076631343)
+exposed a timing assumption in native-subagent E2E-006: final response text was
+visible before turn settlement, so the optional fold helper returned zero rows;
+30 ms later the completed turn mounted its closed fold. The Playwright trace
+retains that ordering and the final idle/closed-fold snapshot. The existing E2E
+now waits for and opens the settled fold, following the existing hardening suite,
+before its unchanged `completed` assertion. No production folding change, fixed
+sleep, retry, timeout increase, or weakened assertion is used.
 A parallel historical migration test reused its replay-phase context for a separate
 ahead-version fixture after that context expired. That fixture phase now receives
 its own existing-budget context; replay, equivalence, integrity, and refusal

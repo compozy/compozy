@@ -18,6 +18,8 @@ overlaps: ET-web-subagent-card; RT-subagent-delegate; ET-web-session-transcript-
 
 Spec: `.compozy/tasks/subagents/_spec.md` Business Rule 16, ADR-004, `_uiux.md` S7–S8.
 Automated owners: IT-020, UT-036…UT-040 (recorded `claude_agent_subagent.jsonl` fixture), E2E-006.
+E2E-006 waits for the settled turn disclosure before opening it and asserting the
+native card is completed; final response text alone does not establish settlement.
 This scenario is the live walk on a real Claude provider, which pins the current `_meta.claudeCode`
 shape (Known Risk: shape drift).
 
