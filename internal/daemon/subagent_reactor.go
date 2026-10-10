@@ -20,6 +20,12 @@ func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
 		return errors.New("daemon: registry does not implement the subagent store")
 	}
 	service, err := session.NewSubagentService(db, manager,
+		session.WithSubagentWorktrees(daemonSubagentWorktrees{lookup: func() subagentWorktreeService {
+			if state.worktrees == nil {
+				return nil
+			}
+			return state.worktrees
+		}}),
 		session.WithSubagentResultLimit(func(ctx context.Context, workspaceID string) (int, error) {
 			workspace, err := state.workspaceResolver.Resolve(ctx, workspaceID)
 			if err != nil {

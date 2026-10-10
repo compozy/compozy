@@ -12636,6 +12636,27 @@ func requireNativeDerivePartial(t *testing.T, err error, want string) {
 
 // The native binding suite owns caller resolution, request translation, and public error mapping.
 func TestNativeSubagentBindings(t *testing.T) {
+	t.Run("Should carry isolation inputs and expose optional worktree facts", func(t *testing.T) {
+		t.Parallel()
+		input := nativeSubagentDelegateInput{Task: "work", Isolation: "worktree", BaseRef: "origin/main"}
+		req, err := input.request(session.SubagentCaller{ToolCallID: "call"})
+		if err != nil || req.Isolation != "worktree" || req.BaseRef != "origin/main" {
+			t.Fatal(req, err)
+		}
+		row := session.Subagent{
+			Isolation: "worktree",
+			Worktree:  &store.SubagentWorktreeState{ID: "wt", Branch: "run/a"},
+		}
+		output := subagentPayload(&row)
+		if output["isolation"] != "worktree" || output["worktree"] == nil {
+			t.Fatal(output)
+		}
+		row.Isolation = "shared"
+		output = subagentPayload(&row)
+		if _, ok := output["worktree"]; ok {
+			t.Fatal(output)
+		}
+	})
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {

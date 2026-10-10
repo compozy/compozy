@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,8 +28,10 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 // Invariant: real daemon wiring reserves, launches ACP, persists a result and delivers one wake.
@@ -332,6 +335,38 @@ func newSubagentDaemonConfigured(
 	}
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
+		acpmock.TurnFixture{
+			Name:  "isolated-delivery",
+			Match: acpmock.TurnMatch{UserTextContains: "isolated delivery work"},
+			Steps: []acpmock.Step{
+				{
+					Kind:           acpmock.StepKindCommand,
+					Command:        "sh",
+					Args:           []string{"-c", "echo reviewed > delivery.txt"},
+					ExpectExitCode: new(0),
+				},
+				{
+					Kind:          acpmock.StepKindDriverControl,
+					DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+				},
+			},
+		},
+		acpmock.TurnFixture{
+			Name:  "isolated-child",
+			Match: acpmock.TurnMatch{UserTextContains: "isolated child work"},
+			Steps: []acpmock.Step{
+				{
+					Kind:    acpmock.StepKindCommand,
+					Command: "sh",
+					Args: []string{
+						"-c",
+						"pwd >> isolated-cwd.txt && git add isolated-cwd.txt && git -c user.name=Compozy -c user.email=test@compozy.test commit -m child-result",
+					},
+					ExpectExitCode: new(0),
+				},
+				{Kind: acpmock.StepKindAssistant, Text: "isolated answer"},
+			},
+		},
 		acpmock.TurnFixture{Name: "slow-child", Match: acpmock.TurnMatch{UserText: "slow child"}, Steps: []acpmock.Step{
 			{
 				Kind:          acpmock.StepKindDriverControl,
@@ -478,6 +513,21 @@ func newSubagentDaemonConfigured(
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(home.ConfigFile, append(append(existing, '\n'), data...), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if cfg.Worktrees.SetupCommand != "" {
+		configData, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		section, err := toml.Marshal(
+			map[string]any{"worktrees": map[string]any{"setup_command": cfg.Worktrees.SetupCommand}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(home.ConfigFile, append(append(configData, '\n'), section...), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1885,7 +1935,14 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 				for _, current := range list.Subagents {
 					if current.SubagentID == row.SubagentID {
 						info, err := h.GetSession(ctx, *row.ChildSessionID)
-						state := fmt.Sprintf("%s %s %s %s %v", current.SubagentID, current.Status, current.Delivery, info.State, err)
+						state := fmt.Sprintf(
+							"%s %s %s %s %v",
+							current.SubagentID,
+							current.Status,
+							current.Delivery,
+							info.State,
+							err,
+						)
 						if state != last {
 							t.Log(state)
 							last = state
@@ -1936,4 +1993,610 @@ func readSubagentsHTTP(
 		t.Fatal(err)
 	}
 	return page
+}
+
+// Invariant: a real ACP child runs on its durable isolated branch and retains it after settlement.
+// Owner: daemon composition; canonical subagent integration suite (IT-012, IT-015, IT-023).
+func TestIsolatedSubagentDaemonIntegration(t *testing.T) {
+	for _, failure := range []string{"", "setup", "base"} {
+		setupFails := failure == "setup"
+		name := "Should bind a real isolated child and retain its settled checkout"
+		if failure != "" {
+			name = "Should rollback failed " + failure + " without starting a child"
+		}
+		t.Run(name, func(t *testing.T) {
+			d, manager, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+				if setupFails {
+					cfg.Worktrees.SetupCommand = "exit 1"
+				}
+			})
+			resolved, err := d.workspaceResolver.Resolve(t.Context(), ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner, err := worktree.NewRealGitRunner(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			git := func(args ...string) string {
+				t.Helper()
+				out, stderr, err := runner.Run(t.Context(), resolved.RootDir, args...)
+				if err != nil {
+					t.Fatalf("git %v: %v %s", args, err, stderr)
+				}
+				return strings.TrimSpace(string(out))
+			}
+			git("init", "-b", "main")
+			git("config", "user.name", "Compozy Test")
+			git("config", "user.email", "test@compozy.test")
+			git("commit", "--allow-empty", "-m", "initial")
+			base := git("rev-parse", "HEAD")
+			if err := os.WriteFile(
+				filepath.Join(resolved.RootDir, "uncommitted.txt"),
+				[]byte("caller only"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			parent, caller := startSubagentIntegrationParent(t, manager, ws)
+			req := session.SubagentRequest{
+				Caller:    caller,
+				Title:     "Isolated task",
+				Task:      "isolated child work",
+				Isolation: "worktree",
+			}
+			if failure == "base" {
+				req.BaseRef = "no-such-ref"
+			}
+			row, err := d.SubagentService().Delegate(t.Context(), req)
+			if failure != "" {
+				detail, ok := errors.AsType[*session.SubagentError](err)
+				if !ok || detail.Code != "isolation_failed" {
+					t.Fatal(row, err)
+				}
+				list, err := d.worktrees.List(t.Context(), ws, true)
+				if err != nil || len(list.Worktrees) != 0 {
+					t.Fatal(list, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			child, err := manager.Status(t.Context(), *row.ChildSessionID)
+			if err != nil || child.WorktreeID != row.WorktreeState().ID || row.WorktreeState().BaseSHA != base ||
+				child.Workspace != resolved.RootDir {
+				t.Fatal(child, row, err)
+			}
+			if _, err := os.Stat(
+				filepath.Join(row.WorktreeState().Path, "uncommitted.txt"),
+			); !errors.Is(
+				err,
+				os.ErrNotExist,
+			) {
+				t.Fatal("caller changes copied", err)
+			}
+			again, err := d.SubagentService().Delegate(t.Context(), req)
+			if err != nil || again.WorktreeState().ID != row.WorktreeState().ID {
+				t.Fatal(again, err)
+			}
+			waitForRuntimeCondition(t, "isolated result", 15*time.Second, func() bool {
+				current, e := d.SubagentService().Get(t.Context(), ws, row.ID)
+				return e == nil && current.Status == store.SubagentStatusCompleted
+			})
+			current, err := d.SubagentService().Get(t.Context(), ws, row.ID)
+			if err != nil || current.WorktreeState().Facts.CommitsAhead == nil ||
+				*current.WorktreeState().Facts.CommitsAhead != 1 ||
+				current.WorktreeState().Facts.PRStatus != "unknown" {
+				t.Fatal(current, err)
+			}
+			cwd, err := os.ReadFile(filepath.Join(row.WorktreeState().Path, "isolated-cwd.txt"))
+			if err != nil || strings.TrimSpace(string(cwd)) != row.WorktreeState().Path {
+				t.Fatalf("child cwd=%q want=%q err=%v", cwd, row.WorktreeState().Path, err)
+			}
+			if _, err := d.worktrees.Get(t.Context(), ws, row.WorktreeState().ID); err != nil {
+				t.Fatal(err)
+			}
+			nestedParent, ok := manager.Get(*row.ChildSessionID)
+			if !ok {
+				t.Fatal("isolated parent missing")
+			}
+			response, err := manager.SendPrompt(
+				t.Context(),
+				nestedParent.ID,
+				session.SendPromptOpts{Message: "hold parent"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				for range response.Events {
+				}
+			}()
+			waitForRuntimeCondition(
+				t,
+				"nested parent active",
+				10*time.Second,
+				func() bool {
+					info, err := manager.Status(t.Context(), nestedParent.ID)
+					return err == nil && info.State == session.StateActive && info.Liveness != nil &&
+						info.Liveness.Activity != nil && info.Liveness.Activity.TurnID == nestedParent.CurrentTurnID() &&
+						nestedParent.CurrentTurnID() != ""
+				},
+			)
+			nestedCaller := session.SubagentCaller{
+				WorkspaceID: ws,
+				SessionID:   nestedParent.ID,
+				TurnID:      nestedParent.CurrentTurnID(),
+				ToolCallID:  "nested-shared",
+			}
+			shared, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: nestedCaller, Task: "child work"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			sharedChild, err := manager.Status(t.Context(), *shared.ChildSessionID)
+			if err != nil || sharedChild.WorktreeID != row.WorktreeState().ID {
+				t.Fatal(sharedChild, err)
+			}
+			nestedCaller.ToolCallID = "nested-isolated"
+			nested, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: nestedCaller, Task: "isolated child work", Isolation: "worktree", Title: row.Title})
+			if err != nil || nested.WorktreeState().BaseSHA != current.WorktreeState().Facts.HeadSHA ||
+				nested.WorktreeState().ID == row.WorktreeState().ID ||
+				nested.WorktreeState().Branch == row.WorktreeState().Branch {
+				t.Fatal(nested, err)
+			}
+			if err := manager.Stop(t.Context(), parent.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.worktrees.Get(t.Context(), ws, row.WorktreeState().ID); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// Invariant: reopening after a durable isolation boundary discovers run ownership even without child linkage.
+// Owner: daemon recovery; canonical real SQLite/Git/ACP suite (IT-022, IT-027, IT-028).
+func TestIsolatedSubagentRecoveryIntegration(t *testing.T) {
+	for _, stage := range []string{"unassociated", "unlinked-child", "linked-reserved", "dispatch_committed", "indeterminate", "committed-work", "cleanup-pending"} {
+		t.Run("Should recover "+stage, func(t *testing.T) {
+			d, manager, ws := newSubagentDaemonIntegration(t)
+			workspace, err := d.workspaceResolver.Resolve(t.Context(), ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner, err := worktree.NewRealGitRunner(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			git := func(dir string, args ...string) string {
+				t.Helper()
+				out, stderr, err := runner.Run(t.Context(), dir, args...)
+				if err != nil {
+					t.Fatalf("git %v: %v %s", args, err, stderr)
+				}
+				return strings.TrimSpace(string(out))
+			}
+			git(workspace.RootDir, "init", "-b", "main")
+			git(workspace.RootDir, "config", "user.name", "Compozy Test")
+			git(workspace.RootDir, "config", "user.email", "test@compozy.test")
+			git(workspace.RootDir, "commit", "--allow-empty", "-m", "initial")
+			parent, caller := startSubagentIntegrationParent(t, manager, ws)
+			db, ok := d.registry.(store.SubagentStore)
+			if !ok {
+				t.Fatal("missing subagent store")
+			}
+			row, _, err := db.ReserveSubagent(
+				t.Context(),
+				store.SessionSubagent{
+					ID:                 "sub-recovery",
+					WorkspaceID:        ws,
+					ParentSessionID:    parent.ID,
+					ParentTurnID:       caller.TurnID,
+					Origin:             store.SubagentOriginDelegated,
+					IdempotencyKey:     "recovery",
+					RequestFingerprint: "recovery",
+					Title:              "Recovery",
+					Depth:              1,
+					WakePolicy:         store.SubagentWakePolicyAlways,
+					Isolation:          "worktree",
+					PendingTask:        new("isolated child work"),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wt, err := d.worktrees.MaterializeForRun(
+				t.Context(),
+				ws,
+				worktree.RunWorktreeRequest{
+					ProfileID: parent.Info().ProfileID,
+					TaskSlug:  row.Title,
+					RunID:     row.ID,
+					BaseRef:   git(workspace.RootDir, "rev-parse", "HEAD"),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager.SetSubagentService(nil)
+			childID := ""
+			if stage == "unlinked-child" || stage == "linked-reserved" || stage == "dispatch_committed" ||
+				stage == "indeterminate" {
+				child, err := manager.Spawn(
+					t.Context(),
+					session.SpawnOpts{
+						ParentSessionID:    parent.ID,
+						ParentTurnID:       caller.TurnID,
+						AgentName:          "subagent-test",
+						SpawnRole:          store.SubagentSpawnRole,
+						IdempotencyKey:     row.ID,
+						IsolatedWorktreeID: wt.ID,
+						Subagent: &hookspkg.SubagentSpawnPayload{
+							Title:      row.Title,
+							Isolation:  "worktree",
+							WorktreeID: wt.ID,
+						},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				childID = child.ID
+				if stage != "unlinked-child" {
+					if _, err := db.LinkChild(t.Context(), row.ID, childID, time.Now()); err != nil {
+						t.Fatal(err)
+					}
+					admissions, ok := d.registry.(store.SessionPromptAdmissionStore)
+					if !ok {
+						t.Fatal("missing admission store")
+					}
+					_, _, err := admissions.ClaimSessionPromptAdmission(
+						t.Context(),
+						store.SessionPromptAdmissionRequest{
+							ID: "admission-recovery", WorkspaceID: ws, SessionID: childID, MessageID: row.ID,
+							IdempotencyKey: row.ID, Operation: store.SessionPromptOperationPrompt,
+							FingerprintVersion: "test/v1", RequestFingerprint: "recovery", AuthoredText: "work",
+							TurnID: "recovery-turn", EventID: "recovery-event",
+						},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if stage != "linked-reserved" {
+						if err := admissions.CommitSessionPromptDispatch(
+							t.Context(),
+							ws,
+							childID,
+							row.ID,
+							time.Now(),
+						); err != nil {
+							t.Fatal(err)
+						}
+						if stage == "indeterminate" {
+							if err := admissions.MarkSessionPromptAdmissionIndeterminate(
+								t.Context(),
+								ws,
+								childID,
+								row.ID,
+								"crash after dispatch",
+								time.Now(),
+							); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+				}
+			}
+			if stage == "committed-work" {
+				git(wt.Path, "commit", "--allow-empty", "-m", "preserve child work")
+			}
+			if stage == "cleanup-pending" {
+				proxy := &subagentRollbackFailureService{subagentWorktreeService: d.worktrees}
+				service, err := session.NewSubagentService(
+					db,
+					manager,
+					session.WithSubagentWorktrees(
+						daemonSubagentWorktrees{lookup: func() subagentWorktreeService { return proxy }},
+					),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := service.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				current, err := db.GetSubagent(t.Context(), ws, row.ID)
+				if err != nil || current.WorktreeState().Cleanup != "pending" || current.WorktreeState().ID != wt.ID {
+					t.Fatal(current, err)
+				}
+				if _, _, err := db.FinalizeSubagent(
+					t.Context(),
+					store.SubagentFinalize{ID: row.ID, Status: store.SubagentStatusFailed},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			home, cfg := d.homePaths, d.config
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+			restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+			current, err := restarted.SubagentService().Get(t.Context(), ws, row.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stage == "dispatch_committed" || stage == "indeterminate" {
+				if _, err := restarted.worktrees.Get(t.Context(), ws, wt.ID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(wt.Path); err != nil {
+					t.Fatal(err)
+				}
+				admitted, err := restarted.registry.(store.SubagentStore).HasSubagentCommittedAdmission(
+					t.Context(),
+					ws,
+					childID,
+					row.ID,
+				)
+				if err != nil || !admitted {
+					t.Fatal(admitted, err)
+				}
+			} else if stage == "committed-work" {
+				if current.Status != store.SubagentStatusFailed || current.Error == nil ||
+					!strings.Contains(*current.Error, "worktree_retained") {
+					t.Fatal(current)
+				}
+				if _, err := os.Stat(wt.Path); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if current.Status != store.SubagentStatusFailed || current.WorktreeState().Cleanup != "done" {
+					t.Fatal(current)
+				}
+				if _, err := os.Stat(wt.Path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("checkout survived clean rollback", err)
+				}
+				tombstone, err := restarted.worktrees.Get(t.Context(), ws, wt.ID)
+				if childID == "" {
+					if !errors.Is(err, worktree.ErrNotFound) {
+						t.Fatal("unbound registry anchor survived cleanup", err)
+					}
+				} else if err != nil || tombstone.State != worktree.StateRemoved {
+					t.Fatal("stopped child binding must retain only its removed tombstone", tombstone, err)
+				}
+				if refs := git(
+					workspace.RootDir,
+					"for-each-ref",
+					"--format=%(refname)",
+					"refs/heads/"+wt.Branch,
+				); refs != "" {
+					t.Fatal("branch survived rollback", refs)
+				}
+			}
+			if childID != "" {
+				status, err := restarted.sessions.Status(t.Context(), childID)
+				if err != nil || status.State != session.StateStopped {
+					t.Fatal(status, err)
+				}
+			}
+		})
+	}
+}
+
+type subagentRollbackFailureService struct{ subagentWorktreeService }
+
+func (*subagentRollbackFailureService) RollbackRunMaterialization(context.Context, string, string, string) error {
+	return errors.New("injected rollback I/O failure")
+}
+
+// Invariant: managed delivery settles isolated facts only after commit, push and forge effects.
+// Owner: daemon composition; canonical real Git/ACP suite (IT-015, IT-016).
+func TestIsolatedSubagentDeliveryIntegration(t *testing.T) {
+	t.Run("Should coalesce branch and PR facts after managed delivery", func(t *testing.T) {
+		d, manager, ws := newSubagentDaemonIntegration(t)
+		workspace, err := d.workspaceResolver.Resolve(t.Context(), ws)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runner, err := worktree.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		git := func(dir string, args ...string) string {
+			t.Helper()
+			out, stderr, err := runner.Run(t.Context(), dir, args...)
+			if err != nil {
+				t.Fatalf("git %v: %v %s", args, err, stderr)
+			}
+			return strings.TrimSpace(string(out))
+		}
+		git(workspace.RootDir, "init", "-b", "main")
+		git(workspace.RootDir, "config", "user.name", "Compozy Test")
+		git(workspace.RootDir, "config", "user.email", "test@compozy.test")
+		git(workspace.RootDir, "commit", "--allow-empty", "-m", "initial")
+		remote := filepath.Join(t.TempDir(), "remote.git")
+		git(workspace.RootDir, "init", "--bare", remote)
+		git(workspace.RootDir, "remote", "add", "origin", remote)
+		git(workspace.RootDir, "push", "-u", "origin", "main")
+		forge := &subagentDeliveryForge{rows: make(map[string]worktree.ForgeStatus)}
+		worktree.WithForge(forge)(d.worktrees)
+		parent, caller := startSubagentIntegrationParent(t, manager, ws)
+		first, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "isolated delivery work", Title: "Same title", Isolation: "worktree"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller.ToolCallID = "second"
+		second, err := d.SubagentService().
+			Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "isolated child work", Title: "Same title", Isolation: "worktree"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.WorktreeState().Branch == second.WorktreeState().Branch {
+			t.Fatal("fan-out reused branch")
+		}
+		waitForRuntimeCondition(t, "delivery file authored", 15*time.Second, func() bool {
+			_, err := os.Stat(filepath.Join(first.WorktreeState().Path, "delivery.txt"))
+			return err == nil
+		})
+		plan, err := d.worktrees.ExitPlanForPaths(t.Context(), ws, first.WorktreeState().ID, []string{"delivery.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.worktrees.SubmitManagedDelivery(
+			t.Context(),
+			ws,
+			first.WorktreeState().ID,
+			*first.ChildSessionID,
+			worktree.ExitActionRequest{
+				Action:        worktree.ExitActionDeliver,
+				DeliveryID:    "isolated-delivery",
+				ExpectedHead:  first.WorktreeState().BaseSHA,
+				IncludePaths:  []string{"delivery.txt"},
+				ExpectedScope: plan.CommitScope.Fingerprint,
+				Message:       "feat: isolated delivery",
+				Title:         "Isolated delivery",
+				Body:          "Reviewed",
+				Base:          "main",
+				Draft:         true,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "delivery final facts", 30*time.Second, func() bool {
+			current, err := d.SubagentService().Get(t.Context(), ws, first.ID)
+			return err == nil && current.WorktreeState().Facts.PRURL != ""
+		})
+		waitForRuntimeCondition(t, "second final facts", 15*time.Second, func() bool {
+			current, err := d.SubagentService().Get(t.Context(), ws, second.ID)
+			return err == nil && current.WorktreeState().Facts.PRStatus == "none"
+		})
+		for _, row := range []session.Subagent{first, second} {
+			current, err := d.SubagentService().Get(t.Context(), ws, row.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			facts := current.WorktreeState().Facts
+			if facts.CommitsAhead == nil || *facts.CommitsAhead != 1 || facts.DirtyFiles == nil ||
+				*facts.DirtyFiles != 0 {
+				t.Fatal(facts)
+			}
+			if _, err := d.worktrees.Get(t.Context(), ws, row.WorktreeState().ID); err != nil {
+				t.Fatal(err)
+			}
+
+		}
+		db := d.registry.(store.SubagentStore)
+		wakes, err := db.ListWakesByParent(t.Context(), parent.ID, []string{store.SubagentWakeStateOpen})
+		if err != nil || len(wakes) != 1 {
+			t.Fatal(wakes, err)
+		}
+		_, members, err := db.GetWake(t.Context(), wakes[0].WakeMessageID)
+		if err != nil || len(members) != 2 {
+			t.Fatal(members, err)
+		}
+		inputs, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(t.Context(), parent.ID)
+		if err != nil || len(inputs) != 1 || !strings.Contains(inputs[0].Text, first.WorktreeState().Branch) ||
+			!strings.Contains(inputs[0].Text, second.WorktreeState().Branch) ||
+			!strings.Contains(inputs[0].Text, "https://forge.test/pull/7") {
+			t.Fatal(inputs, err)
+		}
+		assertIsolatedSubagentPublicFacts(t, d, caller, first.ID, "draft")
+		assertIsolatedSubagentPublicFacts(t, d, caller, second.ID, "none")
+	})
+}
+
+// IT-015: the public transports project the facts from the same completed delivery.
+func assertIsolatedSubagentPublicFacts(t *testing.T, d *Daemon, caller session.SubagentCaller, id, prStatus string) {
+	t.Helper()
+	target := fmt.Sprintf("http://127.0.0.1:%d/api/workspaces/%s/subagents/%s", d.info.Port, caller.WorkspaceID, id)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil || closeErr != nil || response.StatusCode != http.StatusOK {
+		t.Fatal(response.StatusCode, string(body), readErr, closeErr)
+	}
+	input, err := json.Marshal(map[string]string{"subagent_id": id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := d.toolRegistry.Call(
+		t.Context(),
+		toolspkg.Scope{WorkspaceID: caller.WorkspaceID, SessionID: caller.SessionID},
+		toolspkg.CallRequest{
+			ToolID:     toolspkg.ToolIDSubagentStatus,
+			TurnID:     caller.TurnID,
+			ToolCallID: "read-" + id,
+			Input:      input,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range [][]byte{body, result.Structured} {
+		var payload compozycontract.SubagentPayload
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		wt := payload.Worktree
+		if wt == nil || wt.CommitsAhead == nil || *wt.CommitsAhead != 1 || wt.DirtyFiles == nil ||
+			*wt.DirtyFiles != 0 ||
+			wt.PullRequestStatus != prStatus {
+			t.Fatalf("public facts: %s", data)
+		}
+		if prStatus == "draft" && (wt.PullRequest == nil || wt.PullRequest.URL != "https://forge.test/pull/7") {
+			t.Fatalf("public PR: %s", data)
+		}
+	}
+}
+
+// The forge is the external I/O boundary; Git, SQLite, ACP and managed delivery run normally.
+type subagentDeliveryForge struct {
+	mu   sync.Mutex
+	rows map[string]worktree.ForgeStatus
+}
+
+var _ worktree.ForgeProvider = (*subagentDeliveryForge)(nil)
+
+func (*subagentDeliveryForge) Capabilities(context.Context, []string) (*worktree.ForgeCapabilities, error) {
+	return &worktree.ForgeCapabilities{Provider: "test", SupportsDraft: true, DefaultBranch: "main"}, nil
+}
+
+func (f *subagentDeliveryForge) Status(
+	_ context.Context,
+	req worktree.ForgeStatusRequest,
+) (*worktree.ForgeStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	value := f.rows[req.Branch]
+	return &value, nil
+}
+
+func (f *subagentDeliveryForge) CreatePR(
+	_ context.Context,
+	req worktree.ForgePRRequest,
+) (*worktree.ForgePRResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows[req.Head] = worktree.ForgeStatus{
+		Head:     req.Head,
+		Base:     req.Base,
+		HeadSHA:  req.HeadSHA,
+		PRURL:    "https://forge.test/pull/7",
+		PRNumber: new(7),
+		PRState:  new("open"),
+		Draft:    new(req.Draft),
+	}
+	return &worktree.ForgePRResult{Status: "created", Number: 7, URL: "https://forge.test/pull/7"}, nil
 }

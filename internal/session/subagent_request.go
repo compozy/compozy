@@ -19,6 +19,17 @@ import (
 const subagentRoleGeneral = "general"
 
 func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
+	if req.Isolation == "" {
+		req.Isolation = "shared"
+	}
+	if req.Isolation != "shared" && req.Isolation != SubagentIsolationWorktree {
+		return req, invalidSubagent("isolation must be shared or worktree.")
+	}
+	req.BaseRef = strings.TrimSpace(req.BaseRef)
+	if req.BaseRef != "" && req.Isolation != SubagentIsolationWorktree {
+		return req, invalidSubagent(`base_ref requires isolation "worktree".`)
+	}
+
 	if strings.TrimSpace(req.Task) == "" {
 		return req, invalidSubagent("task is required.")
 	}
@@ -67,6 +78,10 @@ func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
 func invalidSubagent(message string) error {
 	return &SubagentError{Code: "invalid_request", Message: message, Err: ErrSubagentInvalidRequest}
 }
+func subagentChildSessionID(parent, subagent string) string {
+	return "sess-" + strings.TrimPrefix(subagentID(parent, subagent), "sub-")
+}
+
 func subagentID(parent, key string) string { return subagentid.Derive(parent, key) }
 
 func subagentFingerprint(req SubagentRequest) (string, error) {

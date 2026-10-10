@@ -156,13 +156,24 @@ by another agent, provider, or model while you keep working:
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
+   `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
+   with `worktree` and defaults to the caller checkout's current HEAD commit. Uncommitted changes
+   are not copied. Include "commit, then deliver with `compozy worktree deliver`" in a code task.
+   Reusing an idempotency key requires the same isolation and requested base ref. Worktree/setup
+   hook denial returns `capability_denied`; creation/setup failure returns `isolation_failed`.
+   The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
+   read-only `subagent.isolation` and `subagent.worktree_id`.
 3. Prefer `mode: "async"` (default): the call returns `status: "running"` with `subagent_id` and
    `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
 4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
    `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
    `Call compozy__subagent_status to read its result.` (one subagent) or `… to read each result.`
    (several). The wake is steered into your running turn when your agent supports steering,
-   otherwise queued ahead of user prompts.
+   otherwise queued ahead of user prompts. An isolated wake also names its branch and PR URL,
+   or says that PR status is unknown. `subagent_status` includes `isolation` and optional `worktree`:
+   id, name, branch, path, requested `base_ref`, pinned `base_sha`, and settlement Git/PR facts.
+   Missing integers mean unknown, not zero. PR status `none` means the forge answered without a
+   PR; `unknown` means unavailable or failed lookup. Shared subagents omit worktree facts.
 5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
    assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
    the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a

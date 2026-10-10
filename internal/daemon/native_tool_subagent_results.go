@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -107,6 +108,11 @@ func subagentPayload(s *session.Subagent) map[string]any {
 		"delivery":         s.Delivery,
 		"started_at":       s.StartedAt,
 		"settled_at":       s.SettledAt,
+	}
+	full := contract.SubagentFromDomain(s)
+	p["isolation"] = full.Isolation
+	if full.Worktree != nil {
+		p["worktree"] = full.Worktree
 	}
 	if s.ResultTruncated {
 		p["hint"] = "Read the full answer with compozy__session_history on child_session_id."

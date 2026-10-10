@@ -199,6 +199,32 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 		row.Delivery,
 		started,
 	)
+	output += "Isolation     " + row.Isolation + "\n"
+	if wt := row.Worktree; wt != nil {
+		output += fmt.Sprintf(
+			"Worktree      %s (%s)\nBranch        %s\nBase          %s (%s)\nPath          %s\n",
+			wt.Name,
+			wt.ID,
+			wt.Branch,
+			wt.BaseRef,
+			wt.BaseSHA,
+			wt.Path,
+		)
+		if wt.HeadSHA != "" {
+			output += "Head          " + wt.HeadSHA + "\n"
+		}
+		if wt.CommitsAhead != nil {
+			output += fmt.Sprintf("Commits ahead %d\n", *wt.CommitsAhead)
+		}
+		if wt.DirtyFiles != nil {
+			output += fmt.Sprintf("Dirty files   %d\n", *wt.DirtyFiles)
+		}
+		if wt.PullRequest != nil {
+			output += fmt.Sprintf("Pull request  %s (%s)\n", wt.PullRequest.URL, wt.PullRequest.State)
+		} else if wt.PullRequestStatus != "" {
+			output += "Pull request  status " + wt.PullRequestStatus + "\n"
+		}
+	}
 	if row.Result != nil {
 		output += "\nResult\n" + *row.Result + "\n"
 	}

@@ -72,6 +72,9 @@ var (
 
 // SessionSubagent is the durable parent-side record of one subagent.
 type SessionSubagent struct {
+	Isolation string
+	Worktree  *SubagentWorktreeState
+
 	ID                 string
 	WorkspaceID        string
 	ParentSessionID    string
@@ -110,6 +113,28 @@ type SessionSubagent struct {
 	SettledAt          *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// SubagentWorktreeState is present only after an isolated checkout is associated.
+type SubagentWorktreeState struct {
+	ID, Name, Branch, BaseRef, Path, BaseSHA, Cleanup string
+	Facts                                             SubagentWorktreeFacts
+}
+
+// WorktreeState returns the optional checkout state as a value, safe for shared rows.
+func (s SessionSubagent) WorktreeState() SubagentWorktreeState {
+	if s.Worktree == nil {
+		return SubagentWorktreeState{}
+	}
+	return *s.Worktree
+}
+
+type SubagentWorktreeFacts struct {
+	HeadSHA                  string
+	CommitsAhead, DirtyFiles *int
+	ObservedAt               time.Time
+	PRStatus, PRURL          string
+	PRNumber                 *int
 }
 
 // SessionSubagentWake is one batched parent wake (mailbox pointer turn or steer).
@@ -153,6 +178,7 @@ type SubagentPage struct {
 
 // SubagentFinalize settles a row to a terminal status.
 type SubagentFinalize struct {
+	WorktreeFacts   *SubagentWorktreeFacts
 	ID              string
 	Status          string
 	WorkState       string
@@ -172,6 +198,10 @@ type SubagentDisposeFilter struct {
 // SubagentStore persists subagent rows and wake batches. Every wake/delivery
 // transition runs in one transaction; callers hold the parent's mutex.
 type SubagentStore interface {
+	HasSubagentCommittedAdmission(ctx context.Context, workspaceID, childID, subagentID string) (bool, error)
+	AssociateSubagentWorktree(ctx context.Context, row SessionSubagent) error
+	SetSubagentWorktreeCleanup(ctx context.Context, id, state string) error
+	ListSubagentWorktreeCleanupPending(ctx context.Context) ([]SessionSubagent, error)
 	ReserveSubagent(ctx context.Context, row SessionSubagent) (SessionSubagent, bool, error)
 	LinkChild(ctx context.Context, id, childSessionID string, startedAt time.Time) (SessionSubagent, error)
 	// MarkFirstPromptAdmitted clears PendingTask once the child's first prompt is admitted.
