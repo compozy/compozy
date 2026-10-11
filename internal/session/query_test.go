@@ -35,6 +35,41 @@ func TestManagerListAllRequiresContext(t *testing.T) {
 	}
 }
 
+func TestManagerQueriesUseWorkspaceRegistration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should list and inspect stopped sessions without resolving runtime resources", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		h.resolver.mu.Lock()
+		h.resolver.resolveErr = errors.New("runtime resources are unavailable")
+		h.resolver.resolveCalls = nil
+		h.resolver.mu.Unlock()
+		infos, err := h.manager.ListAll(t.Context())
+		if err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		if len(infos) != 1 || infos[0].Workspace != h.workspace {
+			t.Fatalf("ListAll() = %#v, want stopped session with registered workspace root", infos)
+		}
+		info, err := h.manager.Status(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if info.Workspace != h.workspace {
+			t.Fatalf("Status().Workspace = %q, want %q", info.Workspace, h.workspace)
+		}
+		h.resolver.mu.Lock()
+		defer h.resolver.mu.Unlock()
+		if len(h.resolver.resolveCalls) != 0 {
+			t.Fatalf("runtime resolutions = %v, want none", h.resolver.resolveCalls)
+		}
+	})
+}
+
 func TestManagerListAllReturnsActiveWhenSessionsDirMissing(t *testing.T) {
 	t.Parallel()
 

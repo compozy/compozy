@@ -586,3 +586,11 @@ func (d *workspaceAccessIntegrationDriver) Stop(_ context.Context, proc *session
 	procState.once.Do(func() { close(procState.done) })
 	return nil
 }
+
+func (r workspaceAccessIntegrationResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	resolved, err := r.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+}

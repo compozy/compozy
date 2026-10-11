@@ -42,3 +42,6 @@ The issue-specific automated verdict, exact commit and CI job receipts are recor
 [PR #647 — How you verified it](https://github.com/compozy/compozy/pull/647).
 That record covers this stopped/unbound deletion slice; the historical evidence above is separate
 and is not promoted to a new full manual-scenario pass.
+
+
+QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.

@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
@@ -29,7 +28,7 @@ type SessionManagerDeps struct {
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
-	WorkspaceResolver       workspacepkg.RuntimeResolver
+	WorkspaceResolver       session.WorkspaceResolver
 	WorktreeResolver        session.WorktreeResolver
 	WindowReconciler        session.WindowReconciler
 	SessionSupervision      compozyconfig.SessionSupervisionConfig

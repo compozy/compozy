@@ -94,10 +94,8 @@ func stageBoundSessionDelete(
 	originalPath string,
 	stagedPath string,
 ) error {
-	result, moveErr := capabilities.directory.MoveTo(
-		capabilities.parentDirectory,
-		filepath.Base(stagedPath),
-		false,
+	result, moveErr := capabilities.database.MoveParentDirectory(
+		ctx, owner, capabilities.directory, capabilities.parentDirectory, stagedPath,
 	)
 	if !result.Committed() {
 		return fmt.Errorf(
@@ -110,10 +108,8 @@ func stageBoundSessionDelete(
 	if moveErr == nil && result.PostCommitErr == nil && verifyErr == nil {
 		return nil
 	}
-	rollbackResult, rollbackErr := capabilities.directory.MoveTo(
-		capabilities.parentDirectory,
-		filepath.Base(originalPath),
-		false,
+	rollbackResult, rollbackErr := capabilities.database.MoveParentDirectory(
+		ctx, owner, capabilities.directory, capabilities.parentDirectory, originalPath,
 	)
 	var restoredOwnerErr error
 	if rollbackResult.Committed() {

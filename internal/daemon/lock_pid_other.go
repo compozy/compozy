@@ -8,3 +8,7 @@ package daemon
 func lockPIDPath(lockPath string) string {
 	return lockPath
 }
+
+func updateLockOwnerPath(lockPath string) string {
+	return lockPath
+}

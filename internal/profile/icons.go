@@ -12,12 +12,17 @@ import (
 var lucideIconData string
 
 var lucideIcons = sync.OnceValue(func() map[string]struct{} {
+	return parseIconCatalog(lucideIconData)
+})
+
+func parseIconCatalog(data string) map[string]struct{} {
 	set := make(map[string]struct{}, 1800)
-	for slug := range strings.SplitSeq(strings.TrimSpace(lucideIconData), "\n") {
+	for slug := range strings.SplitSeq(strings.TrimSpace(data), "\n") {
+		slug = strings.TrimSuffix(slug, "\r")
 		set[slug] = struct{}{}
 	}
 	return set
-})
+}
 
 func isCatalogIcon(slug string) bool {
 	_, found := lucideIcons()[slug]

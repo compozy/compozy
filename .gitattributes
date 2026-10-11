@@ -8,3 +8,6 @@ extensions/open-design/lint.gen.mjs linguist-generated=true
 # Embedded migration checksums require identical SQL bytes on Windows and Unix.
 *.sql text eol=lf
 atlas.sum text eol=lf
+
+# Keep the embedded Lucide catalog identical in source builds on every platform.
+internal/profile/lucide_icons.gen.txt text eol=lf

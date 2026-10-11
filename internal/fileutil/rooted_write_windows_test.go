@@ -5,6 +5,7 @@ package fileutil
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -338,5 +339,74 @@ func TestWindowsDirectorySyncReportsUnconfirmedDurability(t *testing.T) {
 		if !errors.Is(err, windows.ERROR_INVALID_HANDLE) {
 			t.Fatalf("syncDirectoryHandle(closed file) error = %v, want ERROR_INVALID_HANDLE", err)
 		}
+	})
+}
+
+func TestWindowsDirectoryCreationThroughReadOnlyAncestor(t *testing.T) {
+	t.Parallel()
+	t.Run("Should create descendants without requesting write access to an existing ancestor", func(t *testing.T) {
+		t.Parallel()
+		ancestor := t.TempDir()
+		writable := filepath.Join(ancestor, "writable")
+		if err := os.Mkdir(writable, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		original, err := windows.GetNamedSecurityInfo(
+			ancestor,
+			windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		originalDACL, _, err := original.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		operator, err := windows.GetCurrentProcessToken().GetTokenUser()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sid := operator.User.Sid.String()
+		security, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:P(D;;0x116;;;%s)(A;;FA;;;%s)", sid, sid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dacl, _, err := security.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := windows.SetNamedSecurityInfo(ancestor, windows.SE_FILE_OBJECT,
+				windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+				nil, nil, originalDACL, nil); err != nil {
+				t.Errorf("restore ancestor ACL: %v", err)
+			}
+		})
+		if err := windows.SetNamedSecurityInfo(ancestor, windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+			nil, nil, dacl, nil); err != nil {
+			t.Fatal(err)
+		}
+		denied, err := OpenDirectoryForMutation(ancestor)
+		if err == nil {
+			t.Fatal(errors.Join(errors.New("ancestor unexpectedly allowed mutation"), denied.Close()))
+		}
+		if !errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			t.Fatalf("mutation error = %v, want access denied", err)
+		}
+		target := filepath.Join(writable, "nested", "leaf")
+		directory, err := OpenOrCreateDirectory(target, 0o700)
+		if err != nil {
+			t.Fatalf("OpenOrCreateDirectory() error = %v", err)
+		}
+		if err := directory.Close(); err != nil {
+			t.Fatal(err)
+		}
+		payload := filepath.Join(target, "payload")
+		if err := AtomicWriteFile(payload, []byte("created"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertWindowsRegularFileContents(t, payload, "created")
 	})
 }

@@ -31,3 +31,6 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The accepted prose-mention run (false-positive guard: command-shaped regex, not prose scanning).
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-005-schedules-recover-once-never-overlap-never-target-the-daemon
+
+
+QA impact 2026-10-10 (verification pending): On native Windows as a non-elevated user, start/stop/start the daemon normally. Confirm update.lock contention still rejects a second owner and release permits acquisition. Create session/gateway directories beneath the user home without granting write access to C:\ or C:\Users. With persisted sessions, status/listing must not resolve agent/skill resources to obtain workspace roots. Owning suites: TestUpdateLock, TestWindowsDirectoryCreationThroughReadOnlyAncestor, TestManagerQueriesUseWorkspaceRegistration.

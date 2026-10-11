@@ -438,10 +438,8 @@ func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []sta
 		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
 			rollbackErr = errors.Join(rollbackErr, err)
 		} else {
-			result, moveErr := entry.capabilities.directory.MoveTo(
-				entry.capabilities.parentDirectory,
-				filepath.Base(entry.originalPath),
-				false,
+			result, moveErr := entry.capabilities.database.MoveParentDirectory(
+				ctx, entry.owner, entry.capabilities.directory, entry.capabilities.parentDirectory, entry.originalPath,
 			)
 			rollbackErr = errors.Join(rollbackErr, moveErr, result.PostCommitErr)
 			if result.Committed() {

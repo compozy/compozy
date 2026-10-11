@@ -1,3 +1,5 @@
+import type { SpellcheckSettings } from "./context-menu";
+
 import { readFile } from "node:fs/promises";
 
 import { writeFileAtomic } from "../files/atomic-write";
@@ -6,6 +8,7 @@ import { parseWindowState, type PersistedWindowState } from "./window-state-poli
 
 export interface StoredWindowState extends PersistedWindowState {
   readonly zoom_level: number;
+  readonly spellcheck?: SpellcheckSettings;
 }
 
 export async function readWindowState(path: string): Promise<StoredWindowState | null> {
@@ -15,7 +18,21 @@ export async function readWindowState(path: string): Promise<StoredWindowState |
     if (!state) return null;
     const zoom =
       value && typeof value === "object" ? (value as Record<string, unknown>).zoom_level : 0;
-    return { ...state, zoom_level: typeof zoom === "number" ? clampZoomLevel(zoom) : 0 };
+    const spelling =
+      value && typeof value === "object" ? Reflect.get(value, "spellcheck") : undefined;
+    const spellcheck =
+      spelling &&
+      typeof spelling === "object" &&
+      typeof spelling.enabled === "boolean" &&
+      Array.isArray(spelling.languages) &&
+      spelling.languages.every((language: unknown) => typeof language === "string")
+        ? { enabled: spelling.enabled, languages: [...new Set<string>(spelling.languages)] }
+        : undefined;
+    return {
+      ...state,
+      zoom_level: typeof zoom === "number" ? clampZoomLevel(zoom) : 0,
+      ...(spellcheck ? { spellcheck } : {}),
+    };
   } catch {
     return null;
   }

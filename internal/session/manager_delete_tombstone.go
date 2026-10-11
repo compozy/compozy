@@ -179,6 +179,9 @@ func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
 	if restored {
 		return nil
 	}
+	if err := database.Close(); err != nil {
+		return err
+	}
 	return m.removeBoundSessionDelete(directory, path)
 }
 
@@ -263,8 +266,7 @@ func (m *Manager) restoreStagedSessionDelete(
 	directory *fileutil.Directory,
 	database *sessiondb.FamilyFile,
 ) error {
-	target := owner.SessionID
-	result, moveErr := directory.MoveTo(parent, target, false)
+	result, moveErr := database.MoveParentDirectory(ctx, owner, directory, parent, filepath.Dir(canonicalDBPath))
 	if !result.Committed() {
 		return errors.Join(moveErr, result.PostCommitErr)
 	}
@@ -347,6 +349,9 @@ func requireSessionDBInDirectory(database *sessiondb.FamilyFile, directory *file
 func (m *Manager) removeStagedSessionDelete(entry stagedSessionDelete, path string) error {
 	if entry.capabilities == nil || entry.capabilities.directory == nil {
 		return errors.New("session: staged deletion directory capability is required")
+	}
+	if err := entry.capabilities.database.Close(); err != nil {
+		return err
 	}
 	return m.removeBoundSessionDelete(entry.capabilities.directory, path)
 }

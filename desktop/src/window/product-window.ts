@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, screen } from "electron";
+import { BrowserWindow, clipboard, dialog, Menu, screen } from "electron";
 
 import { productDeepLink, productNavigationURL, type DeepLinkQueue } from "../deep-links/deep-link";
 import { writeWindowState, readWindowState, type StoredWindowState } from "./window-state-store";
@@ -9,6 +9,8 @@ import { presentWindow, type WindowPresentation } from "./window-presentation";
 import type { WindowTheme } from "./window-theme";
 import { MINIMUM_WINDOW_SIZE, restoreWindowBounds } from "./window-state-policy";
 import { nextZoomLevel } from "./zoom-policy";
+
+import { productContextMenu, type SpellcheckSettings } from "./context-menu";
 
 const REVEAL_DEADLINE_MS = 10_000;
 const SAVE_DEBOUNCE_MS = 250;
@@ -42,6 +44,7 @@ export class ProductWindow {
   #ready = false;
   #navigating = false;
   #zoomLevel = 0;
+  #spellcheck: SpellcheckSettings | undefined;
   #saveTimer: NodeJS.Timeout | null = null;
 
   constructor(options: {
@@ -73,6 +76,7 @@ export class ProductWindow {
     const bounds = restoreWindowBounds(saved, displays);
     this.#ready = false;
     this.#zoomLevel = saved?.zoom_level ?? 0;
+    this.#spellcheck = saved?.spellcheck;
     const window = new BrowserWindow({
       ...bounds,
       ...productWindowChrome(process.platform, this.#theme.dark),
@@ -92,6 +96,16 @@ export class ProductWindow {
       },
     });
     this.#window = window;
+    if (this.#spellcheck) {
+      const session = window.webContents.session;
+      session.setSpellCheckerEnabled(this.#spellcheck.enabled);
+      if (process.platform !== "darwin") {
+        const languages = this.#spellcheck.languages.filter(language =>
+          session.availableSpellCheckerLanguages.includes(language)
+        );
+        if (languages.length) session.setSpellCheckerLanguages(languages);
+      }
+    }
     this.#theme.track(window, "chrome");
     if (saved?.maximized) window.maximize();
     if (!saved) window.center();
@@ -164,6 +178,19 @@ export class ProductWindow {
   }
 
   #wireLifecycle(window: BrowserWindow): void {
+    window.webContents.on("context-menu", (_event, params) => {
+      const template = productContextMenu(
+        params,
+        window.webContents,
+        url => clipboard.writeText(url),
+        settings => {
+          this.#spellcheck = settings;
+          this.#scheduleSave();
+        },
+        process.platform
+      );
+      if (template.length) Menu.buildFromTemplate(template).popup({ window });
+    });
     window.webContents.on("did-finish-load", () => {
       window.webContents.setZoomLevel(this.#zoomLevel);
       this.#scheduleSave();
@@ -264,6 +291,7 @@ export class ProductWindow {
       ...bounds,
       maximized: window.isMaximized(),
       zoom_level: this.#zoomLevel,
+      ...(this.#spellcheck ? { spellcheck: this.#spellcheck } : {}),
     };
     await writeWindowState(this.#windowStatePath, state);
   }

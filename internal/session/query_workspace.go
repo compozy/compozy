@@ -2,9 +2,16 @@ package session
 
 import (
 	"context"
-
 	"strings"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+// WorkspaceResolver supplies runtime snapshots and inexpensive persisted registrations.
+type WorkspaceResolver interface {
+	workspacepkg.RuntimeResolver
+	Get(context.Context, string) (workspacepkg.Workspace, error)
+}
 
 func (m *Manager) resolveWorkspaceRoot(ctx context.Context, workspaceID string) (string, error) {
 	if ctx == nil {
@@ -14,7 +21,7 @@ func (m *Manager) resolveWorkspaceRoot(ctx context.Context, workspaceID string) 
 		return "", nil
 	}
 
-	resolved, err := m.workspace.Resolve(ctx, workspaceID)
+	resolved, err := m.workspace.Get(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}

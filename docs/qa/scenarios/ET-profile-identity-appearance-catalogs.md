@@ -65,3 +65,6 @@ Local asset requests use the production `/assets/emojibase` prefix; no third-par
 was observed. An invalid CLI icon is refused without changing the saved identity. The skin-tone
 button announces its next action while `aria-valuetext` reports its current tone; their difference
 is not an off-by-one selection defect. Recording closed with 67 frames.
+
+
+QA impact 2026-10-10 (verification pending): Build from a CRLF source checkout and confirm palette and all catalog slugs remain selectable. Owning regression: TestNormalizeIdentitySymbols/Should recognize the entire catalog with either LF or CRLF line endings.
