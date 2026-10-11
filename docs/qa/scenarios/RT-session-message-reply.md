@@ -26,8 +26,9 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 4. Repeat with B failing, canceling, and producing empty output. Confirm `failed` with its error,
    `canceled`, and `(no reply text)`. Produce more than 12000 Unicode characters and confirm the
    exact rune bound plus the history pointer.
-5. Stop A before B settles. The watch remains `fired`; resume A and verify one delivery. Repeat
-   across daemon restart. Fill A's queue before firing, free a slot and verify retry delivers once.
+5. Stop A yourself before B settles. The watch remains `fired`; resume A and verify one delivery.
+   Repeat across daemon restart: A is resumed by the reply and receives one wake. Fill A's queue
+   before firing, free a slot and verify retry delivers once.
 6. Queue the request behind B's current turn. Stop B: the watch remains `armed`. Cancel or clear the
    unconsumed message: the reply is `dropped`. Supersede a pending steer with requeue: it follows the
    same message until its eventual consuming turn, never the original unrelated turn.
@@ -44,6 +45,11 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 10. Recover a broken watch alongside a healthy one. Boot completes, the healthy watch reconciles,
     and the broken row is logged as `reply_watch.recover_failed`. Armed watches older than 24 hours
     produce a warning. Unrelated transcript turns do not affect normal reconciliation.
+11. Long wait: keep B working longer than `session.supervision.quiet_after` + `stop_grace` (shorten
+    them for the lab). A, idle with an armed watch, is never stopped for inactivity and shows an
+    `awaiting_reply` work signal in `compozy session status A -o json`. Then stop B with the message
+    queued: A goes quiet and is stopped for inactivity; resume B and confirm the reply resumes A and
+    delivers exactly one wake.
 
 Task 04 automated evidence covers admission/watch atomicity, legacy replay exclusion, native
 receipts in every prompt mode, exact reply content, queue priority, restart, abrupt process loss,

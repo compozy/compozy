@@ -3893,3 +3893,90 @@ func (b *originReceiptBarrier) RecordPersisted(
 	}
 	return b.SessionDB.RecordPersisted(ctx, event)
 }
+
+// Invariant: an orchestrator waiting on a reply is not stopped for inactivity while its target works, and a
+// reply that arrives after the daemon stopped it resumes it and wakes it exactly once (2026-10-10 report).
+// Owner: daemon composition; canonical reply-watch integration suite.
+func TestReplyWatchLongWaitIntegration(t *testing.T) {
+	t.Run("Should keep the waiting orchestrator alive and resume it for a late reply", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.QuietAfter = 2 * time.Second
+			cfg.Session.Supervision.StopGrace = 2 * time.Second
+		}, "injected")
+		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := m.SendPrompt(t.Context(), target.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for range held.Events {
+			}
+		}()
+		input, err := json.Marshal(map[string]any{
+			"session_id": target.ID, "message": "child work", "message_id": "long-question",
+			"idempotency_key": "long-key", "mode": "queue", "notify_on_complete": true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.toolRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				SessionID:   sender.ID,
+				WorkspaceID: ws,
+				AgentName:   "subagent-test",
+				ProfileID:   sender.ProfileID,
+			},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt, ToolCallID: "ask", TurnID: sender.CurrentTurnID(), Input: input,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		id := store.ReplyWatchID(target.ID, "long-question")
+
+		// Several quiet episodes past QuietAfter + StopGrace (2s ticks): the armed watch on a working target
+		// is the sender's only work, so without it the sender would be stopped well inside this window.
+		time.Sleep(15 * time.Second)
+		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive {
+			t.Fatalf("waiting orchestrator = %+v, %v; want active", info, err)
+		}
+
+		// The target stops with the question still queued: no evidence remains, so the sender goes quiet.
+		if err := m.Stop(t.Context(), target.ID); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "orchestrator stopped for inactivity", 20*time.Second, func() bool {
+			info, err := m.Status(t.Context(), sender.ID)
+			return err == nil && info.State == session.StateStopped && info.StopReason == store.StopTimeout
+		})
+		if w, err := db.GetReplyWatch(t.Context(), id); err != nil || w.State != store.ReplyWatchArmed {
+			t.Fatalf("watch while both sessions are stopped = %+v, %v; want armed", w, err)
+		}
+
+		// The operator resumes the target; its answer resumes the orchestrator and wakes it once.
+		if _, err := m.Resume(t.Context(), target.ID); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "late reply delivered to a resumed orchestrator", 30*time.Second, func() bool {
+			w, err := db.GetReplyWatch(t.Context(), id)
+			info, statusErr := m.Status(t.Context(), sender.ID)
+			return err == nil && statusErr == nil && w.State == store.ReplyWatchDelivered &&
+				info.State == session.StateActive
+		})
+		waitForRuntimeCondition(t, "one reply wake", 15*time.Second, func() bool {
+			rows, err := m.Events(
+				t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
+			)
+			return err == nil && len(rows) == 1
+		})
+	})
+}

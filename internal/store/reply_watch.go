@@ -80,6 +80,8 @@ type ReplyWatchStore interface {
 	InsertReplyWatchTx(context.Context, DBTX, ReplyWatchRegistration) (ReplyWatch, error)
 	GetReplyWatch(context.Context, string) (ReplyWatch, error)
 	ListReplyWatches(context.Context, ReplyWatchFilter) ([]ReplyWatch, error)
+	// ListPendingReplyWatchesBySender reads one sender's armed and fired watches through its index.
+	ListPendingReplyWatchesBySender(context.Context, string) ([]ReplyWatch, error)
 	BindReplyWatch(context.Context, string, string, string) error
 	FireReplyWatch(context.Context, string, ReplyWatchFire) (bool, error)
 	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert) (bool, error)

@@ -24,14 +24,20 @@ type ReplyWatchService interface {
 	OnTargetGone(context.Context, string)
 	Recover(context.Context) error
 	ListForSender(context.Context, string, string) ([]store.ReplyWatch, error)
+	// AwaitingReplySignals reports the sender's open watches that still count as work until the given time.
+	AwaitingReplySignals(context.Context, string, time.Time) ([]WorkSignal, error)
 }
 
 type replyWatchService struct {
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc
 	done        chan struct{}
+	runCtx      context.Context
 	store       store.ReplyWatchStore
 	manager     *Manager
+	// resuming holds senders with a reply-driven resume in flight; wakes joins those resumes on Close.
+	resuming sync.Map
+	wakes    sync.WaitGroup
 }
 
 var _ ReplyWatchService = (*replyWatchService)(nil)
@@ -346,7 +352,7 @@ func (s *replyWatchService) start(ctx context.Context) {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
-	s.cancel, s.done = cancel, done
+	s.cancel, s.done, s.runCtx = cancel, done, runCtx
 	go func() { defer close(done); s.run(runCtx) }()
 }
 
@@ -358,8 +364,14 @@ func (s *replyWatchService) Close(ctx context.Context) error {
 		return nil
 	}
 	cancel()
+	joined := make(chan struct{})
+	go func() {
+		<-done
+		s.wakes.Wait()
+		close(joined)
+	}()
 	select {
-	case <-done:
+	case <-joined:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

@@ -194,6 +194,55 @@ func (q *Queries) InsertReplyWatch(ctx context.Context, arg InsertReplyWatchPara
 	return err
 }
 
+const listPendingReplyWatchesBySender = `-- name: ListPendingReplyWatchesBySender :many
+SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches
+WHERE sender_session_id = ? AND state IN ('armed', 'fired')
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListPendingReplyWatchesBySender(ctx context.Context, senderSessionID string) ([]SessionPromptReplyWatch, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingReplyWatchesBySender, senderSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionPromptReplyWatch{}
+	for rows.Next() {
+		var i SessionPromptReplyWatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SenderSessionID,
+			&i.TargetWorkspaceID,
+			&i.TargetSessionID,
+			&i.MessageID,
+			&i.AdmissionID,
+			&i.TurnID,
+			&i.QueueEntryID,
+			&i.DeliveredInputID,
+			&i.AbandonReason,
+			&i.Hop,
+			&i.State,
+			&i.Outcome,
+			&i.ReplyText,
+			&i.ReplyTruncated,
+			&i.CreatedAt,
+			&i.FiredAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReplyWatches = `-- name: ListReplyWatches :many
 SELECT id, workspace_id, sender_session_id, target_workspace_id, target_session_id, message_id, admission_id, turn_id, queue_entry_id, delivered_input_id, abandon_reason, hop, state, outcome, reply_text, reply_truncated, created_at, fired_at, delivered_at FROM session_prompt_reply_watches
 WHERE state IN ('armed', 'fired')

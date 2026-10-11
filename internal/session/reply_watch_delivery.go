@@ -15,16 +15,9 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 	if err != nil || w.State != store.ReplyWatchFired {
 		return err
 	}
-	sender, err := s.manager.Status(ctx, w.SenderSessionID)
-	if errors.Is(err, ErrSessionNotFound) || (err == nil && sender.ArchivedAt != nil) {
-		return s.abandon(ctx, id, "sender_gone")
-	}
-	if err != nil {
+	sender, ready, err := s.replySenderReady(ctx, w)
+	if err != nil || !ready {
 		return err
-	}
-	if _, live := s.manager.Get(w.SenderSessionID); !live || sender.State != StateActive {
-		s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", id, "reason", "sender_not_live")
-		return nil
 	}
 	target, err := s.manager.Status(ctx, w.TargetSessionID)
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
@@ -106,4 +99,25 @@ func replyWakeText(w store.ReplyWatch, title string) string {
 		text += "\n[Reply truncated at 12000 characters. Read the full turn with compozy__session_history.]"
 	}
 	return text
+}
+
+// replySenderReady reports whether the sender can take the wake now. A gone sender abandons the watch;
+// a sender CompozyOS stopped is resumed and redelivers on resume; any other stopped sender waits.
+func (s *replyWatchService) replySenderReady(ctx context.Context, w store.ReplyWatch) (*Info, bool, error) {
+	sender, err := s.manager.Status(ctx, w.SenderSessionID)
+	if errors.Is(err, ErrSessionNotFound) || (err == nil && sender.ArchivedAt != nil) {
+		return nil, false, s.abandon(ctx, w.ID, "sender_gone")
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if _, live := s.manager.Get(w.SenderSessionID); live && sender.State == StateActive {
+		return sender, true, nil
+	}
+	if replySenderWakeable(sender) {
+		s.resumeSender(ctx, w.ID, w.SenderSessionID)
+		return nil, false, nil
+	}
+	s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", w.ID, "reason", "sender_not_live")
+	return nil, false, nil
 }

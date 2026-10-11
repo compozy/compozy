@@ -11536,7 +11536,8 @@ export interface operations {
                       | "active_child"
                       | "loop_run"
                       | "task_lease"
-                      | "scheduled_wait";
+                      | "scheduled_wait"
+                      | "awaiting_reply";
                     ref?: string;
                     state: string;
                   }[];
@@ -11548,7 +11549,8 @@ export interface operations {
                       | "active_child"
                       | "loop_run"
                       | "task_lease"
-                      | "scheduled_wait";
+                      | "scheduled_wait"
+                      | "awaiting_reply";
                     ref?: string;
                     /** Format: date-time */
                     since: string;
@@ -45609,7 +45611,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -45621,7 +45624,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -46119,7 +46123,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -46131,7 +46136,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -47085,7 +47091,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -47097,7 +47104,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -85797,7 +85805,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -85809,7 +85818,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -103297,7 +103307,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -103309,7 +103320,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -103800,7 +103812,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -103812,7 +103825,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -104299,7 +104313,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -104311,7 +104326,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -104895,7 +104911,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -104907,7 +104924,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -105377,7 +105395,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -105389,7 +105408,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -106648,7 +106668,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -106660,7 +106681,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -107453,7 +107475,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -107465,7 +107488,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -107803,7 +107827,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -107815,7 +107840,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -108756,7 +108782,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -108768,7 +108795,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -109106,7 +109134,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -109118,7 +109147,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -114478,7 +114508,8 @@ export interface operations {
                       | "active_child"
                       | "loop_run"
                       | "task_lease"
-                      | "scheduled_wait";
+                      | "scheduled_wait"
+                      | "awaiting_reply";
                     ref?: string;
                     state: string;
                   }[];
@@ -114490,7 +114521,8 @@ export interface operations {
                       | "active_child"
                       | "loop_run"
                       | "task_lease"
-                      | "scheduled_wait";
+                      | "scheduled_wait"
+                      | "awaiting_reply";
                     ref?: string;
                     /** Format: date-time */
                     since: string;
@@ -115097,7 +115129,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -115109,7 +115142,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -115613,7 +115647,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -115625,7 +115660,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -116082,7 +116118,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -116094,7 +116131,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -120286,7 +120324,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -120298,7 +120337,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;
@@ -121312,7 +121352,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   state: string;
                 }[];
@@ -121324,7 +121365,8 @@ export interface operations {
                     | "active_child"
                     | "loop_run"
                     | "task_lease"
-                    | "scheduled_wait";
+                    | "scheduled_wait"
+                    | "awaiting_reply";
                   ref?: string;
                   /** Format: date-time */
                   since: string;

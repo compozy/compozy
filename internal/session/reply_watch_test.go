@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -522,8 +523,15 @@ func replyWatchFixture(
 	t *testing.T, mode ...string,
 ) (*harness, *globaldb.GlobalDB, ReplyWatchService, *Session, *Session, store.ReplyWatch) {
 	t.Helper()
+	return replyWatchFixtureWith(t, nil, mode...)
+}
+
+func replyWatchFixtureWith(
+	t *testing.T, opts []Option, mode ...string,
+) (*harness, *globaldb.GlobalDB, ReplyWatchService, *Session, *Session, store.ReplyWatch) {
+	t.Helper()
 	db := openManagerInputQueueStore(t)
-	h := newHarness(t, WithSessionInputQueueStore(db), WithSessionCatalog(db))
+	h := newHarness(t, append([]Option{WithSessionInputQueueStore(db), WithSessionCatalog(db)}, opts...)...)
 	registerManagerInputQueueWorkspace(t, db, h)
 	cleanupTestManager(t, h.manager)
 	sender, target := createSession(t, h), createSession(t, h)
@@ -1273,4 +1281,223 @@ func TestReplyWatchReceiptRefresh(t *testing.T) {
 		}
 		collectEvents(t, result.Events)
 	})
+}
+
+// Invariant: an open reply watch is work for its sender only while the answer can still arrive.
+// Owner: session reply-watch suite (orchestrator inactivity stop, 2026-10-10 report).
+func TestReplyWatchAwaitingReplySignals(t *testing.T) {
+	t.Run("Should count armed watches on live targets and fired watches until delivered", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, live := replyWatchFixture(t)
+		now := h.manager.now()
+		stopped := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), stopped.ID); err != nil {
+			t.Fatal(err)
+		}
+		admission := store.SessionPromptAdmissionRequest{
+			ID: "stopped-admission", WorkspaceID: h.workspaceID, SessionID: stopped.ID,
+			MessageID: "stopped-message", IdempotencyKey: "stopped-key", Operation: store.SessionPromptOperationPrompt,
+			FingerprintVersion: "test/v1", RequestFingerprint: "stopped-fingerprint",
+			Mode: store.SessionInputQueueModeQueue, AuthoredText: "question", TurnID: "stopped-turn",
+			EventID: "stopped-event", Now: now,
+		}
+		if _, _, err := db.ClaimSessionPromptAdmission(t.Context(), admission); err != nil {
+			t.Fatal(err)
+		}
+		gone, err := db.InsertReplyWatchTx(t.Context(), db.DB(), store.ReplyWatchRegistration{
+			WorkspaceID: h.workspaceID, SenderSessionID: sender.ID, TargetWorkspaceID: h.workspaceID,
+			TargetSessionID: stopped.ID, MessageID: admission.MessageID, AdmissionID: admission.ID,
+			Hop: 1, CreatedAt: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		until := now.Add(time.Minute)
+		refs := func() []string {
+			signals, err := service.AwaitingReplySignals(t.Context(), sender.ID, until)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := make([]string, 0, len(signals))
+			for _, signal := range signals {
+				if signal.Kind != WorkSignalAwaitingReply || !signal.ValidUntil.Equal(until) || signal.Since.IsZero() {
+					t.Fatalf("signal = %#v", signal)
+				}
+				out = append(out, signal.Ref)
+			}
+			return out
+		}
+		if got := refs(); !slices.Equal(got, []string{live.ID}) {
+			t.Fatalf("armed refs = %v, want only the live target %s", got, live.ID)
+		}
+		if _, err := db.FireReplyWatch(
+			t.Context(), gone.ID, store.ReplyWatchFire{Outcome: store.ReplyOutcomeUnknown, Text: "unknown"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if got := refs(); len(got) != 2 || !slices.Contains(got, gone.ID) {
+			t.Fatalf("fired refs = %v, want the undelivered fired watch", got)
+		}
+		if other := mustAwaitingReplySignals(t, service, target.ID, until); len(other) != 0 {
+			t.Fatalf("target signals = %#v, want none for a session that sent nothing", other)
+		}
+	})
+	t.Run("Should keep an orchestrator out of the inactivity stop while its target works", func(t *testing.T) {
+		t.Parallel()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+		h, _, service, sender, target, _ := replyWatchFixtureWith(
+			t, []Option{WithNow(clock), WithSessionSupervision(cfg)},
+		)
+		h.manager.SetReplyWatchService(service)
+		installAbsentWorkSources(h.manager)
+		h.manager.SetWorkSignalSources(
+			// The target is busy with the question; only the sender's wait is under test.
+			WorkSignalSource{Kind: WorkSignalToolRunning, Source: SignalSourceFunc(
+				func(_ context.Context, id string) ([]WorkSignal, error) {
+					if id != target.ID {
+						return nil, nil
+					}
+					at := clock()
+					return []WorkSignal{
+						{
+							Kind:       WorkSignalToolRunning,
+							Since:      at.Add(-time.Minute),
+							ValidUntil: at.Add(time.Hour),
+							Ref:        "tool",
+						},
+					}, nil
+				},
+			)},
+			WorkSignalSource{Kind: WorkSignalAwaitingReply, Source: SignalSourceFunc(
+				func(ctx context.Context, id string) ([]WorkSignal, error) {
+					return service.AwaitingReplySignals(ctx, id, clock().Add(time.Minute))
+				},
+			)},
+		)
+		for range 5 {
+			if err := h.manager.Supervise(t.Context(), clock()); err != nil {
+				t.Fatal(err)
+			}
+			nowMu.Lock()
+			now = now.Add(time.Minute)
+			nowMu.Unlock()
+		}
+		if info := sender.Info(); info.State != StateActive || info.Supervision.QuietWarning != nil {
+			t.Fatalf("waiting orchestrator = %#v, want active without a quiet warning", info)
+		}
+		if target.Info().State != StateActive {
+			t.Fatal("busy target was stopped")
+		}
+	})
+}
+
+func mustAwaitingReplySignals(t *testing.T, service ReplyWatchService, id string, until time.Time) []WorkSignal {
+	t.Helper()
+	signals, err := service.AwaitingReplySignals(t.Context(), id, until)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signals
+}
+
+// Invariant: a reply wakes a sender the daemon stopped and delivers once; an operator stop is respected.
+// Owner: session reply-watch suite (orchestrator inactivity stop, 2026-10-10 report).
+func TestReplyWatchWakesStoppedSender(t *testing.T) {
+	t.Run("Should classify which stops a reply may resume", func(t *testing.T) {
+		t.Parallel()
+		archived := time.Now()
+		for _, tc := range []struct {
+			name string
+			info *Info
+			want bool
+		}{
+			{"inactivity", &Info{State: StateStopped, StopReason: store.StopTimeout}, true},
+			{"shutdown", &Info{State: StateStopped, StopReason: store.StopShutdown}, true},
+			{"crash", &Info{State: StateStopped, StopReason: store.StopAgentCrashed}, true},
+			{"operator", &Info{State: StateStopped, StopReason: store.StopUserCanceled}, false},
+			{"completed", &Info{State: StateStopped, StopReason: store.StopCompleted}, false},
+			{"archived", &Info{State: StateStopped, StopReason: store.StopTimeout, ArchivedAt: &archived}, false},
+			{"active", &Info{State: StateActive}, false},
+		} {
+			if got := replySenderWakeable(tc.info); got != tc.want {
+				t.Fatalf("%s = %t, want %t", tc.name, got, tc.want)
+			}
+		}
+	})
+	for _, cause := range []StopCause{CauseInactivity, CauseUserRequested} {
+		t.Run(fmt.Sprintf("Should handle a sender stopped by %s", cause), func(t *testing.T) {
+			t.Parallel()
+			var nowMu sync.Mutex
+			now := time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC)
+			clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+			cfg := testSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+			h, db, service, sender, target, w := replyWatchFixtureWith(
+				t, []Option{WithNow(clock), WithSessionSupervision(cfg)},
+			)
+			h.manager.SetReplyWatchService(service)
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				return completedSyntheticPromptEvents(req.TurnID), nil
+			}
+			if cause == CauseInactivity {
+				// The target gives no evidence (absent sources), as when it stopped with the message queued:
+				// the real supervisor stops the quiet sender.
+				installAbsentWorkSources(h.manager)
+				for range 3 {
+					if err := h.manager.Supervise(t.Context(), clock()); err != nil {
+						t.Fatal(err)
+					}
+					nowMu.Lock()
+					now = now.Add(time.Minute)
+					nowMu.Unlock()
+				}
+				if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := h.manager.RequestStopWithCause(t.Context(), sender.ID, cause, ""); err != nil {
+				t.Fatal(err)
+			}
+			if outcome, err := h.manager.AwaitStopped(t.Context(), sender.ID); err != nil || !outcome.Verified {
+				t.Fatalf("sender stop = %#v, %v", outcome, err)
+			}
+			if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchArmed {
+				t.Fatalf("watch before the reply = %+v, %v; want armed", got, err)
+			}
+			if _, err := db.FireReplyWatch(
+				t.Context(), w.ID, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted, Text: "per job"},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.Deliver(t.Context(), w.ID); err != nil {
+				t.Fatal(err)
+			}
+			if cause == CauseUserRequested {
+				if _, live := h.manager.Get(sender.ID); live {
+					t.Fatal("an operator-stopped sender was resumed by a reply")
+				}
+				if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchFired {
+					t.Fatalf("operator-stopped watch = %+v, %v; want fired until the operator resumes", got, err)
+				}
+				return
+			}
+			waitForCondition(t, "reply resumes and delivers once", func() bool {
+				got, err := db.GetReplyWatch(t.Context(), w.ID)
+				_, live := h.manager.Get(sender.ID)
+				return err == nil && got.State == store.ReplyWatchDelivered && live
+			})
+			if err := service.Deliver(t.Context(), w.ID); err != nil {
+				t.Fatal(err)
+			}
+			waitForCondition(t, "one reply wake", func() bool {
+				rows, err := h.manager.Events(
+					t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100},
+				)
+				return err == nil && len(rows) == 1
+			})
+		})
+	}
 }

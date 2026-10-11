@@ -20,6 +20,11 @@ WHERE state IN ('armed', 'fired')
  AND (sqlc.arg(target_filter) = '' OR target_session_id = sqlc.arg(target_filter))
 ORDER BY created_at, id;
 
+-- name: ListPendingReplyWatchesBySender :many
+SELECT * FROM session_prompt_reply_watches
+WHERE sender_session_id = ? AND state IN ('armed', 'fired')
+ORDER BY created_at, id;
+
 -- name: BindReplyWatch :exec
 UPDATE session_prompt_reply_watches SET turn_id = ?, queue_entry_id = ?
 WHERE id = ? AND state = 'armed';

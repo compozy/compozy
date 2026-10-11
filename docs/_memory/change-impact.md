@@ -88,6 +88,17 @@ tool reference and orchestration site document operator notify refusal and retry
 ownership remains the scenarios above, linked by `J-session-collaboration`; the Web sent card gates
 its Steered/Interrupted chip on `delivery`.
 
+Long-running orchestration (2026-10-10, Pedro's report of an orchestrator stopped after 40 quiet
+minutes): an armed reply watch whose target is live, or a fired watch not yet delivered, is the new
+`awaiting_reply` work signal, so inactivity supervision never stops a sender while its answer can
+still arrive. A reply resumes a sender CompozyOS stopped (timeout/inactivity, shutdown, agent crash)
+and delivers once; operator stops, archive and delete are respected. Public surface: one additive
+value in the closed `WorkSignalKind` vocabulary (OpenAPI, Web client) on session status/describe;
+no new tool, route, config key or migration (new indexed query only). Docs: sessions lifecycle and
+orchestration, the isolated-subagents tutorial, skill runtime-operations and tasks-and-orchestration;
+QA `RT-session-message-reply` step 11. The broader durable multi-session watch is the next spec
+(`.compozy/tasks/session-orchestration-watch/_brief.md`).
+
 ## Explicit release asset verification — 2026-10-09
 
 Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds

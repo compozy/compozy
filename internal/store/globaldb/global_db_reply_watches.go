@@ -104,6 +104,23 @@ func (g *SessionRepo) ListReplyWatches(ctx context.Context, f store.ReplyWatchFi
 	return out, nil
 }
 
+// ListPendingReplyWatchesBySender reads one sender's armed and fired watches through its index.
+func (g *SessionRepo) ListPendingReplyWatchesBySender(ctx context.Context, sender string) ([]store.ReplyWatch, error) {
+	rows, err := g.queries.ListPendingReplyWatchesBySender(ctx, sender)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]store.ReplyWatch, 0, len(rows))
+	for _, row := range rows {
+		w, err := replyWatchFromSQL(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, nil
+}
+
 func (g *SessionRepo) BindReplyWatch(ctx context.Context, id, turn, queue string) error {
 	return g.queries.BindReplyWatch(
 		ctx,

@@ -138,7 +138,14 @@ existing session. The tool returns `reply_watch: { id, state }`, using its curre
 pre-dispatch failure re-arms the same watch. The sender can then finish its turn;
 CompozyOS delivers one synthetic reply wake after the turn that consumed the message settles.
 Queued messages retain their watches across a target stop. A busy sender receives the wake after its
-current turn; a stopped sender receives it after resume.
+current turn.
+
+Waiting is long-running work, not silence. While the asked session is live, the sender's open watch
+counts as an `awaiting_reply` work signal, so inactivity supervision does not stop an orchestrator
+that is waiting for an answer, however long the target works. If the sender was stopped anyway (the
+target stopped with the message queued and the sender went quiet, a daemon restart, or an agent
+crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
+stays stopped and receives the wake when you resume it.
 
 `compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
 include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target

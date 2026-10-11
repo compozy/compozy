@@ -1125,8 +1125,10 @@ process, and old events can omit this additive object. No retry-after seconds ar
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
-active children, reconciled Loop runs, future task leases, and future scheduled waits prevent
-inactivity termination. Reads, subscriptions, provider waiting and runtime progress projections
+active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
+replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
+watch not yet delivered) prevent inactivity termination. A reply resumes a sender CompozyOS stopped
+(inactivity/timeout, shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 With no work, `session.supervision.quiet_after` defaults to 30m and emits one warning; `stop_grace`

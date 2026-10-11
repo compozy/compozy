@@ -184,7 +184,8 @@ billing.toml is per request or per job. Wait for its answer.
 ```
 
 The agent sends the question with `compozy__session_prompt` and `"notify_on_complete": true`, then
-ends its turn instead of polling:
+ends its turn instead of polling. However long the reviewer takes, the waiting session is not stopped
+for inactivity while the reviewer is working:
 
 ```json
 {
