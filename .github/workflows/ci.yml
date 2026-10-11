@@ -408,6 +408,7 @@ jobs:
           -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
 
       - name: Upload gotestsum timing data
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: gotest-json-shard-${{ matrix.shard_index }}
