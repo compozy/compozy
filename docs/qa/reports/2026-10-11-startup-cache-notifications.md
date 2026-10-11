@@ -58,3 +58,19 @@ No browser/live-provider walkthrough has been claimed.
 
 See `docs/_memory/change-impact.md`, section “Session startup, Windows caching, and
 attention polling — 2026-10-11”.
+
+## Native Windows validation follow-up
+
+CI run `38153543760` at `08bf93b98` passed the filesnap tests and detached log
+rotation tests on Windows. The full discovery suite exposed two invalid symlink
+fixtures: Go's Windows `os.Symlink` creates a file symlink when the initial target
+is absent or a regular file. Its file/directory type does not change when the target
+later becomes a directory. See the
+[Windows CreateSymbolicLink contract](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsymboliclinkw)
+and Go 1.27.1 `src/os/file_windows.go`, `Symlink`.
+
+Both existing cases now create a directory-typed link before preparing their initial
+missing/file target. No link is replaced after the initial discovery snapshot, and all
+cache invalidation and discovered-path assertions remain intact. This preserves the
+same discovery invariant with a valid native fixture. The corrected native run remains
+pending; no scenario is declared passed on the basis of this fixture edit alone.

@@ -299,14 +299,21 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 
 			root, trustedRoot := t.TempDir(), t.TempDir()
 			target := filepath.Join(trustedRoot, "target")
-			if fileTarget {
-				if err := os.WriteFile(target, []byte("plain file"), 0o644); err != nil {
-					t.Fatal(err)
-				}
+			// Windows fixes the symlink type at creation, so seed a directory link before changing its target.
+			if err := os.Mkdir(target, 0o755); err != nil {
+				t.Fatal(err)
 			}
 			link := filepath.Join(root, "linked")
 			if err := os.Symlink(target, link); err != nil {
 				t.Skipf("Symlink unavailable: %v", err)
+			}
+			if err := os.Remove(target); err != nil {
+				t.Fatal(err)
+			}
+			if fileTarget {
+				if err := os.WriteFile(target, []byte("plain file"), 0o644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			trusted := []string{root, trustedRoot}
 			result, err := ScanDirectoryWithin(root, trusted)
