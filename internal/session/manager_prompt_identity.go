@@ -77,6 +77,7 @@ func promptRunIdentity(session *Session, state *promptTurnDispatchState) (Prompt
 	}
 	info := session.Info()
 	identity := PromptRunIdentity{
+		TurnID:      state.turnID,
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
 		ProfileID:   strings.TrimSpace(info.ProfileID),
 		SessionID:   strings.TrimSpace(info.ID),

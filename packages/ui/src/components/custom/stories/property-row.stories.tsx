@@ -77,3 +77,27 @@ export const WithEditor: Story = {
     />
   ),
 };
+
+/**
+ * `facts`: a fixed label column with start-aligned values in caption type,
+ * for dense fact lists in hover cards (subagent worktree facts, VC-07).
+ */
+export const Facts: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-1">
+      <PropertyRow variant="facts" label="Worktree" mono>
+        extract-billing-client-3f9a0c12
+      </PropertyRow>
+      <PropertyRow variant="facts" label="Branch" mono>
+        run/extract-billing-client-3f9a0c12
+      </PropertyRow>
+      <PropertyRow variant="facts" label="Commits">
+        3 ahead · clean
+      </PropertyRow>
+      <PropertyRow variant="facts" label="PR">
+        PR status unknown
+      </PropertyRow>
+    </div>
+  ),
+};

@@ -218,6 +218,11 @@ func subagentError(c *gin.Context, status int, code, message string) {
 }
 
 func (h *BaseHandlers) respondSubagentError(c *gin.Context, err error) {
+	if isolation, ok := errors.AsType[*session.ErrSubagentIsolationFailed](err); ok {
+		subagentError(c, http.StatusUnprocessableEntity, "isolation_failed", isolation.Error())
+		return
+	}
+
 	switch {
 	case errors.Is(err, session.ErrSubagentNotFound), errors.Is(err, store.ErrSubagentNotFound):
 		subagentError(c, 404, "subagent_not_found", "Subagent "+c.Param("subagent_id")+" not found.")

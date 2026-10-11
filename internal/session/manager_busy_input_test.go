@@ -4343,3 +4343,267 @@ func TestSubagentCanceledErrorPrecedence(t *testing.T) {
 		})
 	}
 }
+
+// UT-003 UT-005: identical bound origins survive direct and queued delivery.
+func TestManagerPromptOriginDelivery(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []BusyInputMode{"", BusyInputModeQueue, BusyInputModeInterrupt, BusyInputModeSteer} {
+		t.Run("Should preserve origin through "+string(mode)+" delivery", func(t *testing.T) {
+			t.Parallel()
+			db := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(db))
+			registerManagerInputQueueWorkspace(t, db, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, db, h, sess)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			release := make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(unblock)
+			h.driver.cancelHook = func(*fakeProcess) error { unblock(); return nil }
+			sent := make(chan acp.PromptRequest, 2)
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				if req.Message != "hold" {
+					sent <- req
+					return completedSyntheticPromptEvents(req.TurnID), nil
+				}
+				events := make(chan acp.AgentEvent, 1)
+				go func() {
+					<-release
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+					close(events)
+				}()
+				return events, nil
+			}
+			if mode != "" {
+				active, err := h.manager.Prompt(t.Context(), sess.ID, "hold")
+				if err != nil {
+					t.Fatal(err)
+				}
+				go func() {
+					for range active {
+						continue
+					}
+				}()
+			}
+			origin := &acp.PromptOriginMeta{
+				Kind:             "session",
+				SessionID:        "sender",
+				WorkspaceID:      h.workspaceID,
+				AgentName:        "coder",
+				TitleAtSend:      "Original",
+				Hop:              3,
+				NotifyOnComplete: mode == "" || mode == BusyInputModeQueue,
+			}
+			wantOrigin := *origin
+			if origin.NotifyOnComplete {
+				wantOrigin.ReplyWatchID = store.ReplyWatchID(sess.ID, "msg-origin")
+			}
+			result, err := h.manager.SendPrompt(
+				t.Context(),
+				sess.ID,
+				SendPromptOpts{
+					Message:          "Q?",
+					MessageID:        "msg-origin",
+					IdempotencyKey:   "key-origin",
+					Origin:           origin,
+					NotifyOnComplete: origin.NotifyOnComplete,
+					Mode:             mode,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == BusyInputModeQueue {
+				entry, err := db.GetSessionInputQueueEntry(t.Context(), sess.ID, result.QueueEntryID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				decoded, err := decodePromptOrigin(entry.Origin)
+				if err != nil || *decoded != wantOrigin {
+					t.Fatal(decoded, err)
+				}
+				unblock()
+			}
+			if result.Events != nil {
+				collectEvents(t, result.Events)
+			}
+			select {
+			case req := <-sent:
+				reply := `To reply, call compozy__session_prompt with session_id "sender".`
+				if origin.NotifyOnComplete {
+					reply = "Your final answer in this turn is sent back to it automatically."
+				}
+				want := `[Message from session "Original" (sender, agent coder) via compozy__session_prompt — another agent, not the operator. ` + reply + "]\n\nQ?"
+				if req.Message != want || req.Meta.Origin == nil ||
+					*req.Meta.Origin != wantOrigin {
+					t.Fatal(req)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("origin message did not dispatch")
+			}
+			waitForCondition(t, "origin input persisted", func() bool {
+				for _, event := range managerUserPromptEvents(t, h, sess.ID) {
+					if event.MessageIDValue() == "msg-origin" {
+						return event.Text == "Q?" && event.PromptOrigin() != nil && *event.PromptOrigin() == wantOrigin
+					}
+				}
+				return false
+			})
+		})
+	}
+}
+
+// UT-006 UT-016: fence the active turn before provider steering and retain the floor after failure.
+func TestManagerPromptOriginHopFence(t *testing.T) {
+	t.Parallel()
+	for _, failed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retain the pre-provider floor with failed injection %t", failed), func(t *testing.T) {
+			t.Parallel()
+			db := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(db))
+			registerManagerInputQueueWorkspace(t, db, h)
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				p := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "origin-steer")
+				p.handle.caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+				return p, nil
+			}
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, db, h, sess)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			events := make(chan acp.AgentEvent, 1)
+			h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) { return events, nil }
+			release := sync.OnceFunc(func() { events <- acp.AgentEvent{Type: acp.EventTypeDone}; close(events) })
+			t.Cleanup(release)
+			h.driver.cancelHook = func(*fakeProcess) error { release(); return nil }
+			active, err := h.manager.Prompt(t.Context(), sess.ID, "hold")
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				for range active {
+					continue
+				}
+			}()
+			h.manager.driver = &steeringTestDriver{
+				fakeDriver: h.driver,
+				steer: func(ctx context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+					hop, err := h.manager.CurrentTurnEffectiveHop(ctx, sess.ID)
+					if err != nil || hop != 8 {
+						t.Errorf("pre-receipt hop=%d err=%v", hop, err)
+					}
+					if !strings.HasPrefix(text, "[Message from session ") {
+						t.Error(text)
+					}
+					if failed {
+						return acp.SteerAttempt(""), errors.New("injection failed")
+					}
+					return acp.SteerAttemptInjected, nil
+				},
+			}
+			origin := &acp.PromptOriginMeta{Kind: "session", SessionID: "sender", WorkspaceID: h.workspaceID, Hop: 8}
+			if _, err := h.manager.SendPrompt(
+				t.Context(),
+				sess.ID,
+				SendPromptOpts{
+					Message:        "steer",
+					MessageID:      "msg-steer",
+					IdempotencyKey: "key-steer",
+					Mode:           BusyInputModeSteer,
+					Origin:         origin,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if failed {
+				hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID)
+				if err != nil || hop != 8 {
+					t.Fatalf("post-failure floor = %d, %v", hop, err)
+				}
+				return
+			}
+			sess.raiseTurnHop(sess.CurrentTurnID(), 2)
+			hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID)
+			if err != nil || hop != 8 {
+				t.Fatal(hop, err)
+			}
+			for _, event := range managerUserPromptEvents(t, h, sess.ID) {
+				if event.MessageIDValue() == "msg-steer" {
+					if event.Text != "steer" || event.PromptOrigin() == nil || event.PromptOrigin().Hop != 8 {
+						t.Fatal(event)
+					}
+					return
+				}
+			}
+			t.Fatal("missing injected receipt")
+		})
+	}
+}
+
+// UT-010 UT-016: effective hop is the maximum of consumed origins and the active floor.
+func TestManagerPromptOriginEffectiveHop(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		meta acp.PromptMeta
+		want int
+	}{
+		{name: "operator", want: 0},
+		{name: "session message", meta: acp.PromptMeta{Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: "sender", WorkspaceID: "workspace", Hop: 3}}, want: 3},
+		{name: "session reply", meta: acp.PromptMeta{Synthetic: &acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply, Reason: "completed", Hop: 2}}, want: 2},
+		{name: "subagent wake", meta: acp.PromptMeta{Synthetic: &acp.PromptSyntheticMeta{Kind: "subagent", Reason: "completed"}}, want: 0},
+	} {
+		t.Run("Should start the hop floor from "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			_, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if _, err := sess.beginExclusivePromptSetupForRequest(
+				promptRequest{turnID: "origin-turn", turnSource: TurnSourceUser, meta: tc.meta},
+				cancel,
+			); err != nil {
+				t.Fatal(err)
+			}
+			defer clearPromptState(sess, "origin-turn")
+			defer sess.finishPromptSetup()
+			if hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID); err != nil || hop != tc.want {
+				t.Fatal(hop, err)
+			}
+			for _, hop := range []int{5, 2} {
+				event := (acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "origin-turn", Text: "steer"}).WithPromptOrigin(
+					&acp.PromptOriginMeta{Kind: "session", SessionID: "sender", WorkspaceID: h.workspaceID, Hop: hop},
+				)
+				if err := h.manager.recordEvent(t.Context(), sess, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID); err != nil || hop != 5 {
+				t.Fatal(hop, err)
+			}
+			sess.raiseTurnHop("origin-turn", 8)
+			if hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID); err != nil || hop != 8 {
+				t.Fatal(hop, err)
+			}
+			clearPromptState(sess, "origin-turn")
+			if hop, err := h.manager.CurrentTurnEffectiveHop(t.Context(), sess.ID); err != nil || hop != 0 {
+				t.Fatal(hop, err)
+			}
+		})
+	}
+}
+
+// n-4: optional agent names never leave an empty fragment in the provider header.
+func TestPromptOriginHeader(t *testing.T) {
+	t.Run("Should omit an absent agent name", func(t *testing.T) {
+		t.Parallel()
+		got := promptOriginMessage(
+			&acp.PromptOriginMeta{Kind: "session", SessionID: "sender", TitleAtSend: "Sender", Hop: 1},
+			"question",
+		)
+		want := "[Message from session \"Sender\" (sender) via compozy__session_prompt — another agent, not the operator. To reply, call compozy__session_prompt with session_id \"sender\".]\n\nquestion"
+		if got != want {
+			t.Fatalf("header = %q", got)
+		}
+	})
+}

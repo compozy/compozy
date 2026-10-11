@@ -56,6 +56,7 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		EventCorrelation: sessionEventCorrelation(event),
 		Content:          PayloadJSON(event.Content),
 		Goal:             sessionEventGoalPromptMeta(event.Content),
+		Origin:           sessionEventPromptOrigin(event.Content),
 		ProviderError:    sessionEventProviderError(event),
 		Timestamp:        event.Timestamp,
 	}

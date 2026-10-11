@@ -14,6 +14,7 @@ import (
 )
 
 type queuedInput struct {
+	origin            json.RawMessage
 	syntheticPrompt   *store.SessionInputSyntheticPrompt
 	id                string
 	promptAdmissionID string
@@ -64,6 +65,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
 		id:                entry.ID,
 		syntheticPrompt:   entry.SyntheticPrompt,
+		origin:            entry.Origin,
 		promptAdmissionID: entry.PromptAdmissionID,
 		messageID:         entry.MessageID,
 		idempotencyKey:    entry.IdempotencyKey,
@@ -113,6 +115,9 @@ func (m *Manager) dispatchQueuedInput(
 		unlock()
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
+	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
 	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
@@ -165,6 +170,11 @@ func (m *Manager) newQueuedInputPromptRequest(
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 		attachments:      cloneAttachmentMeta(entry.attachments),
 	}
+	origin, err := decodePromptOrigin(entry.origin)
+	if err != nil {
+		return req, err
+	}
+	req.meta.Origin = origin
 	turnID := strings.TrimSpace(entry.turnID)
 	if turnID == "" {
 		var err error
@@ -189,7 +199,6 @@ func (m *Manager) newQueuedInputPromptRequest(
 		req.runID = entry.syntheticPrompt.RunID
 		return req, nil
 	}
-	var err error
 	req.runID, err = m.newPromptRunID()
 	if err != nil {
 		return req, err
@@ -212,6 +221,9 @@ func (m *Manager) handleQueuedInputDispatchError(
 	}
 	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.id, cause.Error()); err != nil {
 		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.id, "error", err)
+	}
+	if service := m.ReplyWatches(); service != nil {
+		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
 	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
@@ -244,6 +256,9 @@ func (m *Manager) acceptQueuedInputDispatch(
 			err.Error(),
 		); failErr != nil {
 			m.sessionLogger(session).Error("session: mark queued input failed", "entry_id", entry.id, "error", failErr)
+		}
+		if service := m.ReplyWatches(); service != nil {
+			service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
 		}
 		m.emitTranscriptMarker(
 			m.fallbackLifecycleContext(),

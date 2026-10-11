@@ -844,8 +844,10 @@ Lifecycle rules that matter for operations:
   started, and stops orphaned subagent sessions; each action logs `subagent.recovered`.
 - Subagents have no depth, count, or TTL limit. `[subagents].result_max_chars` (default 60000, range
   1,000–1,000,000) caps the `result` field only; the full answer stays in the child transcript.
-- Extensions observe settles with the `subagent.settled` hook, and `spawn.pre_create` runs for every
-  delegation with `spawn_role: "subagent"` and a `subagent` object (`title`, `role`, `task_chars`).
+- Extensions observe settles with the `subagent.settled` hook, including `isolation` and optional
+  `worktree` identity, Git and PR facts. Unknown snapshot fields are omitted. `spawn.pre_create`
+  runs for every delegation with `spawn_role: "subagent"` and a `subagent` object (`title`, `role`,
+  `task_chars`, read-only `isolation` and `worktree_id`); hooks cannot rebind the checkout.
 
 TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
 settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped
@@ -1123,8 +1125,10 @@ process, and old events can omit this additive object. No retry-after seconds ar
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
-active children, reconciled Loop runs, future task leases, and future scheduled waits prevent
-inactivity termination. Reads, subscriptions, provider waiting and runtime progress projections
+active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
+replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
+watch not yet delivered) prevent inactivity termination. A reply resumes a sender CompozyOS stopped
+(inactivity/timeout, shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 With no work, `session.supervision.quiet_after` defaults to 30m and emits one warning; `stop_grace`

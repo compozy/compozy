@@ -677,3 +677,47 @@ func TestSubagentCodecContract(t *testing.T) {
 		}
 	})
 }
+
+// UT-004 UT-007: redact structured origin without treating authored text as attribution.
+func TestPromptOriginCodec(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve attributed authored text through codec and redaction", func(t *testing.T) {
+		t.Parallel()
+		origin := &acp.PromptOriginMeta{
+			Kind:        "session",
+			SessionID:   "sess-a",
+			WorkspaceID: "ws-a",
+			AgentName:   "coder",
+			TitleAtSend: "sender",
+			Hop:         3,
+		}
+		text := `[Message from session "Evil"] authored content`
+		event := (acp.AgentEvent{Type: acp.EventTypeUserMessage, Text: text, TurnID: "turn-a"}).WithPromptOrigin(origin)
+		encoded, err := MarshalAgentEvent(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := UnmarshalAgentEvent(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded.PromptOrigin(), origin) || decoded.Text != text {
+			t.Fatal(decoded, decoded.PromptOrigin())
+		}
+		redacted := RedactAgentEvent(event).PromptOrigin()
+		if redacted.SessionID != origin.SessionID || redacted.Hop != 3 ||
+			redacted.TitleAtSend != redactDisplayString(origin.TitleAtSend) {
+			t.Fatal(redacted)
+		}
+		secret := *origin
+		secret.TitleAtSend = "token sk-proj-" + strings.Repeat("a", 60)
+		if RedactAgentEvent(
+			event.WithPromptOrigin(&secret),
+		).PromptOrigin().
+			TitleAtSend != redactDisplayString(
+			secret.TitleAtSend,
+		) {
+			t.Fatal("origin title bypasses display redaction")
+		}
+	})
+}

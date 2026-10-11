@@ -128,6 +128,31 @@ describe("SessionThread queue stories", () => {
     expect(within(rows[2]!).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
   });
 
+  it("Should name a session message's sender and keep Remove only (agent collaboration VC-05)", async () => {
+    await mountStory(composed.SessionMessages);
+    const rows = await screen.findAllByTestId("composer-queued-prompt-row");
+    expect(rows).toHaveLength(4);
+    expect(within(rows[0]!).getByTestId("composer-queued-edit")).toBeInTheDocument();
+    const sent = rows[1]!;
+    expect(sent).toHaveAttribute("data-origin", "session");
+    await waitFor(() =>
+      expect(within(sent).getByTestId("composer-queued-sender")).toHaveTextContent(
+        /From\s*Refactor billing$/
+      )
+    );
+    expect(within(sent).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
+    expect(within(sent).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    expect(
+      within(sent).getByRole("button", { name: "Remove message from Refactor billing" })
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(rows[2]!).getByTestId("composer-queued-sender")).toHaveTextContent(
+        /From\s*a deleted session$/
+      )
+    );
+    expect(within(rows[3]!).queryByTestId("composer-queued-remove")).not.toBeInTheDocument();
+  });
+
   it("Should refuse the edit of a dispatching head entry and hand the text to the composer (VC-03)", async () => {
     await mountStory(composed.DispatchingEditRefused);
     expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute(

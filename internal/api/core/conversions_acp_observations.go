@@ -47,6 +47,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Compaction:        compactionSnapshotPayload(event.Compaction),
 		Delivery:          transcript.RedactAgentEvent(event).DeliveryManifest(),
 		ProviderError:     providerErrorDiagnosticPayload(event.ProviderError),
+		Origin:            promptOriginPayload(event.PromptOrigin()),
 		Goal: goalPromptMetaPayload(
 			event.GoalPromptMeta(),
 		),

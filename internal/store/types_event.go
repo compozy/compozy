@@ -111,6 +111,7 @@ func (e SessionEvent) Validate() error {
 type EventQuery struct {
 	// Forward selects the next bounded page even when AfterSequence is zero.
 	Forward        bool
+	ID             string
 	Type           string
 	AgentName      string
 	TurnID         string

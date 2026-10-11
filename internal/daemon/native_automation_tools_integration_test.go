@@ -243,7 +243,9 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
-				Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q,"name":"integration-trigger-updated"}`, triggerID)),
+				Input: json.RawMessage(
+					fmt.Sprintf(`{"trigger_id":%q,"name":"integration-trigger-updated"}`, triggerID),
+				),
 			},
 		)
 		if err != nil {

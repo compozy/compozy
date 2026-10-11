@@ -82,7 +82,7 @@ const subagentDelegateInputSchema = `{
     "timeout_ms": {
       "type": "integer",
       "default": 600000,
-      "description": "Wait only; clamped to 1000–3600000 ms. Timeout never cancels the child."
+      "description": "Wait only; clamped to 1000\u20133600000 ms. Timeout never cancels the child."
     },
     "idempotency_key": {
       "type": "string",
@@ -126,6 +126,18 @@ const subagentDelegateInputSchema = `{
         "type": "string"
       },
       "description": "Omitted inherits the caller budget; [] grants none. Narrowing only."
+    },
+    "isolation": {
+      "type": "string",
+      "enum": [
+        "shared",
+        "worktree"
+      ],
+      "description": "Shared uses the caller checkout (default); worktree creates a separate branch and checkout."
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "Only with worktree. Omitted or blank uses the caller checkout HEAD commit at delegate time."
     }
   },
   "required": [

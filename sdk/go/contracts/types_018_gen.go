@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type SessionRuntimeSetParams struct {
+	WorkspaceID      string                         `json:"workspace_id"`
+	SessionID        string                         `json:"session_id"`
+	Runtime          SessionRuntimeSelectionPayload `json:"runtime"`
+	ExpectedRevision *int64                         `json:"expected_revision"`
+}
+
 type SessionRuntimeStatus string
 
 type SessionRuntimeTransition string
@@ -41,6 +48,7 @@ type SessionStatusGetParams struct {
 }
 
 type SessionStatusResponse struct {
+	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
 	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
 	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
 	Verified            *bool                            `json:"verified,omitempty"`
@@ -176,13 +184,4 @@ type SpawnContext struct {
 	SoulSnapshotID   string `json:"soul_snapshot_id,omitempty"`
 	SoulDigest       string `json:"soul_digest,omitempty"`
 	ParentSoulDigest string `json:"parent_soul_digest,omitempty"`
-}
-
-type SpawnCreatePatch struct {
-	Deny             bool           `json:"deny,omitempty"`
-	DenyReason       string         `json:"deny_reason,omitempty"`
-	AgentName        *string        `json:"agent_name,omitempty"`
-	SpawnRole        *string        `json:"spawn_role,omitempty"`
-	TTLSeconds       *int64         `json:"ttl_seconds,omitempty"`
-	ChildPermissions *PermissionSet `json:"child_permissions,omitempty"`
 }

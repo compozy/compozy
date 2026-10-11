@@ -44,6 +44,17 @@ func (m *Manager) AcquireWorktreeDeliveryFence(
 	}
 	m.worktreeDeliveryFences[key] = true
 	return sync.OnceFunc(
-		func() { m.lifecycleMu.Lock(); delete(m.worktreeDeliveryFences, key); m.lifecycleMu.Unlock() },
+		func() {
+			m.lifecycleMu.Lock()
+			delete(m.worktreeDeliveryFences, key)
+			m.lifecycleMu.Unlock()
+			// Stopping the delivery caller precedes its commit and PR. Settle the
+			// subagent only once the fence releases, so its final snapshot includes those effects.
+			if service := m.subagentService(); service != nil {
+				settled, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+				defer cancel()
+				m.logSubagentError(service.OnChildSettled(settled, callerID))
+			}
+		},
 	), nil
 }

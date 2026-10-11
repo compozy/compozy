@@ -235,6 +235,11 @@ func (m *Manager) finishPromptPump(
 			}
 		}
 	}
+	if session != nil && turnState != nil {
+		if service := m.ReplyWatches(); service != nil {
+			service.OnTurnSettled(lifecycleCtx, session.ID, turnState.turnID)
+		}
+	}
 	if session == nil {
 		closePromptOutput(out)
 		return

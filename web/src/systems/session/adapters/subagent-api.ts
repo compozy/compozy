@@ -6,6 +6,8 @@ import { throwSessionRequestError } from "./session-api-errors";
 export type SubagentListQuery = OperationQuery<"listSessionSubagents">;
 export type SubagentListResponse = OperationResponse<"listSessionSubagents", 200>;
 export type SubagentPayload = SubagentListResponse["subagents"][number];
+
+export type SubagentWorktreePayload = NonNullable<SubagentPayload["worktree"]>;
 export type SubagentCancelResponse = OperationResponse<"cancelSubagent", 202>;
 
 /** One page of a parent session's direct subagents, newest first. */

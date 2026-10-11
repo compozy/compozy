@@ -15,6 +15,7 @@ func (m *Manager) activateSteeringInput(
 	session *Session,
 	entry *store.SessionInputQueueEntry,
 ) error {
+	defer m.replyWatchSteerResolved(context.WithoutCancel(ctx), session.ID)
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
 	if err != nil {
@@ -38,7 +39,18 @@ func (m *Manager) activateSteeringInput(
 		capability := proc.CapsSnapshot().SteerCapability
 		if capability == config.SteerCapabilityExtension || capability == config.SteerCapabilityConcurrentPrompt {
 			steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
-			attempt, steerErr := steerer.Steer(steerCtx, proc, entry.TargetTurnID, entry.Text)
+			origin, originErr := decodePromptOrigin(entry.Origin)
+			if originErr != nil {
+				cancel()
+				return originErr
+			}
+			session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
+			attempt, steerErr := steerer.Steer(
+				steerCtx,
+				proc,
+				entry.TargetTurnID,
+				promptOriginMessage(origin, entry.Text),
+			)
 			cancel()
 			if steerErr == nil {
 				completion = attempt.Completion
@@ -116,7 +128,12 @@ func (m *Manager) recordInjectedSteerInput(
 	if entry.SteerDelivery != store.SteerDeliveryInjected {
 		return nil
 	}
+	origin, err := decodePromptOrigin(entry.Origin)
+	if err != nil {
+		return err
+	}
 	req := promptRequest{
+		meta:   acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Origin: origin},
 		target: session.ID, turnID: entry.TargetTurnID, turnSource: TurnSourceUser,
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,

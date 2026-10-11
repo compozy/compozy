@@ -1,6 +1,6 @@
 import { Zap } from "lucide-react";
 
-import { Icon, KindIcon, PropertyRow, StateGlyph, cn } from "@compozy/ui";
+import { Icon, KindIcon, PropertyRow, StateGlyph, Time, cn } from "@compozy/ui";
 
 import { SubagentElapsed } from "./subagent-elapsed";
 import {
@@ -12,7 +12,54 @@ import {
   subagentLocationRows,
   subagentRuntimeLabel,
 } from "./subagent-format";
+import { SubagentPullRequestLink } from "./subagent-row-trail";
+import {
+  subagentWorktree,
+  subagentWorktreeFacts,
+  type SubagentWorktreeFact,
+} from "./subagent-worktree-format";
 import type { SubagentLocationView, SubagentView } from "./types";
+
+type HoverFact = SubagentWorktreeFact | { label: "Workspace"; kind: "mono"; value: string };
+
+/** A composed fact value; plain strings go straight to `PropertyRow` (its truncation and title). */
+function HoverFactValue({ fact }: { fact: Exclude<HoverFact, { kind: "mono" }> }) {
+  switch (fact.kind) {
+    case "base":
+      return (
+        <>
+          <span className="min-w-0 truncate">{fact.ref}</span>
+          {fact.sha ? <span className="shrink-0 text-subtle">· {fact.sha}</span> : null}
+        </>
+      );
+    case "commits":
+      return (
+        <>
+          {fact.ahead ? <span>{fact.ahead}</span> : null}
+          {fact.ahead && fact.changes ? <span className="text-subtle">·</span> : null}
+          {fact.changes ? (
+            <span className={cn(fact.changes.dirty && "text-warning")}>{fact.changes.text}</span>
+          ) : null}
+        </>
+      );
+    case "pull-request":
+      return (
+        <>
+          <SubagentPullRequestLink pr={fact.pr} size="row" className="-ml-1" />
+          <span>{fact.pr.state}</span>
+        </>
+      );
+    case "pull-request-note":
+      return <span className="text-subtle">{fact.text}</span>;
+    case "observed":
+      return <Time iso={fact.iso} className="text-subtle" />;
+  }
+}
+
+function hoverFactTitle(fact: HoverFact): string | undefined {
+  if (fact.kind === "base") return fact.sha ? `${fact.ref} · ${fact.sha}` : fact.ref;
+  return undefined;
+}
 
 export interface SubagentHoverContentProps {
   subagent: SubagentView;
@@ -24,8 +71,8 @@ export interface SubagentHoverContentProps {
 
 /**
  * The metadata the card row leaves out (transcript VC-04): full title, runtime,
- * status with elapsed, location when it differs from the parent, and the
- * progress or result preview.
+ * status with elapsed, location when it differs from the parent, an isolated
+ * subagent's worktree facts (S5, VC-07), and the progress or result preview.
  */
 export function SubagentHoverContent({
   subagent,
@@ -36,7 +83,16 @@ export function SubagentHoverContent({
   const runtime = subagentRuntimeLabel(subagent);
   const failed = subagent.status === "failed";
   const preview = subagentHoverPreview(subagent);
-  const locationRows = subagentLocationRows(location, parentLocation);
+  const worktree = subagentWorktree(subagent);
+  // The isolated worktree's own name replaces a generic location Worktree row.
+  const facts: HoverFact[] = [
+    ...subagentLocationRows(location, parentLocation).flatMap(row =>
+      worktree !== null && row.label === "Worktree"
+        ? []
+        : [{ label: row.label, kind: "mono" as const, value: row.value }]
+    ),
+    ...(worktree ? subagentWorktreeFacts(worktree) : []),
+  ];
 
   return (
     <div className="flex flex-col gap-2" data-slot="subagent-hover" data-status={subagent.status}>
@@ -71,18 +127,25 @@ export function SubagentHoverContent({
           <span>{SUBAGENT_STATUS_WORD[subagent.status]}</span>
           <SubagentElapsed className="ml-auto" clock={subagentElapsedClock(subagent, { stale })} />
         </div>
-        {locationRows.map(row => (
-          <PropertyRow
-            key={row.label}
-            label={row.label}
-            mono
-            className="min-h-0 py-0"
-            valueTitle={row.value}
-          >
-            {row.value}
-          </PropertyRow>
-        ))}
       </div>
+      {facts.length > 0 ? (
+        <div
+          className="flex flex-col gap-1 border-t border-line-soft pt-2"
+          data-slot="subagent-hover-facts"
+        >
+          {facts.map(fact => (
+            <PropertyRow
+              key={fact.label}
+              variant="facts"
+              label={fact.label}
+              mono={fact.kind === "mono" || fact.kind === "base"}
+              valueTitle={hoverFactTitle(fact)}
+            >
+              {fact.kind === "mono" ? fact.value : <HoverFactValue fact={fact} />}
+            </PropertyRow>
+          ))}
+        </div>
+      ) : null}
       {preview ? (
         <p
           className={cn(

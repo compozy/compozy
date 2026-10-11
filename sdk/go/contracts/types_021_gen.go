@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type TaskDependencyReferencePayload struct {
+	TaskID          string               `json:"task_id"`
+	DependsOnTaskID string               `json:"depends_on_task_id"`
+	Kind            DependencyKind       `json:"kind"`
+	CreatedAt       time.Time            `json:"created_at"`
+	DependsOn       TaskReferencePayload `json:"depends_on"`
+}
+
+type TaskDesignationRollupPayload struct {
+	DesignationGroupID string          `json:"designation_group_id"`
+	TaskID             string          `json:"task_id"`
+	Summary            json.RawMessage `json:"summary"`
+	CreatedAt          time.Time       `json:"created_at"`
+}
+
+type TaskDetail struct {
+	Summary              TaskSummaryPayload               `json:"summary"`
+	Task                 Task                             `json:"task"`
+	Children             []TaskSummaryPayload             `json:"children,omitempty"`
+	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
+	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
+	Runs                 []TaskRun                        `json:"runs,omitempty"`
+	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
+	Events               []TaskEventPayload               `json:"events,omitempty"`
+}
+
 type TaskEventPayload struct {
 	ID        string          `json:"id"`
 	TaskID    string          `json:"task_id"`
@@ -228,27 +254,4 @@ type TaskRun struct {
 type TaskRunAttachSessionParams struct {
 	ID        string `json:"id"`
 	SessionID string `json:"session_id"`
-}
-
-type TaskRunCancelParams struct {
-	ID       string          `json:"id"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-type TaskRunClaimCriteria struct {
-	RunID                string   `json:"run_id,omitempty"`
-	RunKind              string   `json:"run_kind,omitempty"`
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
-	TargetSessionID      string   `json:"target_session_id,omitempty"`
-	ClaimerSessionID     string   `json:"claimer_session_id,omitempty"`
-	AgentName            string   `json:"agent_name,omitempty"`
-	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitempty"`
-}
-
-type TaskRunCompleteParams struct {
-	ID             string          `json:"id"`
-	Result         json.RawMessage `json:"result,omitempty"`
-	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }

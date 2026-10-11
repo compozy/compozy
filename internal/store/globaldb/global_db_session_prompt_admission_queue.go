@@ -333,7 +333,7 @@ func findPromptAdmissionReplay(
 	if err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	admission, _, err = classifyPromptAdmissionReplay(admission, req)
+	admission, err = classifyPromptAdmissionReplay(admission, req)
 	return admission, true, err
 }
 
@@ -349,6 +349,7 @@ func bindQueueAdmission(
 	req.Text = admission.AuthoredText
 	req.Runtime = admission.Runtime
 	req.SkillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	req.Origin = append(req.Origin[:0:0], admission.Origin...)
 	req.Attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	return req
 }

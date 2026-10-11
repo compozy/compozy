@@ -62,6 +62,7 @@ type WindowReconciler interface {
 
 // PromptRunIdentity is the complete authority tuple for one active prompt run.
 type PromptRunIdentity struct {
+	TurnID      string
 	WorkspaceID string
 	ProfileID   string
 	SessionID   string

@@ -352,7 +352,10 @@ affect a newer turn.
 
 Supervision inspects every live session, including idle sessions. Any fresh work signal
 keeps the session alive: agent progress, a verified running tool, an active child, a recently
-reconciled Loop run, a held task lease, or a scheduled wait with a future deadline.
+reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
+session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
+`notify_on_complete: true` stays alive while the session it asked is live, and while the reply
+wake is waiting to be delivered.
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
@@ -369,6 +372,11 @@ one `session.supervision_warning` and shows it in the open session. Continued si
 uses `stop_reason: "timeout"` and `stop_detail: "inactivity"`. New work clears the warning and
 cancels the pending automatic stop. `quiet_after = "0"` disables both actions;
 `stop_grace = "0"` keeps the warning but disables automatic stop.
+
+A reply can still arrive after the sender stopped, for example when the asked session was itself
+stopped with the message queued and is resumed later. If CompozyOS stopped the sender (inactivity,
+timeout, daemon shutdown or an agent crash), the reply resumes it and delivers the wake once. A
+sender you stopped yourself stays stopped; the wake is delivered when you resume it.
 
 Event waits without an authored expiry receive the effective admission horizon, normally `168h`.
 Existing expiryless waits use their original creation time and pinned configuration when upgraded.

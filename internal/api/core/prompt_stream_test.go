@@ -707,3 +707,109 @@ func promptSSEData(record string) string {
 	}
 	return data.String()
 }
+
+// UT-014: live session-message parts preserve tool-call correlation.
+func TestPromptStreamSessionMessage(t *testing.T) {
+	t.Run("Should emit running and completed reply cards with one stable id UT-014", func(t *testing.T) {
+		t.Parallel()
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(
+			func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		)
+		mustEmitPromptEvent(
+			t,
+			encoder,
+			writer,
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				TurnID:     "turn",
+				ToolCallID: "send",
+			}.WithTool(
+				"compozy__session_prompt",
+				json.RawMessage(`{"session_id":"target","message_id":"message","mode":"queue"}`),
+				false,
+			),
+		)
+		mustEmitPromptEvent(
+			t,
+			encoder,
+			writer,
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolResult,
+				TurnID:     "turn",
+				ToolCallID: "send",
+			}.WithSessionMessageCard(
+				json.RawMessage(
+					`{"tool_call_id":"send","message_id":"message","reply_watch_id":"rw-1","state":"done"}`,
+				),
+			),
+		)
+		var states []string
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var frame struct {
+				Type string `json:"type"`
+				ID   string `json:"id"`
+				Data struct {
+					Target string `json:"target_session_id"`
+					State  string `json:"state"`
+					Watch  string `json:"reply_watch_id"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame); err != nil {
+				continue
+			}
+			if frame.Type != "data-compozy-session-message" {
+				continue
+			}
+			if frame.ID != "send" || frame.Data.Target != "target" {
+				t.Fatalf("frame = %+v", frame)
+			}
+			if frame.Data.State == "done" && frame.Data.Watch != "rw-1" {
+				t.Fatalf("reply = %+v", frame)
+			}
+			states = append(states, frame.Data.State)
+		}
+		if strings.Join(states, ",") != "running,done" {
+			t.Fatalf("states = %v", states)
+		}
+	})
+	t.Run("Should attribute a send made inside a provider-native subagent to its parent call", func(t *testing.T) {
+		t.Parallel()
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(
+			func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		)
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolCall, TurnID: "turn", ToolCallID: "child-send",
+		}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		).WithProviderToolMetadata("native-task", "compozy__session_prompt", ""))
+		found := false
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			var frame struct {
+				Type             string `json:"type"`
+				ProviderMetadata *struct {
+					Compozy struct {
+						ParentToolCallID string `json:"parentToolCallId"`
+					} `json:"compozy"`
+				} `json:"providerMetadata"`
+			}
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame) != nil ||
+				frame.Type != "data-compozy-session-message" {
+				continue
+			}
+			found = true
+			if frame.ProviderMetadata == nil || frame.ProviderMetadata.Compozy.ParentToolCallID != "native-task" {
+				t.Fatalf("session message frame = %+v, want parent attribution", frame)
+			}
+		}
+		if !found {
+			t.Fatal("no session message frame")
+		}
+	})
+}

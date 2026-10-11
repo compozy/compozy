@@ -1,4 +1,9 @@
-import type { SubagentStatus, SubagentView } from "../types";
+import type {
+  SubagentPullRequestState,
+  SubagentStatus,
+  SubagentView,
+  SubagentWorktreeView,
+} from "../types";
 
 // Board fixtures (DESIGN-NOTES: values are fixtures; runtime truth owns them).
 // Timestamps are relative to story load so live rows tick from a known offset.
@@ -195,3 +200,131 @@ export function migrationReviews(count: number): SubagentView[] {
     })
   );
 }
+
+// ---- S5 · isolated subagents (agent-collaboration subagents board, VC-06/VC-07) ----
+
+const opus = { ...NO_RUNTIME, agent: "claude", provider: "claude", model: "Opus 5.5" };
+
+interface WorktreeFixture extends Partial<SubagentWorktreeView> {
+  slug: string;
+}
+
+/** Static facts from creation; settle facts only where the override supplies them. */
+export function worktreeFixture({ slug, ...overrides }: WorktreeFixture): SubagentWorktreeView {
+  return {
+    id: `wt-${slug}`,
+    name: slug,
+    branch: `run/${slug}`,
+    base_ref: "origin/main",
+    base_sha: "4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b",
+    path: `/Users/pedro/.compozy/worktrees/compozy/${slug}`,
+    head_sha: null,
+    commits_ahead: null,
+    dirty_files: null,
+    observed_at: null,
+    pull_request_status: null,
+    pull_request: null,
+    ...overrides,
+  };
+}
+
+const settledFacts = (ahead: number, dirty: number, observedSecondsAgo: number) => ({
+  head_sha: "9c41e07",
+  commits_ahead: ahead,
+  dirty_files: dirty,
+  observed_at: secondsAgo(observedSecondsAgo),
+});
+
+const pr = (state: SubagentPullRequestState) => ({
+  pull_request_status: state,
+  pull_request: { url: "https://github.com/compozy/compozy/pull/731", number: 731, state },
+});
+
+const extractClient = (
+  id: string,
+  worktree: Partial<SubagentWorktreeView>,
+  result_preview: string
+) =>
+  subagentFixture({
+    id,
+    status: "completed",
+    title: "Extract billing client",
+    runtime: { ...opus, reasoning_effort: "high" },
+    result_preview,
+    elapsed: 567,
+    isolation: "worktree",
+    worktree: worktreeFixture({ slug: "extract-billing-client-3f9a0c12", ...worktree }),
+  });
+
+const MOVED = "Moved the client into internal/billing/client";
+
+export const isolatedStates = {
+  running: subagentFixture({
+    id: "iso-running",
+    title: "Add billing retries",
+    runtime: { ...opus, reasoning_effort: "high" },
+    progress: "Editing internal/billing/retry.go",
+    elapsed: 612,
+    isolation: "worktree",
+    worktree: worktreeFixture({ slug: "add-billing-retries-0d2e7b51" }),
+  }),
+  prOpen: extractClient("iso-open", { ...settledFacts(3, 0, 240), ...pr("open") }, MOVED),
+  prDraft: extractClient(
+    "iso-draft",
+    { ...settledFacts(3, 0, 240), ...pr("draft") },
+    "Opened draft PR #731"
+  ),
+  prMerged: extractClient("iso-merged", { ...settledFacts(3, 0, 3_600), ...pr("merged") }, MOVED),
+  prClosed: extractClient("iso-closed", { ...settledFacts(3, 0, 240), ...pr("closed") }, MOVED),
+  noPr: subagentFixture({
+    id: "iso-none",
+    status: "completed",
+    title: "Spike retry jitter",
+    result_preview: "Jitter helps under load; branch kept for reference",
+    elapsed: 208,
+    isolation: "worktree",
+    worktree: worktreeFixture({
+      slug: "spike-retry-jitter-77b0c9d1",
+      base_ref: "4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b",
+      ...settledFacts(0, 4, 720),
+      pull_request_status: "none",
+    }),
+  }),
+  prUnknown: subagentFixture({
+    id: "iso-unknown",
+    status: "completed",
+    title: "Cap webhook retries",
+    runtime: { ...NO_RUNTIME, ...codex },
+    result_preview: "Added a per-delivery cap in webhook/dispatch.go",
+    elapsed: 341,
+    isolation: "worktree",
+    worktree: worktreeFixture({
+      slug: "cap-webhook-retries-a81c44e0",
+      ...settledFacts(1, 2, 120),
+      pull_request_status: "unknown",
+    }),
+  }),
+  gitReadFailed: extractClient("iso-git-failed", { ...pr("draft") }, "Opened draft PR #731"),
+  failed: subagentFixture({
+    id: "iso-failed",
+    status: "failed",
+    title: "Add billing retries",
+    error: "go test ./internal/billing/... failed",
+    elapsed: 404,
+    isolation: "worktree",
+    worktree: worktreeFixture({
+      slug: "add-billing-retries-0d2e7b51",
+      ...settledFacts(2, 0, 60),
+      pull_request_status: "none",
+    }),
+  }),
+  shared: subagentFixture({
+    id: "shared",
+    status: "completed",
+    title: "Review retry config",
+    runtime: { ...NO_RUNTIME, ...codex },
+    result_preview: "The budget is per job; no per-request cap exists.",
+    elapsed: 92,
+    isolation: "shared",
+  }),
+} satisfies Record<string, SubagentView>;

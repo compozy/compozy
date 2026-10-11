@@ -3,6 +3,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import type {
+  PromptOriginPayload,
   SessionInputPayload,
   SessionInputsResponse,
   SessionPayload,
@@ -55,6 +56,8 @@ export interface QueueStoryEntry {
   status?: SessionInputPayload["status"];
   owner_kind?: string;
   owner_id?: string;
+  /** `PromptOriginMeta` of a message another session sent (S4). */
+  origin?: PromptOriginPayload;
 }
 
 export const QUEUE_STORY_ENTRIES: QueueStoryEntry[] = [
@@ -70,6 +73,50 @@ export const QUEUE_STORY_OTHER_ACTOR_ENTRIES: QueueStoryEntry[] = [
     owner_id: "reviewer",
     owner_kind: "agent",
     text: "Also update the changelog with the new retry semantics",
+  },
+  {
+    id: "inp_4f2",
+    owner_id: "release-1.4",
+    owner_kind: "agent",
+    text: "Run the release checklist",
+  },
+];
+
+/** The sender sessions the S4 rows name; any other peer id answers 404 (deleted). */
+const QUEUE_STORY_PEERS: Record<string, SessionPayload> = {
+  "sess-7f3a2c11d09e4b58": {
+    ...primarySessionFixture,
+    id: "sess-7f3a2c11d09e4b58",
+    name: "Refactor billing",
+    agent_name: "claude",
+  },
+};
+
+function sessionOrigin(sessionId: string, titleAtSend: string): PromptOriginPayload {
+  return {
+    kind: "session",
+    session_id: sessionId,
+    workspace_id: primarySessionFixture.workspace_id ?? "",
+    agent_name: "claude",
+    title_at_send: titleAtSend,
+    hop: 1,
+    notify_on_complete: true,
+    reply_watch_id: `rw-${sessionId.slice(5, 13)}`,
+  };
+}
+
+/** S4 (VC-05): a mixed queue — the operator's row, two session messages (one sender deleted), a loop-owned row. */
+export const QUEUE_STORY_SESSION_MESSAGE_ENTRIES: QueueStoryEntry[] = [
+  { id: "inp_4d8", text: "Ship it with tests" },
+  {
+    id: "inp_41aa",
+    origin: sessionOrigin("sess-7f3a2c11d09e4b58", "Refactor billing"),
+    text: "Is the retry budget in billing.toml per request or per job?",
+  },
+  {
+    id: "inp_41ab",
+    origin: sessionOrigin("sess-0dead0000000beef", "Docs sweep"),
+    text: "Does the billing doc page still describe per-request retries?",
   },
   {
     id: "inp_4f2",
@@ -155,6 +202,7 @@ function inputFromEntry(entry: QueueStoryEntry): SessionInputPayload {
     status: entry.status ?? "queued",
     text: entry.text,
     ...(entry.owner_kind ? { owner_id: entry.owner_id, owner_kind: entry.owner_kind } : {}),
+    ...(entry.origin ? { origin: entry.origin } : {}),
   };
 }
 
@@ -254,9 +302,18 @@ export function queueStoryHandlers({
     compozyApiMock.get("/api/sessions/{session_id}", () =>
       HttpResponse.json({ session: queueStorySession })
     ),
-    compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", () =>
-      HttpResponse.json({ session: queueStorySession })
-    ),
+    compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
+      if (params.session_id === queueStorySession.id) {
+        return HttpResponse.json({ session: queueStorySession });
+      }
+      const peer = QUEUE_STORY_PEERS[String(params.session_id)];
+      return peer
+        ? HttpResponse.json({ session: peer })
+        : HttpResponse.json(
+            { error: `Session not found: ${String(params.session_id)}` },
+            { status: 404 }
+          );
+    }),
     compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
       HttpResponse.json(transcriptPayload(transcript))
     ),

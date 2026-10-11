@@ -153,7 +153,19 @@ export function toTimelineParts(message: {
     if (type === "data" || (typeof type === "string" && type.startsWith("data-"))) {
       const dataName = type === "data" ? stringField(part, "name") : type.slice("data-".length);
       const name = dataName ? `data-${dataName}` : "data";
-      return [{ kind: "data", id, name, data: part.data, turnId, timestamp, state, partIndex }];
+      return [
+        {
+          kind: "data",
+          id,
+          name,
+          data: part.data,
+          turnId,
+          timestamp,
+          state,
+          partIndex,
+          ...attribution,
+        },
+      ];
     }
     return [];
   });

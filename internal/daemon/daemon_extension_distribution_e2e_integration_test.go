@@ -1840,7 +1840,10 @@ func testDaemonCuratedCatalogLifecycle(t *testing.T, catalogBinary func() (strin
 	)
 	assertDistributionCatalogListing(t, ctx, runtime, "herdr-bridge", "0.3.3", "0.3.3", false)
 	bridgeEntry["version"] = "0.3.4"
-	catalog.setCatalogArtifact(bridgeEntry, packageDistributionCatalog(t, ctx, binaryPath, root, "herdr-bridge", "0.3.4"))
+	catalog.setCatalogArtifact(
+		bridgeEntry,
+		packageDistributionCatalog(t, ctx, binaryPath, root, "herdr-bridge", "0.3.4"),
+	)
 	refreshDistributionCatalog(t, ctx, runtime)
 	assertDistributionCatalogListing(t, ctx, runtime, "herdr-bridge", "0.3.4", "0.3.3", true)
 	requestDistributionJSON(t, ctx, runtime.HTTPClient, http.MethodPost, runtime.HTTPURL("/api/extensions/update"),

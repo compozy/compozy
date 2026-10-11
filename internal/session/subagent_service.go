@@ -12,12 +12,13 @@ import (
 )
 
 type subagentSnapshot struct {
-	Info      *Info
-	TurnID    string
-	Active    bool
-	Queued    int
-	UserSteer bool
-	CanSteer  bool
+	Info       *Info
+	TurnID     string
+	Active     bool
+	Delivering bool
+	Queued     int
+	UserSteer  bool
+	CanSteer   bool
 }
 
 type subagentRuntime interface {
@@ -79,6 +80,7 @@ type subagentFlight struct {
 }
 
 type subagentService struct {
+	worktrees    SubagentWorktrees
 	store        store.SubagentStore
 	runtime      subagentRuntime
 	ctx          context.Context
@@ -97,6 +99,9 @@ type subagentService struct {
 	nativeKnown  map[string]map[string]bool
 	steerTurns   map[string]string
 	wakeRetries  map[string]bool
+	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR
+	// snapshot, which is observed outside the parent lock once the child stops.
+	awaitingFacts sync.Map
 }
 
 var _ SubagentService = (*subagentService)(nil)

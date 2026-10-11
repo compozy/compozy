@@ -11,7 +11,8 @@ import {
 
 // Suite: parent subagent roster reducer.
 // Invariant: the snapshot replaces every row; an update upserts by id and never moves a row
-// back in time; rows held across a reconnect are stale until a frame confirms them.
+// back in time; rows held across a reconnect are stale until a frame confirms them; each row's
+// isolation and worktree facts map truthfully (absent ≠ zero, unknown ≠ none, shared = no facts).
 // Owning layer: session roster (pure). Canonical suite: this file.
 const T0 = Date.parse("2026-10-08T21:00:00.000Z");
 const at = (seconds: number) => new Date(T0 + seconds * 1_000).toISOString();
@@ -38,6 +39,7 @@ function row(id: string, overrides: Partial<SubagentPayload> = {}): SubagentPayl
     error: null,
     wait_timed_out: false,
     delivery: "none",
+    isolation: "shared",
     created_at: at(0),
     started_at: at(0),
     settled_at: null,
@@ -88,5 +90,90 @@ describe("subagent roster (UT-W01)", () => {
     const confirmed = applySubagentUpdated(held, update(row("a", { updated_at: at(3) })));
     expect(confirmed.staleIds).toEqual(new Set(["b"]));
     expect(snapshot(row("a"), row("b")).staleIds.size).toBe(0);
+  });
+});
+
+describe("subagent isolation and worktree facts (UT-070, UT-072)", () => {
+  const worktree = {
+    id: "wt-5d1a7c0e",
+    name: "extract-billing-client-3f9a0c12",
+    branch: "run/extract-billing-client-3f9a0c12",
+    base_ref: "origin/main",
+    base_sha: "4be1c9d2a7f0e6b13c5d8e9f0a1b2c3d4e5f6a7b",
+    path: "/w/extract-billing-client-3f9a0c12",
+  };
+  const settled = {
+    ...worktree,
+    head_sha: "9c41e07",
+    commits_ahead: 0,
+    dirty_files: 0,
+    observed_at: at(60),
+  };
+  const view = (overrides: Partial<SubagentPayload>) => snapshot(row("a", overrides)).rows[0]!;
+
+  it("Should map an isolated payload's worktree and keep unobserved facts absent, not zero", () => {
+    const running = view({ isolation: "worktree", worktree });
+    expect(running.isolation).toBe("worktree");
+    expect(running.worktree).toMatchObject({
+      name: worktree.name,
+      branch: worktree.branch,
+      base_ref: "origin/main",
+      commits_ahead: null,
+      dirty_files: null,
+      observed_at: null,
+      pull_request_status: null,
+      pull_request: null,
+    });
+    const done = view({
+      isolation: "worktree",
+      worktree: {
+        ...settled,
+        pull_request_status: "open",
+        pull_request: {
+          url: "https://github.com/compozy/compozy/pull/731",
+          number: 731,
+          state: "open",
+        },
+      },
+    });
+    expect(done.worktree).toMatchObject({
+      commits_ahead: 0,
+      dirty_files: 0,
+      pull_request_status: "open",
+      pull_request: { number: 731, state: "open" },
+    });
+  });
+
+  it("Should keep unknown and none distinct and read an unreadable PR as unknown, never none", () => {
+    const status = (worktreePayload: SubagentPayload["worktree"]) =>
+      view({ isolation: "worktree", worktree: worktreePayload }).worktree;
+    expect(status({ ...settled, pull_request_status: "unknown" })).toMatchObject({
+      pull_request_status: "unknown",
+      pull_request: null,
+    });
+    expect(status({ ...settled, pull_request_status: "none" })).toMatchObject({
+      pull_request_status: "none",
+      pull_request: null,
+    });
+    const unreadable = [
+      { ...settled, pull_request_status: "open" },
+      {
+        ...settled,
+        pull_request_status: "merged",
+        pull_request: { url: "javascript:alert(1)", number: 7, state: "merged" },
+      },
+      { ...settled, pull_request_status: "superseded" },
+    ];
+    for (const payload of unreadable) {
+      expect(status(payload)).toMatchObject({ pull_request_status: "unknown", pull_request: null });
+    }
+  });
+
+  it("Should give shared subagents no facts, even when a payload carries some", () => {
+    expect(view({})).toMatchObject({ isolation: "shared", worktree: null });
+    expect(view({ isolation: "shared", worktree })).toMatchObject({
+      isolation: "shared",
+      worktree: null,
+    });
   });
 });

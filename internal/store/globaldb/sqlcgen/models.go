@@ -1476,6 +1476,7 @@ type SessionInputQueue struct {
 	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`
+	OriginJson               sql.NullString `json:"origin_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`
 	RuntimeModel             string         `json:"runtime_model"`
 	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
@@ -1548,6 +1549,7 @@ type SessionPromptAdmission struct {
 	AuthoredText           string         `json:"authored_text"`
 	SkillInvocationsJson   string         `json:"skill_invocations_json"`
 	AttachmentsJson        string         `json:"attachments_json"`
+	OriginJson             sql.NullString `json:"origin_json"`
 	RuntimeProvider        string         `json:"runtime_provider"`
 	RuntimeModel           string         `json:"runtime_model"`
 	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
@@ -1561,6 +1563,28 @@ type SessionPromptAdmission struct {
 	DispatchCommittedAt    sql.NullString `json:"dispatch_committed_at"`
 	CompletedAt            sql.NullString `json:"completed_at"`
 	UpdatedAt              string         `json:"updated_at"`
+}
+
+type SessionPromptReplyWatch struct {
+	ID                string         `json:"id"`
+	WorkspaceID       string         `json:"workspace_id"`
+	SenderSessionID   string         `json:"sender_session_id"`
+	TargetWorkspaceID string         `json:"target_workspace_id"`
+	TargetSessionID   string         `json:"target_session_id"`
+	MessageID         string         `json:"message_id"`
+	AdmissionID       string         `json:"admission_id"`
+	TurnID            sql.NullString `json:"turn_id"`
+	QueueEntryID      sql.NullString `json:"queue_entry_id"`
+	DeliveredInputID  sql.NullString `json:"delivered_input_id"`
+	AbandonReason     sql.NullString `json:"abandon_reason"`
+	Hop               int64          `json:"hop"`
+	State             string         `json:"state"`
+	Outcome           sql.NullString `json:"outcome"`
+	ReplyText         sql.NullString `json:"reply_text"`
+	ReplyTruncated    int64          `json:"reply_truncated"`
+	CreatedAt         string         `json:"created_at"`
+	FiredAt           sql.NullString `json:"fired_at"`
+	DeliveredAt       sql.NullString `json:"delivered_at"`
 }
 
 type SessionSubagent struct {
@@ -1598,6 +1622,21 @@ type SessionSubagent struct {
 	SettledAt              sql.NullString `json:"settled_at"`
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
+	Isolation              string         `json:"isolation"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
+	WorktreeName           sql.NullString `json:"worktree_name"`
+	WorktreeBranch         sql.NullString `json:"worktree_branch"`
+	WorktreeBaseRef        sql.NullString `json:"worktree_base_ref"`
+	WorktreePath           sql.NullString `json:"worktree_path"`
+	WorktreeBaseSha        sql.NullString `json:"worktree_base_sha"`
+	WorktreeCleanup        sql.NullString `json:"worktree_cleanup"`
+	GitHeadSha             sql.NullString `json:"git_head_sha"`
+	GitCommitsAhead        sql.NullInt64  `json:"git_commits_ahead"`
+	GitDirtyFiles          sql.NullInt64  `json:"git_dirty_files"`
+	GitObservedAt          sql.NullString `json:"git_observed_at"`
+	PrStatus               sql.NullString `json:"pr_status"`
+	PrUrl                  sql.NullString `json:"pr_url"`
+	PrNumber               sql.NullInt64  `json:"pr_number"`
 }
 
 type SessionSubagentWake struct {

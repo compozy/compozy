@@ -17,6 +17,11 @@ func (m *Manager) watchSteerCompletion(session *Session, entryID, targetTurnID s
 			delivery = store.SteerDeliveryInterruptFallback
 		}
 		ctx := m.fallbackLifecycleContext()
+		defer func() {
+			if service := m.ReplyWatches(); service != nil {
+				service.OnSteerResolved(ctx, session.ID, "")
+			}
+		}()
 		// Serialize the delivery decision with prepareStop's lifecycle transition.
 		session.mu.Lock()
 		if session.State != StateActive {

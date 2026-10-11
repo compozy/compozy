@@ -189,7 +189,8 @@ coordinator-role spawn, unauthorized cross-workspace spawn, and invalid TTL/dept
 
 `spawn.pre_create` also runs before every [subagent](/docs/sessions/subagents) delegation. Those
 payloads carry `spawn_role: "subagent"` and a `subagent` object with `title`, `role`, and
-`task_chars` (the task length, never the task text). The same deny and narrowing rules apply; a patch
+`task_chars` (the task length, never the task text), plus read-only `isolation` and `worktree_id`.
+A patch that rebinds isolation or the worktree is rejected with `capability_denied`. The same deny and narrowing rules apply; a patch
 that sets a TTL for the subagent role is rejected with `capability_denied`, because subagents have no
 TTL.
 
@@ -200,7 +201,9 @@ TTL.
 | `subagent.settled` | no   | `SubagentSettledPayload` | `SubagentObservationPatch` | When a subagent reaches a terminal status, after its record is committed. |
 
 `subagent.settled` is observe-only: a hook cannot change the status, the result, or the parent's
-wake. It fires once per subagent for both delegated and provider-native subagents.
+wake. It fires once per subagent for both delegated and provider-native subagents. Its payload
+additively includes `isolation` and optional `worktree` facts (identity, branch, base, Git and PR
+snapshot); unavailable settlement facts remain absent.
 
 | Field                                   | Meaning                                                                                                            |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -211,6 +214,8 @@ wake. It fires once per subagent for both delegated and provider-native subagent
 | `status`                                | `completed`, `failed`, `canceled`, or `interrupted`.                                                               |
 | `runtime`                               | `provider` and `model` the subagent ran on.                                                                        |
 | `duration_ms`                           | Time from delegation to settle.                                                                                    |
+| `isolation`                             | `shared` or `worktree`.                                                                                            |
+| `worktree`                              | Optional checkout identity, branch, base and available Git/PR settlement facts; unknown fields are omitted.        |
 
 ## Agent Process Events
 
@@ -495,5 +500,6 @@ This family is observe-only. The payload includes `workspace_id`, `subagent_id`,
 `runtime.model`, and `duration_ms`, in addition to the common event metadata.
 
 Delegation also uses `spawn.pre_create` with `spawn_role: "subagent"` and a typed
-`subagent` object containing `title`, `role`, and `task_chars`. Denying that hook or
-rewriting a TTL for this role rejects delegation with `capability_denied`.
+`subagent` object containing `title`, `role`, `task_chars`, and read-only `isolation` and
+`worktree_id`. Denying that hook, rebinding isolation/worktree, or rewriting a TTL for this role
+rejects delegation with `capability_denied`.

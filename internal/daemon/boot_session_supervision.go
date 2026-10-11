@@ -46,6 +46,10 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 			Kind:   session.WorkSignalScheduledWait,
 			Source: session.SignalSourceFunc(sources.waits),
 		},
+		session.WorkSignalSource{
+			Kind:   session.WorkSignalAwaitingReply,
+			Source: session.SignalSourceFunc(sources.replies),
+		},
 	)
 	interval := toolruntime.SweepInterval
 	for _, bound := range []time.Duration{

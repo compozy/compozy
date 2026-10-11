@@ -17,6 +17,7 @@ const (
 
 // PromptMeta carries structured, transport-stable metadata for one ACP prompt.
 type PromptMeta struct {
+	Origin     *PromptOriginMeta    `json:"origin,omitempty"`
 	TurnSource string               `json:"turn_source,omitempty"`
 	Synthetic  *PromptSyntheticMeta `json:"synthetic,omitempty"`
 	Judge      *PromptJudgeMeta     `json:"judge,omitempty"`
@@ -32,6 +33,7 @@ type PromptSystemMeta struct {
 func (m PromptMeta) Normalize() PromptMeta {
 	normalized := PromptMeta{
 		TurnSource: strings.TrimSpace(m.TurnSource),
+		Origin:     ClonePromptOriginMeta(m.Origin),
 	}
 	if m.Synthetic != nil {
 		synthetic := m.Synthetic.Normalize()
@@ -60,7 +62,7 @@ func (m PromptMeta) IsZero() bool {
 	return normalized.TurnSource == "" &&
 		normalized.Synthetic == nil &&
 		normalized.Judge == nil &&
-		normalized.System == nil
+		normalized.System == nil && normalized.Origin == nil
 }
 
 // ToMap converts normalized prompt metadata to the ACP SDK extensibility map.
@@ -91,6 +93,14 @@ func (m PromptMeta) Validate() error {
 	if normalized.Judge != nil {
 		if err := normalized.Judge.Validate(); err != nil {
 			return err
+		}
+	}
+	if normalized.Origin != nil {
+		if err := normalized.Origin.Validate(); err != nil {
+			return err
+		}
+		if normalized.TurnSource == PromptTurnSourceSynthetic {
+			return invalidPromptMetadata("acp: synthetic prompt cannot include origin")
 		}
 	}
 	switch normalized.TurnSource {

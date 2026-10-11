@@ -20,6 +20,12 @@ func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
 		return errors.New("daemon: registry does not implement the subagent store")
 	}
 	service, err := session.NewSubagentService(db, manager,
+		session.WithSubagentWorktrees(daemonSubagentWorktrees{lookup: func() subagentWorktreeService {
+			if state.worktrees == nil {
+				return nil
+			}
+			return state.worktrees
+		}}),
 		session.WithSubagentResultLimit(func(ctx context.Context, workspaceID string) (int, error) {
 			workspace, err := state.workspaceResolver.Resolve(ctx, workspaceID)
 			if err != nil {
@@ -57,6 +63,8 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 		return errors.New("daemon: hook runtime lacks subagent dispatch")
 	}
 	payload := hooks.SubagentSettledPayload{
+		Isolation:       row.Isolation,
+		Worktree:        subagentSettledWorktree(row),
 		Event:           hooks.HookSubagentSettled,
 		Timestamp:       row.UpdatedAt,
 		WorkspaceID:     row.WorkspaceID,
@@ -66,6 +74,9 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 		Origin:          row.Origin,
 		Status:          row.Status,
 		Runtime:         hooks.SubagentRuntimePayload{Provider: row.RuntimeProvider, Model: row.RuntimeModel},
+	}
+	if payload.Isolation == "" {
+		payload.Isolation = "shared"
 	}
 	if row.SettledAt != nil {
 		payload.Timestamp = *row.SettledAt
@@ -82,6 +93,33 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 	}
 	_, err := dispatcher.DispatchSubagentSettled(ctx, payload)
 	return err
+}
+
+func subagentSettledWorktree(row store.SessionSubagent) *hooks.SubagentWorktreePayload {
+	wt := row.WorktreeState()
+	if row.Isolation != "worktree" || wt.ID == "" {
+		return nil
+	}
+	facts := wt.Facts
+	payload := &hooks.SubagentWorktreePayload{
+		ID: wt.ID, Name: wt.Name, Branch: wt.Branch, BaseRef: wt.BaseRef, BaseSHA: wt.BaseSHA, Path: wt.Path,
+		HeadSHA: facts.HeadSHA, CommitsAhead: facts.CommitsAhead, DirtyFiles: facts.DirtyFiles,
+		PullRequestStatus: facts.PRStatus,
+	}
+	if !facts.ObservedAt.IsZero() {
+		payload.ObservedAt = new(facts.ObservedAt)
+	}
+	if facts.PRNumber != nil && facts.PRURL != "" {
+		switch facts.PRStatus {
+		case subagentPRStatusOpen, subagentPRStatusDraft, subagentPRStatusMerged, subagentPRStatusClosed:
+			payload.PullRequest = &hooks.SubagentPullRequestPayload{
+				URL:    facts.PRURL,
+				Number: *facts.PRNumber,
+				State:  facts.PRStatus,
+			}
+		}
+	}
+	return payload
 }
 
 func (d *Daemon) SubagentService() session.SubagentService {
