@@ -21,18 +21,23 @@ export interface ThinkingBlockProps {
   onRevealRelease?: () => void;
 }
 
-/** A paragraph as one plain line: code fences (even one still streaming open) dropped, markdown marks stripped. */
+/** A paragraph as one plain line: markdown marks stripped. */
 function plainParagraph(paragraph: string): string {
   return paragraph
-    .replace(/```[\s\S]*?(?:```|$)/gu, " ")
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gmu, "")
     .replace(/[*_~`]/gu, "")
     .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
     .trim();
 }
 
+/**
+ * Plain paragraphs of the reasoning. Code fences (even one still streaming
+ * open) drop out of the whole text first, so a blank line inside a code block
+ * never splits it into paragraphs that read as prose.
+ */
 function paragraphs(thinking: string): string[] {
   return thinking
+    .replace(/```[\s\S]*?(?:```|$)/gu, "\n\n")
     .split(/\n\s*\n/u)
     .map(plainParagraph)
     .filter(paragraph => paragraph.length > 0);
