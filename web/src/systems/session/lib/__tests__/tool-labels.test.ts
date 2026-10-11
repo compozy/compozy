@@ -312,7 +312,6 @@ describe("inferShellIntent", () => {
   });
 });
 
-
 describe("session message tool labels (agent collaboration S3)", () => {
   it("Should name compozy__session_prompt as sending a message, never the generic fallback", () => {
     expect(getToolLabel("compozy__session_prompt", "active")).toBe("Sending a message");

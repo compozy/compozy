@@ -49,8 +49,18 @@ export function useSessionLabel({
     title,
     ...(pending ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
+    provider: sessionRuntimeProvider(detail.data?.runtime),
     workspaceName: crossWorkspace ? (workspace.data?.workspace.name ?? null) : null,
   };
+}
+
+interface SessionRuntimeRoutes {
+  effective?: { provider?: string } | null;
+  selected?: { provider?: string } | null;
+}
+
+function sessionRuntimeProvider(runtime: SessionRuntimeRoutes | null | undefined): string | null {
+  return runtime?.effective?.provider?.trim() || runtime?.selected?.provider?.trim() || null;
 }
 
 interface SessionDetailRead {

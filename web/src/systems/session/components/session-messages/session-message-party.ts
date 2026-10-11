@@ -15,8 +15,13 @@ export interface SessionMessageParty {
   title: string | null;
   /** The detail read is in flight and no title was recorded: the label waits (aria-busy). */
   pending?: boolean;
-  /** Provider mark for the avatar; `null` draws the bot glyph. */
+  /** The session's agent; names it and falls back as the avatar mark when no provider is known. */
   agentName: string | null;
+  /**
+   * The session's runtime provider (effective, then selected): a custom agent such as
+   * `billing-reviewer` running on Claude still draws the Claude mark.
+   */
+  provider?: string | null;
   /** Set only when the party lives in another workspace than this transcript (Gap 5). */
   workspaceName?: string | null;
 }
@@ -32,6 +37,11 @@ export type SessionMessageOpen = (
 ) => void;
 
 export const DELETED_SESSION_LABEL = "a deleted session";
+
+/** Provider mark for the avatar; `null` draws the bot glyph. */
+export function sessionPartyMark(party: SessionMessageParty): string | null {
+  return party.provider || party.agentName;
+}
 
 /** The verb phrases that name the other session in an accessible name. */
 export type SessionPartyVerb =

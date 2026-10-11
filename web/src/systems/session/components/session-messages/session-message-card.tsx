@@ -8,6 +8,7 @@ import {
   SessionMessagePartyLabel,
 } from "./session-message-frame";
 import {
+  sessionPartyMark,
   sessionPartyPhrase,
   type SessionMessageOpen,
   type SessionMessageParty,
@@ -58,7 +59,7 @@ export function SessionMessageCard({
       aria-busy={sender.pending || undefined}
       data-testid="session-message-card"
       data-delivery={delivery ?? undefined}
-      avatar={<SubagentAvatar provider={sender.agentName} surface="rail" />}
+      avatar={<SubagentAvatar provider={sessionPartyMark(sender)} surface="rail" />}
       header={
         <>
           <SessionMessagePartyLabel verb="From" party={sender} onOpen={onOpenSender} />

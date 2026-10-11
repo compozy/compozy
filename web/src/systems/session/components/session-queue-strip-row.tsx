@@ -15,7 +15,7 @@ import type { UnconfirmedSend } from "../lib/session-unconfirmed-send";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import type { SessionMessageOrigin } from "../lib/session-message-payload";
 import { SubagentAvatar } from "./subagents/subagent-avatar";
-import { DELETED_SESSION_LABEL } from "./session-messages/session-message-party";
+import { DELETED_SESSION_LABEL, sessionPartyMark } from "./session-messages/session-message-party";
 import { useSessionLabel } from "./session-messages/use-session-label";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
@@ -201,7 +201,7 @@ function SessionQueuedSessionMessageRow({
         aria-busy={party.pending || undefined}
         className="inline-flex max-w-[44%] min-w-0 shrink-0 items-center gap-1.5 text-micro text-muted"
       >
-        <SubagentAvatar provider={party.agentName} size="sm" className="size-4.5" />
+        <SubagentAvatar provider={sessionPartyMark(party)} size="sm" className="size-4.5" />
         <span className="shrink-0">From</span>
         {party.pending ? (
           <Skeleton aria-hidden="true" className="inline-block h-3 w-16 rounded-xs" />

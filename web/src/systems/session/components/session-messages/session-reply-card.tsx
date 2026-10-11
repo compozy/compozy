@@ -12,6 +12,7 @@ import {
   type SessionMessageBodyTone,
 } from "./session-message-frame";
 import {
+  sessionPartyMark,
   sessionPartyPhrase,
   type SessionMessageOpen,
   type SessionMessageParty,
@@ -82,7 +83,11 @@ export function SessionReplyCard({
       data-testid="session-reply-card"
       data-outcome={outcome}
       avatar={
-        <SubagentAvatar provider={target.agentName} status={OUTCOME_DOT[outcome]} surface="rail" />
+        <SubagentAvatar
+          provider={sessionPartyMark(target)}
+          status={OUTCOME_DOT[outcome]}
+          surface="rail"
+        />
       }
       header={
         <>

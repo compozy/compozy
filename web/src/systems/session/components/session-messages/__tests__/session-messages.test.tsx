@@ -23,6 +23,7 @@ import { SessionMessageCard } from "../session-message-card";
 import type { SessionMessageParty } from "../session-message-party";
 import { SessionReplyCard } from "../session-reply-card";
 import { SessionSentCard, type SessionSentCardProps } from "../session-sent-card";
+import { sessionPartyMark } from "../session-message-party";
 import { useSessionLabel } from "../use-session-label";
 import { useSessionMessageOpen } from "../use-session-message-open";
 
@@ -351,6 +352,34 @@ describe("useSessionLabel", () => {
     expect(result.current).toMatchObject({ title: null, pending: true });
     await waitFor(() => expect(result.current.title).toBe("Billing refactor · PR split"));
     expect(result.current.pending).toBeUndefined();
+  });
+
+  it("Should draw a custom agent with its runtime provider's mark (UT-063)", async () => {
+    const custom = sessionDetail(SENDER_ID, "Billing reviewer", "billing-reviewer");
+    stubDetailReads({
+      [SENDER_ID]: {
+        session: {
+          ...custom.session,
+          runtime: {
+            ...custom.session.runtime,
+            effective: { ...custom.session.runtime.effective, provider: "claude" },
+          },
+        },
+      },
+    });
+    const { result } = renderHook(
+      () =>
+        useSessionLabel({
+          sessionId: SENDER_ID,
+          workspaceId: WS,
+          currentWorkspaceId: WS,
+          agentName: "billing-reviewer",
+        }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.title).toBe("Billing reviewer"));
+    expect(result.current.agentName).toBe("billing-reviewer");
+    expect(sessionPartyMark(result.current)).toBe("claude");
   });
 
   it("Should read a 404 as a deleted session (UT-063)", async () => {

@@ -37,6 +37,7 @@ import {
 } from "./session-timeline-subagents";
 import {
   isSessionMessagePart,
+  attributeSessionMessageParts,
   partitionSessionMessageParts,
   sentMessageRow,
 } from "./session-timeline-session-messages";
@@ -115,13 +116,19 @@ export function deriveSessionRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions = {}
 ): SessionRow[] {
-  const sent = partitionSessionMessageParts(markInterruptedCalls(parts, options));
-  const { flow, nested, boundaries } = partitionSubagentParts(sent.flow);
+  // Child-owned work leaves first, so a send made inside a provider-native subagent stays in its card;
+  // the card's own rows derive the "Sent to" row from the nested parts.
+  const owned = partitionSubagentParts(
+    attributeSessionMessageParts(markInterruptedCalls(parts, options))
+  );
+  const sent = partitionSessionMessageParts(owned.flow);
   const separated =
-    sent.boundaries.size === 0 ? boundaries : new Set([...boundaries, ...sent.boundaries]);
+    sent.boundaries.size === 0
+      ? owned.boundaries
+      : new Set([...owned.boundaries, ...sent.boundaries]);
   const rows = deriveBaseRows(
-    flow,
-    { nested, boundaries: separated, sentTools: sent.tools },
+    sent.flow,
+    { nested: owned.nested, boundaries: separated, sentTools: sent.tools },
     options
   );
   return options.foldSettledTurns

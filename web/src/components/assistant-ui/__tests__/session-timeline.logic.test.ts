@@ -1692,6 +1692,29 @@ describe("session timeline sent messages", () => {
     expect(rows[0]).toMatchObject({ toolPart: { isError: true } });
   });
 
+  it("UT-065: Should keep a send made inside a provider-native subagent in that subagent's card", () => {
+    // Live stream shape: only the call carries the attribution; its card part inherits it.
+    const childCall = { ...sessionPrompt(2), parentToolCallId: "toolu-native" };
+    const childCard = sessionMessagePart("sm-child", "tool-call-2");
+    const rows = deriveSessionRows([
+      tool(1, {
+        toolName: "Agent",
+        toolCallId: "toolu-native",
+        status: "running",
+        result: undefined,
+      }),
+      subagentPart("sub-native", "toolu-native", { origin: "provider_native" }),
+      childCall,
+      childCard,
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["subagents"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    const inner = card.nested.get("sub-native") ?? [];
+    expect(inner.map(part => part.id)).toEqual([childCall.id, childCard.id]);
+    expect(deriveSessionRows(inner).map(row => row.kind)).toEqual(["session-message"]);
+  });
+
   it("UT-065: Should leave a session_prompt call with no part as a tool row", () => {
     expect(deriveSessionRows([sessionPrompt(1)]).map(row => row.kind)).toEqual(["work"]);
   });

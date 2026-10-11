@@ -29,6 +29,28 @@ export interface SessionMessagePartition {
 const NO_TOOLS: ReadonlyMap<string, SessionTimelineToolPart> = new Map();
 const NO_BOUNDARIES: ReadonlySet<SessionTimelinePart> = new Set();
 
+/**
+ * A send made inside a provider-native subagent belongs to that subagent's card. The call's tool part
+ * carries the attribution on both the live stream and the history; its card part inherits it here so
+ * the subagent partition can nest both.
+ */
+export function attributeSessionMessageParts(
+  parts: readonly SessionTimelinePart[]
+): readonly SessionTimelinePart[] {
+  const parents = new Map<string, string>();
+  for (const part of parts) {
+    if (part.kind === "tool" && part.parentToolCallId)
+      parents.set(part.toolCallId, part.parentToolCallId);
+  }
+  if (parents.size === 0) return parts;
+  return parts.map(part => {
+    if (part.kind !== "data" || part.parentToolCallId) return part;
+    const toolCallId = sessionSentMessagePart(part.name, part.data)?.toolCallId;
+    const parentToolCallId = toolCallId ? parents.get(toolCallId) : undefined;
+    return parentToolCallId ? { ...part, parentToolCallId } : part;
+  });
+}
+
 export function partitionSessionMessageParts(
   parts: readonly SessionTimelinePart[]
 ): SessionMessagePartition {
