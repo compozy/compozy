@@ -165,6 +165,52 @@
   border-bottom-left-radius: 8px;
 }
 
+/* Assistant prose rests one step under full ink so its bold and headings carry
+   emphasis (design ref: MonoCode agent-markdown, p/li at ~78%). */
+.session-answer p,
+.session-answer li {
+  color: color-mix(in oklab, var(--color-fg) 82%, transparent);
+}
+
+/* An opened turn fold: its rows sit beside one spine that drops from the fold's
+   glyph (same 12px axis as the work-group rail). */
+.session-fold-body {
+  position: relative;
+  padding-left: 24px;
+}
+
+.session-fold-body::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 6px;
+  left: 12px;
+  width: 1px;
+  background: var(--session-rail-color);
+  pointer-events: none;
+}
+
+/* Prose inside an opened turn fold is process, not result: one ink step quieter
+   than the answer, its headings reduced to bold lines (design ref: MonoCode
+   fold prose). */
+.session-fold-body p,
+.session-fold-body li {
+  color: color-mix(in oklab, var(--color-fg) 65%, transparent);
+}
+
+.session-fold-body strong,
+.session-fold-body em {
+  color: color-mix(in oklab, var(--color-fg) 80%, transparent);
+}
+
+.session-fold-body :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: var(--text-small-body);
+  font-weight: 600;
+  color: color-mix(in oklab, var(--color-fg) 80%, transparent);
+}
+
 @keyframes session-rail-open {
   from {
     opacity: 0;
@@ -178,6 +224,28 @@
 
 @media (prefers-reduced-motion: reduce) {
   .session-rail {
+    animation: none;
+  }
+}
+
+/* Live reasoning line — breathes between two ink steps while the agent thinks
+   (design ref: MonoCode zen-thinking-pulse). Reduced motion holds it still. */
+@keyframes session-thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.session-thinking-pulse {
+  animation: session-thinking-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-thinking-pulse {
     animation: none;
   }
 }

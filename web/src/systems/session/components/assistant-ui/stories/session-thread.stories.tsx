@@ -429,7 +429,7 @@ export const QuietTimelineParallelTools: Story = quietTimelineStory(parallelTool
   running: true,
 });
 
-/** VC-03 — six settled tools of the live turn rest as "Ran 4 commands, edited 1 file, read 3 files"; open reveals the production ToolCallRows. */
+/** VC-03 — six settled tools of the live turn rest as "Ran 4 commands · Edited 1 file · Read 3 files"; open reveals the production ToolCallRows. */
 export const QuietTimelineCompletedGroup: Story = quietTimelineStory(completedGroupTranscript, {
   running: true,
   currentTool: "Bash",

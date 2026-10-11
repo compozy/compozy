@@ -67,7 +67,7 @@ function isCompozyPermissionData(value: unknown): value is CompozyPermissionData
 function SessionTextRowView({ row }: { row: SessionTextRow }) {
   return (
     <div
-      className="contents"
+      className="session-answer contents"
       data-part-index={row.part.partIndex}
       data-part-indices={row.parts
         .map(part => part.partIndex)

@@ -80,7 +80,12 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       ) : (
         <>
           {copy}
-          {timestamp}
+          {timestamp ? (
+            <>
+              <span aria-hidden="true" className="size-[3px] rounded-full bg-line-strong" />
+              {timestamp}
+            </>
+          ) : null}
         </>
       )}
     </div>

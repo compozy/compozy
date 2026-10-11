@@ -54,6 +54,9 @@ export interface SessionToolCallRowProps {
   onRail?: boolean;
 }
 
+/** Tools whose opened body is a diff card that brings its own frame. */
+const DIFF_BODY_TOOLS = new Set(["Edit", "Write"]);
+
 /** Tools with specialized expanded renderers own input+output — no card-level JSON. */
 const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob", "TodoWrite"]);
 
@@ -165,6 +168,9 @@ function toolCallPresentation({
   const copyPayload = formatToolPayload(message);
   const hasOutput = !toolResultIsEmpty(message.toolResult);
   const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
+  const showArtifactResult = message.toolResult?.truncated === true;
+  const bodyVariant: "card" | "plain" =
+    DIFF_BODY_TOOLS.has(registryTool) && !showArtifactResult ? "plain" : "card";
   const errorMessage =
     status === "failed" || status === "absorbed" ? failureText(message) : undefined;
   // The word that carries a state the glyph does not: "failed" beside the
@@ -174,7 +180,6 @@ function toolCallPresentation({
     status === "success" && message.toolInput
       ? fileDiffStatForTool(registryTool, message.toolInput)
       : null;
-  const showArtifactResult = message.toolResult?.truncated === true;
   // A find jump names the field it matched: that payload renders in full beside
   // the tool's own display, so the searched text is on screen (not only the
   // specialized summary of it). Title/name matches open the original title below.
@@ -196,6 +201,7 @@ function toolCallPresentation({
 
   return {
     display,
+    bodyVariant,
     preview,
     previewTitle,
     previewVariant,
@@ -314,6 +320,7 @@ export function SessionToolCallRow({
   }
   const {
     display,
+    bodyVariant,
     preview,
     previewTitle,
     previewVariant,
@@ -352,6 +359,7 @@ export function SessionToolCallRow({
         toolName={display.verb}
         icon={onRail ? null : display.icon}
         preview={preview ? <span title={previewTitle}>{preview}</span> : undefined}
+        bodyVariant={bodyVariant}
         previewVariant={previewVariant}
         status={status}
         errorMessage={errorMessage}

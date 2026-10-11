@@ -19,20 +19,36 @@ describe("ThinkingBlock", () => {
     expect(screen.getByTestId("thinking-content")).toBeInTheDocument();
   });
 
-  it("Should let a user toggle override the streaming auto-open", async () => {
+  // Live reasoning rests as one breathing line of what it thinks now; the body
+  // opens only on the reader's toggle (or inside a disclosed work group).
+  it("Should show live reasoning as its latest paragraph and open the body only on toggle", async () => {
     const user = userEvent.setup();
-    render(<ThinkingBlock thinking="Reasoning in progress." thinkingComplete={false} />);
+    const { rerender } = render(<ThinkingBlock thinking="" thinkingComplete={false} />);
     expect(screen.getByTestId("thinking-trigger")).toHaveTextContent("Thinking…");
     expect(
       screen.getByTestId("thinking-trigger").querySelector(".session-shimmer")
     ).toBeInTheDocument();
-    expect(screen.getByTestId("thinking-content")).toHaveTextContent("Reasoning in progress.");
 
-    // Auto-open while streaming, then a user collapse pins it closed even though
-    // the turn is still in flight.
-    expect(screen.getByTestId("thinking-content")).toBeInTheDocument();
-    await user.click(screen.getByTestId("thinking-trigger"));
+    rerender(
+      <ThinkingBlock
+        thinking={"Read the **config** first.\n\nNow checking the tests."}
+        thinkingComplete={false}
+      />
+    );
+    const trigger = screen.getByTestId("thinking-trigger");
+    expect(trigger).toHaveTextContent("Now checking the tests.");
+    expect(trigger.querySelector(".session-thinking-pulse")).toBeInTheDocument();
     expect(screen.queryByTestId("thinking-content")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(screen.getByTestId("thinking-content")).toHaveTextContent("Read the config first.");
+  });
+
+  it("Should open live reasoning inside a disclosed work group", () => {
+    render(
+      <ThinkingBlock thinking="Reasoning in progress." thinkingComplete={false} defaultOpen />
+    );
+    expect(screen.getByTestId("thinking-content")).toHaveTextContent("Reasoning in progress.");
   });
 
   it("Should render reasoning as markdown rather than raw pre-wrapped text", async () => {

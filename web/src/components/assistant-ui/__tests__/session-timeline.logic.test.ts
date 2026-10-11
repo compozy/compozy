@@ -460,7 +460,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.active).toBe(true);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 2 files");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited 2 files");
     expect(group.summary?.failedCount).toBe(0);
     expect(group.expanded).toBe(false);
 
@@ -531,7 +531,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.entries.map(entry => entry.id)).toEqual(["tool-1", "tool-2", "tool-3"]);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 1 file");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited a.ts");
     expect(group.summary?.failedCount).toBe(1);
 
     // A settled run with a failure folds the same way once the turn moves on.
@@ -561,7 +561,7 @@ describe("session timeline derivation", () => {
     // Fixed presentation order regardless of call order; the two same-path
     // Reads count as one distinct file.
     expect(workRow.summary?.label).toBe(
-      "Ran 1 command, edited 1 file, read 1 file, searched once, used 2 tools"
+      "Ran 1 command · Edited b.ts · Read a.ts · Searched once · Used 2 tools"
     );
   });
 
@@ -575,7 +575,7 @@ describe("session timeline derivation", () => {
 
     const workRow = deriveSessionRows(parts)[0];
     if (workRow?.kind !== "work") throw new Error("expected work row");
-    expect(workRow.summary?.label).toBe("Ran 1 command, read 1 file, searched once");
+    expect(workRow.summary?.label).toBe("Ran 1 command · Read package.json · Searched once");
   });
 
   // Invariant: a file counts once however its reads were spelled, and a directory listing is not a file.
@@ -589,7 +589,7 @@ describe("session timeline derivation", () => {
 
     const workRow = deriveSessionRows(parts)[0];
     if (workRow?.kind !== "work") throw new Error("expected work row");
-    expect(workRow.summary?.label).toBe("Read 1 file, listed 1 directory");
+    expect(workRow.summary?.label).toBe("Read a.ts · Listed src");
   });
 
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
@@ -1102,8 +1102,8 @@ it("Should fold a settled turn behind duration and counts with the answer outsid
   expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
   const foldRow = rows[0];
   if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands, read 1 file");
-  expect(foldRow.counts).toBe("Ran 2 commands, read 1 file");
+  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands · Read a.ts");
+  expect(foldRow.counts).toBe("Ran 2 commands · Read a.ts");
   expect(foldRow.cause).toBe("settled");
   expect(foldRow.open).toBe(false);
 });
@@ -1612,6 +1612,6 @@ describe("session timeline subagent cards", () => {
       tool(2, { toolName: "compozy__subagent_status", args: {} }),
     ]);
     if (mixed?.kind !== "work") throw new Error("expected a summary");
-    expect(mixed.summary?.label).toBe("Checked subagent capabilities, read subagent status");
+    expect(mixed.summary?.label).toBe("Checked subagent capabilities · Read subagent status");
   });
 });

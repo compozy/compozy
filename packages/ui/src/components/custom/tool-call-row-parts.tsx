@@ -210,22 +210,37 @@ export function ToolCallRowStatic({ children }: { children: React.ReactNode }) {
 
 export function ToolCallRowBody({
   errorMessage,
+  status,
+  variant,
   children,
 }: {
   errorMessage?: React.ReactNode;
+  status: ToolCallStatus;
+  variant: "card" | "plain";
   children?: React.ReactNode;
 }) {
   return (
     <div
       data-slot="tool-call-row-body"
-      className="mt-1 mb-1.5 ml-7 flex max-h-80 min-w-0 cursor-default flex-col gap-2.5 overflow-auto rounded-lg border border-line-soft bg-chat-fill-code p-2.5 text-small-body text-muted select-text"
+      data-variant={variant}
+      className={cn(
+        "mt-1 mb-1.5 ml-7 flex min-w-0 cursor-default flex-col gap-2.5 text-small-body text-muted select-text",
+        variant === "card"
+          ? "max-h-80 overflow-auto rounded-lg border border-line-soft bg-chat-fill-code p-2.5"
+          : null
+      )}
       onClick={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()}
     >
       {errorMessage ? (
         <p
           data-slot="tool-call-row-error"
-          className="font-mono text-transcript-caption leading-prose break-words whitespace-pre-wrap text-muted"
+          className={cn(
+            "font-mono text-transcript-caption leading-prose break-words whitespace-pre-wrap",
+            // Danger only for the failure that ended the turn (ADR-009); an
+            // absorbed failure's detail reads in the settled ink.
+            status === "failed" ? "text-danger" : "text-muted"
+          )}
         >
           {errorMessage}
         </p>

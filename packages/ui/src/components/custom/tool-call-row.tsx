@@ -40,6 +40,11 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
    */
   previewVariant?: "chip" | "code" | "text";
   status: ToolCallStatus;
+  /**
+   * `card` frames the opened body on the code wash; `plain` leaves it unframed
+   * for a body that brings its own frame (a diff card). Defaults to `card`.
+   */
+  bodyVariant?: "card" | "plain";
   /** Kind glyph in the leading well; `null` drops the well (rows on a group rail). */
   icon?: ToolCallIconComponent | React.ReactNode | null;
   errorMessage?: React.ReactNode;
@@ -76,6 +81,7 @@ function ToolCallRowInner({
   toolName,
   preview,
   previewVariant = "code",
+  bodyVariant = "card",
   status,
   icon,
   errorMessage,
@@ -139,7 +145,9 @@ function ToolCallRowInner({
         <ToolCallRowStatic>{line}</ToolCallRowStatic>
       )}
       {expandable && isExpanded ? (
-        <ToolCallRowBody errorMessage={errorMessage}>{children}</ToolCallRowBody>
+        <ToolCallRowBody errorMessage={errorMessage} status={status} variant={bodyVariant}>
+          {children}
+        </ToolCallRowBody>
       ) : null}
     </div>
   );

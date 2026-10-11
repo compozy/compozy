@@ -33,7 +33,7 @@ function stringArg(args: Record<string, unknown>, key: string): string {
 
 // Splits into lines without inventing a trailing empty line for a final newline
 // artifact — an empty string is zero lines, "a\nb" is two.
-function splitLines(text: string): string[] {
+export function splitLines(text: string): string[] {
   if (text.length === 0) return [];
   return text.split(/\r?\n/);
 }
@@ -43,29 +43,70 @@ function splitLines(text: string): string[] {
 // changed (additions = new lines, deletions = old lines).
 const LCS_CELL_LIMIT = 250_000;
 
-function longestCommonSubsequenceLength(a: readonly string[], b: readonly string[]): number {
+/** One line of an aligned old → new diff, with its 0-based position on each side it exists. */
+export interface AlignedDiffLine {
+  kind: "add" | "del" | "context";
+  text: string;
+  oldIndex?: number;
+  newIndex?: number;
+}
+
+function replaceAll(a: readonly string[], b: readonly string[]): AlignedDiffLine[] {
+  return [
+    ...a.map((text, oldIndex) => ({ kind: "del" as const, text, oldIndex })),
+    ...b.map((text, newIndex) => ({ kind: "add" as const, text, newIndex })),
+  ];
+}
+
+/**
+ * A minimal line diff (LCS) of `a` → `b`: unchanged lines as context, removed
+ * lines before the lines that replace them. Past the cell bound every line
+ * reads as changed.
+ */
+export function alignLines(a: readonly string[], b: readonly string[]): AlignedDiffLine[] {
   const m = a.length;
   const n = b.length;
-  if (m === 0 || n === 0) return 0;
-  if (m * n > LCS_CELL_LIMIT) return 0;
-  let previous = Array.from<number>({ length: n + 1 }).fill(0);
-  let current = Array.from<number>({ length: n + 1 }).fill(0);
-  for (let i = 1; i <= m; i += 1) {
-    for (let j = 1; j <= n; j += 1) {
-      current[j] =
-        a[i - 1] === b[j - 1] ? previous[j - 1]! + 1 : Math.max(previous[j]!, current[j - 1]!);
+  if (m === 0 || n === 0 || m * n > LCS_CELL_LIMIT) return replaceAll(a, b);
+  const width = n + 1;
+  const table = new Uint32Array((m + 1) * width);
+  for (let i = m - 1; i >= 0; i -= 1) {
+    for (let j = n - 1; j >= 0; j -= 1) {
+      table[i * width + j] =
+        a[i] === b[j]
+          ? table[(i + 1) * width + j + 1]! + 1
+          : Math.max(table[(i + 1) * width + j]!, table[i * width + j + 1]!);
     }
-    [previous, current] = [current, previous];
-    current.fill(0);
   }
-  return previous[n]!;
+  const lines: AlignedDiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      lines.push({ kind: "context", text: a[i]!, oldIndex: i, newIndex: j });
+      i += 1;
+      j += 1;
+    } else if (table[(i + 1) * width + j]! >= table[i * width + j + 1]!) {
+      lines.push({ kind: "del", text: a[i]!, oldIndex: i });
+      i += 1;
+    } else {
+      lines.push({ kind: "add", text: b[j]!, newIndex: j });
+      j += 1;
+    }
+  }
+  for (; i < m; i += 1) lines.push({ kind: "del", text: a[i]!, oldIndex: i });
+  for (; j < n; j += 1) lines.push({ kind: "add", text: b[j]!, newIndex: j });
+  return lines;
 }
 
 function editDiffStat(args: Record<string, unknown>): ToolDiffStat {
-  const oldLines = splitLines(stringArg(args, "old_string"));
-  const newLines = splitLines(stringArg(args, "new_string"));
-  const common = longestCommonSubsequenceLength(oldLines, newLines);
-  return { additions: newLines.length - common, deletions: oldLines.length - common };
+  const lines = alignLines(
+    splitLines(stringArg(args, "old_string")),
+    splitLines(stringArg(args, "new_string"))
+  );
+  return {
+    additions: lines.filter(line => line.kind === "add").length,
+    deletions: lines.filter(line => line.kind === "del").length,
+  };
 }
 
 function writeDiffStat(args: Record<string, unknown>): ToolDiffStat {

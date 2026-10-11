@@ -37,7 +37,7 @@ export interface SessionToolGroupSummaryPart {
 }
 
 export interface SessionToolGroupSummary {
-  /** Comma-joined sentence, e.g. "Ran 2 commands, edited 3 files". */
+  /** Clauses joined by " · ", e.g. "Ran 2 commands · Edited 3 files". */
   label: string;
   parts: SessionToolGroupSummaryPart[];
   entryCount: number;
@@ -129,12 +129,34 @@ function summaryPartLabel(category: SessionToolSummaryCategory, count: number): 
   }
 }
 
-// One sentence: the first label keeps its capital, the rest continue in lower
-// case, joined by commas — "Ran 6 commands, edited 2 files, read 3 files".
+// One line of clauses, each keeping its capital, joined by the same " · " the
+// fold uses — "Ran 6 commands · Edited 2 files · Read app.ts".
 function joinSummaryLabels(labels: readonly string[]): string {
-  return labels
-    .map((label, index) => (index === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
-    .join(", ");
+  return labels.join(" · ");
+}
+
+function fileLeaf(path: string): string {
+  return (
+    path
+      .split("/")
+      .filter(segment => segment.length > 0)
+      .at(-1) ?? path
+  );
+}
+
+// A clause that touched exactly one file names it: "Edited styles.css".
+function singleFileLabel(
+  category: SessionToolSummaryCategory,
+  files: ReadonlySet<string> | undefined,
+  count: number
+): string | null {
+  if (count !== 1 || files?.size !== 1) return null;
+  const [path] = files;
+  if (path === undefined) return null;
+  if (category === "edit") return `Edited ${fileLeaf(path)}`;
+  if (category === "read") return `Read ${fileLeaf(path)}`;
+  if (category === "list") return `Listed ${fileLeaf(path)}`;
+  return null;
 }
 
 /**
@@ -181,7 +203,11 @@ export function summarizeToolGroup(
   const parts = CATEGORY_ORDER.flatMap(category => {
     if (category === "subagent") return subagentSummaryParts(summarizable);
     const count = countByCategory.get(category) ?? 0;
-    return count > 0 ? [{ category, count, label: summaryPartLabel(category, count) }] : [];
+    if (count === 0) return [];
+    const label =
+      singleFileLabel(category, distinctFilesByCategory.get(category), count) ??
+      summaryPartLabel(category, count);
+    return [{ category, count, label }];
   });
 
   return {
