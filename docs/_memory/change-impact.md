@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Session startup, Windows caching, and attention polling — 2026-10-11
+
+Owner: branch `fix/startup-cache-notifications`; issues #726–#730.
+Evidence: `docs/qa/reports/2026-10-11-startup-cache-notifications.md`.
+
+- ACP session creation uses a bounded 90-second default; other controls retain 30 seconds.
+  Explicit `WithControlTimeout` overrides, caller cancellation, retry classification, and
+  process cleanup remain authoritative. No new public configuration key is required.
+- Session model binding reuses a provider-live row only within the existing five-minute
+  live discovery TTL and the resolved provider/profile/workspace execution context.
+  Missing, expired, stale, future-dated, or unusable bindings still force discovery.
+  Claude and Cursor use their existing transport selection and validation rules.
+- Detached raw stdout/stderr moves to `logs/daemon-stdio.log`; structured logs stay at
+  `logs/compozy.log`, preserving rotation and all existing history. Raw startup failures
+  still appear in process errors. No persisted state migration or relocation is needed.
+- Skill discovery captures live filesystem metadata and ignores unstable NTFS directory
+  allocation sizes. Content, membership, link containment, and invalidation checks remain.
+- Attention reads omit unused inbox metadata through an internal query option. Public
+  inbox totals/facets, actor scope, filters, ordering, cursors, and notification IDs remain
+  unchanged. SQLite evaluates the shared facet population once through a materialized CTE.
+
+Native tools, HTTP/UDS, CLI, Web, extensions, hooks, SDKs, and official `skills/compozy/`
+retain their contracts. Web benefits from cheaper polling and startup; no UI change is
+needed. No schema or generated contract changes. The affected QA scenarios link the
+report. Heavy local gates are explicitly deferred to CI by the user; CI also runs the
+native Windows filesystem and detached rotation regressions.
+
 ## SQLite performance and contention audit — 2026-10-09
 
 Owner: branch `perf/sqlite-contention`; evidence and verification are recorded in

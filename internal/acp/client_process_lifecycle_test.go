@@ -498,6 +498,26 @@ func TestCheckpointProcessOwnerWrapsCheckpointErrors(t *testing.T) {
 
 func TestACPControlRequestDeadlines(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		options []Option
+		method  string
+		want    time.Duration
+	}{
+		{name: "Should budget cold session creation separately", method: acpsdk.AgentMethodSessionNew, want: 90 * time.Second},
+		{name: "Should retain the ordinary control budget", method: acpsdk.AgentMethodInitialize, want: 30 * time.Second},
+		{name: "Should preserve an explicitly configured thirty second budget", options: []Option{WithControlTimeout(30 * time.Second)}, method: acpsdk.AgentMethodSessionNew, want: 30 * time.Second},
+		{name: "Should resolve nonpositive overrides to method defaults", options: []Option{WithControlTimeout(-time.Second)}, method: acpsdk.AgentMethodSessionNew, want: 90 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(tc.options...)
+			process := &AgentProcess{controlTimeout: driver.controlTimeout}
+			if got := process.controlRequestTimeout(tc.method); got != tc.want {
+				t.Fatalf("control timeout = %s, want %s", got, tc.want)
+			}
+		})
+	}
 	for _, tc := range []struct{ name, scenario, method, resume, model string }{
 		{"Should bound initialize", "stall_initialize", acpsdk.AgentMethodInitialize, "", ""},
 		{"Should bound session creation", "stall_new", acpsdk.AgentMethodSessionNew, "", ""},

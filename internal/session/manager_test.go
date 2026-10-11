@@ -546,6 +546,74 @@ func TestManagerWorkAdmission(t *testing.T) {
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
+	for _, provider := range []string{"claude", "cursor"} {
+		t.Run("Should reuse fresh scoped "+provider+" catalog bindings", func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name        string
+				age         time.Duration
+				stale       bool
+				wantRefresh bool
+			}{
+				{name: "Should reuse recent live rows", age: time.Minute},
+				{name: "Should refresh expired rows", age: modelcatalog.DefaultLiveDiscoveryTTL, wantRefresh: true},
+				{name: "Should refresh stale rows", age: time.Minute, stale: true, wantRefresh: true},
+				{name: "Should refresh future dated rows", age: -time.Minute, wantRefresh: true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+					executionContext := modelCatalogExecutionContext("secondary", "workspace-b")
+					var calls []modelcatalog.ListOptions
+					manager := &Manager{now: func() time.Time { return now }, modelCatalog: modelCatalogStub{
+						onList: func(opts modelcatalog.ListOptions) { calls = append(calls, opts) },
+						models: []modelcatalog.Model{
+							{
+								ProviderID:        provider,
+								ModelID:           "test-model",
+								AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+								TransportBindings: []modelcatalog.ModelTransportBinding{
+									{TransportModelID: "private-transport"},
+								},
+								Sources: []modelcatalog.SourceRef{
+									{
+										SourceID:    modelcatalog.SourceKindProviderLiveID(provider),
+										RefreshedAt: now.Add(-tc.age),
+										Stale:       tc.stale,
+									},
+								},
+							},
+						},
+					}}
+					binding, err := manager.resolveCatalogTransportModel(
+						t.Context(),
+						provider,
+						RuntimeSelection{Provider: provider, Model: "test-model"},
+						executionContext,
+					)
+					if !tc.stale && (err != nil || binding != "private-transport") {
+						t.Fatalf("binding = %q, %v", binding, err)
+					}
+					wantCalls := 1
+					if tc.wantRefresh {
+						wantCalls = 2
+					}
+					if len(calls) != wantCalls {
+						t.Fatalf("catalog calls = %d, want %d", len(calls), wantCalls)
+					}
+					for i, opts := range calls {
+						if opts.ExecutionContext != executionContext || opts.ProviderID != provider ||
+							opts.Refresh != (i == 1) {
+							t.Fatalf("catalog call %d = %#v", i, opts)
+						}
+					}
+					if !calls[0].SkipRefreshIfEmpty {
+						t.Fatal("cached read implicitly refreshes")
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("Should layer agent runtime defaults under explicit session ACP options", func(t *testing.T) {
 		t.Parallel()

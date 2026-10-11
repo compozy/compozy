@@ -14,6 +14,25 @@ import (
 
 func TestDirectoryResultUnchanged(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reuse discovery for a large directory index", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for i := range 64 {
+			writeDefinition(t, root, fmt.Sprintf("long-skill-directory-name-%03d/%s", i, SkillFileName))
+		}
+		result, err := ScanDirectoryWithin(root, []string{root})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Paths) != 64 {
+			t.Fatalf("paths = %d, want 64", len(result.Paths))
+		}
+		for range 3 {
+			if !result.Unchanged(t.Context(), root, []string{root}) {
+				t.Fatal("unchanged large discovery was invalidated")
+			}
+		}
+	})
 
 	for _, tc := range []struct {
 		name      string

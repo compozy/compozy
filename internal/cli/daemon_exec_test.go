@@ -1,79 +1,135 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 )
 
+// not parallel: detached children inherit the test mode and isolated home through the environment.
 func TestSpawnDetachedDaemonProcess(t *testing.T) {
-	t.Parallel()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-
-	scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon.sh")
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("os.WriteFile(script) error = %v", err)
-	}
-
-	process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, func() (string, error) {
-		return scriptPath, nil
+	t.Run("Should launch and reap a detached child", func(t *testing.T) {
+		t.Setenv("COMPOZY_TEST_DAEMON_MODE", "success")
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, os.Executable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if process.PID() <= 0 {
+			t.Fatalf("pid = %d", process.PID())
+		}
+		if err := process.Wait(); err != nil {
+			t.Fatal(err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("spawnDetachedDaemonProcess() error = %v", err)
-	}
-	if process.PID() <= 0 {
-		t.Fatalf("process.PID() = %d, want positive pid", process.PID())
-	}
-	if err := process.Wait(); err != nil {
-		t.Fatalf("process.Wait() error = %v", err)
-	}
+
+	t.Run("Should rotate structured logs while detached stdio remains open", func(t *testing.T) {
+		t.Setenv("COMPOZY_TEST_DAEMON_MODE", "rotate")
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
+		process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, os.Executable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := process.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(homePaths.LogFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "after-rotation") {
+			t.Fatal("structured logging stopped after rotation")
+		}
+		backups, err := filepath.Glob(filepath.Join(filepath.Dir(homePaths.LogFile), "compozy-*.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(backups) == 0 {
+			t.Fatal("structured log did not rotate")
+		}
+		stdio, err := os.ReadFile(daemonStdioLogPath(homePaths))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(stdio), "raw-stderr") || strings.Contains(string(data), "raw-stderr") {
+			t.Fatalf("raw stderr was not isolated: %s", stdio)
+		}
+	})
 }
 
 func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ShouldDisableStderrMirroringInDetachedChild", func(t *testing.T) {
-		t.Parallel()
-
+	t.Run("Should disable stderr mirroring in detached child", func(t *testing.T) {
+		t.Setenv("COMPOZY_TEST_DAEMON_MODE", "mirror")
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			t.Fatal(err)
 		}
-
-		scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon-env.sh")
-		script := "#!/bin/sh\nprintf 'mirror=%s\\n' \"$COMPOZY_INTERNAL_LOG_MIRROR_STDERR\" >&2\nexit 1\n"
-		if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(script) error = %v", err)
-		}
-
-		process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, func() (string, error) {
-			return scriptPath, nil
-		})
+		process, err := spawnDetachedDaemonProcess(t.Context(), homePaths, os.Executable)
 		if err != nil {
-			t.Fatalf("spawnDetachedDaemonProcess() error = %v", err)
+			t.Fatal(err)
 		}
-
 		waitErr := process.Wait()
-		if waitErr == nil {
-			t.Fatal("process.Wait() error = nil, want non-nil")
+		if waitErr == nil || !strings.Contains(waitErr.Error(), "mirror=0") {
+			t.Fatalf("child error = %v", waitErr)
 		}
-		if !strings.Contains(waitErr.Error(), "mirror=0") {
-			t.Fatalf("process.Wait() error = %v, want detached mirror override", waitErr)
-		}
-
-		logData, err := os.ReadFile(homePaths.LogFile)
+		data, err := os.ReadFile(daemonStdioLogPath(homePaths))
 		if err != nil {
-			t.Fatalf("os.ReadFile(logFile) error = %v", err)
+			t.Fatal(err)
 		}
-		if !strings.Contains(string(logData), "mirror=0") {
-			t.Fatalf("log file = %q, want detached mirror override", string(logData))
+		if !strings.Contains(string(data), "mirror=0") {
+			t.Fatalf("stdio = %q", data)
 		}
 	})
+}
+
+func runDetachedDaemonTestChild() int {
+	switch os.Getenv("COMPOZY_TEST_DAEMON_MODE") {
+	case "success":
+		return 0
+	case "mirror":
+		if _, err := fmt.Fprintf(
+			os.Stderr,
+			"mirror=%s\n",
+			os.Getenv("COMPOZY_INTERNAL_LOG_MIRROR_STDERR"),
+		); err != nil {
+			return 2
+		}
+		return 1
+	case "rotate":
+		paths, err := compozyconfig.ResolveHomePathsFrom(os.Getenv("COMPOZY_HOME"))
+		if err != nil {
+			return 2
+		}
+		log, closeFn, err := compozylogger.New(compozylogger.WithFile(paths.LogFile),
+			compozylogger.WithFileRotation(compozylogger.FileRotationConfig{MaxSizeMB: 1, MaxBackups: 2}),
+			compozylogger.WithMirrorToStderr(false))
+		if err != nil {
+			return 2
+		}
+		for range 20 {
+			log.Info("rotation", "payload", strings.Repeat("x", 64*1024))
+		}
+		log.Info("after-rotation")
+		if err := closeFn(); err != nil {
+			return 2
+		}
+		if _, err := fmt.Fprintln(os.Stderr, "raw-stderr"); err != nil {
+			return 2
+		}
+		return 0
+	default:
+		return 2
+	}
 }

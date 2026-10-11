@@ -57,6 +57,11 @@ func (m *Manager) resolveCursorCatalogBinding(
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
+	if model, ok := m.recentLiveProviderModel(ctx, selection.Provider, selection.Model, executionContext); ok {
+		if binding, err := selectCursorTransportBinding(model, selection); err == nil {
+			return binding.TransportModelID, nil
+		}
+	}
 	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		return "", err
@@ -91,6 +96,11 @@ func (m *Manager) resolveClaudeCatalogBinding(
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
 	modelID := strings.TrimSpace(selection.Model)
+	if model, ok := m.recentLiveProviderModel(ctx, selection.Provider, modelID, executionContext); ok {
+		if binding, err := selectClaudeTransportModel(model); err == nil {
+			return binding, nil
+		}
+	}
 	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
 	if err != nil {
 		if !claudeLogicalModelRequiresCatalogBinding(modelID) {

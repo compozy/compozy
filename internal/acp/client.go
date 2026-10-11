@@ -88,7 +88,7 @@ func WithStopTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithControlTimeout bounds each non-prompt ACP request; nonpositive values use the default.
+// WithControlTimeout bounds each non-prompt ACP request; nonpositive values use method-specific defaults.
 func WithControlTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) { driver.controlTimeout = timeout }
 }
@@ -174,7 +174,6 @@ func New(opts ...Option) *Driver {
 	driver := &Driver{
 		logger:               slog.Default(),
 		stopTimeout:          defaultStopTimeout,
-		controlTimeout:       defaultControlTimeout,
 		startAttempts:        defaultStartAttempts,
 		promptBufferCap:      defaultPromptBufSize,
 		promptDrainWait:      defaultPromptDrain,
@@ -194,9 +193,6 @@ func New(opts ...Option) *Driver {
 	}
 	if driver.startAttempts <= 0 {
 		driver.startAttempts = defaultStartAttempts
-	}
-	if driver.controlTimeout <= 0 {
-		driver.controlTimeout = defaultControlTimeout
 	}
 	if driver.promptBufferCap <= 0 {
 		driver.promptBufferCap = defaultPromptBufSize

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -33,11 +34,16 @@ func spawnDetachedDaemonProcess(
 		Binary:  binary,
 		Args:    []string{daemonDaemonKey, daemonStartKey, "--foreground", "--" + internalChildFlagName},
 		Sandbox: compozylogger.WithMirrorToStderrEnv(os.Environ(), false),
-		LogPath: homePaths.LogFile,
+		LogPath: daemonStdioLogPath(homePaths),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cli: spawn detached daemon: %w", err)
 	}
 
 	return child, nil
+}
+
+// A lifetime stdio handle prevents structured log rotation on Windows.
+func daemonStdioLogPath(homePaths compozyconfig.HomePaths) string {
+	return filepath.Join(filepath.Dir(homePaths.LogFile), "daemon-stdio.log")
 }

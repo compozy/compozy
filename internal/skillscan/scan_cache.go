@@ -139,8 +139,9 @@ func (s *directorySnapshot) trackEntry(path string, entry fs.DirEntry) {
 }
 
 // track marks the snapshot incomplete when entry metadata cannot be captured safely.
-func (s *directorySnapshot) track(path string, entry fs.DirEntry) {
-	info, err := entry.Info()
+func (s *directorySnapshot) track(path string, _ fs.DirEntry) {
+	// Capture and revalidate live metadata; Windows directory listings can be stale.
+	info, err := os.Lstat(path)
 	if err != nil {
 		s.complete = false
 		return

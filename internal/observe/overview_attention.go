@@ -67,6 +67,7 @@ func (o *Observer) TaskAttentionItems(ctx context.Context, query OverviewQuery) 
 	for _, inboxQuery := range queries {
 		inboxQuery.ReadScope, inboxQuery.Scope, inboxQuery.WorkspaceID = query.ReadScope, query.TaskScope, query.WorkspaceID
 		inboxQuery.Limit = 200
+		inboxQuery.SkipFacets = true
 		for {
 			page, err := o.QueryTaskInbox(ctx, inboxQuery, query.Actor)
 			if err != nil {
