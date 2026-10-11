@@ -759,6 +759,18 @@ func (r *fakeSkillRegistry) call(index int) workspacepkg.ResolvedWorkspace {
 	return cloneResolvedWorkspaceForTests(&r.calls[index])
 }
 
+func (r *fakeWorkspaceResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	if err := ctx.Err(); err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if resolved, ok := r.byRef[strings.TrimSpace(ref)]; ok {
+		return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+	}
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
 func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -225,7 +224,7 @@ type Manager struct {
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	homePaths                    compozyconfig.HomePaths
-	workspace                    workspacepkg.RuntimeResolver
+	workspace                    WorkspaceResolver
 	worktreeResolver             WorktreeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader

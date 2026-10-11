@@ -3,6 +3,7 @@ package fileutil
 import (
 	"errors"
 	"fmt"
+	"os"
 )
 
 const boundDirectoryRemovalCandidate = "candidate"
@@ -33,7 +34,7 @@ func (d *Directory) RemoveBoundTree() error {
 	}
 	committedMoveErr := errors.Join(moveErr, result.PostCommitErr)
 
-	if removeErr := d.removeContents(); removeErr != nil {
+	if removeErr := removeBoundDirectoryContents(d, transaction); removeErr != nil {
 		restoreErr := restoreBoundRemovalDirectory(d, originalParent, originalName)
 		return errors.Join(
 			committedMoveErr,
@@ -74,6 +75,29 @@ func (d *Directory) RemoveBoundTree() error {
 		wrapDirectoryMovePostCommitError("close removed bound directory", directoryCloseErr),
 		closeBoundRemovalTransaction(originalParent, transactionName, transaction),
 	)
+}
+
+// Removal needs write access for directory flushes; a move capability only needs delete access.
+func removeBoundDirectoryContents(directory *Directory, transaction *Directory) (retErr error) {
+	original, err := directory.file.Stat()
+	if err != nil {
+		return fmt.Errorf("fileutil: stat bound removal directory: %w", err)
+	}
+	writable, err := transaction.OpenDirectoryForMutation(boundDirectoryRemovalCandidate)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		retErr = errors.Join(retErr, writable.Close())
+	}()
+	current, err := writable.file.Stat()
+	if err != nil {
+		return fmt.Errorf("fileutil: stat writable removal directory: %w", err)
+	}
+	if !os.SameFile(original, current) {
+		return ErrMoveSourceIdentityChanged
+	}
+	return writable.removeContents()
 }
 
 func finishFailedBoundRemoval(

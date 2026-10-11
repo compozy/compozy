@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -41,10 +40,8 @@ func (m *Manager) commitStagedSessionDelete(ctx context.Context, entry *stagedSe
 		if err := verifyStagedSessionDelete(ctx, *entry); err != nil {
 			return errors.Join(err, releaseSessionDeleteCapabilities(entry))
 		}
-		result, moveErr := entry.capabilities.directory.MoveTo(
-			entry.capabilities.parentDirectory,
-			filepath.Base(entry.committedPath),
-			false,
+		result, moveErr := entry.capabilities.database.MoveParentDirectory(
+			ctx, entry.owner, entry.capabilities.directory, entry.capabilities.parentDirectory, entry.committedPath,
 		)
 		if result.Committed() {
 			entry.phase = deleteCommitLogical

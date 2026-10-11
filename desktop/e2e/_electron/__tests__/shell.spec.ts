@@ -976,6 +976,172 @@ test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and
   });
 });
 
+test("native context menu copies text and preserves spelling preferences after relaunch", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop();
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  await desktop.app.evaluate(({ Menu }) => {
+    const popup = Menu.prototype.popup;
+    Menu.prototype.popup = function (options) {
+      Reflect.set(globalThis, "__observedContextMenu", this);
+      return popup.call(this, options);
+    };
+  });
+  await product.evaluate(() => {
+    const input = document.createElement("textarea");
+    input.setAttribute("aria-label", "Native context source");
+    input.value = "Copy through the native context menu";
+    input.style.cssText =
+      "position:fixed;top:100px;left:100px;z-index:2147483647;width:400px;height:100px";
+    document.body.append(input);
+    input.focus();
+    input.select();
+  });
+  const input = product.getByRole("textbox", { name: "Native context source" });
+  await input.click({ button: "right" });
+  await expect
+    .poll(
+      async () =>
+        await desktop.app.evaluate(() => {
+          const menu = Reflect.get(globalThis, "__observedContextMenu") as
+            | Electron.Menu
+            | undefined;
+          return menu?.items.map(item => item.role);
+        })
+    )
+    .toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const menu = Reflect.get(globalThis, "__observedContextMenu") as Electron.Menu;
+    menu.closePopup();
+    const window = BrowserWindow.getAllWindows().find(candidate =>
+      /^https?:/u.test(candidate.webContents.getURL())
+    );
+    if (!window) throw new Error("The product window is missing.");
+    window.focus();
+  });
+  await expect
+    .poll(() =>
+      desktop.app.evaluate(({ BrowserWindow }) =>
+        /^https?:/u.test(BrowserWindow.getFocusedWindow()?.webContents.getURL() ?? "")
+      )
+    )
+    .toBe(true);
+  await desktop.app.evaluate(({ BrowserWindow, Menu }) => {
+    const menu = Reflect.get(globalThis, "__observedContextMenu") as Electron.Menu;
+    const copy = menu.items.find(item => item.role === "copy");
+    if (!copy?.enabled) throw new Error("Copy is not available for the selected text.");
+    const window = BrowserWindow.getFocusedWindow();
+    if (!window) throw new Error("The product window is not focused.");
+    if (process.platform === "darwin") {
+      // AppKit dispatches native roles through the responder chain, not MenuItem.click.
+      Menu.sendActionToFirstResponder("copy:");
+    } else {
+      copy.click({}, window, window.webContents);
+    }
+    const spelling = menu.items.find(item => item.label === "Spelling")?.submenu;
+    if (process.platform !== "darwin") {
+      const languages = spelling?.items.find(item => item.label === "Languages")?.submenu;
+      for (const language of ["en-US", "pt-BR"]) {
+        const item = languages?.items.find(candidate => candidate.label === language);
+        if (!item) throw new Error(`Dictionary ${language} is missing.`);
+        if (!item.checked) item.click();
+      }
+      for (const language of ["en-US", "pt-BR"]) {
+        if (!window.webContents.session.getSpellCheckerLanguages().includes(language)) {
+          throw new Error(`Dictionary ${language} was not selected.`);
+        }
+      }
+    }
+    const check = spelling?.items.find(item => item.label === "Check spelling");
+    if (!check) throw new Error("Spelling setting missing.");
+    if (!check.checked) throw new Error("Spellchecking should start enabled.");
+    check.click();
+  });
+  await expect
+    .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
+    .toBe("Copy through the native context menu");
+  await desktop.closeShell();
+  const persisted = JSON.parse(await readFile(join(desktop.home, "desktop-window.json"), "utf8"));
+  expect(persisted.spellcheck.enabled).toBe(false);
+  const reopened = await launchDesktop({ home: desktop.home });
+  await reopened.product();
+  expect(
+    await reopened.app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find(candidate =>
+        /^https?:/u.test(candidate.webContents.getURL())
+      );
+      return window?.webContents.session.isSpellCheckerEnabled();
+    })
+  ).toBe(false);
+  if (process.platform !== "darwin") {
+    expect(
+      await reopened.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find(candidate => /^https?:/u.test(candidate.webContents.getURL()))
+          ?.webContents.session.getSpellCheckerLanguages()
+      )
+    ).toEqual(expect.arrayContaining(["en-US", "pt-BR"]));
+  }
+  const reopenedProduct = await reopened.product();
+  const workspaceID = await ensureProjectWorkspaceID(reopened, reopenedProduct);
+  const tasksDockItem = reopenedProduct
+    .locator('[data-slot="os-dock"]')
+    .getByRole("button", { name: "Tasks", exact: true });
+  await tasksDockItem.click({ button: "right" });
+  await expect(reopenedProduct.getByTestId("os-dock-app-menu-tasks")).toBeVisible();
+  await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
+  await tasksDockItem.click({ button: "right" });
+  await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
+  await reopenedProduct
+    .locator('[data-testid^="os-window-tab-menu-"]')
+    .first()
+    .click({ button: "right" });
+  await expect(reopenedProduct.getByRole("menuitem", { name: "Close other tabs" })).toBeVisible();
+  await reopenedProduct.keyboard.press("Escape");
+
+  const definitionPath = join(reopened.home, "context-menu-loop.json");
+  await writeFile(
+    definitionPath,
+    JSON.stringify({
+      apiVersion: "compozy.loop/v1",
+      kind: "Loop",
+      meta: { name: "context-menu-loop", version: 1 },
+      contract: {
+        goal: "Verify the loop editor context menu in the desktop shell",
+        definition_of_done: "The wait completes",
+        stop_when: "nodes.wait.status == 'succeeded'",
+        iteration_cap: 1,
+        no_progress: { window: 1 },
+        budget: { on_exceeded: "halt" },
+      },
+      graph: {
+        nodes: [{ id: "wait", class: "control", kind: "wait", params: { for: "1s" } }],
+        edges: [],
+      },
+      start: [{ kind: "uds" }],
+    })
+  );
+  await reopened.cli([
+    "loop",
+    "create",
+    "--workspace",
+    workspaceID,
+    "--file",
+    definitionPath,
+    "-o",
+    "json",
+  ]);
+  await reopened.cli(["app", "open", "/loops/context-menu-loop/editor"]);
+  await reopenedProduct
+    .locator('[data-testid="loop-editor-node"][data-node-id="wait"]')
+    .click({ button: "right" });
+  for (const verb of ["duplicate", "copy", "delete"]) {
+    await expect(reopenedProduct.getByTestId(`loop-node-menu-${verb}`)).toBeEnabled();
+  }
+});
+
 test("E2E-018: the real Settings API projects a journaled runtime swap through restart", async ({
   launchDesktop,
 }) => {

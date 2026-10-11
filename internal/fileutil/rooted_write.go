@@ -253,7 +253,7 @@ func (d *Directory) RemoveAll(name string) error {
 }
 
 func (d *Directory) removeDirectoryChild(name string, unlinkErr error) error {
-	child, err := d.OpenDirectory(name)
+	child, err := d.OpenDirectoryForMutation(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

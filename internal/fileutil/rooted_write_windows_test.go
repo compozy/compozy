@@ -5,6 +5,7 @@ package fileutil
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,6 +142,15 @@ func TestWindowsDirectoryMoveNoReplaceContract(t *testing.T) {
 		if err := os.Mkdir(filepath.Join(rootPath, "source"), 0o700); err != nil {
 			t.Fatalf("os.Mkdir(source) error = %v", err)
 		}
+		if err := os.Mkdir(filepath.Join(rootPath, "source", "nested"), 0o700); err != nil {
+			t.Fatalf("os.Mkdir(nested) error = %v", err)
+		}
+		for _, name := range []string{"payload", filepath.Join("nested", "payload")} {
+			if err := os.WriteFile(filepath.Join(rootPath, "source", name), []byte("owned"), 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", name, err)
+			}
+		}
+
 		root, err := OpenDirectoryForMutation(rootPath)
 		if err != nil {
 			t.Fatalf("OpenDirectoryForMutation(root) error = %v", err)
@@ -338,5 +348,95 @@ func TestWindowsDirectorySyncReportsUnconfirmedDurability(t *testing.T) {
 		if !errors.Is(err, windows.ERROR_INVALID_HANDLE) {
 			t.Fatalf("syncDirectoryHandle(closed file) error = %v, want ERROR_INVALID_HANDLE", err)
 		}
+	})
+}
+
+func TestWindowsDirectoryCreationThroughReadOnlyAncestor(t *testing.T) {
+	t.Parallel()
+	t.Run("Should create descendants without requesting write access to an existing ancestor", func(t *testing.T) {
+		t.Parallel()
+		ancestor := t.TempDir()
+		writable := filepath.Join(ancestor, "writable")
+		if err := os.Mkdir(writable, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		original, err := windows.GetNamedSecurityInfo(
+			ancestor,
+			windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		originalDACL, _, err := original.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		operator, err := windows.GetCurrentProcessToken().GetTokenUser()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sid := operator.User.Sid.String()
+		// Protect the writable child from propagation of the ancestor's restricted ACL.
+		childSecurity, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:P(A;OICI;FA;;;%s)", sid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		childDACL, _, err := childSecurity.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := windows.SetNamedSecurityInfo(writable, windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+			nil, nil, childDACL, nil); err != nil {
+			t.Fatal(err)
+		}
+		security, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:P(D;;0x116;;;%s)(A;;FA;;;%s)", sid, sid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dacl, _, err := security.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := windows.SetNamedSecurityInfo(ancestor, windows.SE_FILE_OBJECT,
+				windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+				nil, nil, originalDACL, nil); err != nil {
+				t.Errorf("restore ancestor ACL: %v", err)
+			}
+		})
+		if err := windows.SetNamedSecurityInfo(ancestor, windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+			nil, nil, dacl, nil); err != nil {
+			t.Fatal(err)
+		}
+		denied, err := OpenDirectoryForMutation(ancestor)
+		if err == nil {
+			t.Fatal(errors.Join(errors.New("ancestor unexpectedly allowed mutation"), denied.Close()))
+		}
+		if !errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			t.Fatalf("mutation error = %v, want access denied", err)
+		}
+		child, err := OpenDirectoryForMutation(writable)
+		if err != nil {
+			t.Fatalf("writable child must allow mutation: %v", err)
+		}
+		if err := child.Close(); err != nil {
+			t.Fatal(err)
+		}
+		target := filepath.Join(writable, "nested", "leaf")
+		directory, err := OpenOrCreateDirectory(target, 0o700)
+		if err != nil {
+			t.Fatalf("OpenOrCreateDirectory() error = %v", err)
+		}
+		if err := directory.Close(); err != nil {
+			t.Fatal(err)
+		}
+		payload := filepath.Join(target, "payload")
+		if err := AtomicWriteFile(payload, []byte("created"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertWindowsRegularFileContents(t, payload, "created")
 	})
 }

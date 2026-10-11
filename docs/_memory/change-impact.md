@@ -2654,3 +2654,32 @@ The roster read E2E now owns a cancellation-driven retry fixture; the separate t
 node-timeout E2E remains unchanged. Owners: TestExecuteWrite, TestDaemonToolEventSink,
 LP-run-read-agent-journey and ET-skill-view-actionable-errors.
 Evidence is recorded in docs/qa/reports/2026-10-05-dependency-upgrades.md.
+
+## Windows lifecycle and desktop text menus — 2026-10-10
+
+Owner: branch `fix/windows-desktop-issues`; issues #717–#721, #698, #699.
+Native tools and CLI/HTTP/UDS shapes are unchanged. Session list/status projections
+read registered workspace roots without resolving runtime resources; create/resume
+still use complete resolution. No timed cache or cross-workspace state is added.
+Windows update locks keep process-owner metadata in `update.lock.owner`, following
+the daemon PID sidecar convention; exclusive locking stays on `update.lock`.
+Rooted writes request mutation access only to their target directory while keeping
+handle-relative no-follow traversal. Session deletion retains the family lease and
+directory capability, closes the descendant database handle for Windows renames,
+and rebinds the same database identity and owner afterward. Tombstone cleanup
+closes the database before directory removal. Bound tree removal acquires a write-capable
+handle for the same directory identity and opens nested directories for mutation,
+so Windows can flush each deletion without weakening durability checks. SQLite schemas and user data do not
+change. The icon catalog accepts LF and CRLF source checkouts.
+
+Desktop adds native editing/link menus, spelling suggestions, dictionary additions,
+and multilingual spelling settings. Optional `spellcheck.enabled` and
+`spellcheck.languages` fields extend `desktop-window.json`; its decoder accepts
+existing files losslessly. Electron owns dictionary storage and macOS owns native
+language selection. These are shell preferences, not daemon config or extension
+contracts. Extensibility/hooks and official `skills/compozy/` are unchanged because
+there are no new agent operations. Web custom menus remain renderer-owned; browser
+behavior is unchanged. Operator docs cover the desktop preferences. QA owners are
+APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
+RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
+Windows evidence and packaged desktop evidence must be recorded before delivery.

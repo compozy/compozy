@@ -271,7 +271,7 @@ func TestUpdateLock(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			if err := first.Release(); err != nil {
-				t.Fatalf("first.Release() error = %v", err)
+				t.Errorf("first.Release() error = %v", err)
 			}
 		})
 
@@ -296,7 +296,7 @@ func TestUpdateLock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(stale owner) error = %v", err)
 		}
-		if err := os.WriteFile(lockPath, append(data, '\n'), 0o600); err != nil {
+		if err := os.WriteFile(updateLockOwnerPath(lockPath), append(data, '\n'), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(update lock) error = %v", err)
 		}
 		startedAt, err := procutil.StartedAt(os.Getpid())
@@ -312,7 +312,7 @@ func TestUpdateLock(t *testing.T) {
 		if got := lock.StaleOwner(); got == nil || got.PID != stale.PID || !got.StartedAt.Equal(stale.StartedAt) {
 			t.Fatalf("StaleOwner() = %#v, want %#v", got, stale)
 		}
-		contents, err := os.ReadFile(lockPath)
+		contents, err := os.ReadFile(updateLockOwnerPath(lockPath))
 		if err != nil {
 			t.Fatalf("os.ReadFile(update lock) error = %v", err)
 		}
@@ -326,12 +326,22 @@ func TestUpdateLock(t *testing.T) {
 		if err := lock.Release(); err != nil {
 			t.Fatalf("lock.Release() error = %v", err)
 		}
-		contents, err = os.ReadFile(lockPath)
+		contents, err = os.ReadFile(updateLockOwnerPath(lockPath))
 		if err != nil {
 			t.Fatalf("os.ReadFile(released lock) error = %v", err)
 		}
 		if len(contents) != 0 {
 			t.Fatalf("released lock contents = %q, want empty", contents)
+		}
+		reacquired, err := AcquireUpdateLock(lockPath, owner)
+		if err != nil {
+			t.Fatalf("AcquireUpdateLock(after release) error = %v", err)
+		}
+		if reacquired.StaleOwner() != nil {
+			t.Fatal("released lock retained a stale owner")
+		}
+		if err := reacquired.Release(); err != nil {
+			t.Fatalf("Release(reacquired) error = %v", err)
 		}
 	})
 }

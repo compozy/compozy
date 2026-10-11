@@ -8,7 +8,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WithDriver injects the runtime driver used for session lifecycle operations.
@@ -237,7 +236,7 @@ func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 }
 
 // WithWorkspaceResolver injects workspace resolution for create/resume flows.
-func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
+func WithWorkspaceResolver(resolver WorkspaceResolver) Option {
 	return func(manager *Manager) {
 		manager.workspace = resolver
 	}

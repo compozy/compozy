@@ -2,11 +2,26 @@ package profile
 
 import (
 	"errors"
+	"maps"
+	"strings"
 	"testing"
 )
 
 func TestNormalizeIdentitySymbols(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should recognize the entire catalog with either LF or CRLF line endings", func(t *testing.T) {
+		t.Parallel()
+		lf := strings.ReplaceAll(lucideIconData, "\r\n", "\n")
+		want := parseIconCatalog(lf)
+		got := parseIconCatalog(strings.ReplaceAll(lf, "\n", "\r\n"))
+		if !maps.Equal(got, want) {
+			t.Fatal("CRLF catalog differs from LF catalog")
+		}
+		if _, ok := got["palette"]; !ok {
+			t.Fatal("CRLF catalog does not recognize palette")
+		}
+	})
 
 	t.Run("Should default to a renderable catalog icon when no symbol is given", func(t *testing.T) {
 		t.Parallel()

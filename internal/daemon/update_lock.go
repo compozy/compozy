@@ -16,7 +16,7 @@ import (
 // ErrRuntimeMutationInProgress reports that another process owns update.lock.
 var ErrRuntimeMutationInProgress = errors.New("daemon: runtime mutation in progress")
 
-// UpdateLockOwner is the durable process identity stored inside update.lock.
+// UpdateLockOwner is the durable process identity associated with update.lock.
 type UpdateLockOwner struct {
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
@@ -53,7 +53,8 @@ func AcquireUpdateLock(path string, owner UpdateLockOwner) (*UpdateLock, error) 
 		}
 		return nil, ErrRuntimeMutationInProgress
 	}
-	priorOwner, err := readUpdateLockOwner(cleanPath)
+	ownerPath := updateLockOwnerPath(cleanPath)
+	priorOwner, err := readUpdateLockOwner(ownerPath)
 	if err != nil {
 		unlockErr := fileLock.Unlock()
 		closeErr := fileLock.Close()
@@ -63,7 +64,7 @@ func AcquireUpdateLock(path string, owner UpdateLockOwner) (*UpdateLock, error) 
 	if priorOwner != nil && !procutil.MatchesStartTime(priorOwner.PID, priorOwner.StartedAt) {
 		staleOwner = priorOwner
 	}
-	if err := writeUpdateLockOwner(cleanPath, owner); err != nil {
+	if err := writeUpdateLockOwner(ownerPath, owner); err != nil {
 		unlockErr := fileLock.Unlock()
 		closeErr := fileLock.Close()
 		return nil, errors.Join(err, unlockErr, closeErr)
@@ -85,7 +86,7 @@ func (l *UpdateLock) Release() error {
 		return nil
 	}
 	var errs []error
-	if err := clearUpdateLockOwner(l.path); err != nil {
+	if err := clearUpdateLockOwner(updateLockOwnerPath(l.path)); err != nil {
 		errs = append(errs, err)
 	}
 	if err := l.flock.Unlock(); err != nil {

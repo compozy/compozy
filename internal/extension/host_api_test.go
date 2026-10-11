@@ -6140,3 +6140,11 @@ func decodeRPCData(t testing.TB, err error) map[string]any {
 	}
 	return data
 }
+
+func (r *hostAPIFakeWorkspaceResolver) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	resolved, err := r.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.Workspace{}, err
+	}
+	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+}
