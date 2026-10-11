@@ -4265,7 +4265,7 @@ func TestShutdownRuntimeSessionsQuiescesReplyWatchesFirst(t *testing.T) {
 	var errs []error
 	d.shutdownRuntimeSessions(
 		testutil.Context(t),
-		&shutdownTargets{daemonRuntimeState: daemonRuntimeState{sessions: manager}},
+		&shutdownTargets{sessions: manager},
 		&errs,
 	)
 	if len(errs) != 0 || !quiesced || len(manager.stopWithCauseCalls) != 1 {
