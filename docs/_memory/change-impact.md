@@ -2589,7 +2589,9 @@ Rooted writes request mutation access only to their target directory while keepi
 handle-relative no-follow traversal. Session deletion retains the family lease and
 directory capability, closes the descendant database handle for Windows renames,
 and rebinds the same database identity and owner afterward. Tombstone cleanup
-closes the database before directory removal. SQLite schemas and user data do not
+closes the database before directory removal. Bound tree removal acquires a write-capable
+handle for the same directory identity and opens nested directories for mutation,
+so Windows can flush each deletion without weakening durability checks. SQLite schemas and user data do not
 change. The icon catalog accepts LF and CRLF source checkouts.
 
 Desktop adds native editing/link menus, spelling suggestions, dictionary additions,

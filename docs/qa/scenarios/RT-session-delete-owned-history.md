@@ -44,4 +44,4 @@ That record covers this stopped/unbound deletion slice; the historical evidence 
 and is not promoted to a new full manual-scenario pass.
 
 
-QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.
+QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session with attachment files and nested directories after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.

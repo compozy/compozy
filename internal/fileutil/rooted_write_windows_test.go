@@ -142,6 +142,15 @@ func TestWindowsDirectoryMoveNoReplaceContract(t *testing.T) {
 		if err := os.Mkdir(filepath.Join(rootPath, "source"), 0o700); err != nil {
 			t.Fatalf("os.Mkdir(source) error = %v", err)
 		}
+		if err := os.Mkdir(filepath.Join(rootPath, "source", "nested"), 0o700); err != nil {
+			t.Fatalf("os.Mkdir(nested) error = %v", err)
+		}
+		for _, name := range []string{"payload", filepath.Join("nested", "payload")} {
+			if err := os.WriteFile(filepath.Join(rootPath, "source", name), []byte("owned"), 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", name, err)
+			}
+		}
+
 		root, err := OpenDirectoryForMutation(rootPath)
 		if err != nil {
 			t.Fatalf("OpenDirectoryForMutation(root) error = %v", err)
