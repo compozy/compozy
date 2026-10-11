@@ -1,7 +1,6 @@
 "use client";
 
-import { CheckIcon, MinusIcon, XIcon } from "lucide-react";
-import type * as React from "react";
+import { XIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 import { Spinner } from "../spinner";
@@ -17,23 +16,15 @@ const LABEL: Record<ToolCallStatus, string> = {
   empty: "Empty",
 };
 
-type GlyphStatus = Exclude<ToolCallStatus, "pending" | "running" | "stopped">;
+type GlyphStatus = Extract<ToolCallStatus, "failed" | "absorbed">;
 
 // Calm-transcript status budget: only a failure that ended the turn (`failed`)
-// carries a signal hue. Success is a GREY check — completion is the resting
-// state, not an event — and an absorbed failure is a GREY × (ADR-009).
+// carries a signal hue, and an absorbed failure is a GREY × (ADR-009).
+// Completion is the resting state, not an event: success and empty carry no
+// glyph at all — the row's accessible name still states them.
 const TONE_CLASS: Record<GlyphStatus, string> = {
   failed: "text-danger",
   absorbed: "text-subtle",
-  success: "text-subtle",
-  empty: "text-subtle",
-};
-
-const ICON: Record<GlyphStatus, React.ElementType> = {
-  failed: XIcon,
-  absorbed: XIcon,
-  success: CheckIcon,
-  empty: MinusIcon,
 };
 
 export interface ToolCallStatusIconProps {
@@ -43,15 +34,13 @@ export interface ToolCallStatusIconProps {
 
 /**
  * Trailing status glyph for `ToolCallRow`, one visual language across every tool
- * state: `pending` and `stopped` render nothing (the row is muted while it
- * prepares input; a stopped call carries its word instead), `running` spins,
- * and the resolved states map to a single Lucide glyph — X danger (`failed`),
- * X subtle (`absorbed`), Check (success), Minus (faint empty-neutral). Neutral
- * is promoted to `success` upstream once the turn settles, so no premature
- * green appears mid-stream.
+ * state: `running` spins, a failure is an × — danger when it ended the turn
+ * (`failed`), subtle when the turn kept going (`absorbed`) — and every resting
+ * state (`pending`, `stopped`, `success`, `empty`) renders nothing; a stopped
+ * call carries its word instead.
  */
 export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProps) {
-  if (status === "pending" || status === "stopped") {
+  if (status !== "running" && status !== "failed" && status !== "absorbed") {
     return null;
   }
   const label = LABEL[status];
@@ -65,9 +54,8 @@ export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProp
       />
     );
   }
-  const Icon = ICON[status];
   return (
-    <Icon
+    <XIcon
       data-slot="tool-call-row-status"
       data-status={status}
       role="img"

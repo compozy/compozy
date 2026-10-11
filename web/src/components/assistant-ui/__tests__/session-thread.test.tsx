@@ -1798,9 +1798,10 @@ describe("SessionThread transcript states", () => {
 
     const fold = await screen.findByTestId("turn-fold-row");
     // Duration spans the turn's own recorded event times (first tool_call tick to
-    // the closing usage event); the daemon's stale "Preparing file…" title is not
-    // re-read as an edit here — the count stays truthful to the name on the wire.
-    expect(fold).toHaveTextContent(/^Worked for 4m 12s · Used 3 tools/);
+    // the closing usage event). The daemon's stale "Preparing file…" title is
+    // never read as prose; the calls' input (a file path plus content) is what
+    // names them as the three file writes they were.
+    expect(fold).toHaveTextContent(/^Worked for 4m 12s · Edited 3 files/);
     // Opened, the fold lists the calls as rows — no second disclosure (VC-05).
     await userEvent.click(fold);
     await waitFor(() => {
@@ -2758,9 +2759,11 @@ describe("SessionThread transcript states", () => {
     const row = await screen.findByTestId("live-tool");
     expect(row).toHaveAttribute("data-still", "true");
     const label = within(row).getByTestId("live-tool-label");
-    expect(label).toHaveTextContent("Running shell");
-    expect(label).not.toHaveClass("session-shimmer");
-    expect(label).toHaveClass("text-subtle");
+    expect(label).toHaveTextContent(/^Running/);
+    // The verb carries the motion; the paused window stills it to subtle text.
+    const verb = within(label).getByText("Running");
+    expect(verb).not.toHaveClass("session-shimmer");
+    expect(verb).toHaveClass("text-subtle");
     const working = screen.getByTestId("session-working-row");
     expect(working.querySelector(".session-working-dots")).toBeNull();
     expect(within(working).getByTestId("session-working-as-of")).toHaveTextContent(/as of/);
@@ -6133,7 +6136,7 @@ it("Should preserve provider titles through the runtime on a plain live line", a
     statusSession: runningStatusSession("2026-09-06T12:00:00Z", title),
   });
   const live = await screen.findByTestId("live-tool-label");
-  expect(live).toHaveTextContent("Running shell");
+  expect(live).toHaveAccessibleName("Running printf 'input-tail'");
   expect(live).not.toHaveTextContent("provider-title-tail");
   // Plain text, not a popover; the exact provider title stays on hover.
   expect(within(live).queryByRole("button")).toBeNull();

@@ -57,7 +57,14 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
   return (
     <div
       data-testid={testId}
-      className={cn(ACTIONS_CLASS_NAME, align === "end" ? "justify-end" : "justify-start")}
+      className={cn(
+        ACTIONS_CLASS_NAME,
+        // The user's own message keeps its actions out of the resting read:
+        // they surface on hover or keyboard focus, never shifting layout.
+        align === "end"
+          ? "justify-end opacity-0 transition-opacity duration-base ease-out group-hover/message:opacity-100 focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+          : "justify-start"
+      )}
     >
       {align === "end" ? (
         <>
@@ -73,7 +80,12 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       ) : (
         <>
           {copy}
-          {timestamp}
+          {timestamp ? (
+            <>
+              <span aria-hidden="true" className="size-[3px] rounded-full bg-line-strong" />
+              {timestamp}
+            </>
+          ) : null}
         </>
       )}
     </div>

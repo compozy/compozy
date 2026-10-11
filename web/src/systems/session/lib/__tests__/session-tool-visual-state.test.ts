@@ -49,25 +49,27 @@ describe("tool visual state", () => {
 
   it("Should phrase the live row from the kind and the production preview", () => {
     expect(liveToolLabel("Bash", { command: "go test ./..." })).toEqual({
-      verb: "Running shell",
+      verb: "Running",
       preview: "go test ./...",
-      text: "Running shell — go test ./...",
+      text: "Running go test ./...",
     });
+    // A read-only shell command reads as the action it performs.
+    expect(liveToolLabel("Bash", { command: "cat web/package.json" }).text).toBe(
+      "Reading web/package.json"
+    );
     expect(liveToolLabel("Edit", { file_path: "internal/store/retry_test.go" }).text).toBe(
       "Editing internal/store/retry_test.go"
     );
     expect(liveToolLabel("Read", { file_path: "a.go" }).text).toBe("Reading a.go");
-    expect(liveToolLabel("Grep", { pattern: "time.Sleep" }).text).toBe(
-      "Searching content — time.Sleep"
-    );
-    expect(liveToolLabel("Glob", { pattern: "**/*.go" }).verb).toBe("Finding files");
+    expect(liveToolLabel("Grep", { pattern: "time.Sleep" }).text).toBe("Searching time.Sleep");
+    expect(liveToolLabel("Glob", { pattern: "**/*.go" }).verb).toBe("Finding");
     expect(liveToolLabel("WebFetch", { url: "https://pkg.go.dev" }).text).toBe(
-      "Fetching — https://pkg.go.dev"
+      "Fetching https://pkg.go.dev"
     );
     expect(liveToolLabel("Task", { description: "review the diff" }).text).toBe(
-      "Running agent — review the diff"
+      "Running agent review the diff"
     );
-    expect(liveToolLabel("mcp__linear__list_issues").text).toBe("Running mcp__linear__list_issues");
+    expect(liveToolLabel("mcp__linear__list_issues").text).toBe("Running list issues (Linear)");
     expect(parallelToolLabel(3)).toBe("Running 3 tools…");
   });
 });
@@ -75,13 +77,16 @@ describe("tool visual state", () => {
 // Invariant: provider descriptions and agent prompts cannot become unbounded action headings.
 it("Should keep identity separate from long descriptive titles and bound agent previews", () => {
   const title = "Inspect\n" + "ação 👩🏽‍💻 ".repeat(100);
-  expect(liveToolLabel("Bash", { command: "ls" }, title)).toMatchObject({ verb: "Running shell" });
+  expect(liveToolLabel("Bash", { command: "ls" }, title)).toMatchObject({
+    verb: "Running",
+    preview: "ls",
+  });
   expect(liveToolLabel(title).verb).toBe("Running tool");
   expect(liveToolLabel("Bash dependency investigation")).toMatchObject({
     verb: "Running tool",
     preview: "Bash dependency investigation",
   });
-  expect(liveToolLabel("Bash", {}, "Bash dependency investigation").verb).toBe("Running shell");
+  expect(liveToolLabel("Bash", {}, "Bash dependency investigation").verb).toBe("Running");
   expect(liveToolLabel(title).preview).not.toContain("\n");
   const label = liveToolLabel("Agent", { prompt: title });
   expect(label.verb).toBe("Running agent");

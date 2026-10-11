@@ -460,7 +460,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.active).toBe(true);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 2 files");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited 2 files");
     expect(group.summary?.failedCount).toBe(0);
     expect(group.expanded).toBe(false);
 
@@ -531,7 +531,7 @@ describe("session timeline derivation", () => {
     const group = rows[0];
     if (group?.kind !== "work") throw new Error("expected group row");
     expect(group.entries.map(entry => entry.id)).toEqual(["tool-1", "tool-2", "tool-3"]);
-    expect(group.summary?.label).toBe("Ran 2 commands, edited 1 file");
+    expect(group.summary?.label).toBe("Ran 2 commands · Edited a.ts");
     expect(group.summary?.failedCount).toBe(1);
 
     // A settled run with a failure folds the same way once the turn moves on.
@@ -561,8 +561,47 @@ describe("session timeline derivation", () => {
     // Fixed presentation order regardless of call order; the two same-path
     // Reads count as one distinct file.
     expect(workRow.summary?.label).toBe(
-      "Ran 1 command, edited 1 file, read 1 file, searched 1 file, used 2 tools"
+      "Ran 1 command · Edited b.ts · Read a.ts · Searched once · Used 2 tools"
     );
+  });
+
+  // Invariant: the group sentence counts each call as the kind its row shows.
+  it("Should count title-named shell tools and read-only shell commands by the kind their rows show", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Terminal", args: { command: "go test ./..." } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/package.json" } }),
+      tool(3, { toolName: "Bash", args: { command: "rg -n TODO web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Ran 1 command · Read package.json · Searched once");
+  });
+
+  // Invariant: a file counts once however its reads were spelled, and a directory listing is not a file.
+  it("Should count shell and tool reads of one path as one file and listings as directories", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(2, { toolName: "Bash", args: { command: "cat web/a.ts" } }),
+      tool(3, { toolName: "Read", args: { file_path: "web/a.ts" } }),
+      tool(4, { toolName: "Bash", args: { command: "ls web/src" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read a.ts · Listed src");
+  });
+
+  it("Should count one relative path read under two leading cd directories as two files", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cd /repo/a && cat package.json" } }),
+      tool(2, { toolName: "Bash", args: { command: "cd /repo/b && cat package.json" } }),
+      tool(3, { toolName: "Read", args: { file_path: "/repo/a/package.json" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read 2 files");
   });
 
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
@@ -1075,8 +1114,8 @@ it("Should fold a settled turn behind duration and counts with the answer outsid
   expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
   const foldRow = rows[0];
   if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands, read 1 file");
-  expect(foldRow.counts).toBe("Ran 2 commands, read 1 file");
+  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands · Read a.ts");
+  expect(foldRow.counts).toBe("Ran 2 commands · Read a.ts");
   expect(foldRow.cause).toBe("settled");
   expect(foldRow.open).toBe(false);
 });
@@ -1585,6 +1624,6 @@ describe("session timeline subagent cards", () => {
       tool(2, { toolName: "compozy__subagent_status", args: {} }),
     ]);
     if (mixed?.kind !== "work") throw new Error("expected a summary");
-    expect(mixed.summary?.label).toBe("Checked subagent capabilities, read subagent status");
+    expect(mixed.summary?.label).toBe("Checked subagent capabilities · Read subagent status");
   });
 });

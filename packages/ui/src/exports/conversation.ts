@@ -37,6 +37,12 @@ export {
   type ToolCallStatus,
 } from "../components/custom/tool-call-row";
 export {
+  DiffCard,
+  type DiffCardLine,
+  type DiffCardLineKind,
+  type DiffCardProps,
+} from "../components/custom/diff-card";
+export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,
 } from "../components/custom/tool-call-status-icon";

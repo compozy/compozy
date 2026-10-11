@@ -24,16 +24,17 @@ function LiveToolGlyph({ part }: { part: SessionTimelineToolPart }) {
   });
 }
 
-// The one live line: kind glyph in the 20px well, the sentence shimmering
-// (plain subtle text when still — under reduced motion, or while the window
-// is paused — the word "Running" carries the state), nothing on the right.
-// Plain text, not a popover: the raw input is one click away once the call
-// settles into its tool row; a truncated title keeps the full name on hover.
+// The one live line: kind glyph in the 20px well, the verb shimmering (plain
+// subtle text when still — under reduced motion, or while the window is
+// paused — the word "Running" carries the state), then its object as the same
+// mono chip the settled row shows, nothing on the right. Plain text, not a
+// popover: the raw input is one click away once the call settles into its tool
+// row; a truncated object keeps the full text on hover.
 function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: boolean }) {
   const label = liveToolLabel(part.toolName, part.args, part.toolTitle);
   return (
     <div
-      className="flex min-h-transcript-line min-w-0 items-center gap-transcript-inline-gap px-1 text-small-body"
+      className="flex min-h-transcript-line min-w-0 items-center gap-1.5 px-1 text-small-body"
       data-testid="live-tool-row"
       data-live-kind={part.toolName}
     >
@@ -41,17 +42,24 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
         <LiveToolGlyph part={part} />
       </span>
       <span
-        className={cn(
-          "min-w-0 max-w-sm flex-1 truncate font-medium",
-          still ? "text-subtle" : "session-shimmer"
-        )}
+        className="flex min-w-0 items-center gap-1.5"
         data-testid="live-tool-label"
         // A polite status: assistive tech hears "Running …" when the call
         // starts, the cue the shimmer gives sighted readers.
         role="status"
+        aria-label={label.text}
         title={part.toolTitle ?? label.text}
       >
-        {label.text}
+        <span
+          className={cn("shrink-0 whitespace-nowrap", still ? "text-subtle" : "session-shimmer")}
+        >
+          {label.verb}
+        </span>
+        {label.preview ? (
+          <span className="min-w-0 truncate rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted">
+            {label.preview}
+          </span>
+        ) : null}
       </span>
     </div>
   );
@@ -118,7 +126,7 @@ export function SessionLiveToolRowView({
         icon={<Layers aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />}
         label={
           <span
-            className={cn("font-medium", still ? "text-subtle" : "session-shimmer")}
+            className={cn(still ? "text-subtle" : "session-shimmer")}
             data-testid="live-tool-label"
           >
             {parallelToolLabel(row.entries.length)}

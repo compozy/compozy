@@ -21,21 +21,41 @@ export interface ThinkingBlockProps {
   onRevealRelease?: () => void;
 }
 
-/** Collapsed-row preview: the first non-empty reasoning line, trimmed. */
-function firstThinkingLine(thinking: string): string {
-  for (const line of thinking.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.length > 0) return trimmed;
-  }
-  return "";
+/** A paragraph as one plain line: markdown marks stripped. */
+function plainParagraph(paragraph: string): string {
+  return paragraph
+    .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gmu, "")
+    .replace(/[*_~`]/gu, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .trim();
 }
 
 /**
- * Agent reasoning in the calm-transcript grammar. Live, it is a shimmering
- * "Thinking…" text label with the streaming body auto-opened beneath it;
- * settled, it collapses to a tool-row line — "Thought" verb + first-line
- * preview + chevron — expanding to the indented muted body. A user toggle pins
- * the state either way (auto-open while live, auto-collapse on settle).
+ * Plain paragraphs of the reasoning. Code fences (even one still streaming
+ * open) drop out of the whole text first, so a blank line inside a code block
+ * never splits it into paragraphs that read as prose.
+ */
+function paragraphs(thinking: string): string[] {
+  return thinking
+    .replace(/```[\s\S]*?(?:```|$)/gu, "\n\n")
+    .split(/\n\s*\n/u)
+    .map(plainParagraph)
+    .filter(paragraph => paragraph.length > 0);
+}
+
+/** Settled preview: the first paragraph. Live line: the latest one, what it is thinking now. */
+function thinkingSummary(thinking: string, live: boolean): string {
+  const all = paragraphs(thinking);
+  return compactSessionSummary((live ? all.at(-1) : all[0]) ?? "");
+}
+
+/**
+ * Agent reasoning in the calm-transcript grammar. Live, it is one line — the
+ * latest paragraph it is thinking, breathing in the subtle ink (a shimmering
+ * "Thinking…" before any text arrives); settled, it collapses to a tool-row
+ * line — "Thought" + first-paragraph preview — expanding to the indented,
+ * quieter-than-answer body. The body opens on its own only inside a disclosed
+ * work group; a user toggle pins the state either way.
  */
 export function ThinkingBlock({
   thinking,
@@ -47,9 +67,11 @@ export function ThinkingBlock({
 }: ThinkingBlockProps) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const live = !thinkingComplete;
-  const ownOpen = userOpen ?? (defaultOpen || live);
+  // Live reasoning rests as one line of what it is thinking now; its body opens
+  // on its own only inside a work group the reader already disclosed.
+  const ownOpen = userOpen ?? defaultOpen;
   const open = ownOpen || revealOpen;
-  const preview = compactSessionSummary(firstThinkingLine(thinking));
+  const preview = thinkingSummary(thinking, live);
   const toggle = () => {
     if (open && revealOpen) onRevealRelease?.();
     setUserOpen(!open);
@@ -68,9 +90,15 @@ export function ThinkingBlock({
           data-testid="thinking-trigger"
           aria-expanded={open}
           onClick={toggle}
-          className="w-fit rounded-sm px-1 py-0.5 text-left focus-visible:shadow-focus-ring focus-visible:outline-none"
+          className="flex w-full min-w-0 items-center rounded-sm px-1 py-0.5 text-left focus-visible:shadow-focus-ring focus-visible:outline-none"
         >
-          <span className="session-shimmer text-small-body font-medium">Thinking…</span>
+          {preview ? (
+            <span className="session-thinking-pulse min-w-0 truncate text-small-body text-subtle">
+              {preview}
+            </span>
+          ) : (
+            <span className="session-shimmer text-small-body">Thinking…</span>
+          )}
         </button>
       ) : (
         <TranscriptDisclosure
@@ -82,7 +110,7 @@ export function ThinkingBlock({
             <>
               Thought
               {preview ? (
-                <span className="ml-transcript-inline-gap font-normal text-subtle">{preview}</span>
+                <span className="ml-transcript-inline-gap text-faint">{preview}</span>
               ) : null}
             </>
           }
@@ -98,7 +126,8 @@ export function ThinkingBlock({
           tabIndex={0}
           className={cn(
             "mt-0.5 mb-1 ml-transcript-detail-indent max-h-60 overflow-y-auto border-l border-line pl-transcript-detail-gutter",
-            "text-transcript-body leading-relaxed text-muted select-text",
+            "text-transcript-body leading-relaxed text-subtle select-text",
+            "[&_p]:text-fg/50 [&_li]:text-fg/50 [&_strong]:text-fg/60",
             "focus-visible:shadow-focus-ring focus-visible:outline-none"
           )}
         >

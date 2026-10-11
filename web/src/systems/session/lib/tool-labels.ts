@@ -236,6 +236,11 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
 
+/** A tool id with a catalogued verb phrase in `TOOL_LABELS`. */
+export function isRegisteredToolName(toolName: string): boolean {
+  return REGISTERED_TOOL_NAMES.has(toolName);
+}
+
 const SUBAGENT_TOOL_PREFIX = "compozy__subagent_";
 
 /** A `compozy__subagent_*` tool with a catalogued verb (S6). */

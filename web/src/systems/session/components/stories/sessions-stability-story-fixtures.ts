@@ -90,7 +90,7 @@ const SECOND_REPLY =
 
 /**
  * Two settled turns (timeline VC-05 both cells, find-trail VC-01..04): the
- * first folds behind "Worked for 4m 12s · Ran 6 commands, edited 2 files, read
+ * first folds behind "Worked for 4m 12s · Ran 6 commands · Edited 2 files · Read
  * 1 file" over the answer; the second has no tool work, so no fold row at all.
  * "lifecycle" occurs in every entry: the ask, the first turn (first inside the
  * fold, on the read path), and the second exchange — four matches, one folded.
