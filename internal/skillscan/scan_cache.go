@@ -126,7 +126,7 @@ func (s *directorySnapshot) unchangedFiles(ctx context.Context) bool {
 // trackLink records symlink metadata so replacement or retargeting invalidates discovery.
 func (s *directorySnapshot) trackLink(path string, entry fs.DirEntry) {
 	if entry.Type()&os.ModeSymlink != 0 {
-		s.track(path, entry)
+		s.track(path)
 	}
 }
 
@@ -139,7 +139,7 @@ func (s *directorySnapshot) trackEntry(path string, entry fs.DirEntry) {
 }
 
 // track marks the snapshot incomplete when entry metadata cannot be captured safely.
-func (s *directorySnapshot) track(path string, _ fs.DirEntry) {
+func (s *directorySnapshot) track(path string) {
 	// Capture and revalidate live metadata; Windows directory listings can be stale.
 	info, err := os.Lstat(path)
 	if err != nil {
