@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -913,7 +914,7 @@ func TestManagerDelete(t *testing.T) {
 						if err != nil {
 							t.Fatalf("stageSessionDelete() error = %v", err)
 						}
-						if err := staged.capabilities.Release(); err != nil {
+						if err := errors.Join(staged.capabilities.Release(), staged.attachments.Release()); err != nil {
 							t.Fatalf("release(staged crash simulation) error = %v", err)
 						}
 						if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
@@ -925,7 +926,8 @@ func TestManagerDelete(t *testing.T) {
 							}
 						}
 
-						recoveryManager := newManagerWithHarness(t, h, managerOptions...)
+						recoveryOptions := append(managerOptions, WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
+						recoveryManager := newManagerWithHarness(t, h, recoveryOptions...)
 						shutdownQueryStoreRuntimeForTest(t, recoveryManager)
 						_, statErr := os.Stat(session.SessionDir())
 						if test.wantRestored {

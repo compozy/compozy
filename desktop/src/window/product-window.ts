@@ -98,13 +98,14 @@ export class ProductWindow {
     this.#window = window;
     if (this.#spellcheck) {
       const session = window.webContents.session;
-      session.setSpellCheckerEnabled(this.#spellcheck.enabled);
       if (process.platform !== "darwin") {
         const languages = this.#spellcheck.languages.filter(language =>
           session.availableSpellCheckerLanguages.includes(language)
         );
         if (languages.length) session.setSpellCheckerLanguages(languages);
       }
+      // Setting languages enables spellchecking on Windows and Linux.
+      session.setSpellCheckerEnabled(this.#spellcheck.enabled);
     }
     this.#theme.track(window, "chrome");
     if (saved?.maximized) window.maximize();

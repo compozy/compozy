@@ -368,6 +368,20 @@ func TestWindowsDirectoryCreationThroughReadOnlyAncestor(t *testing.T) {
 			t.Fatal(err)
 		}
 		sid := operator.User.Sid.String()
+		// Protect the writable child from propagation of the ancestor's restricted ACL.
+		childSecurity, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:P(A;OICI;FA;;;%s)", sid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		childDACL, _, err := childSecurity.DACL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := windows.SetNamedSecurityInfo(writable, windows.SE_FILE_OBJECT,
+			windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+			nil, nil, childDACL, nil); err != nil {
+			t.Fatal(err)
+		}
 		security, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:P(D;;0x116;;;%s)(A;;FA;;;%s)", sid, sid))
 		if err != nil {
 			t.Fatal(err)
@@ -394,6 +408,13 @@ func TestWindowsDirectoryCreationThroughReadOnlyAncestor(t *testing.T) {
 		}
 		if !errors.Is(err, windows.ERROR_ACCESS_DENIED) {
 			t.Fatalf("mutation error = %v, want access denied", err)
+		}
+		child, err := OpenDirectoryForMutation(writable)
+		if err != nil {
+			t.Fatalf("writable child must allow mutation: %v", err)
+		}
+		if err := child.Close(); err != nil {
+			t.Fatal(err)
 		}
 		target := filepath.Join(writable, "nested", "leaf")
 		directory, err := OpenOrCreateDirectory(target, 0o700)
