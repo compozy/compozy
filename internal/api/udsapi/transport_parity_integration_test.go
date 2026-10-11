@@ -1633,10 +1633,11 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 		)
 	}
 
-	// Invariant IT-039: both transports expose the wired supervision registry,
-	// future steer delivery and durable queue capacity on the session resource.
+	// Invariant IT-039: both transports expose the wired supervision registry (one inspected source per
+	// work-signal kind), future steer delivery and durable queue capacity on the session resource.
 	// Owner: public transport parity; canonical real-daemon suite.
-	for httpDetail.Session.Supervision == nil || len(httpDetail.Session.Supervision.Sources) != 6 {
+	wantSources := len(session.WorkSignalKindValues())
+	for httpDetail.Session.Supervision == nil || len(httpDetail.Session.Supervision.Sources) != wantSources {
 		select {
 		case <-ctx.Done():
 			t.Fatal("supervision was not rebuilt", ctx.Err())
@@ -1656,7 +1657,8 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 			detail.Queue == nil || detail.Queue.Entries != 0 || detail.Queue.Cap != 10 {
 			t.Fatalf("incomplete admission projection: busy=%+v queue=%+v", detail.BusyInput, detail.Queue)
 		}
-		if detail.Supervision == nil || detail.Supervision.WorkSignals == nil || len(detail.Supervision.Sources) != 6 {
+		if detail.Supervision == nil || detail.Supervision.WorkSignals == nil ||
+			len(detail.Supervision.Sources) != wantSources {
 			t.Fatalf("incomplete supervision projection: %+v", detail.Supervision)
 		}
 		for _, source := range detail.Supervision.Sources {
