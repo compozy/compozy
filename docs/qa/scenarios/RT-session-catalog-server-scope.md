@@ -27,3 +27,9 @@ owner rather than silently omitting profile and transport coverage.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+SQLite audit 2026-10-09: While another connection owns the SQLite writer, list sessions and agent metrics with an expired attach lease. Reads must complete, expose the lease as detached, preserve workspace/profile filters and durable ordering, and leave cleanup to the explicit sweep. The existing global session list/page/metrics suites own this backend check.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

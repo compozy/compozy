@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -1142,67 +1143,133 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 	})
 }
 
-func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
+func TestGlobalDBSessionReadsIgnoreExpiredAttachLocks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should clear expired attach holder fields before returning sessions", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"expired-attach-workspace",
-			filepath.Join(t.TempDir(), "expired-attach-workspace"),
-		)
-		now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
-		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ProfileID:     store.DefaultProfileID,
-			ID:            "sess-expired-attach",
-			Name:          "Expired Attach",
-			AgentName:     "coder",
-			Provider:      "claude",
-			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID:   workspaceID,
-			SessionType:   defaultSessionType,
-			State:         globalDBSessionStateActive,
-			SessionAttachState: &store.SessionAttachState{
-				AttachedTo:      "operator-old",
-				AttachExpiresAt: &expiredAt,
-			},
-			CreatedAt: now.Add(-time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
-		}); err != nil {
-			t.Fatalf("RegisterSession() error = %v", err)
-		}
-
-		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			ID:        "sess-expired-attach",
-		})
-		if err != nil {
-			t.Fatalf("ListSessions() error = %v", err)
-		}
-		if len(sessions) != 1 {
-			t.Fatalf("len(sessions) = %d, want 1", len(sessions))
-		}
-		if sessions[0].AttachedToValue() != "" || sessions[0].AttachExpiresAtValue() != nil {
-			t.Fatalf(
-				"session attach fields = %#v/%#v, want cleared",
-				sessions[0].AttachedToValue(),
-				sessions[0].AttachExpiresAtValue(),
+	t.Run(
+		"Should read expired leases without waiting for an unrelated writer or changing ordering",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(t, db, "expired-attach-workspace",
+				filepath.Join(t.TempDir(), "workspace"))
+			now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
+			attachedAt := now.Add(-time.Hour)
+			info := sessionInfoForWorkspaceStateIndexTest("sess-expired-attach", workspaceID,
+				globalDBSessionStateActive, attachedAt)
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: info.ID, AttachedTo: "operator-old", Now: attachedAt, TTL: time.Minute,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			writer, err := db.db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := writer.Close(); err != nil {
+					t.Errorf("close writer: %v", err)
+				}
+			})
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+					t.Errorf("rollback writer: %v", err)
+				}
+			})
+			readCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			sessions, err := db.ListSessions(readCtx, store.SessionListQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, ID: info.ID, Resumable: true,
+			})
+			if err != nil {
+				t.Fatalf("ListSessions with a held writer: %v", err)
+			}
+			if len(sessions) != 1 || sessions[0].AttachedToValue() != "" || sessions[0].AttachExpiresAtValue() != nil {
+				t.Fatalf("expired lease projection = %#v, want one unattached session", sessions)
+			}
+			if !sessions[0].UpdatedAt.Equal(attachedAt) {
+				t.Fatalf("updated_at = %v, want %v", sessions[0].UpdatedAt, attachedAt)
+			}
+			page, err := db.PageSessions(readCtx, store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+				Sort: sessionCatalogSortRecent, Limit: 10, Resumable: true,
+			})
+			if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].AttachedToValue() != "" {
+				t.Fatalf("PageSessions with a held writer = %#v, %v", page, err)
+			}
+			metrics, err := db.AggregateSessionsByAgent(readCtx, store.SessionAgentMetricsQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID,
+			})
+			if err != nil || len(metrics) != 1 || metrics[0].Total != 1 ||
+				!metrics[0].LastActivityAt.Equal(attachedAt) {
+				t.Fatalf("AggregateSessionsByAgent with a held writer = %#v, %v", metrics, err)
+			}
+			var holder, updatedAt string
+			if err := db.db.QueryRowContext(ctx, "SELECT attached_to, updated_at FROM sessions WHERE id = ?", info.ID).
+				Scan(&holder, &updatedAt); err != nil {
+				t.Fatal(err)
+			}
+			if holder != "operator-old" || updatedAt != store.FormatTimestamp(attachedAt) {
+				t.Fatalf("persisted lease = %q, %q, want original holder and ordering", holder, updatedAt)
+			}
+		},
+	)
+	t.Run(
+		"Should reclaim only the attached session and leave global cleanup to the explicit sweep",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(
+				t,
+				db,
+				"lease-scope",
+				filepath.Join(t.TempDir(), "workspace"),
 			)
-		}
-		cleared, err := globalDB.SweepExpiredSessionAttachLocks(ctx, now)
-		if err != nil {
-			t.Fatalf("SweepExpiredSessionAttachLocks(after list) error = %v", err)
-		}
-		if cleared != 0 {
-			t.Fatalf("SweepExpiredSessionAttachLocks(after list) = %d, want 0", cleared)
-		}
-	})
+			now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
+			for _, id := range []string{"target", "unrelated"} {
+				if err := db.RegisterSession(ctx, sessionInfoForWorkspaceStateIndexTest(
+					id, workspaceID, globalDBSessionStateActive, now.Add(-time.Hour),
+				)); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+					SessionID: id, AttachedTo: "old", Now: now.Add(-time.Hour), TTL: time.Minute,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: "target", AttachedTo: "new", Now: now, TTL: time.Minute,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var holder string
+			if err := db.db.QueryRowContext(ctx, "SELECT attached_to FROM sessions WHERE id = 'unrelated'").
+				Scan(&holder); err != nil {
+				t.Fatal(err)
+			}
+			if holder != "old" {
+				t.Fatalf("unrelated holder = %q, want old", holder)
+			}
+			cleared, err := db.SweepExpiredSessionAttachLocks(ctx, now)
+			if err != nil || cleared != 1 {
+				t.Fatalf("explicit sweep = %d, %v, want one expired lease", cleared, err)
+			}
+			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
+				SessionID: "target", AttachedTo: "other", Now: now, TTL: time.Minute,
+			}); !errors.Is(err, store.ErrSessionAttachLocked) {
+				t.Fatalf("active target lease = %v, want ErrSessionAttachLocked", err)
+			}
+		},
+	)
 }
 
 func openScanSessionInfoDB(t *testing.T) *sql.DB {

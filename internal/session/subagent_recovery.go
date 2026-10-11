@@ -222,7 +222,7 @@ func (s *subagentService) recoverWake(ctx context.Context, wake store.SessionSub
 }
 
 func (s *subagentService) recoverPending(ctx context.Context) error {
-	pending, err := s.store.ListPending(ctx)
+	pending, err := s.store.ListPending(ctx, "")
 	if err != nil {
 		return err
 	}

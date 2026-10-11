@@ -106,9 +106,6 @@ func (g *SessionRepo) ListSessions(
 		return nil, err
 	}
 	now := g.now()
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, now); err != nil {
-		return nil, err
-	}
 
 	sqlQuery := sessionInfoSelectQuery
 	where, args := store.BuildClauses(
@@ -154,6 +151,9 @@ func (g *SessionRepo) ListSessions(
 		if scanErr != nil {
 			return nil, scanErr
 		}
+		if expiry := session.AttachExpiresAtValue(); expiry != nil && !expiry.After(now) {
+			session.SetAttach("", nil)
+		}
 		sessions = append(sessions, session)
 	}
 	if err := rows.Err(); err != nil {
@@ -197,9 +197,6 @@ func (g *SessionRepo) AttachSession(ctx context.Context, req store.SessionAttach
 		normalized.Now = g.now().UTC()
 	}
 	if err := normalized.Validate(); err != nil {
-		return store.SessionAttach{}, err
-	}
-	if _, err := g.SweepExpiredSessionAttachLocks(ctx, normalized.Now); err != nil {
 		return store.SessionAttach{}, err
 	}
 	expiresAt := normalized.Now.Add(normalized.TTL).UTC()

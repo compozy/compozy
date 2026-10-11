@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"slices"
@@ -280,8 +282,9 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 			assertSQLiteIntegrity(t, item.name, reopened)
 			assertProductionMigrationSchemaEquivalence(t, item, reopened)
 
+			aheadCtx := migrationTestContext(t)
 			aheadDB := openStreamTestDB(t, item.name+"-ahead.db")
-			if _, err := aheadDB.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE %q (
+			if _, err := aheadDB.ExecContext(aheadCtx, fmt.Sprintf(`CREATE TABLE %q (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				version_id INTEGER NOT NULL,
 				is_applied INTEGER NOT NULL,
@@ -290,13 +293,13 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 				t.Fatalf("create %s version table: %v", item.name, err)
 			}
 			if _, err := aheadDB.ExecContext(
-				ctx,
+				aheadCtx,
 				fmt.Sprintf("INSERT INTO %q (version_id, is_applied) VALUES (?, 1)", stream.VersionTable),
 				head+1,
 			); err != nil {
 				t.Fatalf("seed ahead %s version: %v", item.name, err)
 			}
-			if err := store.Apply(ctx, aheadDB, stream); !errors.Is(err, store.ErrSchemaAhead) {
+			if err := store.Apply(aheadCtx, aheadDB, stream); !errors.Is(err, store.ErrSchemaAhead) {
 				t.Fatalf("Apply(%s ahead) error = %v, want ErrSchemaAhead", item.name, err)
 			}
 		})
@@ -1316,4 +1319,43 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 		}
 	}
 	assertSQLiteIntegrity(t, "global run profile tail", db)
+}
+
+func BenchmarkCurrentMigrationStream(b *testing.B) {
+	for _, item := range migrationStreamsUnderTest() {
+		b.Run(item.name, func(b *testing.B) {
+			ctx := store.WithMigrationLogger(b.Context(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+			path := filepath.Join(b.TempDir(), "current.db")
+			initialize := func(ctx context.Context, db *sql.DB) error { return store.Apply(ctx, db, item.stream) }
+			db, err := store.OpenSQLiteDatabase(ctx, path, initialize)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					b.Error(err)
+				}
+			})
+			b.Run("status", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					if err := store.RequireCurrent(ctx, db, item.stream); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+			b.Run("open", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					reopened, err := store.OpenSQLiteDatabase(ctx, path, initialize)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if err := reopened.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		})
+	}
 }

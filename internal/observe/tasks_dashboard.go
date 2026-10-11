@@ -16,11 +16,14 @@ import (
 
 // QueryTaskSummary returns the current task summary buckets filtered by the supplied view.
 func (o *Observer) QueryTaskSummary(ctx context.Context, query TaskSummaryQuery) (Summary, error) {
-	snapshot, err := o.loadTaskSnapshot(ctx, query)
+	tasks, runs, err := o.loadTaskSnapshotTasksAndRuns(ctx, query)
 	if err != nil {
 		return Summary{}, err
 	}
-	return taskSummaryFromSnapshot(snapshot, o.now), nil
+	_, taskIDs := taskSummaryIndex(tasks)
+	runs = filterRunsByWorktree(runs, query.WorktreeID)
+	runs = filterRuns(runs, taskIDs, query)
+	return taskSummaryFromSnapshot(taskSnapshot{tasks: tasks, runs: runs}, o.now), nil
 }
 
 // QueryTaskMetrics returns task-domain counters and latency summaries derived from durable state and audit rows.

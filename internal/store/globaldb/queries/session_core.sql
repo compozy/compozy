@@ -164,3 +164,7 @@ WHERE sessions.workspace_id = excluded.workspace_id
 SELECT workspace_id
 FROM sessions
 WHERE id = sqlc.arg(id);
+
+-- name: GetSessionArchivedAt :one
+SELECT archived_at FROM sessions
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

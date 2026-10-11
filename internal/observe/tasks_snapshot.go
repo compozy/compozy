@@ -8,18 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery) (taskSnapshot, error) {
-	if ctx == nil {
-		return taskSnapshot{}, errors.New("observe: task summary context is required")
-	}
-	if err := query.Validate(); err != nil {
-		return taskSnapshot{}, err
-	}
-
 	tasks, runs, err := o.loadTaskSnapshotTasksAndRuns(ctx, query)
 	if err != nil {
 		return taskSnapshot{}, err
@@ -47,6 +39,12 @@ func (o *Observer) loadTaskSnapshotTasksAndRuns(
 	ctx context.Context,
 	query TaskSummaryQuery,
 ) ([]taskpkg.Summary, []taskpkg.Run, error) {
+	if ctx == nil {
+		return nil, nil, errors.New("observe: task summary context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, nil, err
+	}
 	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
 		ReadScope:   query.ReadScope,
 		Scope:       query.Scope,
@@ -117,27 +115,10 @@ func (o *Observer) loadTaskDependencyCounts(
 		return map[string]int{}, nil
 	}
 
-	path := strings.TrimSpace(o.registry.Path())
-	if path == "" {
-		return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
+	if source, ok := o.registry.(interface{ DB() *sql.DB }); ok {
+		return queryTaskDependencyCounts(ctx, source.DB(), taskIDs)
 	}
-
-	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("observe: open registry database for dependency counts: %w", err)
-	}
-	counts, queryErr := queryTaskDependencyCounts(ctx, db, taskIDs)
-	closeErr := db.Close()
-	if queryErr != nil {
-		if closeErr != nil {
-			return nil, errors.Join(queryErr, fmt.Errorf("observe: close registry database: %w", closeErr))
-		}
-		return nil, queryErr
-	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("observe: close registry database: %w", closeErr)
-	}
-	return counts, nil
+	return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
 }
 
 func (o *Observer) loadTaskDependencyCountsIndividually(

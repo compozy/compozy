@@ -33,8 +33,11 @@ func (q *Queries) GetTranscriptEntryUpgradeCutoff(ctx context.Context, entryKey 
 }
 
 const listMissingUnarchivedCompactionEntries = `-- name: ListMissingUnarchivedCompactionEntries :many
+WITH compaction_presence AS (
+  SELECT 1 FROM events WHERE type = 'session.compaction_fired' LIMIT 1
+)
 SELECT e.transcript_entry_key
-FROM events AS e
+FROM compaction_presence CROSS JOIN events AS e
 WHERE e.archived = 0 AND e.transcript_entry_key <> ''
   AND NOT EXISTS (SELECT 1 FROM transcript_entries AS p WHERE p.entry_key = e.transcript_entry_key)
   AND EXISTS (

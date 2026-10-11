@@ -578,6 +578,70 @@ func (q *Queries) ListPendingSubagents(ctx context.Context) ([]SessionSubagent, 
 	return items, nil
 }
 
+const listPendingSubagentsByParent = `-- name: ListPendingSubagentsByParent :many
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents
+WHERE parent_session_id = ?1 AND delivery = 'pending'
+ORDER BY created_at,id
+`
+
+func (q *Queries) ListPendingSubagentsByParent(ctx context.Context, parentID string) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingSubagentsByParent, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagent{}
+	for rows.Next() {
+		var i SessionSubagent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.ParentTurnID,
+			&i.ParentToolCallID,
+			&i.ChildSessionID,
+			&i.Origin,
+			&i.ProviderToolCallID,
+			&i.IdempotencyKey,
+			&i.RequestFingerprint,
+			&i.Title,
+			&i.Role,
+			&i.TaskChars,
+			&i.PendingTask,
+			&i.RuntimeAgent,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.Depth,
+			&i.Status,
+			&i.WorkState,
+			&i.Progress,
+			&i.Result,
+			&i.ResultTruncated,
+			&i.Error,
+			&i.WakePolicy,
+			&i.Delivery,
+			&i.WakeMessageID,
+			&i.AcknowledgedTurnID,
+			&i.StartedAt,
+			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleReservedSubagents = `-- name: ListStaleReservedSubagents :many
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id
 `
@@ -791,19 +855,19 @@ func (q *Queries) ListSubagentWakesByParent(ctx context.Context, arg ListSubagen
 	return items, nil
 }
 
-const listSubagents = `-- name: ListSubagents :many
+const listSubagentsByParent = `-- name: ListSubagentsByParent :many
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents
-WHERE (?1 = '' OR workspace_id = ?1)
- AND (?2 = '' OR parent_session_id = ?2)
+WHERE parent_session_id = ?1
+ AND (?2 = '' OR workspace_id = ?2)
  AND (?3 = '[]' OR origin IN (SELECT value FROM json_each(?3)))
  AND (?4 = '[]' OR status IN (SELECT value FROM json_each(?4)))
  AND (?5 = '' OR (created_at,id) < (?6,?5))
 ORDER BY created_at DESC,id DESC LIMIT ?7
 `
 
-type ListSubagentsParams struct {
+type ListSubagentsByParentParams struct {
+	Parent     string `json:"parent"`
 	Workspace  any    `json:"workspace"`
-	Parent     any    `json:"parent"`
 	Origins    any    `json:"origins"`
 	Statuses   any    `json:"statuses"`
 	CursorID   any    `json:"cursor_id"`
@@ -811,10 +875,93 @@ type ListSubagentsParams struct {
 	PageLimit  int64  `json:"page_limit"`
 }
 
-func (q *Queries) ListSubagents(ctx context.Context, arg ListSubagentsParams) ([]SessionSubagent, error) {
-	rows, err := q.db.QueryContext(ctx, listSubagents,
-		arg.Workspace,
+func (q *Queries) ListSubagentsByParent(ctx context.Context, arg ListSubagentsByParentParams) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listSubagentsByParent,
 		arg.Parent,
+		arg.Workspace,
+		arg.Origins,
+		arg.Statuses,
+		arg.CursorID,
+		arg.CursorTime,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagent{}
+	for rows.Next() {
+		var i SessionSubagent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.ParentTurnID,
+			&i.ParentToolCallID,
+			&i.ChildSessionID,
+			&i.Origin,
+			&i.ProviderToolCallID,
+			&i.IdempotencyKey,
+			&i.RequestFingerprint,
+			&i.Title,
+			&i.Role,
+			&i.TaskChars,
+			&i.PendingTask,
+			&i.RuntimeAgent,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.Depth,
+			&i.Status,
+			&i.WorkState,
+			&i.Progress,
+			&i.Result,
+			&i.ResultTruncated,
+			&i.Error,
+			&i.WakePolicy,
+			&i.Delivery,
+			&i.WakeMessageID,
+			&i.AcknowledgedTurnID,
+			&i.StartedAt,
+			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubagentsByWorkspace = `-- name: ListSubagentsByWorkspace :many
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at FROM session_subagents
+WHERE workspace_id = ?1
+ AND (?2 = '[]' OR origin IN (SELECT value FROM json_each(?2)))
+ AND (?3 = '[]' OR status IN (SELECT value FROM json_each(?3)))
+ AND (?4 = '' OR (created_at,id) < (?5,?4))
+ORDER BY created_at DESC,id DESC LIMIT ?6
+`
+
+type ListSubagentsByWorkspaceParams struct {
+	Workspace  string `json:"workspace"`
+	Origins    any    `json:"origins"`
+	Statuses   any    `json:"statuses"`
+	CursorID   any    `json:"cursor_id"`
+	CursorTime string `json:"cursor_time"`
+	PageLimit  int64  `json:"page_limit"`
+}
+
+func (q *Queries) ListSubagentsByWorkspace(ctx context.Context, arg ListSubagentsByWorkspaceParams) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listSubagentsByWorkspace,
+		arg.Workspace,
 		arg.Origins,
 		arg.Statuses,
 		arg.CursorID,

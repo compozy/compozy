@@ -281,6 +281,29 @@ THIS IS NOT VALID SQL;
 }
 
 func TestApplyRejectsAtlasSumDrift(t *testing.T) {
+	t.Run("Should detect mutation after a successful directory validation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		files := copyFixtureDirectory(t, "testdata/migrations/happy")
+		stream := MigrationStream{
+			Name:         "mutable",
+			FS:           files,
+			Dir:          ".",
+			VersionTable: "goose_db_version_mutable",
+		}
+		db := openEngineTestDB(t, "mutable.db")
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatal(err)
+		}
+		files["00001_create.sql"].Data = []byte("-- +goose Up\nCREATE TABLE edited (id INTEGER);")
+		if err := RequireCurrent(ctx, db, stream); !errors.Is(err, atlasmigrate.ErrChecksumMismatch) {
+			t.Fatalf("RequireCurrent() after migration mutation = %v, want checksum mismatch", err)
+		}
+		if got := migrationItemValues(t, db); got != "first,second" {
+			t.Fatalf("migration item values after refusal = %q, want first,second", got)
+		}
+	})
+
 	tests := []struct {
 		name   string
 		mutate func(t *testing.T, files fstest.MapFS)

@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"net/url"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +17,120 @@ import (
 )
 
 func TestExecuteWrite(t *testing.T) {
+	t.Run("Should cancel an external lock without waiting for the native busy timeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "cancel-external-lock.db")
+		db, err := OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		db.SetMaxOpenConns(1)
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		locker := openExecuteWriteTestDB(t, path)
+		conn, err := locker.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := conn.ExecContext(testutil.Context(t), sqliteRollbackStatement); err != nil {
+				t.Error(err)
+			}
+		}()
+		waitCtx, cancel := context.WithTimeout(ctx, 25*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		err = ExecuteWrite(waitCtx, db, func(context.Context, *WriteTx) error {
+			t.Error("blocked write callback must not execute")
+			return nil
+		})
+		elapsed := time.Since(started)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("write error = %v, want deadline exceeded", err)
+		}
+		if elapsed >= time.Second {
+			t.Errorf("canceled writer waited %s for a native busy timeout", elapsed)
+		}
+		var busyTimeout, count int
+		if err := db.QueryRowContext(ctx, `PRAGMA busy_timeout`).Scan(&busyTimeout); err != nil {
+			t.Fatal(err)
+		}
+		if busyTimeout != DefaultSQLiteBusyTimeoutMS {
+			t.Errorf("busy timeout after cancellation = %d, want %d", busyTimeout, DefaultSQLiteBusyTimeoutMS)
+		}
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("rows after cancellation = %d, error = %v, want zero", count, err)
+		}
+	})
+
+	t.Run("Should discard a transaction connection after cleanup failure", func(t *testing.T) {
+		for _, tc := range []struct {
+			name          string
+			statement     string
+			callbackError bool
+		}{
+			{name: "Should discard a failed timeout restoration", statement: "PRAGMA busy_timeout = 5000"},
+			{name: "Should discard a failed rollback", statement: sqliteRollbackStatement, callbackError: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				injected := errors.New("injected connection cleanup failure")
+				db := sql.OpenDB(&writeCleanupFailureConnector{
+					dsn:       sqliteDSN(filepath.Join(t.TempDir(), "cleanup.db")),
+					statement: tc.statement,
+					failure:   injected,
+				})
+				db.SetMaxOpenConns(1)
+				t.Cleanup(func() {
+					if err := db.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+					t.Fatal(err)
+				}
+				err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+					if _, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('partial')`); err != nil {
+						return err
+					}
+					if tc.callbackError {
+						return errors.New("reject partial write")
+					}
+					return nil
+				})
+				if !errors.Is(err, injected) {
+					t.Fatalf("write error = %v, want cleanup failure", err)
+				}
+				var count int
+				if err := db.QueryRowContext(ctx, `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 0 {
+					t.Fatalf("rows after cleanup failure = %d, error = %v, want zero", count, err)
+				}
+				if err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+					_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('recovered')`)
+					return err
+				}); err != nil {
+					t.Fatalf("write after failed cleanup = %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should preserve committed success when the caller cancels during commit", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(t.Context())
@@ -681,7 +798,18 @@ func TestExecuteWrite(t *testing.T) {
 func openExecuteWriteTestDB(t *testing.T, path string) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path, "busy_timeout(1)"))
+	dsn, err := url.Parse(sqliteDSN(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := dsn.Query()
+	for index, pragma := range query["_pragma"] {
+		if strings.HasPrefix(pragma, "busy_timeout(") {
+			query["_pragma"][index] = "busy_timeout(1)"
+		}
+	}
+	dsn.RawQuery = query.Encode()
+	db, err := sql.Open(sqliteDriverName, dsn.String())
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
@@ -730,4 +858,62 @@ func (c *commitCancellationConn) ExecContext(
 		}
 	}
 	return result, err
+}
+
+func BenchmarkExecuteWrite(b *testing.B) {
+	ctx := b.Context()
+	db, err := OpenSQLiteDatabase(ctx, filepath.Join(b.TempDir(), "write.db"), nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			b.Error(err)
+		}
+	})
+	if _, err := db.ExecContext(ctx, `CREATE TABLE items (value INTEGER); INSERT INTO items VALUES (0)`); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := ExecuteWrite(ctx, db, func(ctx context.Context, tx *WriteTx) error {
+			_, err := tx.ExecContext(ctx, `UPDATE items SET value = value + 1`)
+			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+type writeCleanupFailureConnector struct {
+	dsn       string
+	statement string
+	failure   error
+	failed    atomic.Bool
+}
+
+func (c *writeCleanupFailureConnector) Connect(context.Context) (driver.Conn, error) {
+	conn, err := (&sqlite.Driver{}).Open(c.dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &writeCleanupFailureConn{Conn: conn, connector: c}, nil
+}
+
+func (*writeCleanupFailureConnector) Driver() driver.Driver { return &sqlite.Driver{} }
+
+type writeCleanupFailureConn struct {
+	driver.Conn
+	connector *writeCleanupFailureConnector
+}
+
+func (c *writeCleanupFailureConn) ExecContext(
+	ctx context.Context,
+	query string,
+	args []driver.NamedValue,
+) (driver.Result, error) {
+	if query == c.connector.statement && c.connector.failed.CompareAndSwap(false, true) {
+		return nil, c.connector.failure
+	}
+	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
 }

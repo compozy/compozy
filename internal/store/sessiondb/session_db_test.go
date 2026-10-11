@@ -741,6 +741,104 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should initialize existing projection state without waiting for a write lock", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-projection-state-noop")
+		holder, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := holder.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := holder.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		bounded, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		initializeErr := initializeTranscriptProjectionState(bounded, db.db)
+		if _, err := holder.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if initializeErr != nil {
+			t.Fatalf("initialize existing state while writer is active: %v", initializeErr)
+		}
+	})
+
+	t.Run(
+		"Should preserve archived events and projected messages when upgrading the active sequence index",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			owner := testSessionDBOwner("sess-active-index-upgrade")
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerTestSQLDBCleanup(t, "active index migration prefix", prefix)
+			if err := store.Apply(ctx, prefix, sessionMigrationPrefixBefore(t, "00010_schema.sql")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(ctx,
+				`INSERT INTO session_db_owner(singleton,session_id,workspace_id) VALUES(1,?,?)`,
+				owner.SessionID, owner.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			if err := initializeTranscriptProjectionState(ctx, prefix); err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+			seed := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			wantEvents, err := seed.writeEventBatch(ctx, []SessionEvent{
+				{ID: "archived", SessionID: owner.SessionID, TurnID: "old", Type: "user_message",
+					AgentName: "user", Content: `{"text":"retained archived bytes"}`, Archived: true, Timestamp: at},
+				{ID: "active", SessionID: owner.SessionID, TurnID: "active", Type: "user_message",
+					AgentName: "user", Content: `{"text":"visible active bytes"}`, Timestamp: at.Add(time.Second)},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantPage, err := queryTranscriptPage(ctx, prefix, transcript.PageQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			var previousStatus store.StreamStatus
+			for attempt := range 2 {
+				opened, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				events, err := opened.Query(ctx, EventQuery{})
+				if err != nil || !slices.Equal(events, wantEvents) {
+					t.Fatalf("migrated events = %#v, %v, want %#v", events, err, wantEvents)
+				}
+				page, err := opened.TranscriptPage(ctx, transcript.PageQuery{})
+				if err != nil || len(page.Entries) != 1 || page.Generation != wantPage.Generation ||
+					page.MaxSequence != wantPage.MaxSequence || page.Entries[0].Message.ID != wantPage.Entries[0].Message.ID ||
+					page.Entries[0].StartSequence != wantPage.Entries[0].StartSequence ||
+					transcript.UIMessageText(page.Entries[0].Message) != "visible active bytes" {
+					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
+				}
+				status, err := store.Status(ctx, opened.db, MigrationStream())
+				if err != nil || status.Version != 10 || status.AppliedCount != 10 ||
+					(attempt > 0 && status != previousStatus) {
+					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
+				}
+				previousStatus = status
+				if err := opened.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
+
 	t.Run("Should round-trip an event and preserve stream status across reopen", func(t *testing.T) {
 		t.Parallel()
 
@@ -754,8 +852,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 9 || firstStatus.AppliedCount != 9 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 9", firstStatus)
+		if firstStatus.Version != 10 || firstStatus.AppliedCount != 10 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 10", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -903,8 +1001,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 9 || status.AppliedCount != 9 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 9", status)
+		if status.Version != 10 || status.AppliedCount != 10 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 10", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -1859,6 +1957,49 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 		if len(after.Entries) != 0 || after.NextAfter != changes.NextAfter {
 			t.Fatalf("TranscriptChanges(after boundary) = %#v, want no duplicate or gap", after)
+		}
+	})
+
+	t.Run("Should paginate complete change groups without gaps or duplicate updates", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-change-groups")
+		var input []SessionEvent
+		at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+		for index, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, TurnID: "first", Text: "first answer"},
+			{Type: acp.EventTypeUserMessage, TurnID: "second", Text: "second question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "second", Text: "second answer"},
+			{Type: acp.EventTypeUserMessage, TurnID: "third", Text: "third question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "third", Text: "third answer"},
+		} {
+			event.SessionID, event.Timestamp = db.SessionID(), at.Add(time.Duration(index)*time.Second)
+			input = append(input, canonicalStoreEvent(t, event, "coder"))
+		}
+		if _, err := db.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		var after int64
+		for index, want := range [][]int64{{1, 2}, {3, 4}, {5}} {
+			page, err := db.TranscriptChanges(ctx, transcript.ChangeQuery{AfterSequence: after, Limit: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			starts := make([]int64, 0, len(page.Entries))
+			for _, entry := range page.Entries {
+				starts = append(starts, entry.StartSequence)
+				if entry.Sequence != want[len(want)-1] {
+					t.Fatalf("entry sequence = %d, want %d", entry.Sequence, want[len(want)-1])
+				}
+			}
+			if !slices.Equal(starts, want) || page.HasMore != (index < 2) || page.NextAfter != want[len(want)-1] {
+				t.Fatalf("page %d = %#v, starts = %v, want %v", index, page, starts, want)
+			}
+			after = page.NextAfter
+		}
+		page, err := db.TranscriptChanges(ctx, transcript.ChangeQuery{AfterSequence: after, Limit: 1})
+		if err != nil || len(page.Entries) != 0 || page.HasMore || page.NextAfter != after {
+			t.Fatalf("exhausted change page = %#v, %v", page, err)
 		}
 	})
 

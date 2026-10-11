@@ -133,6 +133,7 @@ func applySessionHealthEligibility(health *heartbeat.SessionHealth) {
 
 func (m *Manager) storeSessionHealth(
 	ctx context.Context,
+	previous heartbeat.SessionHealth,
 	health heartbeat.SessionHealth,
 ) (heartbeat.SessionHealth, error) {
 	normalized := health.Normalize()
@@ -144,10 +145,6 @@ func (m *Manager) storeSessionHealth(
 	}
 	if m.sessionHealthStore == nil {
 		return normalized, nil
-	}
-	previous, err := m.storedSessionHealth(ctx, normalized.SessionID)
-	if err != nil {
-		return heartbeat.SessionHealth{}, err
 	}
 	stored, err := m.sessionHealthStore.UpsertSessionHealth(ctx, normalized)
 	if err != nil {

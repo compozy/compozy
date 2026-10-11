@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -144,6 +145,70 @@ func TestOpen(t *testing.T) {
 		}
 		if err := db.Close(ctx); err != nil {
 			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+
+	// Invariant: close tolerates retained snapshots and preserves committed data; owner: workspace lifecycle, TestOpen.
+	t.Run("Should close with a retained reader and preserve later writes across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		workspaceRoot := t.TempDir()
+		db := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
+			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+		) VALUES ('rec-before', 'term-1', 'profile-1', 'digest-before', '/tmp/before', 10, 12, 100)`); err != nil {
+			t.Fatal(err)
+		}
+		readerDB, err := store.OpenSQLiteDatabase(ctx, db.Path(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := readerDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := store.Checkpoint(ctx, db.DB()); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := readerDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := reader.QueryRowContext(ctx, `SELECT COUNT(*) FROM terminal_recordings`).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("reader recordings = %d, %v; want one", count, err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
+			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+		) VALUES ('rec-after', 'term-1', 'profile-1', 'digest-after', '/tmp/after', 20, 24, 100)`); err != nil {
+			t.Fatal(err)
+		}
+		closeCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := db.Close(closeCtx); err != nil {
+			t.Fatalf("Close with retained reader error = %v", err)
+		}
+		if err := reader.QueryRowContext(ctx, `SELECT COUNT(*) FROM terminal_recordings`).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("retained snapshot after close = %d, %v; want one", count, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		var bytes int
+		if err := reopened.DB().QueryRowContext(ctx, `SELECT bytes FROM terminal_recordings WHERE id = 'rec-after'`).
+			Scan(&bytes); err != nil || bytes != 24 {
+			t.Fatalf("recording committed after snapshot = %d bytes, %v; want 24", bytes, err)
 		}
 	})
 
@@ -475,4 +540,81 @@ func assertTerminalRowCounts(ctx context.Context, t *testing.T, db *sql.DB, want
 			t.Fatalf("%s count = %d, want %d", table, count, want)
 		}
 	}
+}
+
+func TestSweepExpiredTerminalFiles(t *testing.T) {
+	t.Run("Should remove expired recordings while retaining commands and shared artifacts", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openWorkspaceTestDB(ctx, t, t.TempDir())
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
+			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+		) VALUES ('expired', 'terminal', 'profile', 'digest', '/expired', 1, 10, 100),
+			('retained', 'terminal', 'profile', 'digest', '/retained', 2, 10, 200)`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_commands (
+			id, profile_id, actor_kind, actor_id, command, cwd, started_at,
+			exit_cause, detected_by, approval, output_bytes, truncated, recording_id
+		) VALUES ('command', 'profile', 'human', 'operator', 'pwd', '/tmp', 1,
+			'exited', 'exact', 'human', 1, 0, 'expired')`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_artifacts (
+			id, command_id, profile_id, digest, path, bytes, expires_at
+		) VALUES ('expired', 'command', 'profile', 'digest', '/shared', 1, 100),
+			('retained', 'command', 'profile', 'digest', '/shared', 1, 200)`); err != nil {
+			t.Fatal(err)
+		}
+		var removed []string
+		if err := db.SweepExpiredTerminalFiles(ctx, 100, func(path string) error {
+			removed = append(removed, path)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if len(removed) != 1 || removed[0] != "/expired" {
+			t.Fatalf("removed files = %v, want only /expired", removed)
+		}
+		assertTerminalRowCounts(ctx, t, db.DB(), 1)
+		var recordingID sql.NullString
+		if err := db.DB().
+			QueryRowContext(ctx, `SELECT recording_id FROM terminal_commands WHERE id = 'command'`).
+			Scan(&recordingID); err != nil {
+			t.Fatal(err)
+		}
+		if recordingID.Valid {
+			t.Fatalf("expired recording remains linked: %q", recordingID.String)
+		}
+	})
+
+	t.Run("Should leave the writer available when no terminal files have expired", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openWorkspaceTestDB(ctx, t, t.TempDir())
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		sweepCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		sweepErr := db.SweepExpiredTerminalFiles(sweepCtx, 100, func(path string) error {
+			t.Errorf("unexpected removal: %s", path)
+			return nil
+		})
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if sweepErr != nil {
+			t.Fatalf("empty sweep waited for writer: %v", sweepErr)
+		}
+	})
 }

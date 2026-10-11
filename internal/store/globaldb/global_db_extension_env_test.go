@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -359,6 +360,62 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 // Owner: global extension input persistence. Canonical suite: extension environment repository tests.
 func TestExtensionInputRepoLifecycle(t *testing.T) {
 	t.Parallel()
+	// Invariant: a batch waits for another writer and cancellation persists no before-image changes.
+	// Owner: extension input persistence; canonical suite: TestExtensionInputRepoLifecycle.
+	t.Run("Should honor cancellation while waiting to apply an input batch", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		db.DB().SetMaxOpenConns(2)
+		writer, err := db.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		locked := false
+		t.Cleanup(func() {
+			if locked {
+				if _, err := writer.ExecContext(context.Background(), "ROLLBACK"); err != nil {
+					t.Error(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.DB().ExecContext(ctx, "PRAGMA busy_timeout = 1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		locked = true
+		instance := extensioninput.Instance{Extension: "example"}
+		record := extensioninput.Record{
+			Type: "string", Value: json.RawMessage(`"value"`), Active: true,
+			UpdatedAt: time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC),
+		}
+		mutations := []extensioninput.Mutation{{InputID: "setting", After: &record}}
+		waitCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		if err := db.ExtensionInputs.Apply(waitCtx, instance, mutations); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("contended input batch = %v; want deadline exceeded", err)
+		}
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		locked = false
+		values, err := db.ExtensionInputs.List(ctx, instance)
+		if err != nil || len(values) != 0 {
+			t.Fatalf("canceled batch persisted = %#v, %v", values, err)
+		}
+		if err := db.ExtensionInputs.Apply(ctx, instance, mutations); err != nil {
+			t.Fatalf("input batch after writer release: %v", err)
+		}
+		values, err = db.ExtensionInputs.List(ctx, instance)
+		if err != nil || len(values) != 1 || !equalExtensionInputRecord(values["setting"], record) {
+			t.Fatalf("committed input batch = %#v, %v", values, err)
+		}
+	})
 	t.Run("Should preserve values across reopen and roll back an entire conflicted batch [UT-056]", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

@@ -378,16 +378,38 @@ const listTaskEventRecordsAscending = `-- name: ListTaskEventRecordsAscending :m
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
-  AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
+WHERE CAST(?2 AS TEXT) <> ''
+  AND CAST(?3 AS INTEGER) > 0
+  AND task_id = CAST(?2 AS TEXT)
+  AND event_seq > CAST(?3 AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) <> ''
+  AND CAST(?3 AS INTEGER) <= 0
+  AND task_id = CAST(?2 AS TEXT)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS INTEGER) > 0
+  AND event_seq > CAST(?3 AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS INTEGER) <= 0
 ORDER BY event_seq ASC
-LIMIT ?3
+LIMIT ?1
 `
 
 type ListTaskEventRecordsAscendingParams struct {
+	ResultLimit   int64  `json:"result_limit"`
 	TaskID        string `json:"task_id"`
 	AfterSequence int64  `json:"after_sequence"`
-	ResultLimit   int64  `json:"result_limit"`
 }
 
 type ListTaskEventRecordsAscendingRow struct {
@@ -405,7 +427,7 @@ type ListTaskEventRecordsAscendingRow struct {
 }
 
 func (q *Queries) ListTaskEventRecordsAscending(ctx context.Context, arg ListTaskEventRecordsAscendingParams) ([]ListTaskEventRecordsAscendingRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTaskEventRecordsAscending, arg.TaskID, arg.AfterSequence, arg.ResultLimit)
+	rows, err := q.db.QueryContext(ctx, listTaskEventRecordsAscending, arg.ResultLimit, arg.TaskID, arg.AfterSequence)
 	if err != nil {
 		return nil, err
 	}
@@ -443,16 +465,38 @@ const listTaskEventRecordsDescending = `-- name: ListTaskEventRecordsDescending 
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
-  AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
+WHERE CAST(?2 AS TEXT) <> ''
+  AND CAST(?3 AS INTEGER) > 0
+  AND task_id = CAST(?2 AS TEXT)
+  AND event_seq > CAST(?3 AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) <> ''
+  AND CAST(?3 AS INTEGER) <= 0
+  AND task_id = CAST(?2 AS TEXT)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS INTEGER) > 0
+  AND event_seq > CAST(?3 AS INTEGER)
+UNION ALL
+SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS INTEGER) <= 0
 ORDER BY event_seq DESC
-LIMIT ?3
+LIMIT ?1
 `
 
 type ListTaskEventRecordsDescendingParams struct {
+	ResultLimit   int64  `json:"result_limit"`
 	TaskID        string `json:"task_id"`
 	AfterSequence int64  `json:"after_sequence"`
-	ResultLimit   int64  `json:"result_limit"`
 }
 
 type ListTaskEventRecordsDescendingRow struct {
@@ -470,7 +514,7 @@ type ListTaskEventRecordsDescendingRow struct {
 }
 
 func (q *Queries) ListTaskEventRecordsDescending(ctx context.Context, arg ListTaskEventRecordsDescendingParams) ([]ListTaskEventRecordsDescendingRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTaskEventRecordsDescending, arg.TaskID, arg.AfterSequence, arg.ResultLimit)
+	rows, err := q.db.QueryContext(ctx, listTaskEventRecordsDescending, arg.ResultLimit, arg.TaskID, arg.AfterSequence)
 	if err != nil {
 		return nil, err
 	}
@@ -508,18 +552,42 @@ const listTaskEvents = `-- name: ListTaskEvents :many
 SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
-  AND (CAST(?2 AS TEXT) = '' OR run_id = CAST(?2 AS TEXT))
-  AND (CAST(?3 AS TEXT) = '' OR event_type = CAST(?3 AS TEXT))
+WHERE CAST(?2 AS TEXT) <> ''
+  AND task_id = CAST(?2 AS TEXT)
+  AND (CAST(?3 AS TEXT) = '' OR run_id = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS TEXT) = '' OR event_type = CAST(?4 AS TEXT))
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS TEXT) <> ''
+  AND run_id = CAST(?3 AS TEXT)
+  AND (CAST(?4 AS TEXT) = '' OR event_type = CAST(?4 AS TEXT))
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS TEXT) = ''
+  AND CAST(?4 AS TEXT) <> ''
+  AND event_type = CAST(?4 AS TEXT)
+UNION ALL
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE CAST(?2 AS TEXT) = ''
+  AND CAST(?3 AS TEXT) = ''
+  AND CAST(?4 AS TEXT) = ''
 ORDER BY timestamp DESC, id DESC
-LIMIT ?4
+LIMIT ?1
 `
 
 type ListTaskEventsParams struct {
+	ResultLimit int64  `json:"result_limit"`
 	TaskID      string `json:"task_id"`
 	RunID       string `json:"run_id"`
 	EventType   string `json:"event_type"`
-	ResultLimit int64  `json:"result_limit"`
 }
 
 type ListTaskEventsRow struct {
@@ -537,10 +605,10 @@ type ListTaskEventsRow struct {
 
 func (q *Queries) ListTaskEvents(ctx context.Context, arg ListTaskEventsParams) ([]ListTaskEventsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskEvents,
+		arg.ResultLimit,
 		arg.TaskID,
 		arg.RunID,
 		arg.EventType,
-		arg.ResultLimit,
 	)
 	if err != nil {
 		return nil, err

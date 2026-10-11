@@ -387,12 +387,12 @@ func (d *memorySubagents) ListOpenWakes(_ context.Context) ([]store.SessionSubag
 	}
 	return wakes, nil
 }
-func (d *memorySubagents) ListPending(_ context.Context) ([]store.SessionSubagent, error) {
+func (d *memorySubagents) ListPending(_ context.Context, parentID string) ([]store.SessionSubagent, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var rows []store.SessionSubagent
 	for _, row := range d.rows {
-		if row.Delivery == store.SubagentDeliveryPending {
+		if row.Delivery == store.SubagentDeliveryPending && (parentID == "" || row.ParentSessionID == parentID) {
 			rows = append(rows, row)
 		}
 	}

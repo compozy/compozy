@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func BenchmarkSessionDBQuery(b *testing.B) {
@@ -195,4 +196,60 @@ func benchmarkLongTurnEventType(index int) string {
 		return "tool_call"
 	}
 	return "tool_result"
+}
+
+func BenchmarkSessionDBTranscriptChanges(b *testing.B) {
+	for _, entryCount := range []int{1000, 10000} {
+		b.Run(fmt.Sprintf("entries_%d", entryCount), func(b *testing.B) {
+			b.ReportAllocs()
+			db := openBenchmarkSessionDB(b, "sess-bench-changes")
+			seedBenchmarkTranscriptEntries(b, db, entryCount)
+			b.ResetTimer()
+			for b.Loop() {
+				page, err := db.TranscriptChanges(b.Context(), transcript.ChangeQuery{Limit: 20})
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(page.Entries) != 20 || !page.HasMore || page.NextAfter != 20 {
+					b.Fatalf("unexpected change page: %#v", page)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkSessionDBReadOnlyProjectionOpen(b *testing.B) {
+	for _, entryCount := range []int{1000, 10000} {
+		b.Run(fmt.Sprintf("entries_%d", entryCount), func(b *testing.B) {
+			b.ReportAllocs()
+			db := openBenchmarkSessionDB(b, "sess-bench-projection-open")
+			seedBenchmarkTranscriptEntries(b, db, entryCount)
+			b.ResetTimer()
+			for b.Loop() {
+				reader, err := OpenSessionDBReadOnlyWithProjectionUpgrade(b.Context(), db.owner, db.path)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if err := reader.Close(b.Context()); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func seedBenchmarkTranscriptEntries(b *testing.B, db *SessionDB, count int) {
+	b.Helper()
+	events := make([]store.SessionEvent, count)
+	at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+	for index := range count {
+		events[index] = store.SessionEvent{
+			ID: fmt.Sprintf("event-%d", index), TurnID: fmt.Sprintf("turn-%d", index),
+			Type: "user_message", AgentName: "user", Content: `{"type":"user_message","text":"benchmark"}`,
+			Timestamp: at.Add(time.Duration(index) * time.Second),
+		}
+	}
+	if _, err := db.RecordPersistedBatch(b.Context(), events); err != nil {
+		b.Fatal(err)
+	}
 }

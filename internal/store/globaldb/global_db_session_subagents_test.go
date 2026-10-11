@@ -349,7 +349,7 @@ func TestGlobalDBSubagents(t *testing.T) {
 				t.Fatalf("canceled row=%#v", r)
 			}
 		}
-		pending, err := s.ListPending(ctx)
+		pending, err := s.ListPending(ctx, "")
 		if err != nil || len(pending) != 3 {
 			t.Fatalf("pending=%v %v", pending, err)
 		}
@@ -373,7 +373,7 @@ func TestGlobalDBSubagents(t *testing.T) {
 		if err = s.SetPending(ctx, []string{"a"}); err != nil {
 			t.Fatal(err)
 		}
-		pending, err = s.ListPending(ctx)
+		pending, err = s.ListPending(ctx, "")
 		if err != nil || len(pending) != 0 {
 			t.Fatalf("terminal delivery reopened=%v %v", pending, err)
 		}
@@ -432,6 +432,67 @@ func TestGlobalDBSubagents(t *testing.T) {
 			t.Fatalf("open=%v %v", open, err)
 		}
 	})
+	t.Run("Should read pending deliveries for one parent while retaining global recovery", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		registerSubagentSession(t, db, workspace, "other-parent", "", "", now)
+		for _, seed := range []struct{ id, parent string }{{"pending", parent}, {"foreign", "other-parent"}} {
+			reserveSubagent(t, port, workspace, seed.parent, seed.id, now)
+			finalizeSubagent(t, port, seed.id, now)
+		}
+		if err := port.SetPending(ctx, []string{"pending", "foreign"}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := port.ListPending(ctx, parent)
+		if err != nil || len(rows) != 1 || rows[0].ID != "pending" {
+			t.Fatalf("parent pending rows = %#v, %v", rows, err)
+		}
+		rows, err = port.ListPending(ctx, "")
+		if err != nil || len(rows) != 2 || rows[0].ID != "foreign" || rows[1].ID != "pending" {
+			t.Fatalf("recovery pending rows = %#v, %v", rows, err)
+		}
+		rows, err = port.ListPending(ctx, "missing-parent")
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("missing parent pending rows = %#v, %v", rows, err)
+		}
+	})
+
+	t.Run("Should scope parent and workspace pages without duplicating rows at timestamp ties", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		var port store.SubagentStore = db.SessionRepo
+		registerSubagentSession(t, db, workspace, "other-parent", "", "", now)
+		reserveSubagent(t, port, workspace, parent, "same-a", now)
+		reserveSubagent(t, port, workspace, parent, "same-b", now)
+		reserveSubagent(t, port, workspace, "other-parent", "other", now)
+		for _, query := range []store.SubagentListQuery{
+			{ParentSessionID: parent, Limit: 1},
+			{WorkspaceID: workspace, ParentSessionID: parent, Limit: 1},
+		} {
+			first, err := port.ListSubagents(t.Context(), query)
+			if err != nil || len(first.Items) != 1 || first.Items[0].ID != "same-b" || first.NextCursor == "" {
+				t.Fatalf("first parent page = %#v, %v", first, err)
+			}
+			query.Cursor = first.NextCursor
+			second, err := port.ListSubagents(t.Context(), query)
+			if err != nil || len(second.Items) != 1 || second.Items[0].ID != "same-a" || second.NextCursor != "" {
+				t.Fatalf("second parent page = %#v, %v", second, err)
+			}
+		}
+		page, err := port.ListSubagents(t.Context(), store.SubagentListQuery{WorkspaceID: workspace})
+		if err != nil || len(page.Items) != 3 || page.Items[0].ID != "same-b" || page.Items[2].ID != "other" {
+			t.Fatalf("workspace page = %#v, %v", page, err)
+		}
+		page, err = port.ListSubagents(t.Context(), store.SubagentListQuery{
+			WorkspaceID: "foreign-workspace", ParentSessionID: parent,
+		})
+		if err != nil || len(page.Items) != 0 {
+			t.Fatalf("foreign workspace parent page = %#v, %v", page, err)
+		}
+	})
+
 	t.Run("Should paginate newest first with query bound opaque cursors", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -753,7 +814,7 @@ func TestGlobalDBSubagentWakeFailures(t *testing.T) {
 				t.Fatal(repeated, again, err)
 			}
 		}
-		pending, err := s.ListPending(t.Context())
+		pending, err := s.ListPending(t.Context(), "")
 		if err != nil || len(pending) != 0 {
 			t.Fatal(pending, err)
 		}

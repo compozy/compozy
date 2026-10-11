@@ -63,6 +63,27 @@ func (q *Queries) GetEventSummarySessionProjection(ctx context.Context, sessionI
 	return i, err
 }
 
+const hasExpiredObservability = `-- name: HasExpiredObservability :one
+SELECT CAST(
+  EXISTS(SELECT 1 FROM event_summaries WHERE event_summaries.timestamp < ?1)
+  OR EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < ?1)
+  OR EXISTS(SELECT 1 FROM token_usage_daily WHERE token_usage_daily.day < ?2)
+  OR EXISTS(SELECT 1 FROM permission_log WHERE permission_log.timestamp < ?1)
+AS INTEGER)
+`
+
+type HasExpiredObservabilityParams struct {
+	Cutoff    string `json:"cutoff"`
+	CutoffDay string `json:"cutoff_day"`
+}
+
+func (q *Queries) HasExpiredObservability(ctx context.Context, arg HasExpiredObservabilityParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasExpiredObservability, arg.Cutoff, arg.CutoffDay)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertEventSummary = `-- name: InsertEventSummary :exec
 INSERT INTO event_summaries (
   profile_id,

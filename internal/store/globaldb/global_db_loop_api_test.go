@@ -596,6 +596,32 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 				Reason: speedpkg.ReasonCapabilityAbsent,
 			},
 		}
+		writer, err := globalDB.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		writeErr := globalDB.RecordAppliedRuntime(writeCtx, "ws-a", run.ID, 1, "work", 2, resolved)
+		elapsed := time.Since(started)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(writeErr, context.DeadlineExceeded) || elapsed > time.Second {
+			t.Fatalf("contended runtime write = %v after %s, want prompt context cancellation", writeErr, elapsed)
+		}
 		if err := globalDB.RecordAppliedRuntime(ctx, "ws-a", run.ID, 1, "work", 2, resolved); err != nil {
 			t.Fatalf("RecordAppliedRuntime() error = %v", err)
 		}

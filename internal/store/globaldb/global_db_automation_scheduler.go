@@ -99,55 +99,50 @@ func (g *AutomationRepo) ClaimScheduledRun(
 		return automation.SchedulerClaimResult{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return automation.SchedulerClaimResult{}, fmt.Errorf("store: begin automation scheduled run claim: %w", err)
-	}
-	defer func() {
-		joinCleanupError(&err, rollbackTx(tx, "automation scheduled run claim"))
-	}()
-
-	existing, err := getSchedulerStateTx(ctx, tx, normalized.JobID)
-	if err != nil && !errors.Is(err, automation.ErrSchedulerStateNotFound) {
-		return automation.SchedulerClaimResult{}, err
-	}
-	if existing.ScheduleHash != "" && existing.ScheduleHash != normalized.ScheduleHash {
-		return automation.SchedulerClaimResult{}, automation.ErrScheduledFireAlreadyClaimed
-	}
-	if strings.TrimSpace(existing.LastFireID) == normalized.FireID {
-		if existing.DeferredUntil != nil {
-			return resumeDeferredScheduledRun(ctx, tx, existing, normalized)
+	err = g.withImmediateTransaction(ctx, "claim automation scheduled run", func(tx globalSQLExecutor) error {
+		existing, err := getSchedulerStateTx(ctx, tx, normalized.JobID)
+		if err != nil && !errors.Is(err, automation.ErrSchedulerStateNotFound) {
+			return err
 		}
-		return automation.SchedulerClaimResult{}, fmt.Errorf(
-			"store: automation scheduled fire %q: %w",
-			normalized.FireID,
-			automation.ErrScheduledFireAlreadyClaimed,
-		)
-	}
+		if existing.ScheduleHash != "" && existing.ScheduleHash != normalized.ScheduleHash {
+			return automation.ErrScheduledFireAlreadyClaimed
+		}
+		if strings.TrimSpace(existing.LastFireID) == normalized.FireID {
+			if existing.DeferredUntil != nil {
+				result, err = resumeDeferredScheduledRun(ctx, tx, existing, normalized)
+				return err
+			}
+			return fmt.Errorf(
+				"store: automation scheduled fire %q: %w",
+				normalized.FireID,
+				automation.ErrScheduledFireAlreadyClaimed,
+			)
+		}
 
-	skipReason, activeRunID, err := schedulerClaimSkipTx(ctx, tx, normalized)
+		skipReason, activeRunID, err := schedulerClaimSkipTx(ctx, tx, normalized)
+		if err != nil {
+			return err
+		}
+		skipped := skipReason != ""
+		nextState := schedulerStateAfterClaim(existing, normalized, skipped)
+		if err := upsertSchedulerStateTx(ctx, tx, nextState); err != nil {
+			return err
+		}
+
+		run := scheduledRunAfterClaim(normalized, skipReason, activeRunID)
+		if err := insertAutomationRunTx(ctx, tx, run); err != nil {
+			return err
+		}
+
+		result.State = nextState
+		result.Run = run
+		result.Skipped = skipped
+		result.SkipReason = skipReason
+		return nil
+	})
 	if err != nil {
 		return automation.SchedulerClaimResult{}, err
 	}
-	skipped := skipReason != ""
-	nextState := schedulerStateAfterClaim(existing, normalized, skipped)
-	if err := upsertSchedulerStateTx(ctx, tx, nextState); err != nil {
-		return automation.SchedulerClaimResult{}, err
-	}
-
-	run := scheduledRunAfterClaim(normalized, skipReason, activeRunID)
-	if err := insertAutomationRunTx(ctx, tx, run); err != nil {
-		return automation.SchedulerClaimResult{}, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return automation.SchedulerClaimResult{}, fmt.Errorf("store: commit automation scheduled run claim: %w", err)
-	}
-
-	result.State = nextState
-	result.Run = run
-	result.Skipped = skipped
-	result.SkipReason = skipReason
 	return result, nil
 }
 
@@ -241,7 +236,7 @@ func upsertSchedulerStateTx(ctx context.Context, tx sqlcgen.DBTX, state automati
 	return nil
 }
 
-func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) error {
+func insertAutomationRunTx(ctx context.Context, tx sqlcgen.DBTX, run automation.Run) error {
 	if err := validateAutomationRunRecord(run); err != nil {
 		return err
 	}
@@ -265,7 +260,7 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	return nil
 }
 
-func activeAutomationRunIDTx(ctx context.Context, tx *sql.Tx, jobID string) (string, error) {
+func activeAutomationRunIDTx(ctx context.Context, tx sqlcgen.DBTX, jobID string) (string, error) {
 	var runID string
 	err := tx.QueryRowContext(
 		ctx,
@@ -287,7 +282,7 @@ func activeAutomationRunIDTx(ctx context.Context, tx *sql.Tx, jobID string) (str
 
 func schedulerClaimSkipTx(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx sqlcgen.DBTX,
 	claim automation.SchedulerClaim,
 ) (automation.SchedulerSkipReason, string, error) {
 	if claim.SkipReason != "" {

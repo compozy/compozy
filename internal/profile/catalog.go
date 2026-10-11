@@ -212,8 +212,7 @@ func listCredentialRequirementsForProfiles(
 }
 
 type profileCountsResult struct {
-	workItems  int
-	needsSetup bool
+	workItems int
 }
 
 var ownedWorkTables = []string{
@@ -251,13 +250,6 @@ func (m *Manager) profileCounts(ctx context.Context, q queryer, profileID string
 		}
 		result.workItems += count
 	}
-	var requirements int
-	if err := q.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`, profileID,
-	).Scan(&requirements); err != nil {
-		return profileCountsResult{}, fmt.Errorf("profile: count credential requirements: %w", err)
-	}
-	result.needsSetup = requirements > 0
 	return result, nil
 }
 

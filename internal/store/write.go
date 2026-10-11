@@ -182,7 +182,7 @@ func executeWriteAttempt(
 		return fmt.Errorf("store: acquire sqlite write connection: %w", err)
 	}
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
+		if closeErr := conn.Close(); closeErr != nil && !errors.Is(closeErr, sql.ErrConnDone) {
 			closeErr = fmt.Errorf("store: close sqlite write connection: %w", closeErr)
 			if err == nil {
 				err = closeErr
@@ -192,7 +192,10 @@ func executeWriteAttempt(
 		}
 	}()
 
-	if _, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement); err != nil {
+	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
+		_, err := conn.ExecContext(ctx, sqliteBeginImmediateStatement)
+		return err
+	}); err != nil {
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
 	}
 	releaseOwner := trackWriteOwner(db, operation)
@@ -203,6 +206,7 @@ func executeWriteAttempt(
 			return
 		}
 		if rollbackErr := rollbackWriteTx(context.WithoutCancel(ctx), conn); rollbackErr != nil {
+			rollbackErr = discardSQLiteConnection(conn, rollbackErr)
 			if err == nil {
 				err = rollbackErr
 				return
@@ -268,6 +272,9 @@ func randomWriteRetryDelay(minDelay time.Duration, maxDelay time.Duration) time.
 func IsSQLiteBusy(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, errSQLiteCheckpointBusy) {
+		return true
 	}
 	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
 	if !ok {

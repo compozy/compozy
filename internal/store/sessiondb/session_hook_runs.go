@@ -116,24 +116,25 @@ func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRec
 	if err != nil {
 		return fmt.Errorf("store: generate hook run id: %w", err)
 	}
-	if err := sqlcgen.New(s.db).InsertHookRun(ctx, sqlcgen.InsertHookRunParams{
-		ID:            id,
-		HookName:      record.HookName,
-		Event:         record.Event.String(),
-		Source:        record.Source.String(),
-		Mode:          string(record.Mode),
-		DurationNs:    record.Duration.Nanoseconds(),
-		Outcome:       string(record.Outcome),
-		DispatchDepth: int64(record.DispatchDepth),
-		PatchApplied:  sessionNullableString(rawJSONText(record.PatchApplied)),
-		Error:         sessionNullableString(record.Error),
-		Required:      boolToSQLite(record.Required),
-		RecordedAt:    store.FormatTimestamp(record.RecordedAt),
-	}); err != nil {
-		return fmt.Errorf("store: insert hook run: %w", err)
-	}
-
-	return nil
+	return store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		if err := sqlcgen.New(tx).InsertHookRun(ctx, sqlcgen.InsertHookRunParams{
+			ID:            id,
+			HookName:      record.HookName,
+			Event:         record.Event.String(),
+			Source:        record.Source.String(),
+			Mode:          string(record.Mode),
+			DurationNs:    record.Duration.Nanoseconds(),
+			Outcome:       string(record.Outcome),
+			DispatchDepth: int64(record.DispatchDepth),
+			PatchApplied:  sessionNullableString(rawJSONText(record.PatchApplied)),
+			Error:         sessionNullableString(record.Error),
+			Required:      boolToSQLite(record.Required),
+			RecordedAt:    store.FormatTimestamp(record.RecordedAt),
+		}); err != nil {
+			return fmt.Errorf("store: insert hook run: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecord, error) {

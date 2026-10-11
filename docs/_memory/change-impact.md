@@ -1,5 +1,26 @@
 # Compozy Change Impact
 
+## SQLite performance and contention audit — 2026-10-09
+
+Owner: branch `perf/sqlite-contention`; evidence and verification are recorded in
+`docs/qa/reports/2026-10-09-sqlite-performance.md`. This work excludes the incremental
+transcript fold/cache/redaction already implemented in PR #715. Shared cancellation-aware
+write admission, transaction cleanup, bounded queries, no-op maintenance, connection reuse,
+and additive indexes reduce contention while retaining the existing public contracts.
+Database shutdown uses passive checkpoints so retained readers do not prevent close;
+committed WAL state survives reopen and explicit truncation still reports contention.
+
+Native tools and CLI/HTTP/UDS/Web session, subagent, task, Loop, automation, extension,
+and observation consumers keep their IDs, DTOs, ordering, scope, and mutation semantics.
+No extension SDK, hook payload, or configuration key changes. Session health transitions
+still persist before publishing hooks. Workspace/profile filters and existing authorization
+remain authoritative; no cross-workspace cache or storage relocation is introduced.
+User SQLite state upgrades through appended generated index migrations with reopen/data
+preservation coverage. Official `skills/compozy/` and site guidance need no contract rewrite.
+The owning QA scenario notes link the report and distinguish backend integration evidence
+from historical browser/provider verdicts. Remaining profile callback lock duration and
+unbounded inventory costs are explicit audit limits, not claimed as solved.
+
 ## Explicit release asset verification — 2026-10-09
 
 Owner: branch `fix/explicit-release-web-assets`. Manual release planning builds

@@ -109,5 +109,11 @@ CREATE INDEX idx_agent_heartbeat_wake_events_agent_created
 CREATE INDEX idx_agent_heartbeat_wake_events_expires
 			ON agent_heartbeat_wake_events(expires_at);
 
+CREATE INDEX idx_agent_heartbeat_wake_events_session
+            ON agent_heartbeat_wake_events(session_id);
+
+CREATE INDEX idx_agent_heartbeat_wake_state_session
+            ON agent_heartbeat_wake_state(session_id);
+
 CREATE INDEX idx_agent_heartbeat_wake_state_next_allowed
 			ON agent_heartbeat_wake_state(next_allowed_at, updated_at DESC);

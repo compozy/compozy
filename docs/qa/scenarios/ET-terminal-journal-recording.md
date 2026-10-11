@@ -39,3 +39,9 @@ integration persists the operator's real command rather than its own prompt hook
 journal and the profile-scoped Web journal. The PTY marker regression passed under `-race`.
 
 QA re-walk 2026-09-06: real mouse selection of two rendered terminal rows keeps the floating actions stable, sends both lines with their source terminal ID, receives the conversation reply and retains Choose/Copy when the conversation closes. The canonical E2E-008 fails on the old build and passes on the corrected one (18.2s total); packaged desktop clipboard/zoom/IME passes12.8s. See BUG-20260906-terminal-selection-resize-loop and the integrated report.
+
+SQLite audit 2026-10-09: Run retention while an unrelated writer is held and no files have expired; it must complete without acquiring the writer. With expired records, preserve surviving shared-path references and command history while removing only expired file records. The workspace database retention suite owns these checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

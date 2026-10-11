@@ -58,12 +58,14 @@ func (d *DB) SweepExpiredTerminalFiles(
 	if err != nil {
 		return fmt.Errorf("store: list expired terminal artifacts: %w", err)
 	}
-	if err := queries.ClearExpiredTerminalRecordingLinks(ctx, expiresAt); err != nil {
-		return fmt.Errorf("store: clear expired terminal recording links: %w", err)
-	}
 	recordings, err := queries.ListExpiredTerminalRecordings(ctx, expiresAt)
 	if err != nil {
 		return fmt.Errorf("store: list expired terminal recordings: %w", err)
+	}
+	if len(recordings) != 0 {
+		if err := queries.ClearExpiredTerminalRecordingLinks(ctx, expiresAt); err != nil {
+			return fmt.Errorf("store: clear expired terminal recording links: %w", err)
+		}
 	}
 	for _, artifact := range artifacts {
 		refs, countErr := queries.CountOtherTerminalArtifactPathRefs(

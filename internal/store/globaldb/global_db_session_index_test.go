@@ -2046,6 +2046,21 @@ func TestGlobalDBSubagentArchive(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			db, workspace, parent, now := subagentFixture(t)
+			for _, lookup := range []struct{ workspace, session string }{
+				{"foreign-workspace", parent},
+				{workspace, "missing-session"},
+			} {
+				if _, err := db.SessionArchivedAt(
+					ctx,
+					lookup.workspace,
+					lookup.session,
+				); !errors.Is(
+					err,
+					store.ErrSessionNotFound,
+				) {
+					t.Fatalf("archive metadata outside scope = %v, want ErrSessionNotFound", err)
+				}
+			}
 			registerSubagentSession(t, db, workspace, "child", parent, store.SubagentSpawnRole, now)
 			registerSubagentSession(t, db, workspace, "grandchild", "child", store.SubagentSpawnRole, now)
 			registerSubagentSession(t, db, workspace, "plain", parent, "worker", now)

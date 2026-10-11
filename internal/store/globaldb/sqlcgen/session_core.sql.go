@@ -79,6 +79,23 @@ func (q *Queries) EnsureSessionTranscriptEpoch(ctx context.Context, arg EnsureSe
 	return transcript_epoch, err
 }
 
+const getSessionArchivedAt = `-- name: GetSessionArchivedAt :one
+SELECT archived_at FROM sessions
+WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetSessionArchivedAtParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ID          string `json:"id"`
+}
+
+func (q *Queries) GetSessionArchivedAt(ctx context.Context, arg GetSessionArchivedAtParams) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getSessionArchivedAt, arg.WorkspaceID, arg.ID)
+	var archived_at sql.NullString
+	err := row.Scan(&archived_at)
+	return archived_at, err
+}
+
 const getSessionAttachState = `-- name: GetSessionAttachState :one
 SELECT state, failure_kind, stall_state, attached_to, attach_expires_at
 FROM sessions

@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,50 +42,68 @@ func (r *ExtensionMCPRepo) Reserve(
 			return record, err
 		}
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return record, fmt.Errorf("store: begin MCP allocation: %w", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			err = errors.Join(err, fmt.Errorf("store: rollback MCP allocation: %w", rollbackErr))
-		}
-	}()
-	queries := sqlcgen.New(tx)
-	records, err := listExtensionMCPRecords(ctx, queries, target.ProfileID, target.WorkspaceID)
+	records, err := listExtensionMCPRecords(ctx, r.queries, target.ProfileID, target.WorkspaceID)
 	if err != nil {
 		return record, err
 	}
-	blocked := make(map[string]bool, len(records)+len(occupied))
-	for _, name := range occupied {
-		blocked[strings.TrimSpace(name)] = true
+	if current, found, err := existingExtensionMCPAllocation(records, target, requested, occupied); found {
+		return current, err
 	}
-	for _, current := range records {
-		if current.Target == target {
-			if blocked[current.RuntimeName] || (requested != "" && requested != current.RuntimeName) {
-				return record, extensionmcp.ErrNameTaken
-			}
-			return current, nil
+	err = store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		record = extensionmcp.Record{}
+		queries := sqlcgen.New(tx)
+		records, err := listExtensionMCPRecords(ctx, queries, target.ProfileID, target.WorkspaceID)
+		if err != nil {
+			return err
 		}
-	}
-	for _, current := range records {
-		blocked[current.RuntimeName] = true
-	}
-	name, err := allocateExtensionMCPName(target, requested, blocked)
+		if current, found, err := existingExtensionMCPAllocation(records, target, requested, occupied); found {
+			record = current
+			return err
+		}
+		blocked := make(map[string]bool, len(records)+len(occupied))
+		for _, name := range occupied {
+			blocked[strings.TrimSpace(name)] = true
+		}
+		for _, current := range records {
+			blocked[current.RuntimeName] = true
+		}
+		name, err := allocateExtensionMCPName(target, requested, blocked)
+		if err != nil {
+			return err
+		}
+		record = extensionmcp.Record{Target: target, RuntimeName: name, UpdatedAt: r.now().UTC()}
+		if err := queries.InsertExtensionMCPAllocation(ctx, sqlcgen.InsertExtensionMCPAllocationParams{
+			Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
+			Server: target.ServerName, RuntimeName: name, UpdatedAt: store.FormatTimestamp(record.UpdatedAt),
+		}); err != nil {
+			return fmt.Errorf("store: insert MCP allocation: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return record, err
-	}
-	record = extensionmcp.Record{Target: target, RuntimeName: name, UpdatedAt: r.now().UTC()}
-	if err := queries.InsertExtensionMCPAllocation(ctx, sqlcgen.InsertExtensionMCPAllocationParams{
-		Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
-		Server: target.ServerName, RuntimeName: name, UpdatedAt: store.FormatTimestamp(record.UpdatedAt),
-	}); err != nil {
-		return extensionmcp.Record{}, fmt.Errorf("store: insert MCP allocation: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return extensionmcp.Record{}, fmt.Errorf("store: commit MCP allocation: %w", err)
+		return extensionmcp.Record{}, fmt.Errorf("store: allocate MCP runtime name: %w", err)
 	}
 	return record, nil
+}
+
+func existingExtensionMCPAllocation(
+	records []extensionmcp.Record, target extensionmcp.Target, requested string, occupied []string,
+) (extensionmcp.Record, bool, error) {
+	for _, current := range records {
+		if current.Target != target {
+			continue
+		}
+		if requested != "" && requested != current.RuntimeName {
+			return extensionmcp.Record{}, true, extensionmcp.ErrNameTaken
+		}
+		for _, name := range occupied {
+			if strings.TrimSpace(name) == current.RuntimeName {
+				return extensionmcp.Record{}, true, extensionmcp.ErrNameTaken
+			}
+		}
+		return current, true, nil
+	}
+	return extensionmcp.Record{}, false, nil
 }
 
 func allocateExtensionMCPName(target extensionmcp.Target, requested string, occupied map[string]bool) (string, error) {

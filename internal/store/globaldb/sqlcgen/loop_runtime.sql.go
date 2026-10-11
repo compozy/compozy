@@ -1233,28 +1233,26 @@ WHERE NOT EXISTS (
   WHERE loop_generation_outputs.output_ref = loop_output_blobs.output_ref
 )
 AND NOT EXISTS (
-  SELECT 1 FROM loop_goal_turns
-  WHERE loop_goal_turns.evidence_ref = loop_output_blobs.output_ref
-     OR loop_goal_turns.prompt_ref = loop_output_blobs.output_ref
-)
-AND NOT EXISTS (
-  SELECT 1 FROM loop_goal_judge_attempts
-  WHERE loop_goal_judge_attempts.evidence_ref = loop_output_blobs.output_ref
-)
-AND NOT EXISTS (
-  SELECT 1 FROM loop_goal_checkpoints
-  WHERE loop_goal_checkpoints.report_evidence_ref = loop_output_blobs.output_ref
-)
-AND NOT EXISTS (
-  SELECT 1 FROM loop_requests
-  WHERE loop_requests.context_ref = loop_output_blobs.output_ref
-     OR loop_requests.proposed_ref = loop_output_blobs.output_ref
-     OR loop_requests.answered_payload_ref = loop_output_blobs.output_ref
-)
-AND NOT EXISTS (
-  SELECT 1 FROM loop_node_amendments
-  WHERE loop_node_amendments.original_ref = loop_output_blobs.output_ref
-     OR loop_node_amendments.amended_ref = loop_output_blobs.output_ref
+  SELECT 1 FROM (
+    SELECT evidence_ref AS output_ref FROM loop_goal_turns
+    UNION
+    SELECT prompt_ref FROM loop_goal_turns
+    UNION
+    SELECT evidence_ref FROM loop_goal_judge_attempts
+    UNION
+    SELECT report_evidence_ref FROM loop_goal_checkpoints
+    UNION
+    SELECT context_ref FROM loop_requests
+    UNION
+    SELECT proposed_ref FROM loop_requests
+    UNION
+    SELECT answered_payload_ref FROM loop_requests
+    UNION
+    SELECT original_ref FROM loop_node_amendments
+    UNION
+    SELECT amended_ref FROM loop_node_amendments
+  ) AS referenced_outputs
+  WHERE referenced_outputs.output_ref = loop_output_blobs.output_ref
 )
 `
 

@@ -38,3 +38,9 @@ expired runs, and resume eligibility after an abandoned reservation is released.
 coordinator histories for one task must backfill one aligned, deterministic provenance row.
 See the owning
 [contention verification report](../reports/2026-10-03-issue-689-sqlite-contention.md).
+
+SQLite audit 2026-10-09: Populate retained output references in generations, Goal turns/judges/checkpoints, requests, and amendments before orphan cleanup. Cleanup must preserve every referenced blob and delete only unreferenced blobs, including when unrelated reference columns are NULL. Applied runtime data and its audit event must remain atomic under writer contention. Existing Loop output/event suites own these backend checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

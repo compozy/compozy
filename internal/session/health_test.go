@@ -229,7 +229,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 			EligibleForWake: true,
 			UpdatedAt:       baseAt,
 		}
-		if _, err := h.manager.storeSessionHealth(ctx, idle); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}, idle); err != nil {
 			t.Fatalf("storeSessionHealth(idle) error = %v", err)
 		}
 
@@ -241,7 +241,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 		prompting.EligibleForWake = false
 		prompting.IneligibilityReason = string(heartbeat.SessionHealthReasonPromptActive)
 		prompting.UpdatedAt = promptingAt
-		if _, err := h.manager.storeSessionHealth(ctx, prompting); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, idle, prompting); err != nil {
 			t.Fatalf("storeSessionHealth(prompting) error = %v", err)
 		}
 
@@ -249,7 +249,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 		clock.Set(idleAgainAt)
 		idleAgain := idle
 		idleAgain.UpdatedAt = idleAgainAt
-		if _, err := h.manager.storeSessionHealth(ctx, idleAgain); err != nil {
+		if _, err := h.manager.storeSessionHealth(ctx, prompting, idleAgain); err != nil {
 			t.Fatalf("storeSessionHealth(idle again) error = %v", err)
 		}
 
@@ -733,7 +733,7 @@ func TestManagerSessionHealthErrorPaths(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		manager := newHarness(t).manager
-		if _, err := manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}); !errors.Is(
+		if _, err := manager.storeSessionHealth(ctx, heartbeat.SessionHealth{}, heartbeat.SessionHealth{}); !errors.Is(
 			err,
 			heartbeat.ErrInvalidSessionHealth,
 		) {

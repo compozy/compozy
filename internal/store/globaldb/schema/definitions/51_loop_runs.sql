@@ -223,6 +223,10 @@ CREATE UNIQUE INDEX uq_loop_run_events_delivery
 CREATE INDEX idx_loop_runs_catalog
 			ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status);
 
+CREATE INDEX idx_loop_runs_session_origin_recent
+            ON loop_runs(workspace_id, origin_session_id, created_at)
+            WHERE origin_kind = 'session' AND historical = 0;
+
 CREATE INDEX idx_loop_runs_queue_order
 			ON loop_runs(workspace_id, loop_name, status, created_at ASC, id ASC);
 

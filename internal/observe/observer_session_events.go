@@ -154,6 +154,8 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 	}
 	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
 		ReadScope: store.ReadScope{AllProfiles: true},
+		ID:        id,
+		Limit:     1,
 	})
 	if err != nil {
 		o.logger.Warn("observe: recover session snapshot failed", "session_id", id, "error", err)

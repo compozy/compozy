@@ -2,6 +2,7 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -16,6 +17,74 @@ func nilSessionContext() context.Context {
 
 func TestSessionDBAccessorsAndCloseLifecycle(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: closing the writer preserves committed events and an active reader's snapshot.
+	// Owner: SessionDB close lifecycle; canonical suite: TestSessionDBAccessorsAndCloseLifecycle.
+	t.Run("Should close with a retained reader and preserve events across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		writer := openTestSessionDB(t, "sess-close-reader")
+		event := SessionEvent{ID: "before", TurnID: "turn-1", Type: "agent_message", AgentName: "coder"}
+		if err := writer.Record(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := OpenSessionDBReadOnly(ctx, writer.owner, writer.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		snapshot, err := reader.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := snapshot.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := snapshot.QueryRowContext(ctx, "SELECT count(*) FROM events").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("snapshot event count = %d, error = %v, want one", count, err)
+		}
+		event.ID = "after"
+		if err := writer.Record(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		closeCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := writer.Close(closeCtx); err != nil {
+			t.Fatalf("Close with retained reader = %v, want success", err)
+		}
+		if err := snapshot.QueryRowContext(ctx, "SELECT count(*) FROM events").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("snapshot after writer close = %d events, error = %v, want one", count, err)
+		}
+		if err := snapshot.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenSessionDB(ctx, writer.owner, writer.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		events, err := reopened.Query(ctx, EventQuery{})
+		if err != nil || len(events) != 2 {
+			t.Fatalf("reopened events = %#v, error = %v, want both committed events", events, err)
+		}
+		if events[0].ID != "before" || events[1].ID != "after" {
+			t.Fatalf("reopened event IDs = %q, %q, want before, after", events[0].ID, events[1].ID)
+		}
+	})
 
 	sessionDB := openTestSessionDB(t, "sess-lifecycle")
 	if got, want := sessionDB.Path(), sessionDB.path; got != want {

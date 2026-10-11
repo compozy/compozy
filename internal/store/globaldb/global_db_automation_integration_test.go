@@ -3,6 +3,7 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -466,6 +467,101 @@ func TestGlobalDBAutomationLatestRunsBatch(t *testing.T) {
 		if !strings.Contains(plan, "idx_automation_runs_job_latest") ||
 			strings.Contains(plan, "USE TEMP B-TREE FOR ORDER BY") {
 			t.Fatalf("latest run plan must use ordered index: %s", plan)
+		}
+	})
+}
+
+func TestGlobalDBAutomationScheduledClaimContention(t *testing.T) {
+	t.Run("Should wait for a competing writer without partially claiming the fire", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		job, err := db.CreateJob(ctx, automationJobForTest(
+			automation.AutomationScopeGlobal, "contended-scheduler", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+		claim := automation.SchedulerClaim{
+			ProfileID: job.ProfileID, JobID: job.ID, RunID: "run-contended", FireID: "fire-contended",
+			ScheduledAt: now, ClaimedAt: now, ScheduleHash: "schedule-v1",
+		}
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		claimCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, claimErr := db.ClaimScheduledRun(claimCtx, claim)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(claimErr, context.DeadlineExceeded) {
+			t.Fatalf("contended claim error = %v, want context deadline", claimErr)
+		}
+		if _, err := db.GetRun(ctx, claim.RunID); !errors.Is(err, automation.ErrRunNotFound) {
+			t.Fatalf("cancelled claim persisted a run: %v", err)
+		}
+		if _, err := db.GetSchedulerState(ctx, job.ID); !errors.Is(err, automation.ErrSchedulerStateNotFound) {
+			t.Fatalf("cancelled claim advanced the schedule: %v", err)
+		}
+		result, err := db.ClaimScheduledRun(ctx, claim)
+		if err != nil || result.Run.ID != claim.RunID || result.State.LastFireID != claim.FireID {
+			t.Fatalf("claim after writer released = %#v, %v", result, err)
+		}
+	})
+}
+
+func TestGlobalDBAutomationTriggerUpdateContention(t *testing.T) {
+	t.Run("Should preserve the trigger while waiting for a competing writer", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		trigger, err := db.CreateTrigger(ctx, automationWebhookTriggerForTest(
+			automation.AutomationScopeGlobal, "contended-trigger", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		updated := trigger
+		updated.Name = "updated-trigger"
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		updateCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, updateErr := db.UpdateTrigger(updateCtx, updated)
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(updateErr, context.DeadlineExceeded) {
+			t.Fatalf("contended update error = %v, want context deadline", updateErr)
+		}
+		persisted, err := db.GetTrigger(ctx, trigger.ID)
+		if err != nil || persisted.Name != trigger.Name {
+			t.Fatalf("cancelled update changed trigger: %#v, %v", persisted, err)
+		}
+		persisted, err = db.UpdateTrigger(ctx, updated)
+		if err != nil || persisted.Name != updated.Name {
+			t.Fatalf("update after writer released = %#v, %v", persisted, err)
 		}
 	})
 }

@@ -64,3 +64,9 @@ QA walk 2026-10-09: reads survive restart; a clean daemon stop cancels the runni
 stop is not a cancel; crash settles `failed` with the wake kept). Verdict stays `fail` until the re-walk.
 
 Re-walk 2026-10-09 (stock 980d51fbe): a clean stop kept the row `running`, resumed the child, and delivered one wake after the parent was resumed (a wake turn cut by shutdown was re-offered once). kill -9 settled the row `failed` with its wake kept and the parent read-only. Reads survived restarts. Steps 4 and 5 need acpmock seeding and stay with IT-031. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+SQLite audit 2026-10-09: Seed pending deliveries for multiple parents, settle one parent, and verify that only its successors are consumed. Boot recovery must still discover every parent. Paginate tied creation timestamps within one workspace and parent without duplicates or skipped rows; foreign rows remain inaccessible. Existing store/session/daemon subagent recovery suites own the backend checks.
+
+See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
+for exact verification and limits. These backend checks do not replace or promote the
+scenario's historical browser/provider verdict.

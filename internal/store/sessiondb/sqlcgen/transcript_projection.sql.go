@@ -339,6 +339,62 @@ func (q *Queries) ListLatestTranscriptEntries(ctx context.Context, rowLimit int6
 	return items, nil
 }
 
+const listTranscriptChanges = `-- name: ListTranscriptChanges :many
+SELECT e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
+FROM transcript_entries AS e
+WHERE e.message_json IS NOT NULL
+  AND e.updated_sequence IN (
+    SELECT DISTINCT c.updated_sequence
+    FROM transcript_entries AS c
+    WHERE c.message_json IS NOT NULL AND c.updated_sequence > ?1
+    ORDER BY c.updated_sequence ASC
+    LIMIT ?2
+  )
+ORDER BY e.updated_sequence ASC, e.start_sequence ASC
+`
+
+type ListTranscriptChangesParams struct {
+	AfterSequence int64 `json:"after_sequence"`
+	SequenceLimit int64 `json:"sequence_limit"`
+}
+
+type ListTranscriptChangesRow struct {
+	MessageJson     sql.NullString `json:"message_json"`
+	StartSequence   int64          `json:"start_sequence"`
+	UpdatedSequence int64          `json:"updated_sequence"`
+	EventType       string         `json:"event_type"`
+	MarkerJson      sql.NullString `json:"marker_json"`
+}
+
+func (q *Queries) ListTranscriptChanges(ctx context.Context, arg ListTranscriptChangesParams) ([]ListTranscriptChangesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptChanges, arg.AfterSequence, arg.SequenceLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptChangesRow{}
+	for rows.Next() {
+		var i ListTranscriptChangesRow
+		if err := rows.Scan(
+			&i.MessageJson,
+			&i.StartSequence,
+			&i.UpdatedSequence,
+			&i.EventType,
+			&i.MarkerJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptEntriesBefore = `-- name: ListTranscriptEntriesBefore :many
 SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries

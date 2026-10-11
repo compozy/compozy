@@ -150,6 +150,8 @@ CREATE TRIGGER session_db_identity_immutable_insert
 
 CREATE UNIQUE INDEX idx_events_sequence ON events(sequence);
 
+CREATE INDEX idx_events_active_sequence ON events(sequence) WHERE archived = 0;
+
 CREATE INDEX idx_events_timestamp ON events(timestamp);
 
 CREATE INDEX idx_events_transcript_entry_sequence

@@ -39,7 +39,8 @@ func (s *SessionDB) Close(ctx context.Context) error {
 
 	writerErr := waitForShutdownResult(drainCtx, resultCh)
 	writerExitErr := waitForWriterExit(drainCtx, s.writerDone)
-	checkpointErr := store.Checkpoint(drainCtx, s.db)
+	// A retained reader must not turn optional WAL truncation into a shutdown failure.
+	checkpointErr := store.CheckpointPassive(drainCtx, s.db)
 	closeErr := s.db.Close()
 
 	s.state.Store(sessionStateClosed)

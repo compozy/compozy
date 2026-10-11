@@ -21,10 +21,18 @@ UPDATE session_subagents SET progress = ?, updated_at = ? WHERE id = ? AND statu
 -- name: FinalizeSubagent :execrows
 UPDATE session_subagents SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), result = sqlc.narg(result), error = sqlc.narg(error), result_truncated = sqlc.arg(result_truncated), settled_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting');
 
--- name: ListSubagents :many
+-- name: ListSubagentsByParent :many
 SELECT * FROM session_subagents
-WHERE (sqlc.arg(workspace) = '' OR workspace_id = sqlc.arg(workspace))
- AND (sqlc.arg(parent) = '' OR parent_session_id = sqlc.arg(parent))
+WHERE parent_session_id = sqlc.arg(parent)
+ AND (sqlc.arg(workspace) = '' OR workspace_id = sqlc.arg(workspace))
+ AND (sqlc.arg(origins) = '[]' OR origin IN (SELECT value FROM json_each(sqlc.arg(origins))))
+ AND (sqlc.arg(statuses) = '[]' OR status IN (SELECT value FROM json_each(sqlc.arg(statuses))))
+ AND (sqlc.arg(cursor_id) = '' OR (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
+ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
+
+-- name: ListSubagentsByWorkspace :many
+SELECT * FROM session_subagents
+WHERE workspace_id = sqlc.arg(workspace)
  AND (sqlc.arg(origins) = '[]' OR origin IN (SELECT value FROM json_each(sqlc.arg(origins))))
  AND (sqlc.arg(statuses) = '[]' OR status IN (SELECT value FROM json_each(sqlc.arg(statuses))))
  AND (sqlc.arg(cursor_id) = '' OR (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
@@ -96,6 +104,11 @@ SELECT * FROM session_subagent_wakes WHERE state IN ('open','dispatched') ORDER 
 
 -- name: ListPendingSubagents :many
 SELECT * FROM session_subagents WHERE delivery = 'pending' ORDER BY created_at,id;
+
+-- name: ListPendingSubagentsByParent :many
+SELECT * FROM session_subagents
+WHERE parent_session_id = sqlc.arg(parent_id) AND delivery = 'pending'
+ORDER BY created_at,id;
 
 -- name: ListOrphanSubagentSessions :many
 SELECT id FROM sessions WHERE spawn_role = 'subagent' AND state <> 'stopped' AND NOT EXISTS (SELECT 1 FROM session_subagents WHERE child_session_id = sessions.id) ORDER BY id;
