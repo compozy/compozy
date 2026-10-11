@@ -1016,6 +1016,40 @@ func TestSubagentUIProjection(t *testing.T) {
 
 // Invariant: one authored send projects one updatable card with typed reply metadata; owner: transcript.
 func TestSessionMessageUIProjection(t *testing.T) {
+	t.Run("Should keep a send made inside a provider-native subagent attributed to it", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "child-send", TurnID: "turn"}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		).WithProviderToolMetadata("native-task", "compozy__session_prompt", "")
+		content, err := MarshalAgentEvent(call)
+		if err != nil {
+			t.Fatal(err)
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "event-0", SessionID: "sender", TurnID: "turn", Sequence: 1, Type: call.Type, Content: content,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type != "data-compozy-session-message" {
+					continue
+				}
+				found = true
+				if part.ParentToolCallID != "native-task" {
+					t.Fatalf("session message part = %+v, want parent attribution", part)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("no session message part")
+		}
+	})
+
 	t.Run("Should replace the running card with its correlated result UT-014", func(t *testing.T) {
 		t.Parallel()
 		call := acp.AgentEvent{

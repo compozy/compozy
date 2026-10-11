@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -2231,6 +2232,8 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				facts:    SubagentWorktreeFacts{PRStatus: "none"},
 			}
 			s.worktrees = wt
+			hook := &subagentRecordingHook{}
+			s.settled = hook
 			req := subagentTestRequest()
 			req.Isolation = "worktree"
 			row := requireSubagent(t, s, req)
@@ -2260,6 +2263,95 @@ func TestSubagentIsolationRetention(t *testing.T) {
 				got.WorktreeState().Facts.PRStatus != "none" {
 				t.Fatal(got, err, wt.rollbacks)
 			}
+			// The once-only settled hook carries the final worktree facts, including after a cancel.
+			if rows := hook.recorded(); len(rows) != 1 || rows[0].WorktreeState().Facts.PRStatus != "none" {
+				t.Fatalf("settled hooks = %d %+v, want one carrying the final facts", len(rows), rows)
+			}
 		})
 	}
+}
+
+type subagentRecordingHook struct {
+	mu   sync.Mutex
+	rows []store.SessionSubagent
+}
+
+func (h *subagentRecordingHook) DispatchSubagentSettled(_ context.Context, row store.SessionSubagent) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rows = append(h.rows, row)
+	return nil
+}
+
+func (h *subagentRecordingHook) recorded() []store.SessionSubagent {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.rows)
+}
+
+// Invariant: a shared delegation keeps the idempotency fingerprint it had before isolation existed, so a
+// retry of a pre-upgrade delegation replays its original result; worktree requests hash their isolation.
+// Owner: session subagent delegate suite (review: old delegation retries).
+func TestSubagentFingerprintCompatibility(t *testing.T) {
+	t.Parallel()
+	type legacyRequest struct {
+		Caller         SubagentCaller
+		Task           string
+		Title          string
+		Role           string
+		Target         SubagentTarget
+		Mode           string
+		Timeout        time.Duration
+		IdempotencyKey string
+		PermissionMode compozyconfig.PermissionMode
+		Narrowing      *SubagentPermissionNarrowing
+	}
+	base := SubagentRequest{
+		Task: "review billing", Title: "Review", Role: "general", Mode: SubagentModeAsync,
+		IdempotencyKey: "key-1", Target: SubagentTarget{Agent: "claude"},
+	}
+	t.Run("Should hash a shared request exactly as before isolation", func(t *testing.T) {
+		t.Parallel()
+		shared := base
+		shared.Isolation = subagentIsolationShared
+		got, err := subagentFingerprint(shared)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := json.Marshal(struct {
+			legacyRequest
+			Timeout int64
+		}{
+			Task: base.Task, Title: base.Title, Role: base.Role, Target: base.Target, Mode: base.Mode,
+			IdempotencyKey: base.IdempotencyKey,
+		}, json.Deterministic(true), json.FormatNilSliceAsNull(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(payload)
+		if want := hex.EncodeToString(sum[:]); got != want {
+			t.Fatalf("shared fingerprint = %s, want the pre-isolation %s", got, want)
+		}
+	})
+	t.Run("Should distinguish worktree requests by isolation and base", func(t *testing.T) {
+		t.Parallel()
+		shared, err := subagentFingerprint(base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		isolated := base
+		isolated.Isolation = SubagentIsolationWorktree
+		worktree, err := subagentFingerprint(isolated)
+		if err != nil {
+			t.Fatal(err)
+		}
+		isolated.BaseRef = "origin/main"
+		based, err := subagentFingerprint(isolated)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if shared == worktree || worktree == based {
+			t.Fatalf("fingerprints shared=%s worktree=%s based=%s must differ", shared, worktree, based)
+		}
+	})
 }

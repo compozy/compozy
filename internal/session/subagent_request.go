@@ -20,9 +20,9 @@ const subagentRoleGeneral = "general"
 
 func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
 	if req.Isolation == "" {
-		req.Isolation = "shared"
+		req.Isolation = subagentIsolationShared
 	}
-	if req.Isolation != "shared" && req.Isolation != SubagentIsolationWorktree {
+	if req.Isolation != subagentIsolationShared && req.Isolation != SubagentIsolationWorktree {
 		return req, invalidSubagent("isolation must be shared or worktree.")
 	}
 	req.BaseRef = strings.TrimSpace(req.BaseRef)
@@ -87,6 +87,11 @@ func subagentID(parent, key string) string { return subagentid.Derive(parent, ke
 func subagentFingerprint(req SubagentRequest) (string, error) {
 	// Invocation identity is outside the request semantics, allowing retries from another tool call.
 	req.Caller = SubagentCaller{}
+	// A shared delegation hashes in its pre-isolation shape, so retries of delegations admitted before the
+	// upgrade replay their original result; only worktree requests carry the isolation fields.
+	if req.Isolation == subagentIsolationShared {
+		req.Isolation = ""
+	}
 	payload, err := json.Marshal(struct {
 		SubagentRequest
 		Timeout int64

@@ -210,7 +210,10 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	origin, err := n.sessionPromptOrigin(ctx, scope, req.ToolID, sessionID, input.NotifyOnComplete)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		origin, err = n.sessionPromptReplayOrigin(ctx, scope, workspaceID, sessionID, messageID, idempotencyKey, err)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	deliveryCtx, cancelDelivery := context.WithCancel(ctx)
 	defer cancelDelivery()

@@ -28,6 +28,9 @@ type ReplyWatchService interface {
 	AwaitingReplySignals(context.Context, string, time.Time) ([]WorkSignal, error)
 }
 
+// replyNoText stands in for an empty answer in the provider-bound wake; the typed summary stays empty.
+const replyNoText = "(no reply text)"
+
 type replyWatchService struct {
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc
@@ -200,7 +203,7 @@ func (s *replyWatchService) fire(ctx context.Context, w store.ReplyWatch, outcom
 		text = "The message may not have been delivered; check the target session."
 	}
 	if strings.TrimSpace(text) == "" {
-		text = "(no reply text)"
+		text = replyNoText
 	}
 	runes := []rune(text)
 	truncated := len(runes) > 12000

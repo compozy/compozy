@@ -103,6 +103,9 @@ func (s *subagentService) persistTerminalWorktreeFacts(ctx context.Context, row,
 		)
 		if err == nil {
 			s.publish(ctx, settled)
+			if _, deferred := s.awaitingFacts.LoadAndDelete(row.ID); deferred {
+				s.dispatchSettledHook(settled)
+			}
 		}
 		return err
 	}

@@ -29,6 +29,31 @@ func (g *SessionRepo) ReplaySessionPromptAdmission(
 	return findPromptAdmissionReplay(ctx, g.db, req)
 }
 
+// LookupSessionPromptAdmission reads an admitted command by its idempotency key without classifying a
+// replay, so a caller can recover the frozen origin before re-applying new-send checks.
+func (g *SessionRepo) LookupSessionPromptAdmission(
+	ctx context.Context,
+	workspaceID, sessionID, idempotencyKey string,
+) (store.SessionPromptAdmission, bool, error) {
+	if err := g.checkReady(ctx, "look up session prompt admission"); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	row, err := sqlcgen.New(g.db).GetSessionPromptAdmissionByIdempotencyKey(
+		ctx,
+		sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
+			WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
+		},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.SessionPromptAdmission{}, false, nil
+	}
+	if err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	admission, err := sessionPromptAdmissionFromGenerated(&row)
+	return admission, err == nil, err
+}
+
 // ClaimSessionPromptAdmission reserves one exact external prompt command.
 func (g *SessionRepo) ClaimSessionPromptAdmission(
 	ctx context.Context,

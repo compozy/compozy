@@ -60,6 +60,17 @@ func replySenderWakeable(info *Info) bool {
 	}
 }
 
+// replySenderResumable applies Resume's own attachment guard before a reply tries to resume the sender:
+// a crashed provider whose runtime is dead stays stopped (the operator recovers it, for example with
+// Continue) and the watch stays fired, instead of retrying a resume that can never succeed.
+func (m *Manager) replySenderResumable(ctx context.Context, id string) bool {
+	meta, err := m.readMetaWithContext(ctx, id)
+	if err != nil {
+		return false
+	}
+	return m.rejectDeadSessionAttachment(ctx, id, &meta) == nil
+}
+
 // resumeSender resumes a stopped sender off the caller's path: delivery runs inside settle and queue
 // edges of the target, which must not wait for another session's provider to start. A resume that
 // succeeds redelivers through OnSessionResumed; one that fails leaves the watch fired for the retry

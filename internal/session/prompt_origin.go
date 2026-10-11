@@ -128,3 +128,29 @@ func (m *Manager) CurrentTurnEffectiveHop(ctx context.Context, sessionID string)
 		}
 	}
 }
+
+type promptAdmissionLookup interface {
+	LookupSessionPromptAdmission(context.Context, string, string, string) (store.SessionPromptAdmission, bool, error)
+}
+
+// PromptAdmissionReplayOrigin reports whether this message identity was already admitted for the target and
+// returns the origin frozen with it (nil for operator or pre-origin admissions). A retry of an admitted send
+// replays that receipt even when a new send from the caller would now be refused.
+func (m *Manager) PromptAdmissionReplayOrigin(
+	ctx context.Context,
+	workspaceID, sessionID, messageID, idempotencyKey string,
+) (bool, *acp.PromptOriginMeta, error) {
+	lookup, ok := m.promptAdmissionStore.(promptAdmissionLookup)
+	if !ok {
+		return false, nil, nil
+	}
+	admission, found, err := lookup.LookupSessionPromptAdmission(ctx, workspaceID, sessionID, idempotencyKey)
+	if err != nil || !found || admission.MessageID != messageID {
+		return false, nil, err
+	}
+	origin, err := decodePromptOrigin(admission.Origin)
+	if err != nil {
+		return false, nil, err
+	}
+	return true, origin, nil
+}

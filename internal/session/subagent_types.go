@@ -24,6 +24,7 @@ var (
 // Subagent modes.
 const (
 	SubagentIsolationWorktree    = "worktree"
+	subagentIsolationShared      = "shared"
 	subagentCapabilityDeniedCode = "capability_denied"
 	SubagentModeAsync            = "async"
 	SubagentModeWait             = "wait"
@@ -66,8 +67,10 @@ type SubagentPermissionNarrowing struct {
 
 // SubagentRequest is one delegation request.
 type SubagentRequest struct {
-	Isolation      string
-	BaseRef        string
+	// Isolation and BaseRef are omitted from the idempotency fingerprint when zero, so a shared
+	// delegation keeps the fingerprint it had before isolation existed (subagentFingerprint).
+	Isolation      string `json:",omitzero"`
+	BaseRef        string `json:",omitzero"`
 	Caller         SubagentCaller
 	Task           string
 	Title          string

@@ -106,3 +106,34 @@ func logSessionMessageSent(
 		mode,
 	)
 }
+
+type nativeSessionReplayReader interface {
+	PromptAdmissionReplayOrigin(context.Context, string, string, string, string) (bool, *acp.PromptOriginMeta, error)
+}
+
+// sessionPromptReplayOrigin lets a retry of an already admitted send reach its original receipt when a new
+// send would now be refused (self-target since the upgrade, or a hop raised by a later steer). Only the
+// sender that admitted the message may replay it; any other caller keeps the refusal, and a changed request
+// still fails the admission fingerprint.
+func (n *daemonNativeTools) sessionPromptReplayOrigin(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	workspaceID, target, messageID, idempotencyKey string,
+	refusal error,
+) (*acp.PromptOriginMeta, error) {
+	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
+		return nil, refusal
+	}
+	reader, ok := n.deps.Sessions.(nativeSessionReplayReader)
+	if !ok {
+		return nil, refusal
+	}
+	found, origin, err := reader.PromptAdmissionReplayOrigin(ctx, workspaceID, target, messageID, idempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	if !found || (origin != nil && origin.SessionID != scope.SessionID) {
+		return nil, refusal
+	}
+	return origin, nil
+}

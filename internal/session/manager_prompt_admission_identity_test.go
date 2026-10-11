@@ -287,3 +287,29 @@ func TestPromptOriginAdmissionIdentity(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a retry finds its admitted receipt and frozen origin by idempotency key and message identity.
+// Owner: session admission identity suite (review: replay before new-send refusals).
+func TestPromptAdmissionReplayOrigin(t *testing.T) {
+	t.Parallel()
+	h, _, _, sender, target, w := replyWatchFixture(t)
+	for _, tc := range []struct {
+		name, session, message, key string
+		found                       bool
+	}{
+		{"Should find the admitted message", target.ID, w.MessageID, "reply-key", true},
+		{"Should ignore a different message under the same key", target.ID, "other-message", "reply-key", false},
+		{"Should report no receipt for an unknown key", target.ID, "reply-message", "missing-key", false},
+		{"Should report no receipt on another session", sender.ID, "reply-message", "reply-key", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			found, origin, err := h.manager.PromptAdmissionReplayOrigin(
+				t.Context(), h.workspaceID, tc.session, tc.message, tc.key,
+			)
+			if err != nil || found != tc.found || origin != nil {
+				t.Fatalf("replay origin = %t %+v %v, want found=%t without origin", found, origin, err, tc.found)
+			}
+		})
+	}
+}

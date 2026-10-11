@@ -245,6 +245,11 @@ func TestReplyWatchRecovery(t *testing.T) {
 			!strings.Contains(entry.Text, "(no reply text)") {
 			t.Fatalf("wake = %+v, %v", entry, err)
 		}
+		var meta acp.PromptSyntheticMeta
+		if entry.SyntheticPrompt == nil || json.Unmarshal(entry.SyntheticPrompt.Metadata, &meta) != nil ||
+			meta.Summary != "" {
+			t.Fatalf("empty reply summary = %+v; want an empty typed summary", entry.SyntheticPrompt)
+		}
 		if err := service.Recover(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -1241,6 +1246,22 @@ func TestReplyWatchActivationFailure(t *testing.T) {
 			t.Fatalf("queue = %+v, %v", canceled, err)
 		}
 	})
+	t.Run("Should still cancel the entry when its origin cannot be decoded", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, _, target, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		entry := replyQueuedInput(t, h, db, target, w)
+		entry.Origin = []byte(`{"kind":`)
+		refused := errors.New("activation refused")
+		err := h.manager.cleanupInterruptingInputActivationFailure(t.Context(), &entry, refused)
+		if !errors.Is(err, refused) {
+			t.Fatalf("cleanup error = %v, want the activation cause kept", err)
+		}
+		canceled, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entry.ID)
+		if err != nil || canceled.Status != store.SessionInputQueueStatusCanceled {
+			t.Fatalf("queue = %+v, %v; want the undeliverable entry canceled", canceled, err)
+		}
+	})
 }
 
 type replyRefreshFailureStore struct{ *globaldb.GlobalDB }
@@ -1423,9 +1444,47 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 			{"archived", &Info{State: StateStopped, StopReason: store.StopTimeout, ArchivedAt: &archived}, false},
 			{"active", &Info{State: StateActive}, false},
 		} {
-			if got := replySenderWakeable(tc.info); got != tc.want {
-				t.Fatalf("%s = %t, want %t", tc.name, got, tc.want)
-			}
+			t.Run("Should classify "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				if got := replySenderWakeable(tc.info); got != tc.want {
+					t.Fatalf("%s = %t, want %t", tc.name, got, tc.want)
+				}
+			})
+		}
+	})
+	t.Run("Should leave a sender whose provider runtime died stopped instead of retrying resume", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, _, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, sender.MetaPath())
+		crashed := store.StopAgentCrashed
+		meta.StopReason = &crashed
+		meta.Failure = &store.SessionFailure{Kind: store.FailureProcess, Summary: "provider exited"}
+		if err := store.WriteSessionMeta(sender.MetaPath(), &meta); err != nil {
+			t.Fatal(err)
+		}
+		if h.manager.replySenderResumable(t.Context(), sender.ID) {
+			t.Fatal("a dead-runtime sender was reported resumable")
+		}
+		if _, err := db.FireReplyWatch(
+			t.Context(), w.ID, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted, Text: "per job"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Deliver(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, live := h.manager.Get(sender.ID); live {
+			t.Fatal("dead-runtime sender was resumed")
+		}
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchFired {
+			t.Fatalf("watch = %+v, %v; want fired until the operator recovers the sender", got, err)
 		}
 	})
 	for _, cause := range []StopCause{CauseInactivity, CauseUserRequested} {
@@ -1474,6 +1533,9 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 			}
 			if err := service.Deliver(t.Context(), w.ID); err != nil {
 				t.Fatal(err)
+			}
+			if !h.manager.replySenderResumable(t.Context(), sender.ID) {
+				t.Fatal("a cleanly stopped sender was reported not resumable")
 			}
 			if cause == CauseUserRequested {
 				if _, live := h.manager.Get(sender.ID); live {

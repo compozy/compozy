@@ -776,4 +776,40 @@ func TestPromptStreamSessionMessage(t *testing.T) {
 			t.Fatalf("states = %v", states)
 		}
 	})
+	t.Run("Should attribute a send made inside a provider-native subagent to its parent call", func(t *testing.T) {
+		t.Parallel()
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(
+			func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		)
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type: acp.EventTypeToolCall, TurnID: "turn", ToolCallID: "child-send",
+		}.WithTool(
+			"compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		).WithProviderToolMetadata("native-task", "compozy__session_prompt", ""))
+		found := false
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			var frame struct {
+				Type             string `json:"type"`
+				ProviderMetadata *struct {
+					Compozy struct {
+						ParentToolCallID string `json:"parentToolCallId"`
+					} `json:"compozy"`
+				} `json:"providerMetadata"`
+			}
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame) != nil ||
+				frame.Type != "data-compozy-session-message" {
+				continue
+			}
+			found = true
+			if frame.ProviderMetadata == nil || frame.ProviderMetadata.Compozy.ParentToolCallID != "native-task" {
+				t.Fatalf("session message frame = %+v, want parent attribution", frame)
+			}
+		}
+		if !found {
+			t.Fatal("no session message frame")
+		}
+	})
 }

@@ -39,6 +39,14 @@ func (b *uiMessageBuilder) appendSessionMessagePart(decoded *decodedStoredEvent)
 		return
 	}
 	b.appendDataPart("data-compozy-session-message", payload.ToolCallID, data)
+	// A send made inside a provider-native subagent stays attributed to it, like the call's tool part.
+	if parent := decoded.agent.ParentToolCallID(); parent != "" {
+		for index := range b.parts {
+			if b.parts[index].Type == "data-compozy-session-message" && b.parts[index].ID == payload.ToolCallID {
+				b.parts[index].ParentToolCallID = parent
+			}
+		}
+	}
 }
 
 func SessionMessagePartForStoredEvent(stored store.SessionEvent) (UISessionMessagePayload, bool) {

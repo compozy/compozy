@@ -99,6 +99,9 @@ type subagentService struct {
 	nativeKnown  map[string]map[string]bool
 	steerTurns   map[string]string
 	wakeRetries  map[string]bool
+	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR
+	// snapshot, which is observed outside the parent lock once the child stops.
+	awaitingFacts sync.Map
 }
 
 var _ SubagentService = (*subagentService)(nil)

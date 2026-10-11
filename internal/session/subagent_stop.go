@@ -219,7 +219,12 @@ func (s *subagentService) finalizeCanceled(ctx context.Context, row store.Sessio
 		WorkState: store.SubagentWorkStateResultAvailable, SettledAt: s.now().UTC(),
 	})
 	if err == nil && changed {
-		s.publishTerminal(ctx, settled)
+		if s.deferSettledHookForFacts(ctx, settled) {
+			s.publish(ctx, settled)
+			s.runtime.PublishParent(ctx, settled.ParentSessionID)
+		} else {
+			s.publishTerminal(ctx, settled)
+		}
 		s.logError(ctx, "cancel_parent_settle", s.settleParent(ctx, row.ParentSessionID))
 	}
 	return err

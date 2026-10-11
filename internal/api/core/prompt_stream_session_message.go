@@ -33,8 +33,12 @@ func (e *PromptStreamEncoder) emitSessionMessagePart(writer FlushWriter, event a
 	payload = payload.WithFallback(e.sessionMessageCards[payload.ToolCallID])
 	e.sessionMessageCards[payload.ToolCallID] = payload
 	return WriteSSE(writer, SSEMessage{Data: struct {
-		Type string                             `json:"type"`
-		ID   string                             `json:"id"`
-		Data transcript.UISessionMessagePayload `json:"data"`
-	}{Type: "data-compozy-session-message", ID: payload.ToolCallID, Data: payload}})
+		Type             string                             `json:"type"`
+		ID               string                             `json:"id"`
+		Data             transcript.UISessionMessagePayload `json:"data"`
+		ProviderMetadata *promptProviderMetadata            `json:"providerMetadata,omitempty"`
+	}{
+		Type: "data-compozy-session-message", ID: payload.ToolCallID, Data: payload,
+		ProviderMetadata: promptAttribution(event.ParentToolCallID()),
+	}})
 }

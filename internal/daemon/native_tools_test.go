@@ -13099,6 +13099,113 @@ func (m originNativeSessionManager) CurrentTurnEffectiveHop(context.Context, str
 	return m.hop, nil
 }
 
+type replayNativeSessionManager struct {
+	originNativeSessionManager
+	admitted bool
+	receipt  *acp.PromptOriginMeta
+}
+
+var _ nativeSessionReplayReader = replayNativeSessionManager{}
+
+func (m replayNativeSessionManager) PromptAdmissionReplayOrigin(
+	context.Context, string, string, string, string,
+) (bool, *acp.PromptOriginMeta, error) {
+	return m.admitted, acp.ClonePromptOriginMeta(m.receipt), nil
+}
+
+// Invariant: a retry of an admitted send reaches its original receipt even when a new send would now be
+// refused; only the sender that admitted it may replay. Owner: native session_prompt suite (review: replay).
+func TestNativeSessionPromptReplay(t *testing.T) {
+	t.Parallel()
+	own := &acp.PromptOriginMeta{
+		Kind:        acp.PromptOriginKindSession,
+		SessionID:   "sender",
+		WorkspaceID: "ws-origin",
+		Hop:         3,
+	}
+	other := &acp.PromptOriginMeta{
+		Kind:        acp.PromptOriginKindSession,
+		SessionID:   "other",
+		WorkspaceID: "ws-origin",
+		Hop:         3,
+	}
+	for _, tc := range []struct {
+		name     string
+		target   string
+		hop      int
+		admitted bool
+		receipt  *acp.PromptOriginMeta
+		code     toolspkg.ErrorCode
+		wantHop  int
+	}{
+		{"Should replay a pre-upgrade self-send receipt", "sender", 0, true, nil, "", 0},
+		{"Should replay an admitted send after a steer raised the hop", "target", 8, true, own, "", 3},
+		{"Should keep refusing a new send at the hop limit", "target", 8, false, nil,
+			toolspkg.ErrorCodeSessionMessageHopLimit, 0},
+		{"Should not replay another sender's receipt", "target", 8, true, other,
+			toolspkg.ErrorCodeSessionMessageHopLimit, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got *session.SendPromptOpts
+			base := nativeTestSessionManager("ws-origin")
+			base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, Name: "Sender title", WorkspaceID: "ws-origin",
+					AgentName: "coder", State: session.StateActive,
+				}, nil
+			}
+			base.SendPromptFn = func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				got = &opts
+				return session.SendPromptResult{Status: "accepted", MessageID: opts.MessageID, Replayed: true}, nil
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions: replayNativeSessionManager{
+						originNativeSessionManager: originNativeSessionManager{SessionManager: base, hop: tc.hop},
+						admitted:                   tc.admitted,
+						receipt:                    tc.receipt,
+					},
+					Workspaces: nativeTestWorkspaceService(t),
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input, err := json.Marshal(map[string]any{
+				"workspace": "ws-origin", "session_id": tc.target, "message": "Q?",
+				"message_id": "msg", "idempotency_key": "key",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sender", WorkspaceID: "ws-origin", AgentName: "coder"},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input},
+			)
+			if tc.code != "" {
+				requireToolCode(t, err, tc.code)
+				if got != nil {
+					t.Fatal("refused send reached admission")
+				}
+				return
+			}
+			if err != nil || got == nil {
+				t.Fatalf("replay = %v, %v", got, err)
+			}
+			if tc.receipt == nil {
+				if got.Origin != nil {
+					t.Fatalf("pre-origin receipt replayed with origin %+v", got.Origin)
+				}
+				return
+			}
+			if got.Origin == nil || got.Origin.SessionID != "sender" || got.Origin.Hop != tc.wantHop {
+				t.Fatalf("replay origin = %+v, want the frozen receipt origin", got.Origin)
+			}
+		})
+	}
+}
+
 // UT-008 UT-009 UT-010 UT-011: trusted scope owns attribution, self-target refusal, and hop limits.
 func TestNativeSessionPromptOrigin(t *testing.T) {
 	t.Parallel()

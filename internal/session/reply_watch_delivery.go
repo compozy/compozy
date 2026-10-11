@@ -44,7 +44,7 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 		WakeEventID:      id,
 		ChildSessionID:   w.TargetSessionID,
 		Reason:           w.Outcome,
-		Summary:          w.ReplyText,
+		Summary:          replySummary(w.ReplyText),
 		Hop:              w.Hop,
 		ChildWorkspaceID: w.TargetWorkspaceID,
 		ChildAgentName:   agent,
@@ -114,10 +114,19 @@ func (s *replyWatchService) replySenderReady(ctx context.Context, w store.ReplyW
 	if _, live := s.manager.Get(w.SenderSessionID); live && sender.State == StateActive {
 		return sender, true, nil
 	}
-	if replySenderWakeable(sender) {
+	if replySenderWakeable(sender) && s.manager.replySenderResumable(ctx, w.SenderSessionID) {
 		s.resumeSender(ctx, w.ID, w.SenderSessionID)
 		return nil, false, nil
 	}
 	s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", w.ID, "reason", "sender_not_live")
 	return nil, false, nil
+}
+
+// replySummary is the reply body the Web card renders: empty for an empty answer, so the card shows its
+// own empty state instead of the provider-facing placeholder.
+func replySummary(text string) string {
+	if text == replyNoText {
+		return ""
+	}
+	return text
 }

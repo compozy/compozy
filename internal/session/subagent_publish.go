@@ -97,10 +97,30 @@ func (s *subagentService) publish(_ context.Context, row store.SessionSubagent) 
 func (s *subagentService) publishTerminal(ctx context.Context, row store.SessionSubagent) {
 	s.publish(ctx, row)
 	s.runtime.PublishParent(ctx, row.ParentSessionID)
+	s.dispatchSettledHook(row)
+}
+
+func (s *subagentService) dispatchSettledHook(row store.SessionSubagent) {
 	if s.settled != nil {
 		s.launch(func() {
 			// The hook pool owns execution timeouts; dispatch return must not cancel queued hooks.
 			s.logError(s.ctx, "settled_hook", s.settled.DispatchSubagentSettled(s.ctx, row))
 		})
 	}
+}
+
+// deferSettledHookForFacts holds the once-only settled hook of a canceled isolated subagent until its
+// final worktree facts are persisted (persistTerminalWorktreeFacts). It defers only while the child is still
+// live: the cancel's stop then settles it and the settle edge observes the facts outside the parent lock.
+func (s *subagentService) deferSettledHookForFacts(ctx context.Context, row store.SessionSubagent) bool {
+	if s.worktrees == nil || row.Isolation != SubagentIsolationWorktree || row.ChildSessionID == nil ||
+		row.WorktreeState().ID == "" || row.WorktreeState().Facts.PRStatus != "" {
+		return false
+	}
+	snap, err := s.runtime.Snapshot(ctx, *row.ChildSessionID)
+	if err != nil || snap.Info == nil || snap.Info.State == StateStopped {
+		return false
+	}
+	s.awaitingFacts.Store(row.ID, struct{}{})
+	return true
 }
