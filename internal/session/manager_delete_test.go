@@ -926,7 +926,10 @@ func TestManagerDelete(t *testing.T) {
 							}
 						}
 
-						managerOptions = append(managerOptions, WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
+						managerOptions = append(
+							managerOptions,
+							WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))),
+						)
 						recoveryManager := newManagerWithHarness(t, h, managerOptions...)
 						shutdownQueryStoreRuntimeForTest(t, recoveryManager)
 						_, statErr := os.Stat(session.SessionDir())

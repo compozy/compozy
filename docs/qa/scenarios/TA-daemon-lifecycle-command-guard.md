@@ -34,3 +34,5 @@ src: .compozy/tasks/hermes-comparison/_user_stories.md#us-005-schedules-recover-
 
 
 QA impact 2026-10-10 (verification pending): On native Windows as a non-elevated user, start/stop/start the daemon normally. Confirm update.lock contention still rejects a second owner and release permits acquisition. Create session/gateway directories beneath the user home without granting write access to C:\ or C:\Users. With persisted sessions, status/listing must not resolve agent/skill resources to obtain workspace roots. Owning suites: TestUpdateLock, TestWindowsDirectoryCreationThroughReadOnlyAncestor, TestManagerQueriesUseWorkspaceRegistration.
+
+Automated retest 2026-10-10: The native Windows regression step in [CI](https://github.com/compozy/compozy/actions/runs/38112607881/job/114392299915) passed at `3cabffd82`: concurrent update-lock exclusion, stale owner replacement, creation below a write-denied ancestor with a writable child, and stopped-session list/status projections without runtime workspace resolution. These are targeted native regressions; the historical full lifecycle walk remains separate.
