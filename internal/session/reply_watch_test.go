@@ -1487,6 +1487,34 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 			t.Fatalf("watch = %+v, %v; want fired until the operator recovers the sender", got, err)
 		}
 	})
+	t.Run("Should not resume a sender once the service is closed for shutdown", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, _, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		if err := h.manager.RequestStopWithCause(t.Context(), sender.ID, CauseShutdown, ""); err != nil {
+			t.Fatal(err)
+		}
+		if outcome, err := h.manager.AwaitStopped(t.Context(), sender.ID); err != nil || !outcome.Verified {
+			t.Fatalf("sender stop = %#v, %v", outcome, err)
+		}
+		if err := h.manager.QuiesceReplyWatches(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.FireReplyWatch(
+			t.Context(), w.ID, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted, Text: "per job"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Deliver(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, live := h.manager.Get(sender.ID); live {
+			t.Fatal("a reply resumed a sender during shutdown")
+		}
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchFired {
+			t.Fatalf("watch = %+v, %v; want fired for the next boot", got, err)
+		}
+	})
 	for _, cause := range []StopCause{CauseInactivity, CauseUserRequested} {
 		t.Run(fmt.Sprintf("Should handle a sender stopped by %s", cause), func(t *testing.T) {
 			t.Parallel()

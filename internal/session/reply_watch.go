@@ -39,8 +39,10 @@ type replyWatchService struct {
 	store       store.ReplyWatchStore
 	manager     *Manager
 	// resuming holds senders with a reply-driven resume in flight; wakes joins those resumes on Close.
+	// closed (under lifecycleMu) stops admitting new resumes once shutdown begins.
 	resuming sync.Map
 	wakes    sync.WaitGroup
+	closed   bool
 }
 
 var _ ReplyWatchService = (*replyWatchService)(nil)
@@ -361,6 +363,7 @@ func (s *replyWatchService) start(ctx context.Context) {
 
 func (s *replyWatchService) Close(ctx context.Context) error {
 	s.lifecycleMu.Lock()
+	s.closed = true
 	cancel, done := s.cancel, s.done
 	s.lifecycleMu.Unlock()
 	if cancel == nil {

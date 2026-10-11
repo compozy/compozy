@@ -4240,6 +4240,39 @@ func TestStopSessionsIgnoresNotFoundAndHandlesNilManager(t *testing.T) {
 	}
 }
 
+type quiescingSessionManager struct {
+	*fakeSessionManager
+	quiescedBeforeStop *bool
+}
+
+func (m quiescingSessionManager) QuiesceReplyWatches(context.Context) error {
+	*m.quiescedBeforeStop = len(m.stopWithCauseCalls) == 0
+	return nil
+}
+
+// Invariant: reply watches close before sessions stop, so a target settling during shutdown cannot resume
+// a sender being stopped. Owner: daemon shutdown suite.
+func TestShutdownRuntimeSessionsQuiescesReplyWatchesFirst(t *testing.T) {
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	quiesced := false
+	manager := quiescingSessionManager{
+		fakeSessionManager: &fakeSessionManager{infos: []*session.Info{{ID: "sess-a"}}},
+		quiescedBeforeStop: &quiesced,
+	}
+	var errs []error
+	d.shutdownRuntimeSessions(
+		testutil.Context(t),
+		&shutdownTargets{daemonRuntimeState: daemonRuntimeState{sessions: manager}},
+		&errs,
+	)
+	if len(errs) != 0 || !quiesced || len(manager.stopWithCauseCalls) != 1 {
+		t.Fatalf("errs=%v quiescedBeforeStop=%t stops=%d", errs, quiesced, len(manager.stopWithCauseCalls))
+	}
+}
+
 func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {

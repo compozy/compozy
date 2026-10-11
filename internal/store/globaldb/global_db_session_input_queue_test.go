@@ -2759,6 +2759,22 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 			t.Fatalf("input count = %d, %v", count, err)
 		}
 	})
+	t.Run("Should queue the wake in the current generation after a concurrent clear", func(t *testing.T) {
+		t.Parallel()
+		db, w, entry := replyHandoffFixture(t)
+		stale := entry.SessionGeneration
+		current, err := db.AdvanceSessionInputGeneration(t.Context(), entry.SessionID, entry.Now)
+		if err != nil || current == stale {
+			t.Fatalf("advance = %d, %v; want a new generation", current, err)
+		}
+		if changed, err := db.DeliverReplyWatch(t.Context(), w.ID, entry); err != nil || !changed {
+			t.Fatalf("delivery = %v, %v", changed, err)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(t.Context(), entry.SessionID, entry.Now)
+		if err != nil || !ok || claimed.ID != entry.ID || claimed.SessionGeneration != current {
+			t.Fatalf("claim = %+v, %v, %v; want the wake dispatchable in generation %d", claimed, ok, err, current)
+		}
+	})
 	t.Run("Should roll back a full queue and abandon an archived sender UT-049 UT-046", func(t *testing.T) {
 		t.Parallel()
 		db, w, entry := replyHandoffFixture(t)

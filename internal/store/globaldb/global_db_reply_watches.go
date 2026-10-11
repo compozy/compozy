@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
@@ -208,6 +209,13 @@ func (g *SessionRepo) DeliverReplyWatch(
 				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull("sender_gone")},
 			)
 		}
+		// The wake joins the sender's current queue generation, read inside this transaction: a clear that
+		// advanced it after the caller prepared the entry must not strand a delivered wake in a dead generation.
+		generation, err := q.GetSessionInputGeneration(ctx, entry.SessionID)
+		if err != nil {
+			return fmt.Errorf("store: read reply wake generation: %w", err)
+		}
+		entry.SessionGeneration = generation
 		count, err := countPendingSessionInputs(ctx, exec, entry.SessionID)
 		if err != nil {
 			return err

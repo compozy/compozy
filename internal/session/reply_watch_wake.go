@@ -74,12 +74,23 @@ func (m *Manager) replySenderResumable(ctx context.Context, id string) bool {
 // resumeSender resumes a stopped sender off the caller's path: delivery runs inside settle and queue
 // edges of the target, which must not wait for another session's provider to start. A resume that
 // succeeds redelivers through OnSessionResumed; one that fails leaves the watch fired for the retry
-// ticker. At most one resume per sender is in flight.
+// ticker. At most one resume per sender is in flight. Once the service is closed for shutdown no resume
+// is admitted: the watch stays fired and the next boot delivers it.
 func (s *replyWatchService) resumeSender(ctx context.Context, watchID, sender string) {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.closed {
+		s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", watchID, "reason", "shutting_down")
+		return
+	}
 	if _, loaded := s.resuming.LoadOrStore(sender, struct{}{}); loaded {
 		return
 	}
-	runCtx := s.backgroundContext()
+	runCtx := s.runCtx
+	if runCtx == nil {
+		runCtx = s.manager.fallbackLifecycleContext()
+	}
+	// Admitted under lifecycleMu, so Close cannot start waiting between the closed check and Go.
 	s.wakes.Go(func() {
 		defer s.resuming.Delete(sender)
 		if _, err := s.manager.Resume(runCtx, sender); err != nil {
@@ -93,11 +104,11 @@ func (s *replyWatchService) resumeSender(ctx context.Context, watchID, sender st
 	s.manager.logger.InfoContext(ctx, "reply_watch.delivery_deferred", "id", watchID, "reason", "sender_resuming")
 }
 
-func (s *replyWatchService) backgroundContext() context.Context {
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	if s.runCtx != nil {
-		return s.runCtx
+// QuiesceReplyWatches closes the reply-watch service before the daemon stops sessions, so a target
+// settling during shutdown cannot resume a sender that is being stopped. Shutdown closes it again.
+func (m *Manager) QuiesceReplyWatches(ctx context.Context) error {
+	if service := m.ReplyWatches(); service != nil {
+		return service.Close(ctx)
 	}
-	return s.manager.fallbackLifecycleContext()
+	return nil
 }
