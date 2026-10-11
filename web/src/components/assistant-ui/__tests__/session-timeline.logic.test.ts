@@ -592,6 +592,18 @@ describe("session timeline derivation", () => {
     expect(workRow.summary?.label).toBe("Read a.ts · Listed src");
   });
 
+  it("Should count one relative path read under two leading cd directories as two files", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "cd /repo/a && cat package.json" } }),
+      tool(2, { toolName: "Bash", args: { command: "cd /repo/b && cat package.json" } }),
+      tool(3, { toolName: "Read", args: { file_path: "/repo/a/package.json" } }),
+    ];
+
+    const workRow = deriveSessionRows(parts)[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary?.label).toBe("Read 2 files");
+  });
+
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
     const parts = Object.freeze([tool(1), tool(2), tool(3)]) as readonly SessionTimelinePart[];
     const snapshot = parts.map(part => ({ ...part }));

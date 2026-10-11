@@ -198,6 +198,30 @@ describe("EditContent", () => {
     expect(document.querySelector('[data-slot="diff-card-stat"]')).toHaveTextContent("+1−1");
   });
 
+  it("opens the collapsed diff just above its first change", () => {
+    const context = Array.from({ length: 20 }, (_, index) => `keep ${index + 1}`).join("\n");
+    render(
+      <EditContent
+        message={makeMessage({
+          toolName: "Edit",
+          toolInput: {
+            file_path: "/src/long.ts",
+            old_string: `${context}\nconst x = 1;`,
+            new_string: `${context}\nconst x = 2;`,
+          },
+        })}
+      />
+    );
+    // Twenty unchanged lines precede the change; the dozen shown still ends on it.
+    const shown = diffLines();
+    expect(shown).toHaveLength(12);
+    expect(shown.slice(-2)).toEqual([
+      ["del", "const x = 1;"],
+      ["add", "const x = 2;"],
+    ]);
+    expect(screen.getByRole("button", { name: "Show full diff (22 lines)" })).toBeInTheDocument();
+  });
+
   it("renders only new string when no old string", () => {
     render(
       <EditContent

@@ -60,9 +60,23 @@ const TRIM_SPECS: Record<string, CommandSpec> = {
   cut: { flags: /^$/u, valued: new Set(["-d", "-f", "-c", "-b"]) },
 };
 
+/** A leading `cd <dir> &&` (or `cd <dir>;`) the agent used to set its cwd. */
+const LEADING_CD = /^\s*cd\s+(?:"([^"]*)"|'([^']*)'|(\S+))\s*(?:&&|;)\s*/u;
+
 /** Drops a leading `cd <dir> &&` (or `cd <dir>;`) the agent used to set its cwd. */
 export function stripLeadingCd(command: string): string {
-  return command.replace(/^\s*cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*/u, "").trim();
+  return command.replace(LEADING_CD, "").trim();
+}
+
+/** The directory a leading `cd <dir> &&` moved into, or `null` without one. */
+export function leadingCdDir(command: string): string | null {
+  const match = LEADING_CD.exec(command);
+  return match ? (match[1] ?? match[2] ?? match[3] ?? null) : null;
+}
+
+/** A command's spec, never an inherited property: `constructor` is not a command. */
+function specFor(table: Record<string, CommandSpec>, command: string): CommandSpec | undefined {
+  return Object.hasOwn(table, command) ? table[command] : undefined;
 }
 
 /** Splits on whitespace while keeping single/double-quoted words whole. */
@@ -105,7 +119,7 @@ function singleOperand(tokens: readonly string[], spec: CommandSpec): string | n
 
 function intentForStage(tokens: readonly string[]): ShellIntent | null {
   const command = tokens[0] ?? "";
-  const readSpec = READ_SPECS[command];
+  const readSpec = specFor(READ_SPECS, command);
   if (readSpec) {
     const target = singleOperand(tokens, readSpec);
     return target ? { action: "read", target } : null;
@@ -116,12 +130,12 @@ function intentForStage(tokens: readonly string[]): ShellIntent | null {
     if (operands?.length !== 2 || !SED_PRINT_SCRIPT.test(operands[0]!)) return null;
     return { action: "read", target: operands[1]! };
   }
-  const listSpec = LIST_SPECS[command];
+  const listSpec = specFor(LIST_SPECS, command);
   if (listSpec) {
     const target = singleOperand(tokens, listSpec);
     return target ? { action: "list", target } : null;
   }
-  const searchSpec = SEARCH_SPECS[command];
+  const searchSpec = specFor(SEARCH_SPECS, command);
   if (searchSpec) {
     const operands = parseOperands(tokens, searchSpec);
     if (!operands) return null;
@@ -133,7 +147,7 @@ function intentForStage(tokens: readonly string[]): ShellIntent | null {
 }
 
 function isTrimStage(tokens: readonly string[]): boolean {
-  const spec = TRIM_SPECS[tokens[0] ?? ""];
+  const spec = specFor(TRIM_SPECS, tokens[0] ?? "");
   return spec !== undefined && parseOperands(tokens, spec)?.length === 0;
 }
 

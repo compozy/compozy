@@ -486,6 +486,23 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(document.querySelector('[data-slot="tool-call-row-output"]')).toHaveTextContent("ok");
   });
 
+  it("Should keep a title-named shell tool's description on the generic renderer", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Terminal",
+          toolInput: { command: "bun test", description: "Run the web suite" },
+          toolResult: { stdout: "ok" },
+        })}
+      />
+    );
+    fireEvent.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+
+    expect(document.querySelector('[data-slot="tool-call-row-input"]')).toHaveTextContent(
+      '"description": "Run the web suite"'
+    );
+  });
+
   it("Should render a title-named shell tool through the command view when it holds the payload", () => {
     render(
       <SessionToolCallRow

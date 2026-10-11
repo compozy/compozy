@@ -10,6 +10,7 @@
 
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { resolveToolDisplay } from "@/systems/session/lib/tool-display";
+import { leadingCdDir } from "@/systems/session/lib/tool-shell-intent";
 import {
   getToolLabel,
   isSubagentToolName,
@@ -96,14 +97,17 @@ export function classifyToolSummaryCategory(
 
 // Distinct-file identity for an edit/read entry: the full path its row names,
 // whether a tool argument or a shell read carried it (`Read a.ts` and `cat a.ts`
-// are one file). Entries with no file info count as one unit each so the total
-// never under-reports work.
+// are one file). A relative shell path resolves against its leading `cd`, so
+// `package.json` read in two directories stays two files. Entries with no file
+// info count as one unit each so the total never under-reports work.
 function entryFileKeys(part: SessionTimelineToolPart): string[] {
   const display = resolveToolDisplay({ toolName: part.toolName, args: part.args }, "past");
   const raw = display.targetKind === "file" ? display.fullTarget : undefined;
   if (typeof raw !== "string") return [];
   const trimmed = raw.trim();
-  return trimmed.length > 0 ? [trimmed] : [];
+  if (trimmed.length === 0) return [];
+  const cwd = typeof part.args.command === "string" ? leadingCdDir(part.args.command) : null;
+  return [cwd && !trimmed.startsWith("/") ? `${cwd.replace(/\/+$/u, "")}/${trimmed}` : trimmed];
 }
 
 function pluralNoun(count: number, singular: string): string {

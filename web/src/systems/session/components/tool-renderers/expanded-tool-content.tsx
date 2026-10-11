@@ -15,7 +15,7 @@ const TerminalContent = lazy(async () => {
 });
 
 /** Input and result fields the Bash view renders; anything else needs the generic view. */
-const BASH_INPUT_FIELDS = new Set(["command", "description"]);
+const BASH_INPUT_FIELDS = new Set(["command"]);
 const BASH_RESULT_FIELDS = new Set(["stdout", "stderr", "content", "error"]);
 
 function isPresent(value: unknown): boolean {

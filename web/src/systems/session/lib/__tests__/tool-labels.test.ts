@@ -296,6 +296,9 @@ describe("inferShellIntent", () => {
     expect(inferShellIntent("cat a.ts | uniq - b.ts")).toBeNull();
     // An option whose value could be mistaken for the pattern keeps the raw command.
     expect(inferShellIntent("rg -g '*.ts' TODO web")).toBeNull();
+    // An inherited property name is not a command and never throws.
+    expect(inferShellIntent("constructor --help")).toBeNull();
+    expect(inferShellIntent("cat a.ts | toString -x")).toBeNull();
   });
 
   it("Should parse each command's options so the object is the real file or pattern", () => {

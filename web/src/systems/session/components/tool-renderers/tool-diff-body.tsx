@@ -6,6 +6,18 @@ import type { AlignedDiffLine } from "../../lib/tool-diff-stat";
 
 /** Lines a collapsed diff shows before "Show full diff". */
 const COLLAPSED_LINES = 12;
+/** Unchanged lines a collapsed diff keeps above its first change. */
+const LEADING_CONTEXT = 3;
+
+/** The collapsed window: it opens just above the first change so the change shows. */
+function collapsedWindow(lines: readonly AlignedDiffLine[]): readonly AlignedDiffLine[] {
+  const firstChange = lines.findIndex(line => line.kind !== "context");
+  const start = Math.min(
+    Math.max(0, firstChange - LEADING_CONTEXT),
+    Math.max(0, lines.length - COLLAPSED_LINES)
+  );
+  return lines.slice(start, start + COLLAPSED_LINES);
+}
 
 function lineId(line: AlignedDiffLine): string {
   return `${line.kind}:${line.oldIndex ?? ""}:${line.newIndex ?? ""}`;
@@ -13,7 +25,8 @@ function lineId(line: AlignedDiffLine): string {
 
 /**
  * A file change as a diff card: path and colored `+a −d` header, the aligned
- * lines collapsed to the first dozen with a control that opens the rest.
+ * lines collapsed to a dozen around the first change with a control that opens
+ * the rest.
  */
 export function ToolDiffBody({
   path,
@@ -25,7 +38,7 @@ export function ToolDiffBody({
   testId: string;
 }) {
   const [showFull, setShowFull] = useState(false);
-  const visible = showFull ? lines : lines.slice(0, COLLAPSED_LINES);
+  const visible = showFull ? lines : collapsedWindow(lines);
   const hidden = lines.length - visible.length;
   const cardLines: DiffCardLine[] = visible.map(line => ({
     id: lineId(line),

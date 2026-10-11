@@ -44,6 +44,18 @@ describe("ThinkingBlock", () => {
     expect(screen.getByTestId("thinking-content")).toHaveTextContent("Read the config first.");
   });
 
+  it("Should keep a still-open code fence out of the live line", () => {
+    render(
+      <ThinkingBlock
+        thinking={"Checking the parser:\n```ts\nconst token = next("}
+        thinkingComplete={false}
+      />
+    );
+    const trigger = screen.getByTestId("thinking-trigger");
+    expect(trigger).toHaveTextContent("Checking the parser:");
+    expect(trigger).not.toHaveTextContent("const token");
+  });
+
   it("Should open live reasoning inside a disclosed work group", () => {
     render(
       <ThinkingBlock thinking="Reasoning in progress." thinkingComplete={false} defaultOpen />

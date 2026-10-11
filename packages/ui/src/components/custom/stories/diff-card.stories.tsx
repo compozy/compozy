@@ -55,6 +55,10 @@ export const WrittenFile: Story = {
   },
 };
 
+export const Headerless: Story = {
+  args: { lines: EDIT_LINES },
+};
+
 export const WithFooter: Story = {
   args: {
     path: "web/src/styles.css",

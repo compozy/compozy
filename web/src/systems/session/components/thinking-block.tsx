@@ -21,10 +21,10 @@ export interface ThinkingBlockProps {
   onRevealRelease?: () => void;
 }
 
-/** A paragraph as one plain line: code fences dropped, markdown marks stripped. */
+/** A paragraph as one plain line: code fences (even one still streaming open) dropped, markdown marks stripped. */
 function plainParagraph(paragraph: string): string {
   return paragraph
-    .replace(/```[\s\S]*?```/gu, " ")
+    .replace(/```[\s\S]*?(?:```|$)/gu, " ")
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gmu, "")
     .replace(/[*_~`]/gu, "")
     .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
