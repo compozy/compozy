@@ -235,7 +235,7 @@ function BellFixture() {
               activeOverlay="bell"
               onOverlayOpenChange={fn()}
               attention={ATTENTION}
-              updateAvailable={false}
+              update={{ state: "hidden" }}
             />
           </DesktopShell>
         </AgentCreateHostProvider>

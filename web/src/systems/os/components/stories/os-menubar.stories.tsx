@@ -4,10 +4,11 @@ import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
 import type { SettingsUpdateStatus } from "@/systems/settings";
-import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
+import { settingsUpdateIndicatorState } from "@/systems/settings";
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
+  settingsUpdateRolledBackFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks";
 import type {
@@ -31,6 +32,7 @@ import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 import { DesktopMenubar } from "../desktop-menubar";
+import type { MenubarUpdateModel } from "../menubar/menubar-update-indicator";
 import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
 import { OsMenuBar } from "../os-menubar";
 import { OsHydrationStatus } from "../os-hydration-status";
@@ -103,7 +105,7 @@ function MenubarFixture({
   toggleLocked,
   worktreeSelection,
   listing = MENUBAR_WORKTREE_LISTING,
-  updateAvailable = false,
+  update = { state: "hidden" },
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -113,7 +115,7 @@ function MenubarFixture({
   toggleLocked?: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
   listing?: WorktreesResponse;
-  updateAvailable?: boolean;
+  update?: MenubarUpdateModel;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -140,7 +142,7 @@ function MenubarFixture({
                   setActive(current => (open ? id : current === id ? null : current))
                 }
                 attention={ATTENTION}
-                updateAvailable={updateAvailable}
+                update={update}
                 worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
                 userHomeDir="/Users/ada"
                 worktreeSelection={worktreeSelection}
@@ -362,7 +364,11 @@ export const DegradedSync: Story = {
 function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
   return {
     args: { workspace: { name: "compozy", monogram: "CO" } },
-    render: () => <MenubarFixture updateAvailable={settingsUpdateIndicatorAvailable(snapshot)} />,
+    render: () => (
+      <MenubarFixture
+        update={{ state: settingsUpdateIndicatorState(snapshot, false), onUpdate: fn() }}
+      />
+    ),
   };
 }
 
@@ -377,8 +383,8 @@ function FocusUpdateIndicatorSetup() {
 }
 
 /**
- * An update is offered: a filled accent control joins the trailing cluster
- * before the approvals bell. No count, no dropdown — detail lives in Settings.
+ * An update is offered: an accent "Update" pill joins the trailing cluster before
+ * the approvals bell. One click updates CompozyOS and restarts it in place.
  */
 export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
   settingsUpdateBothAvailableFixture
@@ -389,7 +395,7 @@ export const UpdateIndicatorFocused: Story = {
   ...updateIndicatorStory(settingsUpdateBothAvailableFixture),
   render: () => (
     <>
-      <MenubarFixture updateAvailable />
+      <MenubarFixture update={{ state: "available", onUpdate: fn() }} />
       <FocusUpdateIndicatorSetup />
     </>
   ),
@@ -398,8 +404,8 @@ export const UpdateIndicatorFocused: Story = {
 /** The calm default: nothing is offered, so the indicator is absent from the DOM. */
 export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);
 
-/**
- * An operation is live. The offer is over, so the indicator disappears and stays
- * gone through applying, staged, and failed — progress belongs to Settings alone.
- */
-export const UpdateIndicatorSuppressed: Story = updateIndicatorStory(settingsUpdateApplyingFixture);
+/** An operation is live: the pill holds a spinner until the app restarts updated. */
+export const UpdateIndicatorUpdating: Story = updateIndicatorStory(settingsUpdateApplyingFixture);
+
+/** The last update failed: the pill turns danger and opens Settings for the detail. */
+export const UpdateIndicatorFailed: Story = updateIndicatorStory(settingsUpdateRolledBackFixture);

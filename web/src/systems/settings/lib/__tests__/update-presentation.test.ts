@@ -14,10 +14,10 @@ import {
 } from "../../mocks/settings-update-fixture";
 import {
   settingsUpdateApplicableTargets,
-  settingsUpdateIndicatorAvailable,
   settingsUpdateTracks,
   settingsUpdateView,
 } from "../update-presentation";
+import { settingsProductUpdate, settingsUpdateIndicatorState } from "../update-product";
 import { updatePhasePercent, updateUiPhase } from "../update-phase-map";
 
 const snapshot = settingsUpdateBothAvailableFixture;
@@ -252,23 +252,148 @@ describe("settingsUpdateApplicableTargets", () => {
   });
 });
 
-describe("settingsUpdateIndicatorAvailable", () => {
-  it("Should report available when either track offers an update and nothing is running", () => {
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateBothAvailableFixture)).toBe(true);
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateNoAppFixture)).toBe(true);
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateManagedFixture)).toBe(true);
+describe("settingsProductUpdate", () => {
+  it("Should fold both tracks into one offer with one version and one target set", () => {
+    const product = settingsProductUpdate(settingsUpdateBothAvailableFixture);
+
+    expect(product).toMatchObject({
+      status: "available",
+      statusLabel: "Update available",
+      currentVersion: "0.5.0",
+      latestVersion: "0.5.1",
+      targets: ["runtime", "app"],
+      updating: false,
+      description: null,
+      recommendation: null,
+    });
   });
 
-  it("Should suppress the indicator while an operation is live, whatever the tracks report", () => {
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateApplyingFixture)).toBe(false);
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateStagedFixture)).toBe(false);
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateBlockedFixture)).toBe(false);
+  it("Should offer the one eligible part without naming it", () => {
+    expect(settingsProductUpdate(settingsUpdateAppAvailableFixture)).toMatchObject({
+      status: "available",
+      currentVersion: "0.5.1",
+      latestVersion: null,
+      targets: ["app"],
+    });
+    expect(settingsProductUpdate(settingsUpdateRuntimeAvailableFixture).targets).toEqual([
+      "runtime",
+    ]);
   });
 
-  it("Should stay hidden for up-to-date, failed, and absent snapshots", () => {
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateStatusFixture)).toBe(false);
-    expect(settingsUpdateIndicatorAvailable(settingsUpdateRolledBackFixture)).toBe(false);
-    expect(settingsUpdateIndicatorAvailable(undefined)).toBe(false);
+  it("Should hand a managed install the upgrade command instead of a target set", () => {
+    const product = settingsProductUpdate(settingsUpdateManagedFixture);
+
+    expect(product.targets).toBeNull();
+    expect(product.recommendation).toBe("brew upgrade compozy");
+    expect(product.description).toBe("Update with your package manager to get the new version.");
+  });
+
+  it("Should keep the manual command when another part can update itself", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateManagedFixture,
+      app: settingsUpdateBothAvailableFixture.app,
+    });
+
+    expect(product.targets).toEqual(["app"]);
+    expect(product.recommendation).toBe("brew upgrade compozy");
+    expect(product.description).toBe("Update installs what it can here; do the rest by hand with:");
+  });
+
+  it("Should keep the manual command for an install this surface cannot update", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateNoAppFixture,
+      aggregate: "up-to-date",
+      runtime: {
+        ...settingsUpdateNoAppFixture.runtime,
+        status: "unsupported",
+        recommendation: "Download the latest release from GitHub.",
+      },
+    });
+
+    expect(product.targets).toBeNull();
+    expect(product.recommendation).toBe("Download the latest release from GitHub.");
+    expect(product.description).toBe("Update this install manually with:");
+  });
+
+  it("Should not repeat a self-updating runtime's command beside the Update button", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateBothAvailableFixture,
+      runtime: {
+        ...settingsUpdateBothAvailableFixture.runtime,
+        recommendation: "Run `compozy update`.",
+      },
+    });
+
+    expect(product.targets).toEqual(["runtime", "app"]);
+    expect(product.recommendation).toBeNull();
+    expect(product.description).toBeNull();
+  });
+
+  it("Should not claim nothing changed when a failure names no restored version", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateRolledBackFixture,
+      runtime: { ...settingsUpdateRolledBackFixture.runtime, restored_version: "" },
+    });
+
+    expect(product.description).toBe("The update didn't finish.");
+  });
+
+  it("Should report one live update with its measured percent", () => {
+    expect(settingsProductUpdate(settingsUpdateApplyingFixture)).toMatchObject({
+      updating: true,
+      percent: 62,
+      phase: "install",
+      targets: null,
+    });
+  });
+
+  it("Should treat another holder's operation as an update already running", () => {
+    expect(settingsProductUpdate(settingsUpdateBlockedFixture)).toMatchObject({
+      status: "blocked",
+      updating: true,
+      description: "An update is already running from the command line.",
+    });
+  });
+
+  it("Should describe a staged update as finishing on next launch and allow cancel", () => {
+    expect(settingsProductUpdate(settingsUpdateStagedFixture)).toMatchObject({
+      status: "staged",
+      updating: false,
+      canCancel: true,
+      description: "The update finishes the next time you open the CompozyOS app.",
+    });
+  });
+
+  it("Should report a failed update with the restored version and its error", () => {
+    expect(settingsProductUpdate(settingsUpdateRolledBackFixture)).toMatchObject({
+      status: "failed",
+      targets: null,
+      description: "The update didn't finish, so CompozyOS went back to 0.5.0.",
+      lastError: "health check failed after swap",
+    });
+  });
+});
+
+describe("settingsUpdateIndicatorState", () => {
+  it("Should offer an update only while one is available and nothing runs", () => {
+    expect(settingsUpdateIndicatorState(settingsUpdateBothAvailableFixture, false)).toBe(
+      "available"
+    );
+    expect(settingsUpdateIndicatorState(settingsUpdateManagedFixture, false)).toBe("available");
+    expect(settingsUpdateIndicatorState(settingsUpdateStatusFixture, false)).toBe("hidden");
+    expect(settingsUpdateIndicatorState(settingsUpdateStagedFixture, false)).toBe("hidden");
+    expect(settingsUpdateIndicatorState(undefined, false)).toBe("hidden");
+  });
+
+  it("Should show live work from the click until the operation settles", () => {
+    // The request is in flight before the daemon journals anything.
+    expect(settingsUpdateIndicatorState(settingsUpdateBothAvailableFixture, true)).toBe("updating");
+    expect(settingsUpdateIndicatorState(settingsUpdateApplyingFixture, false)).toBe("updating");
+    expect(settingsUpdateIndicatorState(settingsUpdateBlockedFixture, false)).toBe("updating");
+  });
+
+  it("Should surface a failed update instead of hiding it", () => {
+    expect(settingsUpdateIndicatorState(settingsUpdateRolledBackFixture, false)).toBe("failed");
   });
 });
 

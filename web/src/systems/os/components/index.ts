@@ -6,6 +6,7 @@ export { OsHydrationStatus, type OsHydrationStatusProps } from "./os-hydration-s
 export {
   MenubarUpdateIndicator,
   type MenubarUpdateIndicatorProps,
+  type MenubarUpdateModel,
 } from "./menubar/menubar-update-indicator";
 export { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "./os-workspaces-overview";
 export { DesktopPager, type DesktopPagerProps } from "./desktop-pager";

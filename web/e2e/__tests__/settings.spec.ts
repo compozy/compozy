@@ -631,11 +631,11 @@ test("operator routes a background role, persists it across reload, and keeps bu
 });
 
 /**
- * E2E-020 — applying all eligible tracks from a plain browser: the apply call is
- * issued with the ordered target set, progress renders from the polled projection, and the terminal
+ * E2E-020 — one-click update from a plain browser: the single Update action issues
+ * every eligible target in one ordered request, progress renders from the polled projection, and the terminal
  * outcome is read back rather than assumed (US-029 EC-2/EC-5).
  */
-test("browser operator applies all eligible updates and reads staged progress and terminal truth from the daemon", async ({
+test("browser operator updates CompozyOS in one click and reads progress and terminal truth from the daemon", async ({
   appPage,
   runtime,
 }) => {
@@ -673,19 +673,17 @@ test("browser operator applies all eligible updates and reads staged progress an
   await settingsUI.general.updateApply().click();
   await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
 
-  // Progress is the daemon's named phase, not an invented spinner label.
-  await expect(settingsUI.general.updateProgress("runtime")).toHaveAttribute(
-    "data-phase",
-    "install",
-    {
-      timeout: 20_000,
-    }
-  );
+  // The visible label is one plain "Updating"; the daemon's phase rides on data-phase.
+  await expect(settingsUI.general.updateProgress()).toHaveAttribute("data-phase", "install", {
+    timeout: 20_000,
+  });
   await expect(settingsUI.general.updateApply()).toHaveCount(0);
 
   // Terminal truth arrives through the polled read, including rollback.
   updatePayload = updateFixtures.rolledBack;
-  await expect(settingsUI.general.updateRollback).toContainText("0.5.0", { timeout: 20_000 });
+  await expect(settingsUI.general.updateStatus).toContainText("went back to 0.5.0", {
+    timeout: 20_000,
+  });
   await expect(settingsUI.general.updateLastError).toContainText("health check failed after swap");
 });
 

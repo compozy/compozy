@@ -1,4 +1,4 @@
-import { settingsUpdateTracks, settingsUpdateView } from "@/systems/settings";
+import { settingsProductUpdate, settingsUpdateView } from "@/systems/settings";
 import type { SettingsUpdateStatus } from "@/systems/settings";
 
 interface GeneralUpdateAttentionInput {
@@ -10,14 +10,13 @@ interface GeneralUpdateAttentionInput {
 
 /**
  * True when the Updates group carries something to act on — a failed check, a
- * failed refresh, or a track that is not settled — so the page can lead with it.
+ * failed refresh, or an update that is not settled — so the page can lead with it.
  */
 export function generalUpdateNeedsAttention(props: GeneralUpdateAttentionInput): boolean {
   const view = settingsUpdateView(props);
   if (view.kind === "error") return true;
   if (view.kind !== "snapshot") return false;
   if (view.refreshError) return true;
-  return settingsUpdateTracks(view.snapshot).some(
-    track => track.tone !== "success" && track.tone !== "neutral"
-  );
+  const { tone } = settingsProductUpdate(view.snapshot);
+  return tone !== "success" && tone !== "neutral";
 }

@@ -14,7 +14,10 @@ import { primaryShortcutModifier, shortcutAriaKeys } from "../lib/window-manager
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
-import { MenubarUpdateIndicator } from "./menubar/menubar-update-indicator";
+import {
+  MenubarUpdateIndicator,
+  type MenubarUpdateModel,
+} from "./menubar/menubar-update-indicator";
 import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
@@ -53,8 +56,8 @@ export interface DesktopMenubarProps {
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
-  /** Whether either update track currently offers an install. */
-  updateAvailable: boolean;
+  /** The one-click product update; `hidden` keeps the control out of the DOM. */
+  update: MenubarUpdateModel;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
   userHomeDir?: string;
@@ -120,7 +123,7 @@ export function DesktopMenubar({
   activeOverlay,
   onOverlayOpenChange,
   attention,
-  updateAvailable,
+  update,
   worktreesByWorkspace,
   userHomeDir,
   worktreeSelection,
@@ -169,7 +172,11 @@ export function DesktopMenubar({
       // No workspace means no layout stream — there is nothing to be out of sync with.
       status={<MenubarLayoutStatus unbound={layoutUnbound} />}
       updateIndicator={
-        <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
+        <MenubarUpdateIndicator
+          onOpenUpdates={actions.openUpdates}
+          onUpdate={update.onUpdate}
+          state={update.state}
+        />
       }
       notifications={attention.notificationCount}
       onCommandClick={() => onRunCommand("palette.open")}

@@ -1,37 +1,47 @@
 ---
 id: APP-web-update-indicator
 area: APP
-title: Notice an available update from the menubar and land on the Updates section
+title: Update CompozyOS in one click from the menubar
 persona: Bruno
 journey: J-desktop-update-moment
-expected: A discreet menubar indicator exists only while the daemon reports an available update and no operation is running; it carries no count and opens no menu, disappears through applying, staged, and failed, and activating it by pointer or keyboard opens Settings → General with the Updates section in view.
-entry_points: product menubar in Chrome or the app; keyboard focus with Enter or Space; GET /api/settings/update
-qa_status: pass
+expected: An "Update" pill exists in the menubar only while there is something to say. One activation by pointer or keyboard updates CompozyOS in place with no detour through Settings. The pill holds a disabled "Updating…" spinner while the operation runs, and the app comes back on the new version by itself (the desktop app relaunches; a browser tab reloads). A failed update turns the pill into "Update failed", which opens Settings → General. A package-manager install opens Settings, where the upgrade command lives.
+entry_points: product menubar in Chrome or the app; keyboard focus with Enter or Space; GET /api/settings/update; POST /api/settings/update/apply
+qa_status: untested
 bug_ids:
 fix_status: 
 retest_status: 
 fix_commits: 
-evidence: docs/qa/reports/2026-08-17-electron-shell.md
+evidence: 
 last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-web-update-two-track; APP-app-auto-update
 ---
 
-Added 2026-08-16 for the Electron shell web update surface (ADR-006 S2). Task 07 owns the walk.
+Added 2026-08-16 for the Electron shell web update surface (ADR-006 S2). Reworked 2026-10-12 to a
+one-click update, modeled on how the ChatGPT desktop app updates: no Settings detour, and the
+runtime/app split never reaches the user. Re-walk required.
 
-PRD stories: US-029 (AC-1 available offer, AC-2 hidden by default, AC-4 keyboard activation; EC-4
-suppressed while an operation runs). Test ids: UT-049–UT-052 own the state matrix in `menubar-update-indicator.test.tsx`; combined E2E-021 / E2E-022 in `os-shell.spec.ts` owns pointer/keyboard navigation and apply.
+Test ids: `menubar-update-indicator.test.tsx` owns the per-state rendering and callbacks;
+`update-presentation.test.ts` owns the snapshot → state mapping (`settingsUpdateIndicatorState`).
+Combined E2E-021 / E2E-022 in `os-shell.spec.ts` owns keyboard and pointer activation, applying
+without opening Settings.
 
 Branches to walk:
 
-- nothing offered — the indicator is **absent from the DOM**, with no focusable control left in the
+- nothing offered: the pill is **absent from the DOM**, with no focusable control left in the
   tab order;
-- one track available, then both — the same single visual state either way: no count, no badge, no
-  dropdown, no pulse;
-- an operation running, staged, or failed — the indicator stays gone; the menubar never renders
-  progress, percentages, or errors;
-- pointer activation — lands on `/settings/general` with the Updates section visible;
-- keyboard-only — the indicator is reachable by Tab, shows a visible focus ring against the menubar
+- one part available, then both: the same single "Update" pill either way, with no count, no
+  badge, and no dropdown;
+- click Update in the desktop app: the pill switches to "Updating…" immediately, Settings never
+  opens, the app quits and relaunches by itself, and About / Settings show the new version;
+- click Update in a plain browser with no desktop app: the pill shows "Updating…" while the daemon
+  restarts, and the tab reloads by itself onto the new version;
+- staged (the app is closed while a browser applies): the pill disappears; Settings explains that
+  the update finishes on next launch;
+- failed: the pill reads "Update failed" in the danger tone, and activating it opens Settings →
+  General with the error;
+- package-manager install: "Update" opens Settings, which shows the upgrade command;
+- keyboard-only: the pill is reachable by Tab, shows a visible focus ring against the menubar
   glass, and activates with Enter or Space.
 
-Walk this in a plain browser as well as the desktop app: the indicator is fed by daemon truth, so
-both must behave identically.
+Walk this in a plain browser as well as the desktop app. The pill is fed by daemon truth, so
+both must behave the same.

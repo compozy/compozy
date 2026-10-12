@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button, Pill, Spinner } from "@compozy/ui";
@@ -6,22 +6,21 @@ import {
   SettingRow,
   SettingValue,
   SettingsGroup,
-  settingsUpdateApplicableTargets,
-  SettingsUpdateTrackRow,
-  settingsUpdateTracks,
+  settingsProductUpdate,
+  settingsUpdateHolderLabel,
   settingsUpdateView,
 } from "@/systems/settings";
 import type {
+  SettingsProductUpdateView,
   SettingsUpdateApplyResult,
   SettingsUpdateCancelResult,
   SettingsUpdateHolder,
   SettingsUpdateStatus,
-  SettingsUpdateTargetSet,
-  SettingsUpdateTrackView,
 } from "@/systems/settings";
 
 export interface GeneralUpdateActions {
-  apply: (targets: SettingsUpdateTargetSet) => void;
+  /** Updates every part of CompozyOS this surface may update, in one operation. */
+  apply: () => void;
   cancel: () => void;
   isApplying: boolean;
   isCanceling: boolean;
@@ -62,18 +61,11 @@ function RetryButton({ isFetching, onRetry }: { isFetching: boolean; onRetry: ()
   );
 }
 
-const HOLDER_SURFACE_LABEL: Record<SettingsUpdateHolder["surface"], string> = {
-  cli: "the command line",
-  daemon: "CompozyOS",
-  web: "another browser window",
-  shell: "the desktop app",
-};
-
 /** Who holds the update channel, in plain words; the process id stays in the tooltip. */
 function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
   return (
     <span title={`${holder.surface} · PID ${holder.pid}`}>
-      <SettingValue>{`In use by ${HOLDER_SURFACE_LABEL[holder.surface]}`}</SettingValue>
+      <SettingValue>{`In use by ${settingsUpdateHolderLabel(holder)}`}</SettingValue>
     </span>
   );
 }
@@ -104,8 +96,8 @@ function UpdateCheckingGroup() {
     <UpdatesGroup>
       <SettingRow
         data-testid="settings-page-general-update-status"
-        description="Checking the install method and latest stable release."
-        label="CompozyOS version"
+        description="Checking for a new version."
+        label="CompozyOS"
         control={
           <>
             <Spinner className="size-3.5 text-info" />
@@ -133,7 +125,7 @@ function UpdateFailureGroup({
       <SettingRow
         data-testid="settings-page-general-update-status"
         description={message}
-        label="CompozyOS version"
+        label="CompozyOS"
         control={
           <>
             <Pill form="plain" tone={failed ? "danger" : "warning"}>
@@ -148,44 +140,139 @@ function UpdateFailureGroup({
   );
 }
 
-function UpdateGroupAction({
-  applicableTargets,
-  refreshError,
-  actions,
-  isFetching,
-  onRetry,
-}: {
-  applicableTargets: SettingsUpdateTargetSet | null;
-  refreshError: string | null;
-  actions: GeneralUpdateActions;
-  isFetching: boolean;
-  onRetry: () => void;
-}) {
+/** `current → latest` while a newer build is pending, else the bare version. */
+function ProductVersion({ product }: { product: SettingsProductUpdateView }) {
   return (
-    <>
-      {applicableTargets ? (
-        <Button
-          data-testid="settings-page-general-update-apply"
-          disabled={actions.isApplying}
-          onClick={() => actions.apply(applicableTargets)}
-          size="sm"
-          type="button"
-          variant="neutral"
-        >
-          {actions.isApplying ? <Spinner className="size-3.5" /> : null}
-          Update CompozyOS
-        </Button>
-      ) : null}
-      {refreshError ? (
+    <SettingValue mono>
+      {product.currentVersion}
+      {product.latestVersion ? (
         <>
-          <Pill form="plain" tone="danger">
-            <Pill.Dot />
-            Refresh failed
-          </Pill>
-          <RetryButton isFetching={isFetching} onRetry={onRetry} />
+          <span aria-hidden="true" className="text-faint">
+            {" → "}
+          </span>
+          <span className="sr-only"> to </span>
+          <span className="text-fg">{product.latestVersion}</span>
         </>
       ) : null}
+    </SettingValue>
+  );
+}
+
+/** Live work reads as one word; percent qualifies it only when something measures it. */
+function ProductProgress({ product }: { product: SettingsProductUpdateView }) {
+  return (
+    <span
+      aria-atomic="true"
+      aria-live="polite"
+      className="flex items-center gap-1.5"
+      data-phase={product.phase ?? undefined}
+      data-testid="settings-page-general-update-progress"
+      role="status"
+    >
+      <Spinner aria-hidden="true" className="size-3.5 text-info" role="presentation" />
+      <SettingValue>
+        <span className="text-fg">Updating</span>
+        {product.percent === null ? null : (
+          <>
+            <span aria-hidden="true" className="text-faint">
+              {" · "}
+            </span>
+            <span className="tabular-nums">{product.percent}%</span>
+          </>
+        )}
+      </SettingValue>
+    </span>
+  );
+}
+
+function productDescription(product: SettingsProductUpdateView): ReactNode {
+  if (!product.description && !product.recommendation) return undefined;
+  return (
+    <>
+      {product.description}
+      {product.recommendation ? (
+        <code
+          className="mt-1 block w-fit font-mono whitespace-nowrap text-fg"
+          data-testid="settings-page-general-update-recommendation"
+        >
+          {product.recommendation}
+        </code>
+      ) : null}
     </>
+  );
+}
+
+function ProductUpdateRow({
+  product,
+  actions,
+  canApply,
+}: {
+  product: SettingsProductUpdateView;
+  actions: GeneralUpdateActions;
+  canApply: boolean;
+}) {
+  const updating = product.updating || actions.isApplying;
+  return (
+    <SettingRow
+      data-testid="settings-page-general-update-status"
+      description={productDescription(product)}
+      label="CompozyOS"
+      control={
+        <>
+          <ProductVersion product={product} />
+          {updating ? (
+            <ProductProgress product={product} />
+          ) : (
+            <Pill form="plain" tone={product.tone}>
+              <Pill.Dot />
+              {product.statusLabel}
+            </Pill>
+          )}
+          {canApply && !updating ? (
+            <Button
+              data-testid="settings-page-general-update-apply"
+              onClick={actions.apply}
+              size="sm"
+              type="button"
+              variant="primary"
+            >
+              Update
+            </Button>
+          ) : null}
+          {product.canCancel ? (
+            <Button
+              data-testid="settings-page-general-update-cancel"
+              disabled={actions.isCanceling}
+              onClick={actions.cancel}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {actions.isCanceling ? <Spinner className="size-3.5" /> : null}
+              Cancel update
+            </Button>
+          ) : null}
+          {product.releaseUrl && product.latestVersion ? (
+            <Button
+              nativeButton={false}
+              render={
+                <a
+                  aria-label="Open release notes"
+                  data-testid="settings-page-general-update-release"
+                  href={product.releaseUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                />
+              }
+              size="sm"
+              variant="ghost"
+            >
+              <ExternalLink aria-hidden="true" className="text-subtle" />
+            </Button>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 
@@ -224,37 +311,11 @@ function UpdateCancelResultRow({ result }: { result: SettingsUpdateCancelResult 
   );
 }
 
-function UpdateTrackFootnotes({ tracks }: { tracks: SettingsUpdateTrackView[] }) {
-  return (
-    <>
-      {tracks.map(track =>
-        track.restoredVersion ? (
-          <SettingRow
-            key={`${track.id}-rollback`}
-            data-testid="settings-page-general-update-rollback"
-            label={`${track.label} restored version`}
-            control={<SettingValue mono>{track.restoredVersion}</SettingValue>}
-          />
-        ) : null
-      )}
-      {tracks.map(track =>
-        track.lastError ? (
-          <SettingRow
-            key={`${track.id}-error`}
-            data-testid="settings-page-general-update-last-error"
-            description={<span className="text-danger">{track.lastError}</span>}
-            label={`${track.label} last error`}
-          />
-        ) : null
-      )}
-    </>
-  );
-}
-
 /**
- * Settings → General → Updates: one durable action applies every eligible track,
- * while each row keeps the track state the daemon reports (ADR-006). The section holds no shell
- * awareness — it reads the daemon like any browser client, so it renders
+ * Settings → General → Updates: CompozyOS is one product with one version and one
+ * Update button. The daemon still applies the runtime and the desktop app as one
+ * durable operation (ADR-006); that split never surfaces here. The section holds
+ * no shell awareness — it reads the daemon like any browser client, so it renders
  * identically in the desktop app and in a plain browser.
  */
 export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
@@ -273,46 +334,48 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
   }
 
   const { refreshError } = view;
-  const tracks = settingsUpdateTracks(view.snapshot);
-  const applicableTargets = refreshError ? null : settingsUpdateApplicableTargets(tracks);
+  const product = settingsProductUpdate(view.snapshot);
 
   return (
     <UpdatesGroup
       // A failed refresh is one event for the whole section, so it lives once in
-      // the header while every row keeps its last known truth.
+      // the header while the row keeps its last known truth.
       description={
         refreshError ? `Showing the last known status. Refresh failed: ${refreshError}` : undefined
       }
       action={
-        refreshError || applicableTargets ? (
-          <UpdateGroupAction
-            actions={actions}
-            applicableTargets={applicableTargets}
-            isFetching={isFetching}
-            onRetry={onRetry}
-            refreshError={refreshError}
-          />
+        refreshError ? (
+          <>
+            <Pill form="plain" tone="danger">
+              <Pill.Dot />
+              Refresh failed
+            </Pill>
+            <RetryButton isFetching={isFetching} onRetry={onRetry} />
+          </>
         ) : null
       }
     >
-      {tracks.map(track => (
-        <SettingsUpdateTrackRow
-          key={track.id}
-          isCanceling={actions.isCanceling}
-          onCancel={actions.cancel}
-          track={track}
-        />
-      ))}
+      <ProductUpdateRow
+        actions={actions}
+        canApply={!refreshError && product.targets !== null}
+        product={product}
+      />
       <UpdateBlockedRow result={actions.result} />
       <UpdateCancelResultRow result={actions.cancelResult} />
       {actions.error ? (
         <SettingRow
           data-testid="settings-page-general-update-action-error"
           description={<span className="text-danger">{actions.error}</span>}
-          label="Update request failed"
+          label="The update couldn't start"
         />
       ) : null}
-      <UpdateTrackFootnotes tracks={tracks} />
+      {product.lastError ? (
+        <SettingRow
+          data-testid="settings-page-general-update-last-error"
+          description={<span className="text-danger">{product.lastError}</span>}
+          label="What went wrong"
+        />
+      ) : null}
     </UpdatesGroup>
   );
 }

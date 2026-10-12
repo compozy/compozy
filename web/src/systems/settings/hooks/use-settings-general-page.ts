@@ -5,13 +5,11 @@ import { useSettingsPage } from "./use-settings-page";
 import {
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
-  type SettingsUpdateTargetSet,
-  useApplySettingsUpdate,
   useCancelSettingsUpdate,
+  useProductUpdate,
   useReloadSettings,
   useSettingsApplyRecords,
   useSettingsGeneral,
-  useSettingsUpdate,
   useUpdateSettingsGeneral,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -58,8 +56,8 @@ function updateActionError(error: unknown): string | null {
 
 export function useSettingsGeneralPage() {
   const query = useSettingsGeneral();
-  const update = useSettingsUpdate();
-  const updateApply = useApplySettingsUpdate();
+  const productUpdate = useProductUpdate();
+  const update = productUpdate.query;
   const updateCancel = useCancelSettingsUpdate();
   const applyRecords = useSettingsApplyRecords({ limit: 8 });
   const mutation = useUpdateSettingsGeneral();
@@ -155,13 +153,13 @@ export function useSettingsGeneralPage() {
     // own answer (`accepted` or `blocked` with its holder) so the surface can
     // report it verbatim; terminal truth still comes from the `update` read.
     updateActions: {
-      apply: (targets: SettingsUpdateTargetSet) => updateApply.mutate({ targets }),
+      apply: productUpdate.apply,
       cancel: () => updateCancel.mutate(),
-      isApplying: updateApply.isPending,
+      isApplying: productUpdate.applying,
       isCanceling: updateCancel.isPending,
-      result: updateApply.data ?? null,
+      result: productUpdate.applyResult,
       cancelResult: updateCancel.data ?? null,
-      error: updateActionError(updateApply.error) ?? updateActionError(updateCancel.error),
+      error: productUpdate.applyError ?? updateActionError(updateCancel.error),
     },
     applyRecords,
     handleReload,

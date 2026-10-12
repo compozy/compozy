@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## One-click product update — 2026-10-12
+
+The menubar update indicator becomes an "Update" pill that applies every eligible
+target through the existing `POST /api/settings/update/apply` in one click, holds a
+spinner while the operation runs, and opens Settings only for a failed update or a
+package-manager install. Settings → General → Updates folds the runtime and app
+tracks into one "CompozyOS" row with one version and one Update action; the
+runtime/app split no longer reaches the UI. A browser tab reloads itself once the
+daemon settles on a new version; the desktop app keeps relaunching through the
+existing installer handoff. Web-only (internal regime): HTTP/UDS DTOs, CLI
+`compozy update`, native tools, hooks, extensibility, configuration keys, persisted
+state, and official `skills/compozy/` are unchanged; no migration or compatibility
+adapter is needed. Workspace/profile isolation is unaffected (host-global update
+read). QA scenarios `APP-web-update-indicator` and `APP-web-update-two-track` record
+the new contract. No site documentation changes are needed.
+
 ## Scheduled claim contention budget — 2026-10-11
 
 Scheduled claims use a one-second default attempt budget, configurable through the

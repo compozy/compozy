@@ -1,72 +1,89 @@
 // Suite: menubar update indicator (UT-049..UT-052)
-// Invariant: the indicator exists only while an update is genuinely offered, and
-// when it exists it is a keyboard-operable control that navigates to Settings.
-// Boundary IN: the indicator's DOM presence, accessible name, and activation.
-// Boundary OUT: which snapshots count as "available" — that predicate is
-// settingsUpdateIndicatorAvailable, owned by
-// systems/settings/lib/__tests__/update-presentation.test.ts. Focus-ring visuals
-// are a visual contract (VC-14), verified by screenshot evidence, not asserted here.
+// Invariant: the control exists only while there is something to say, and its
+// one click updates CompozyOS in place — or, when this install cannot update
+// itself or the last update failed, opens Settings for the detail.
+// Boundary IN: DOM presence, accessible name, and which callback activation runs.
+// Boundary OUT: which snapshots map to which state — settingsUpdateIndicatorState,
+// owned by systems/settings/lib/__tests__/update-presentation.test.ts. Pill visuals
+// are a visual contract verified by story screenshots, not asserted here.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  settingsUpdateBothAvailableFixture,
-  settingsUpdateStatusFixture,
-} from "@/systems/settings/mocks/settings-update-fixture";
-import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
+import type { ProductUpdateIndicatorState } from "@/systems/settings";
 
 import { MenubarUpdateIndicator } from "../menubar-update-indicator";
 
-function renderIndicator(available: boolean) {
-  const onActivate = vi.fn();
-  render(<MenubarUpdateIndicator available={available} onActivate={onActivate} />);
-  return { onActivate };
+function renderIndicator(state: ProductUpdateIndicatorState, canUpdate = true) {
+  const onUpdate = vi.fn();
+  const onOpenUpdates = vi.fn();
+  render(
+    <MenubarUpdateIndicator
+      onOpenUpdates={onOpenUpdates}
+      onUpdate={canUpdate ? onUpdate : undefined}
+      state={state}
+    />
+  );
+  return { onUpdate, onOpenUpdates };
 }
 
 describe("MenubarUpdateIndicator", () => {
-  it("Should render an update offer only when the daemon reports one available", () => {
-    renderIndicator(settingsUpdateIndicatorAvailable(settingsUpdateBothAvailableFixture));
-
-    expect(screen.getByRole("button", { name: "Update available" })).toBeInTheDocument();
-  });
-
   it("Should stay out of the DOM entirely when nothing is offered", () => {
-    renderIndicator(settingsUpdateIndicatorAvailable(settingsUpdateStatusFixture));
+    renderIndicator("hidden");
 
     // Absent, not hidden: a CSS-hidden control would still be tab-reachable.
-    expect(screen.queryByRole("button", { name: "Update available" })).toBeNull();
+    expect(screen.queryByTestId("os-menubar-update")).toBeNull();
   });
 
-  it("Should navigate to the Updates section when activated by pointer", async () => {
+  it("Should update in place with one click instead of opening Settings", async () => {
     const user = userEvent.setup();
-    const { onActivate } = renderIndicator(true);
+    const { onUpdate, onOpenUpdates } = renderIndicator("available");
 
-    await user.click(screen.getByRole("button", { name: "Update available" }));
+    await user.click(screen.getByRole("button", { name: "Update" }));
 
-    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onOpenUpdates).not.toHaveBeenCalled();
   });
 
   it("Should be reachable by keyboard and activate on Enter and Space", async () => {
     const user = userEvent.setup();
-    const { onActivate } = renderIndicator(true);
-    const indicator = screen.getByRole("button", { name: "Update available" });
+    const { onUpdate } = renderIndicator("available");
+    const indicator = screen.getByRole("button", { name: "Update" });
 
     await user.tab();
     expect(indicator).toHaveFocus();
 
     await user.keyboard("{Enter}");
-    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
 
     await user.keyboard(" ");
-    expect(onActivate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenCalledTimes(2);
   });
 
-  it("Should offer no menu, popup, or count alongside the glyph", () => {
-    renderIndicator(true);
-    const indicator = screen.getByRole("button", { name: "Update available" });
+  it("Should open Settings when this install cannot update itself", async () => {
+    const user = userEvent.setup();
+    const { onOpenUpdates } = renderIndicator("available", false);
 
-    expect(indicator).not.toHaveAttribute("aria-haspopup");
-    expect(indicator).toHaveTextContent("");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+
+    expect(onOpenUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should hold a disabled spinner while the update runs", () => {
+    renderIndicator("updating");
+
+    const control = screen.getByTestId("os-menubar-update");
+    expect(control).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Updating…");
+  });
+
+  it("Should open Settings from a failed update rather than retrying blind", async () => {
+    const user = userEvent.setup();
+    const { onUpdate, onOpenUpdates } = renderIndicator("failed");
+
+    await user.click(screen.getByRole("button", { name: "Update failed" }));
+
+    expect(onOpenUpdates).toHaveBeenCalledTimes(1);
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 });
