@@ -288,6 +288,44 @@ describe("settingsProductUpdate", () => {
     expect(product.description).toBe("Update with your package manager to get the new version.");
   });
 
+  it("Should keep the manual command when another part can update itself", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateManagedFixture,
+      app: settingsUpdateBothAvailableFixture.app,
+    });
+
+    expect(product.targets).toEqual(["app"]);
+    expect(product.recommendation).toBe("brew upgrade compozy");
+    expect(product.description).toBe(
+      "Update installs what it can here; run this with your package manager for the rest."
+    );
+  });
+
+  it("Should keep the manual command for an install this surface cannot update", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateNoAppFixture,
+      aggregate: "up-to-date",
+      runtime: {
+        ...settingsUpdateNoAppFixture.runtime,
+        status: "unsupported",
+        recommendation: "Download the latest release from GitHub.",
+      },
+    });
+
+    expect(product.targets).toBeNull();
+    expect(product.recommendation).toBe("Download the latest release from GitHub.");
+    expect(product.description).toBe("Update this install manually with:");
+  });
+
+  it("Should not claim nothing changed when a failure names no restored version", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateRolledBackFixture,
+      runtime: { ...settingsUpdateRolledBackFixture.runtime, restored_version: "" },
+    });
+
+    expect(product.description).toBe("The update didn't finish.");
+  });
+
   it("Should report one live update with its measured percent", () => {
     expect(settingsProductUpdate(settingsUpdateApplyingFixture)).toMatchObject({
       updating: true,

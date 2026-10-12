@@ -33,7 +33,7 @@ export interface SettingsProductUpdateView {
   releaseUrl: string | null;
   /** One plain sentence where the state needs explaining, else `null`. */
   description: string | null;
-  /** Package-manager installs only: the exact upgrade command, shown verbatim. */
+  /** The manual upgrade command for any part still behind, shown verbatim. */
   recommendation: string | null;
   /** Everything this surface may apply in one click, or `null` when it may not. */
   targets: SettingsUpdateTargetSet | null;
@@ -60,6 +60,8 @@ const HOLDER_SURFACE_LABEL: Record<SettingsUpdateHolder["surface"], string> = {
 export function settingsUpdateHolderLabel(holder: SettingsUpdateHolder): string {
   return HOLDER_SURFACE_LABEL[holder.surface];
 }
+
+const SETTLED: ReadonlySet<SettingsUpdateStatusKind> = new Set(["up-to-date", "updated"]);
 
 function liveTrack(tracks: SettingsUpdateTrackView[]): SettingsUpdateTrackView | null {
   return tracks.find(track => track.status === "applying" || track.status === "accepted") ?? null;
@@ -93,8 +95,9 @@ function productDescription(input: {
   const { status, snapshot, tracks } = input;
   switch (status) {
     case "available":
-      return input.targets || !input.recommendation
-        ? null
+      if (!input.recommendation) return null;
+      return input.targets
+        ? "Update installs what it can here; run this with your package manager for the rest."
         : "Update with your package manager to get the new version.";
     case "staged":
       return "The update finishes the next time you open the CompozyOS app.";
@@ -108,10 +111,12 @@ function productDescription(input: {
       const restored = tracks.find(track => track.restoredVersion)?.restoredVersion;
       return restored
         ? `The update didn't finish, so CompozyOS went back to ${restored}.`
-        : "The update didn't finish. Nothing changed, so you can keep working.";
+        : "The update didn't finish.";
     }
     default:
-      return null;
+      // An install this surface cannot update (unsupported platform, managed
+      // runtime) still owes the user its manual path.
+      return input.recommendation ? "Update this install manually with:" : null;
   }
 }
 
@@ -122,7 +127,11 @@ export function settingsProductUpdate(snapshot: SettingsUpdateStatus): SettingsP
   const status = productStatus(snapshot, targets);
   const currentVersion = snapshot.runtime.current_version;
   const live = liveTrack(tracks);
-  const recommendation = tracks.find(track => track.recommendation)?.recommendation ?? null;
+  // A manual upgrade stays visible whenever that part is still behind, even when
+  // another part can update itself from here.
+  const recommendation =
+    tracks.find(track => track.recommendation && !SETTLED.has(track.status))?.recommendation ??
+    null;
   const operation = snapshot.operation ?? null;
 
   return {
@@ -133,7 +142,7 @@ export function settingsProductUpdate(snapshot: SettingsUpdateStatus): SettingsP
     latestVersion: pendingVersion(tracks, currentVersion),
     releaseUrl: tracks.find(track => track.releaseUrl)?.releaseUrl ?? null,
     description: productDescription({ status, snapshot, tracks, targets, recommendation }),
-    recommendation: status === "available" && !targets ? recommendation : null,
+    recommendation,
     targets,
     updating: operation !== null && (operation.holder !== null || live !== null),
     percent: live?.progress?.percent ?? null,
