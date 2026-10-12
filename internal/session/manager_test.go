@@ -597,8 +597,8 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 					wantBinding := "private-transport"
 					if tc.stale && provider == "cursor" {
 						wantBinding = ""
-						var negotiationErr *acp.NegotiationError
-						if !errors.As(err, &negotiationErr) ||
+						negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+						if !ok ||
 							negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
 							t.Fatalf("error = %v, want model-unavailable negotiation error", err)
 						}
