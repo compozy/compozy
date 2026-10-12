@@ -556,7 +556,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				wantRefresh bool
 			}{
 				{name: "Should reuse recent live rows", age: time.Minute},
-				{name: "Should refresh expired rows", age: modelcatalog.DefaultLiveDiscoveryTTL, wantRefresh: true},
+				{name: "Should reuse rows beyond the discovery interval", age: 5*time.Minute + time.Second},
+				{name: "Should reuse rows just within the session window", age: 10*time.Minute - time.Nanosecond},
+				{name: "Should refresh rows at the session window boundary", age: 10 * time.Minute, wantRefresh: true},
+				{name: "Should refresh expired rows", age: 11 * time.Minute, wantRefresh: true},
 				{name: "Should refresh stale rows", age: time.Minute, stale: true, wantRefresh: true},
 				{name: "Should refresh future dated rows", age: -time.Minute, wantRefresh: true},
 			} {

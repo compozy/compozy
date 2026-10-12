@@ -19,7 +19,8 @@ Scope: issues #726, #727, #728, #729, and #730. Branch:
    items-only query skips that statement while retaining the same page and cursor.
    Normal inbox metadata materializes its common filtered population once.
 5. Every new Claude/Cursor binding forced live discovery. A recent live row now binds
-   directly, bounded by the existing five-minute discovery TTL and execution context.
+   directly, bounded by a ten-minute session binding window and execution context.
+   The separate five-minute discovery interval is unchanged.
    Revalidation remains mandatory for unavailable, expired, stale, future-dated, absent,
    or unusable bindings. This is reuse of authoritative discovery, not curated fallback.
 

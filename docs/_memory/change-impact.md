@@ -8,8 +8,10 @@ Evidence: `docs/qa/reports/2026-10-11-startup-cache-notifications.md`.
 - ACP session creation uses a bounded 90-second default; other controls retain 30 seconds.
   Explicit `WithControlTimeout` overrides, caller cancellation, retry classification, and
   process cleanup remain authoritative. No new public configuration key is required.
-- Session model binding reuses a provider-live row only within the existing five-minute
-  live discovery TTL and the resolved provider/profile/workspace execution context.
+- Session model binding reuses a provider-live row only within a separate ten-minute
+  session binding window and the resolved provider/profile/workspace execution context.
+  The global five-minute discovery interval is unchanged. This internal reuse policy
+  adds no public configuration key.
   Missing, expired, stale, future-dated, or unusable bindings still force discovery.
   Claude and Cursor use their existing transport selection and validation rules.
 - Detached raw stdout/stderr moves to `logs/daemon-stdio.log`; structured logs stay at

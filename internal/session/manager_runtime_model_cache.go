@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
+const liveCatalogBindingMaxAge = 10 * time.Minute
+
 func (m *Manager) recentLiveProviderModel(
 	ctx context.Context,
 	providerID, modelID string,
@@ -35,7 +37,7 @@ func (m *Manager) recentLiveProviderModel(
 		for _, source := range model.Sources {
 			age := now.Sub(source.RefreshedAt)
 			if source.SourceID == modelcatalog.SourceKindProviderLiveID(providerID) && !source.Stale &&
-				!source.RefreshedAt.IsZero() && age >= 0 && age < modelcatalog.DefaultLiveDiscoveryTTL {
+				!source.RefreshedAt.IsZero() && age >= 0 && age < liveCatalogBindingMaxAge {
 				return model, true
 			}
 		}
