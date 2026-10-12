@@ -551,6 +551,14 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+      - name: Verify Windows skill cache and detached log rotation
+        run: >-
+          go test ./internal/filesnap ./internal/skillscan ./internal/cli
+          -run '^(TestFromInfo|TestDirectoryResultUnchanged|TestSpawnDetachedDaemonProcess|TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv)$'
+          -count=1
+        env:
+          CGO_ENABLED: 0
+
       - name: Build native Windows CLI
         run: go build -o "${{ runner.temp }}/compozy-gateway-test.exe" ./cmd/compozy
         env:

@@ -66,6 +66,8 @@ type InboxQuery struct {
 	Cursor           string
 	Limit            int
 	ExcludeCreatedBy []ActorRef
+	// SkipFacets omits counts and facets without changing item or cursor identity.
+	SkipFacets bool
 }
 
 // InboxItem is one action-ready task inbox item.

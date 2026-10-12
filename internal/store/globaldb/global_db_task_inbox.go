@@ -128,12 +128,18 @@ func queryTaskInboxMetadata(
 	priorityFacets []taskpkg.InboxPriorityFacet,
 	err error,
 ) {
+	if query.SkipFacets {
+		for _, lane := range taskpkg.InboxLanes(query.Lane) {
+			groups = append(groups, taskpkg.InboxLaneGroup{Lane: lane})
+		}
+		return 0, 0, 0, groups, nil, nil, nil
+	}
 	filtered := taskInboxStatement(
 		"SELECT lane, status, priority, is_unread FROM inbox",
 		baseWhere,
 		where,
 	)
-	statement := `WITH filtered_inbox AS (` + filtered + `)
+	statement := `WITH filtered_inbox AS MATERIALIZED (` + filtered + `)
 		SELECT 'total', '', COUNT(*), COALESCE(SUM(is_unread), 0),
 			COALESCE(SUM(CASE WHEN lane = 'archived' THEN 1 ELSE 0 END), 0) FROM filtered_inbox
 		UNION ALL

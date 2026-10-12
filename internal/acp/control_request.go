@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 )
@@ -11,11 +12,7 @@ import (
 var errSessionNewTimeout = errors.New("acp: session/new control deadline exceeded")
 
 func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, method string, params any) (T, error) {
-	timeout := process.controlTimeout
-	if timeout <= 0 {
-		timeout = defaultControlTimeout
-	}
-	requestCtx, cancel := context.WithTimeout(ctx, timeout)
+	requestCtx, cancel := context.WithTimeout(ctx, process.controlRequestTimeout(method))
 	defer cancel()
 	response, err := acpsdk.SendRequest[T](process.conn, requestCtx, method, params)
 	if err != nil {
@@ -33,4 +30,17 @@ func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, meth
 		)
 	}
 	return response, nil
+}
+
+// Session creation loads provider plugins, hooks and MCP servers before replying.
+const defaultSessionNewTimeout = 90 * time.Second
+
+func (process *AgentProcess) controlRequestTimeout(method string) time.Duration {
+	if process.controlTimeout > 0 {
+		return process.controlTimeout
+	}
+	if method == acpsdk.AgentMethodSessionNew {
+		return defaultSessionNewTimeout
+	}
+	return defaultControlTimeout
 }

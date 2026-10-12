@@ -12,6 +12,10 @@ import (
 var cliTestStoreSeed *storeseed.Seed
 
 func TestMain(m *testing.M) {
+	if len(os.Args) > 2 && os.Args[1] == "daemon" && os.Args[2] == "start" &&
+		os.Getenv("COMPOZY_TEST_DAEMON_MODE") != "" {
+		os.Exit(runDetachedDaemonTestChild())
+	}
 	os.Exit(runCLITests(m))
 }
 

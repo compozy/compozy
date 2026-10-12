@@ -2962,11 +2962,15 @@ func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
 		if err := globalDB.CreateTask(ctx, record); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
+		record.ID = "task-inbox-two-reads-second"
+		if err := globalDB.CreateTask(ctx, record); err != nil {
+			t.Fatal(err)
+		}
 		actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"}
 		query, normalizedActor, err := taskpkg.NormalizeInboxQuery(taskpkg.InboxQuery{
 			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 			Scope:     taskpkg.CatalogScopeGlobal,
-			Limit:     10,
+			Limit:     1,
 		}, actor)
 		if err != nil {
 			t.Fatalf("NormalizeInboxQuery() error = %v", err)
@@ -2979,8 +2983,53 @@ func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
 		if got, want := counting.reads, 2; got != want {
 			t.Fatalf("task inbox read statements = %d, want constant %d", got, want)
 		}
-		if got, want := page.Total, 1; got != want {
+		if got, want := page.Total, 2; got != want {
 			t.Fatalf("task inbox total = %d, want %d", got, want)
+		}
+		if !page.HasMore || page.NextCursor == "" {
+			t.Fatal("expected a continuation cursor")
+		}
+		query.SkipFacets = true
+		counting.reads = 0
+		itemsOnly, err := listTaskInboxWithExecutor(ctx, counting, query, normalizedActor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if counting.reads != 1 {
+			t.Fatalf("items-only reads = %d, want 1", counting.reads)
+		}
+		if itemsOnly.Total != 0 || itemsOnly.UnreadTotal != 0 || itemsOnly.ArchivedTotal != 0 ||
+			len(itemsOnly.StatusFacets) != 0 || len(itemsOnly.PriorityFacets) != 0 {
+			t.Fatalf("items-only metadata = %#v", itemsOnly)
+		}
+		for i := range page.Groups {
+			page.Groups[i].Count = 0
+			page.Groups[i].UnreadCount = 0
+		}
+		if !reflect.DeepEqual(itemsOnly.Groups, page.Groups) || itemsOnly.HasMore != page.HasMore ||
+			itemsOnly.NextCursor != page.NextCursor {
+			t.Fatalf("items-only page differs: %#v, want groups %#v", itemsOnly, page.Groups)
+		}
+
+		query.Cursor = page.NextCursor
+		next, err := globalDB.ListTaskInbox(ctx, query, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query.SkipFacets = false
+		fullNext, err := globalDB.ListTaskInbox(ctx, query, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next.HasMore || next.NextCursor != "" {
+			t.Fatal("last page has a continuation")
+		}
+		for i := range fullNext.Groups {
+			fullNext.Groups[i].Count = 0
+			fullNext.Groups[i].UnreadCount = 0
+		}
+		if !reflect.DeepEqual(next.Groups, fullNext.Groups) {
+			t.Fatal("metadata mode changed continuation items")
 		}
 	})
 }
