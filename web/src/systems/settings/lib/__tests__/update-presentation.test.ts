@@ -296,9 +296,7 @@ describe("settingsProductUpdate", () => {
 
     expect(product.targets).toEqual(["app"]);
     expect(product.recommendation).toBe("brew upgrade compozy");
-    expect(product.description).toBe(
-      "Update installs what it can here; run this with your package manager for the rest."
-    );
+    expect(product.description).toBe("Update installs what it can here; do the rest by hand with:");
   });
 
   it("Should keep the manual command for an install this surface cannot update", () => {
@@ -315,6 +313,20 @@ describe("settingsProductUpdate", () => {
     expect(product.targets).toBeNull();
     expect(product.recommendation).toBe("Download the latest release from GitHub.");
     expect(product.description).toBe("Update this install manually with:");
+  });
+
+  it("Should not repeat a self-updating runtime's command beside the Update button", () => {
+    const product = settingsProductUpdate({
+      ...settingsUpdateBothAvailableFixture,
+      runtime: {
+        ...settingsUpdateBothAvailableFixture.runtime,
+        recommendation: "Run `compozy update`.",
+      },
+    });
+
+    expect(product.targets).toEqual(["runtime", "app"]);
+    expect(product.recommendation).toBeNull();
+    expect(product.description).toBeNull();
   });
 
   it("Should not claim nothing changed when a failure names no restored version", () => {

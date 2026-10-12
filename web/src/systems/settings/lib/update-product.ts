@@ -61,7 +61,25 @@ export function settingsUpdateHolderLabel(holder: SettingsUpdateHolder): string 
   return HOLDER_SURFACE_LABEL[holder.surface];
 }
 
-const SETTLED: ReadonlySet<SettingsUpdateStatusKind> = new Set(["up-to-date", "updated"]);
+/**
+ * The upgrade the user must run by hand, if any. Only a runtime this surface
+ * cannot update owes one: a managed install with a newer release, or an install
+ * method that cannot self-update. A self-updating runtime's "Run `compozy update`"
+ * is what the Update button already does, so it never shows here. The manual
+ * path stays visible even when another part can update itself from here.
+ */
+function manualRecommendation(snapshot: SettingsUpdateStatus): string | null {
+  const runtime = snapshot.runtime;
+  const manual = runtime.managed
+    ? runtime.status === "available"
+    : runtime.status === "unsupported";
+  return manual ? text(runtime.recommendation) : null;
+}
+
+function text(value: string | undefined | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
 
 function liveTrack(tracks: SettingsUpdateTrackView[]): SettingsUpdateTrackView | null {
   return tracks.find(track => track.status === "applying" || track.status === "accepted") ?? null;
@@ -97,7 +115,7 @@ function productDescription(input: {
     case "available":
       if (!input.recommendation) return null;
       return input.targets
-        ? "Update installs what it can here; run this with your package manager for the rest."
+        ? "Update installs what it can here; do the rest by hand with:"
         : "Update with your package manager to get the new version.";
     case "staged":
       return "The update finishes the next time you open the CompozyOS app.";
@@ -127,11 +145,7 @@ export function settingsProductUpdate(snapshot: SettingsUpdateStatus): SettingsP
   const status = productStatus(snapshot, targets);
   const currentVersion = snapshot.runtime.current_version;
   const live = liveTrack(tracks);
-  // A manual upgrade stays visible whenever that part is still behind, even when
-  // another part can update itself from here.
-  const recommendation =
-    tracks.find(track => track.recommendation && !SETTLED.has(track.status))?.recommendation ??
-    null;
+  const recommendation = manualRecommendation(snapshot);
   const operation = snapshot.operation ?? null;
 
   return {
