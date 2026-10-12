@@ -41,9 +41,10 @@ func (s *Scheduler) claimScheduledJob(
 		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
 	}
 	if s.store != nil {
-		persistCtx1, cancelPersist1 := persistenceContext(ctx)
-		defer cancelPersist1()
-		result, err := s.store.ClaimScheduledRun(persistCtx1, claim)
+		// Claims yield to scheduler backoff; finalization retains its independent persistence budget.
+		claimCtx, cancelClaim := context.WithTimeout(ctx, s.claimTimeout)
+		defer cancelClaim()
+		result, err := s.store.ClaimScheduledRun(claimCtx, claim)
 		if err != nil {
 			return scheduledJobClaimResult{}, fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
 		}

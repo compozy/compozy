@@ -1,5 +1,18 @@
 # Compozy Change Impact
 
+## Scheduled claim contention budget — 2026-10-11
+
+Scheduled claims use a one-second default attempt budget, configurable through the
+internal `WithSchedulerClaimTimeout` option, and observe scheduler cancellation.
+Failed claims return control to the existing exponential backoff without advancing
+the durable cursor. Durable finalization retains its cancellation-independent budget.
+The existing real-SQLite `TestSchedulerIntegrationSQLiteContention` owns recovery
+and exactly-once fire identity; QA scenario `TA-automation-crud-loop-target` records
+the reproduction and verification. Native tools, HTTP/UDS/CLI, Web, extensibility,
+hooks, configuration keys, and official `skills/compozy/` contracts are unchanged.
+Workspace/profile isolation and persisted schemas are unchanged; no migration or
+public compatibility adapter is needed. No site documentation changes are needed.
+
 ## Session startup, Windows caching, and attention polling — 2026-10-11
 
 Owner: branch `fix/startup-cache-notifications`; issues #726–#730.
