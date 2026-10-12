@@ -511,91 +511,88 @@ describe("GeneralSettingsPage", () => {
   });
 });
 
-// UT-040..UT-048 — the Updates section renders the daemon's two-track projection
-// and nothing else. Which snapshots produce which track model is owned by
+// UT-040..UT-048 — the Updates section renders CompozyOS as one product: one row,
+// one version, one Update action, never the runtime/app split the daemon keeps.
+// Which snapshots fold into which product view is owned by
 // systems/settings/lib/__tests__/update-presentation.test.ts; these assert what
 // reaches the DOM, especially where an affordance must be absent rather than
 // disabled (SD-007).
 describe("GeneralSettingsPage — Updates section", () => {
-  const track = (target: "runtime" | "app") =>
-    screen.getByTestId(`settings-page-general-update-track-${target}`);
+  const row = () => screen.getByTestId("settings-page-general-update-status");
   const apply = () => screen.queryByTestId("settings-page-general-update-apply");
 
-  it("UT-040: Should render both tracks with their own versions, status, and release link", () => {
+  it("UT-040: Should render one product row with one version, status, and release link", () => {
     render(<GeneralSettingsPage />);
 
-    expect(track("runtime")).toHaveTextContent("0.5.0");
-    expect(track("runtime")).toHaveTextContent("0.5.1");
-    expect(within(track("runtime")).getByText("Update available")).toBeInTheDocument();
-    expect(track("app")).toHaveTextContent("0.5.0");
-    expect(within(track("app")).getByText("Update available")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-general-update-release-runtime")).toHaveAttribute(
+    expect(row()).toHaveTextContent("CompozyOS");
+    expect(row()).toHaveTextContent("0.5.0");
+    expect(row()).toHaveTextContent("0.5.1");
+    expect(within(row()).getByText("Update available")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-update-release")).toHaveAttribute(
       "href",
       "https://github.com/compozy/compozy/releases/tag/v0.5.1"
     );
-    expect(screen.getByTestId("settings-page-general-update-release-app")).toBeInTheDocument();
-    expect(apply()).toBeInTheDocument();
+    expect(apply()).toHaveTextContent("Update");
   });
 
-  it("UT-041: Should render a single-track section when the host has no desktop app", () => {
-    pageState.update.data = settingsUpdateNoAppFixture;
+  it("UT-041: Should never name the runtime or app parts of the product", () => {
     render(<GeneralSettingsPage />);
 
-    expect(track("runtime")).toBeInTheDocument();
+    const updates = screen.getByTestId("settings-page-general-updates");
+    expect(within(updates).queryByText(/runtime/iu)).toBeNull();
+    expect(within(updates).queryByText(/^App$/u)).toBeNull();
+    expect(screen.queryByTestId("settings-page-general-update-track-runtime")).toBeNull();
     expect(screen.queryByTestId("settings-page-general-update-track-app")).toBeNull();
   });
 
-  it("UT-042: Should show a managed runtime's command verbatim with no apply control in the DOM", () => {
+  it("UT-042: Should show a managed install's command verbatim with no apply control in the DOM", () => {
     pageState.update.data = settingsUpdateManagedFixture;
     render(<GeneralSettingsPage />);
 
-    // The command itself is operator detail, kept in the Advanced fold.
-    expect(
-      within(screen.getByTestId("settings-page-general-advanced")).getByTestId(
-        "settings-page-general-update-recommendation"
-      )
-    ).toHaveTextContent("brew upgrade compozy");
-    expect(track("runtime")).toHaveTextContent(
-      "CompozyOS 0.5.1 is available. Upgrade with your package manager."
+    expect(row()).toHaveTextContent("Update with your package manager to get the new version.");
+    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
+      "brew upgrade compozy"
     );
     // Absent, not disabled — a dimmed button would still claim the capability.
     expect(apply()).toBeNull();
   });
 
-  it("UT-043: Should apply the clicked track and then render the daemon's staged phase", () => {
+  it("UT-043: Should apply in one click and then render the daemon's live progress", () => {
     const { rerender } = render(<GeneralSettingsPage />);
 
     fireEvent.click(screen.getByTestId("settings-page-general-update-apply"));
-    expect(pageState.updateActions.apply).toHaveBeenCalledWith(["runtime", "app"]);
+    expect(pageState.updateActions.apply).toHaveBeenCalledTimes(1);
 
     // Progress is not optimistic: it appears only once the polled read reports it.
     pageState.update.data = settingsUpdateApplyingFixture;
     rerender(<GeneralSettingsPage />);
 
-    const progress = screen.getByTestId("settings-page-general-update-progress-runtime");
-    expect(progress).toHaveTextContent("Installing · 62%");
+    const progress = screen.getByTestId("settings-page-general-update-progress");
+    expect(progress).toHaveTextContent("Updating · 62%");
     expect(progress).toHaveAttribute("data-phase", "install");
     expect(progress).toHaveAttribute("role", "status");
     expect(progress).toHaveAttribute("aria-live", "polite");
     expect(apply()).toBeNull();
   });
 
-  it("Should disable the shared action while its durable request is pending", () => {
+  it("Should replace the action with progress while its durable request is pending", () => {
     pageState.updateActions.isApplying = true;
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-update-apply")).toBeDisabled();
+    expect(apply()).toBeNull();
+    expect(screen.getByTestId("settings-page-general-update-progress")).toHaveTextContent(
+      "Updating"
+    );
   });
 
-  it("UT-044: Should report a staged app with the daemon's next-launch message and a cancel action", () => {
+  it("UT-044: Should report a staged update as finishing on next launch with a cancel action", () => {
     pageState.update.data = settingsUpdateStagedFixture;
     render(<GeneralSettingsPage />);
 
-    expect(track("app")).toHaveTextContent("CompozyOS app update staged; applies on next launch.");
-    expect(within(track("app")).getByText("Staged")).toBeInTheDocument();
-    expect(track("runtime")).toHaveTextContent(
-      "Updated CompozyOS runtime to 0.5.1 and restarted the daemon."
+    expect(row()).toHaveTextContent(
+      "The update finishes the next time you open the CompozyOS app."
     );
+    expect(within(row()).getByText("Staged")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("settings-page-general-update-cancel"));
     expect(pageState.updateActions.cancel).toHaveBeenCalledTimes(1);
@@ -612,7 +609,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     };
     const { rerender } = render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent("Checking");
+    expect(row()).toHaveTextContent("Checking");
 
     pageState.update = {
       data: settingsUpdateStatusFixture,
@@ -624,11 +621,11 @@ describe("GeneralSettingsPage — Updates section", () => {
     };
     rerender(<GeneralSettingsPage />);
 
-    expect(within(track("runtime")).getByText("Up to date")).toBeInTheDocument();
-    expect(screen.queryByTestId("settings-page-general-update-status")).toBeNull();
+    expect(within(row()).getByText("Up to date")).toBeInTheDocument();
+    expect(row()).not.toHaveTextContent("Checking");
   });
 
-  it("UT-046: Should keep the last known tracks and offer one retry when the refresh fails", () => {
+  it("UT-046: Should keep the last known status and offer one retry when the refresh fails", () => {
     pageState.update = {
       data: settingsUpdateBothAvailableFixture,
       isError: true,
@@ -643,8 +640,7 @@ describe("GeneralSettingsPage — Updates section", () => {
       "Showing the last known status. Refresh failed: daemon unreachable"
     );
     expect(screen.getByText("Refresh failed")).toBeInTheDocument();
-    // The rows keep their last truth rather than restating the failure per track.
-    expect(track("runtime")).toHaveTextContent("0.5.1");
+    expect(row()).toHaveTextContent("0.5.1");
     expect(apply()).toBeNull();
 
     fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
@@ -656,7 +652,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     pageState.updateActions.result = {
       targets: ["runtime"],
       status: "blocked",
-      message: "A runtime update is already in progress. Retry after it completes.",
+      message: "An update is already in progress. Retry after it completes.",
       holder: {
         pid: 4242,
         pid_start_time: "2026-08-20T14:02:10Z",
@@ -670,23 +666,23 @@ describe("GeneralSettingsPage — Updates section", () => {
     const blockedRow = screen.getByTestId("settings-page-general-update-blocked");
     expect(blockedRow).toHaveTextContent("In use by the command line");
     expect(within(blockedRow).getByTitle("cli · PID 4242")).toBeInTheDocument();
-    expect(within(track("runtime")).getByText("Blocked")).toBeInTheDocument();
+    expect(row()).toHaveTextContent("An update is already running from the command line.");
     expect(screen.queryByText("Updated")).toBeNull();
     expect(apply()).toBeNull();
   });
 
-  it("UT-048: Should keep the shared apply action tab-reachable and Enter-activatable", async () => {
+  it("UT-048: Should keep the apply action tab-reachable and Enter-activatable", async () => {
     const user = userEvent.setup();
     pageState.update.data = settingsUpdateNoAppFixture;
     render(<GeneralSettingsPage />);
 
     const applyButton = screen.getByTestId("settings-page-general-update-apply");
-    screen.getByTestId("settings-page-general-update-release-runtime").focus();
+    screen.getByTestId("settings-page-general-update-release").focus();
     await user.tab({ shift: true });
     expect(applyButton).toHaveFocus();
 
     await user.keyboard("{Enter}");
-    expect(pageState.updateActions.apply).toHaveBeenCalledWith(["runtime"]);
+    expect(pageState.updateActions.apply).toHaveBeenCalledTimes(1);
   });
 
   it("Should acknowledge a canceled dormant update", () => {
@@ -732,7 +728,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     pageState.update.data = settingsUpdateRolledBackFixture;
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByTestId("settings-page-general-update-rollback")).toHaveTextContent("0.5.0");
+    expect(row()).toHaveTextContent("The update didn't finish, so CompozyOS went back to 0.5.0.");
     expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
       "health check failed after swap"
     );

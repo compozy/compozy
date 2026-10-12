@@ -17,6 +17,7 @@ import type { WindowManagerRegisteredClientView } from "../lib/window-manager-ty
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
+import type { MenubarUpdateModel } from "./menubar/menubar-update-indicator";
 import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopPagerSurface } from "./desktop-pager-surface";
@@ -42,7 +43,7 @@ import {
   useSessionCreateActions,
   useSessionListView,
 } from "@/systems/session";
-import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
+import { useProductUpdate, useReloadOnProductVersionChange } from "@/systems/settings";
 import { selectWorktreeForScope, type WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
 /**
@@ -54,28 +55,26 @@ import { selectWorktreeForScope, type WorkspaceSetupDefaultsModel } from "@/syst
 export function DesktopShell() {
   // Same cached query the gate reads — no extra fetch, one truth for first run.
   const onboarding = useOnboardingStatus();
-  // Same cached read the Updates section uses — one truth, one query key.
-  const update = useSettingsUpdate();
+  // Same cached read and apply key the Updates section uses — one truth.
+  const update = useProductUpdate();
+  useReloadOnProductVersionChange(update.query.data);
   const firstRun = onboarding.data?.completed === false;
 
   return (
     <DesktopGate>
       <DesktopChrome
         firstRun={firstRun}
-        updateAvailable={settingsUpdateIndicatorAvailable(update.data)}
+        update={{
+          state: update.indicator,
+          onUpdate: update.product?.targets ? update.apply : undefined,
+        }}
       />
     </DesktopGate>
   );
 }
 
 /** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
-function DesktopChrome({
-  firstRun,
-  updateAvailable,
-}: {
-  firstRun: boolean;
-  updateAvailable: boolean;
-}) {
+function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: MenubarUpdateModel }) {
   const controller = useDesktopChromeController();
 
   // Zero project workspaces boots Global-on; the home registration is not a
@@ -90,7 +89,7 @@ function DesktopChrome({
           firstRun={firstRun}
           model={controller.model}
           clientCommandChannel={controller.chrome.clientCommandChannel}
-          updateAvailable={updateAvailable}
+          update={update}
           worktreeDialogs={controller.worktreeDialogs}
           workspaceSetupDefaults={controller.workspaceSetupDefaults}
         />
@@ -103,7 +102,7 @@ interface DesktopShellBodyProps {
   client: WindowManagerRegisteredClientView | null;
   model: DesktopShellModel;
   firstRun: boolean;
-  updateAvailable: boolean;
+  update: MenubarUpdateModel;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
   worktreeDialogs: WorktreeDialogTargets;
   /** The daemon's client-command channel reads the current shell seam through this port. */
@@ -160,7 +159,7 @@ function DesktopShellScopedBody({
   client,
   model,
   firstRun,
-  updateAvailable,
+  update,
   workspaceSetupDefaults,
   worktreeDialogs,
   worktreeScopeId,
@@ -250,7 +249,7 @@ function DesktopShellScopedBody({
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
-        updateAvailable={updateAvailable}
+        update={update}
         worktreesByWorkspace={worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
         worktreeSelection={worktreeSelection}

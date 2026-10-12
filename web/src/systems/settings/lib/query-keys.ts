@@ -134,4 +134,5 @@ export const settingsKeys = {
     ] as const,
 
   updateStatus: () => [...settingsKeys.all, "update"] as const,
+  updateApply: () => [...settingsKeys.all, "update", "apply"] as const,
 };

@@ -280,7 +280,6 @@ export {
   ModalSettingsFieldRow,
   SettingsFieldRow,
   SettingsGroup,
-  SettingsUpdateTrackRow,
   SettingsNumberInput,
   SettingsPageFrame,
   SettingsPageState,
@@ -387,12 +386,22 @@ export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-se
 export type { SettingsSaveBarState } from "./lib/save-state";
 export { parsePositiveDurationMilliseconds } from "./lib/terminal-settings-duration";
 export {
-  settingsUpdateIndicatorAvailable,
+  useProductUpdate,
+  useReloadOnProductVersionChange,
+  type ProductUpdateModel,
+} from "./hooks/use-product-update";
+export {
+  settingsProductUpdate,
+  settingsUpdateHolderLabel,
+  settingsUpdateIndicatorState,
+  type ProductUpdateIndicatorState,
+  type SettingsProductUpdateView,
+} from "./lib/update-product";
+export {
   settingsUpdateApplicableTargets,
   settingsUpdateStatusLabel,
   settingsUpdateStatusTone,
   settingsUpdateTracks,
-  settingsUpdateVersionTransition,
   settingsUpdateView,
   type SettingsUpdateProgress,
   type SettingsUpdateTrackView,

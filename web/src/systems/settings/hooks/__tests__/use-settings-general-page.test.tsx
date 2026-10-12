@@ -256,7 +256,7 @@ describe("useSettingsGeneralPage", () => {
     expect(result.current.lastAppliedLabel).toBeNull();
   });
 
-  it("Should send all requested targets to the apply endpoint and expose the daemon's answer", async () => {
+  it("Should apply every eligible target in one request and expose the daemon's answer", async () => {
     vi.mocked(applySettingsUpdate).mockResolvedValue({
       targets: ["runtime", "app"],
       status: "accepted",
@@ -270,7 +270,7 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply(["runtime", "app"]);
+      result.current.updateActions.apply();
     });
 
     await waitFor(() => {
@@ -302,7 +302,7 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply(["runtime"]);
+      result.current.updateActions.apply();
     });
 
     await waitFor(() => {

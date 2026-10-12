@@ -70,8 +70,6 @@ export type { SettingsMarketplaceCatalogSectionProps } from "./settings-marketpl
 export { SettingsMarketplaceSourcesSection } from "./settings-marketplace-sources-section";
 export type { SettingsMarketplaceSourcesSectionProps } from "./settings-marketplace-sources-section";
 export type { SettingsGroupProps } from "./settings-group";
-export { SettingsUpdateTrackRow } from "./settings-update-track-row";
-export type { SettingsUpdateTrackRowProps } from "./settings-update-track-row";
 export { SettingsChoiceGroup } from "./settings-choice-group";
 export type { SettingsChoiceGroupProps, SettingsChoiceOption } from "./settings-choice-group";
 export { SettingsTile, SettingsTiles } from "./settings-tiles";

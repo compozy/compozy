@@ -221,13 +221,6 @@ function GeneralAdvancedSection({
           }
         />
       ) : null}
-      {updateRuntime?.recommendation ? (
-        <SettingRow
-          data-testid="settings-page-general-update-recommendation"
-          label="Upgrade command"
-          control={<SettingValue mono>{updateRuntime.recommendation}</SettingValue>}
-        />
-      ) : null}
     </SettingsAdvancedFold>
   );
 }

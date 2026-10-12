@@ -30,12 +30,14 @@ import {
   osShellSelectors,
   sessionLifecycleSelectors,
   sessionWorkspaceSwitchSelectors,
-  settingsOperatorSelectors,
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
-import { settingsUpdateBothAvailableFixture } from "@/systems/settings/mocks/settings-update-fixture";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBothAvailableFixture,
+} from "@/systems/settings/mocks/settings-update-fixture";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -4350,25 +4352,29 @@ test("operator sees one nested worktree tree across all three workspace-listing 
 });
 
 // Presence across update states belongs to menubar-update-indicator.test.tsx.
-// This journey owns the real shell-to-Settings navigation wiring for both inputs.
-test("E2E-021 / E2E-022: update offers open Updates by pointer and keyboard and apply without a pointer", async ({
+// This journey owns the real shell wiring: one activation of the menubar pill,
+// by keyboard or pointer, applies every eligible target without a Settings detour.
+test("E2E-021 / E2E-022: the menubar Update pill updates CompozyOS in one activation by keyboard or pointer", async ({
   appPage,
   runtime,
 }) => {
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
-  const applyTargets: string[] = [];
+  let updatePayload: unknown = settingsUpdateBothAvailableFixture;
+  const applyRequests: string[][] = [];
   await appPage.route("**/api/settings/update", async route => {
-    await route.fulfill({ json: settingsUpdateBothAvailableFixture });
+    await route.fulfill({ json: updatePayload });
   });
   await appPage.route("**/api/settings/update/apply", async route => {
     const body = route.request().postDataJSON() as { targets: string[] };
-    applyTargets.push(...body.targets);
+    applyRequests.push(body.targets);
+    // Apply only acknowledges acquisition; the GET above becomes the progress feed.
+    updatePayload = settingsUpdateApplyingFixture;
     await route.fulfill({
       json: {
         targets: body.targets,
         status: "accepted",
-        operation_id: "op-e2e-keyboard",
+        operation_id: "op-e2e-menubar",
         message: "Started the requested updates.",
         holder: null,
       },
@@ -4379,35 +4385,25 @@ test("E2E-021 / E2E-022: update offers open Updates by pointer and keyboard and 
   await expect(appPage.getByTestId("os-desktop")).toBeVisible({ timeout: 20_000 });
 
   const indicator = appPage.getByTestId("os-menubar-update");
-  await expect(indicator).toBeVisible({ timeout: 20_000 });
+  await expect(indicator).toHaveText("Update", { timeout: 20_000 });
 
-  // Pointer activation and keyboard activation share the real navigation callback.
-  await indicator.click();
-  const settingsWin = appWindow(appPage, "settings");
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
-  await expect(settingsOperatorSelectors(settingsWin).general.updates).toBeVisible({
-    timeout: 20_000,
-  });
-  await settingsWin.getByRole("button", { name: "Close window" }).click();
-  await expect(settingsWin).toHaveCount(0);
-
-  // Focus without a pointer, then activate with the keyboard.
+  // Keyboard: focus without a pointer, then activate.
   await indicator.focus();
   await expect(indicator).toBeFocused();
   await appPage.keyboard.press("Enter");
+  await expect.poll(() => applyRequests).toEqual([["runtime", "app"]]);
+  await expect(indicator).toHaveAttribute("data-state", "updating", { timeout: 20_000 });
+  await expect(indicator).toBeDisabled();
+  // One click means no detour: Settings never opens.
+  await expect(appWindow(appPage, "settings")).toHaveCount(0);
 
-  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
-  const settingsUI = settingsOperatorSelectors(settingsWin);
-  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
-
-  // The apply affordance is a real button in the tab order, activatable by keyboard.
-  const apply = settingsUI.general.updateApply();
-  await expect(apply).toBeVisible();
-  await apply.focus();
-  await expect(apply).toBeFocused();
-  await appPage.keyboard.press("Enter");
-  await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
+  // Pointer: a fresh offer applies the same way.
+  updatePayload = settingsUpdateBothAvailableFixture;
+  await expect(indicator).toHaveAttribute("data-state", "available", { timeout: 20_000 });
+  await indicator.click();
+  await expect.poll(() => applyRequests).toHaveLength(2);
+  expect(applyRequests[1]).toEqual(["runtime", "app"]);
+  await expect(appWindow(appPage, "settings")).toHaveCount(0);
 });
 
 test("E2E-015: destination mode offers only eligible targets and exits clean when none are", async ({

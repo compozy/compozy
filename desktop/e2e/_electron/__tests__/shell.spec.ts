@@ -1188,7 +1188,7 @@ test("E2E-018: the real Settings API projects a journaled runtime swap through r
 
   try {
     await desktop.cli(["app", "open", "/settings/general"]);
-    const progress = product.getByTestId("settings-page-general-update-progress-runtime");
+    const progress = product.getByTestId("settings-page-general-update-progress");
     for (const phase of ["download", "verify", "install", "start"]) {
       // The daemon's named phase rides on data-phase; the visible label is plain words.
       await expect(progress).toHaveAttribute("data-phase", phase, { timeout: 30_000 });

@@ -305,7 +305,6 @@ export const settingsGeneralTestIds = {
   updateRecommendation: "settings-page-general-update-recommendation",
   updateLastError: "settings-page-general-update-last-error",
   updateBlocked: "settings-page-general-update-blocked",
-  updateRollback: "settings-page-general-update-rollback",
   updateCancel: "settings-page-general-update-cancel",
 } as const;
 
@@ -402,13 +401,11 @@ interface SettingsGeneralSelectors {
   updateRecommendation: Locator;
   updateLastError: Locator;
   updateBlocked: Locator;
-  updateRollback: Locator;
   updateCancel: Locator;
   /** Per-track row, shared apply affordance, live progress, and release link. */
-  updateTrack: (target: string) => Locator;
   updateApply: () => Locator;
-  updateProgress: (target: string) => Locator;
-  updateRelease: (target: string) => Locator;
+  updateProgress: () => Locator;
+  updateRelease: () => Locator;
 }
 
 interface SettingsSkillsSelectors {
@@ -1021,15 +1018,10 @@ export function settingsOperatorSelectors(
       updateRecommendation: page.getByTestId(settingsGeneralTestIds.updateRecommendation),
       updateLastError: page.getByTestId(settingsGeneralTestIds.updateLastError),
       updateBlocked: page.getByTestId(settingsGeneralTestIds.updateBlocked),
-      updateRollback: page.getByTestId(settingsGeneralTestIds.updateRollback),
       updateCancel: page.getByTestId(settingsGeneralTestIds.updateCancel),
-      updateTrack: (target: string) =>
-        page.getByTestId(`settings-page-general-update-track-${target}`),
       updateApply: () => page.getByTestId("settings-page-general-update-apply"),
-      updateProgress: (target: string) =>
-        page.getByTestId(`settings-page-general-update-progress-${target}`),
-      updateRelease: (target: string) =>
-        page.getByTestId(`settings-page-general-update-release-${target}`),
+      updateProgress: () => page.getByTestId("settings-page-general-update-progress"),
+      updateRelease: () => page.getByTestId("settings-page-general-update-release"),
     },
     skills: {
       page: page.getByTestId(settingsSkillsTestIds.page),

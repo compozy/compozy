@@ -85,7 +85,7 @@ function renderMenubar({
             activeOverlay={activeOverlay}
             onOverlayOpenChange={onOverlayOpenChange}
             attention={ATTENTION}
-            updateAvailable={false}
+            update={{ state: "hidden" }}
           />
         </CmdPaletteRegistryProvider>
       </UIProvider>
