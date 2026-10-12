@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-09
+## 0.3.0 - 2026-10-12
 
 ### ♻️ Refactoring
 
@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Delegate full gates to pull request CI (#476)
 - Reduce test and development feedback overhead (#556)
 - Avoid rendering unchanged windows during layout updates
+- Reduce SQLite contention and query costs (#723)
 
 ### 🎉 Features
 
@@ -95,6 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merge Jobs and Triggers into one Automations area (#709)
 - Remove the memory feature family and adopt agent-native session compaction (#710)
 - Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
+- Render session tool calls as verb + object rows on a work rail (#716)
+- Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
 
 ### 🐛 Bug Fixes
 
@@ -297,6 +300,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve profile entry across query reconciliation (#697)
 - Apply the chosen runtime to continued sessions and keep continue/fork top-level (#702)
 - Keep live model catalogs current without releases (#701)
+- Classify teardown survivors by final process liveness (#713)
+- Fold transcript entries incrementally instead of replaying each turn (#715)
+- Resolve Windows runtime failures and desktop context menus (#725)
+- Reduce session startup and attention overhead (#731)
+- Bound scheduled claim attempts before contention backoff
 
 ### 🔧 Miscellaneous Tasks
 
