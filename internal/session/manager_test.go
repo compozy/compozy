@@ -591,8 +591,24 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 						RuntimeSelection{Provider: provider, Model: "test-model"},
 						executionContext,
 					)
-					if !tc.stale && (err != nil || binding != "private-transport") {
-						t.Fatalf("binding = %q, %v", binding, err)
+					wantBinding := "private-transport"
+					if tc.stale && provider == "cursor" {
+						wantBinding = ""
+						var negotiationErr *acp.NegotiationError
+						if !errors.As(err, &negotiationErr) ||
+							negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+							t.Fatalf("error = %v, want model-unavailable negotiation error", err)
+						}
+					} else {
+						if tc.stale {
+							wantBinding = "test-model"
+						}
+						if err != nil {
+							t.Fatalf("resolveCatalogTransportModel() error = %v, want nil", err)
+						}
+					}
+					if binding != wantBinding {
+						t.Fatalf("binding = %q, want %q", binding, wantBinding)
 					}
 					wantCalls := 1
 					if tc.wantRefresh {
