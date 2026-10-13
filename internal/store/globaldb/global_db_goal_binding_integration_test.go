@@ -1476,6 +1476,29 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("reviewed run-agent cleanups = %#v, want one terminal session cleanup", cleanups)
 		}
+
+		// A retry after a pause re-dispatches the cell several epochs later.
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_generation_outputs SET status = 'enqueued', epoch = 5, task_run_id = ?
+			 WHERE loop_run_id = ? AND node_id = 'execute'`,
+			taskRunID+"-retry",
+			loopRunID,
+		); err != nil {
+			t.Fatalf("advance reviewed run-agent cell error = %v", err)
+		}
+		retry := request
+		retry.CellFence = &goal.BindingCellFence{Key: cellKey, Epoch: 5, TaskRunID: taskRunID + "-retry"}
+		retry.TargetBindingEpoch = 6
+		retry.CreatedAt = now.Add(6 * time.Second)
+		successor, err := globalDB.AllocateSessionBindingAttempt(ctx, &retry)
+		if err != nil {
+			t.Fatalf("AllocateSessionBindingAttempt(retry) error = %v", err)
+		}
+		if successor.BindingEpoch != 6 || successor.State != goal.BindingStateCreating ||
+			successor.SessionID == prepared.SessionID {
+			t.Fatalf("retry binding = %#v, want a fresh creating epoch 6", successor)
+		}
 	})
 
 	t.Run("Should release an unsettled Stop creation cleanup after database reopen", func(t *testing.T) {
