@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-// AllocateSessionBindingAttempt atomically selects and persists the next Goal-owned binding epoch.
+// AllocateSessionBindingAttempt atomically selects and persists the next run-owned binding epoch.
 func (g *GoalRepo) AllocateSessionBindingAttempt(
 	ctx context.Context,
 	req *goal.AllocateBindingAttemptRequest,
@@ -59,6 +59,11 @@ func normalizeAllocateBindingRequest(
 	req.IdentityHandle = strings.TrimSpace(req.IdentityHandle)
 	req.CreationProfile = store.NormalizeSessionCreationProfile(req.CreationProfile)
 	req.CreationOptions.SessionID = strings.TrimSpace(req.CreationOptions.SessionID)
+	if req.CellFence != nil {
+		fence := *req.CellFence
+		fence.TaskRunID = strings.TrimSpace(fence.TaskRunID)
+		req.CellFence = &fence
+	}
 	if err := validateAllocateBindingRequest(req); err != nil {
 		return err
 	}
@@ -69,6 +74,23 @@ func normalizeAllocateBindingRequest(
 }
 
 func validateAllocateBindingRequest(req *goal.AllocateBindingAttemptRequest) error {
+	validateOwner := validateGoalBindingAllocationFence
+	if req.CellFence != nil {
+		validateOwner = validateCellBindingAllocationFence
+	}
+	if err := validateOwner(req); err != nil {
+		return err
+	}
+	if err := req.CreationProfile.Validate(); err != nil {
+		return err
+	}
+	if req.CreationProfile.WorkspaceID != string(req.Key.WorkspaceID) {
+		return fmt.Errorf("%w: binding profile workspace differs from the Loop Run", looppkg.ErrValidation)
+	}
+	return nil
+}
+
+func validateGoalBindingAllocationFence(req *goal.AllocateBindingAttemptRequest) error {
 	checkpointBindingEmpty := req.ExpectedCheckpointBindingEpoch == 0 &&
 		req.ExpectedCheckpointSessionID == "" && req.ExpectedCheckpointHandle == ""
 	checkpointBindingComplete := req.ExpectedCheckpointBindingEpoch > 0 &&
@@ -81,11 +103,21 @@ func validateAllocateBindingRequest(req *goal.AllocateBindingAttemptRequest) err
 		req.IdentityHandle == "" || req.CreationOptions.SessionID != "" {
 		return fmt.Errorf("%w: complete Goal binding allocation fence is required", looppkg.ErrValidation)
 	}
-	if err := req.CreationProfile.Validate(); err != nil {
-		return err
+	return nil
+}
+
+func validateCellBindingAllocationFence(req *goal.AllocateBindingAttemptRequest) error {
+	if req.TargetBindingEpoch != 0 || req.ExpectedControlEpoch != 0 || req.ExpectedCheckpointPhase != "" ||
+		req.ExpectedTaskRunID != "" || req.ExpectedQueueEntryID != "" || req.ExpectedPromptID != "" ||
+		req.ExpectedCheckpointBindingEpoch != 0 || req.ExpectedCheckpointSessionID != "" ||
+		req.ExpectedCheckpointHandle != "" {
+		return fmt.Errorf("%w: binding allocation cannot mix cell and Goal owners", looppkg.ErrValidation)
 	}
-	if req.CreationProfile.WorkspaceID != string(req.Key.WorkspaceID) {
-		return fmt.Errorf("%w: binding profile workspace differs from the Goal Run", looppkg.ErrValidation)
+	fence := req.CellFence
+	if fence.Key != req.CheckpointKey || req.Key.WorkspaceID != fence.Key.WorkspaceID ||
+		req.Key.LoopRunID != fence.Key.LoopRunID || fence.Epoch < 0 || fence.TaskRunID == "" ||
+		req.IdentityHandle == "" || req.CreationOptions.SessionID != "" {
+		return fmt.Errorf("%w: complete action cell binding allocation fence is required", looppkg.ErrValidation)
 	}
 	return nil
 }
@@ -98,7 +130,11 @@ func allocateSessionBindingAttemptWithExecutor(
 	if err := validateBindingRunWorkspace(ctx, exec, req.Key); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	if err := validateBindingAllocationOwner(ctx, exec, req); err != nil {
+	if req.CellFence != nil {
+		if err := validateBindingActivationCell(ctx, exec, req.Key, *req.CellFence); err != nil {
+			return goal.SessionBinding{}, err
+		}
+	} else if err := validateBindingAllocationOwner(ctx, exec, req); err != nil {
 		return goal.SessionBinding{}, err
 	}
 	profileRef, err := req.CreationProfile.Ref()
@@ -117,7 +153,8 @@ func allocateSessionBindingAttemptWithExecutor(
 		if active.CreationProfileRef != profileRef || active.PolicySpecDigest != policyDigest {
 			return goal.SessionBinding{}, goalBindingMismatchError("active binding policy/profile differs")
 		}
-		if active.BindingEpoch >= req.TargetBindingEpoch {
+		// Every dispatch of an action cell starts a fresh successor session.
+		if req.CellFence == nil && active.BindingEpoch >= req.TargetBindingEpoch {
 			return active, nil
 		}
 	}
@@ -194,10 +231,12 @@ func allocateNextSessionBindingAttempt(
 		return goal.SessionBinding{}, goalControlStaleError("another binding creation attempt is already pending")
 	}
 	epoch := req.TargetBindingEpoch
-	if req.ExpectedCheckpointBindingEpoch == 0 && epoch == 1 {
+	if req.CellFence != nil || (req.ExpectedCheckpointBindingEpoch == 0 && epoch == 1) {
 		// A new generation has no binding checkpoint, but the run-local handle
-		// can retain closed attempts from earlier generations. Allocate under
-		// this transaction's owner fence instead of restarting its history.
+		// can retain closed attempts from earlier generations. Action cells
+		// carry no binding epoch at all: their cell epoch also advances on
+		// review, ask, and pause waits. Allocate under this transaction's owner
+		// fence instead of restarting or skipping the binding history.
 		epoch = maximumEpoch + 1
 	}
 	if epoch != maximumEpoch+1 {

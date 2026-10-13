@@ -42,7 +42,7 @@ func (b *loopActionSessionBinder) BindActionSession(
 	if b == nil || b.sessions == nil {
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action sessions are unavailable")
 	}
-	if strings.TrimSpace(string(req.LoopRunID)) == "" || req.TargetBindingEpoch < 1 {
+	if strings.TrimSpace(string(req.LoopRunID)) == "" || (req.TargetBindingEpoch < 1 && req.CellFence == nil) {
 		return b.bindEphemeralActionSession(ctx, req)
 	}
 	if b.bindings == nil || b.creationStore == nil {

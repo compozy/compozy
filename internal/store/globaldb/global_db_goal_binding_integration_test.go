@@ -1355,6 +1355,116 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		},
 	)
 
+	t.Run("Should allocate action cell bindings from history when waits advanced the cell epoch", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-action-binding-allocate"
+			loopRunID   = "run-action-binding-allocate"
+			handle      = "action:reviewed-cell"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			loopRunID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert action generation error = %v", err)
+		}
+		// A review wait opened (epoch 1) and an approve was admitted (epoch 2) before the first dispatch.
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, epoch
+			 ) VALUES (?, 1, 'write_file', 0, 'enqueued', 'taskrun-reviewed-1', 2)`,
+			loopRunID,
+		); err != nil {
+			t.Fatalf("insert reviewed action cell error = %v", err)
+		}
+		cellKey := goal.TurnKey{
+			WorkspaceID: workspaceID, LoopRunID: loopRunID, Generation: 1, NodeID: "write_file",
+		}
+		request := goal.AllocateBindingAttemptRequest{
+			Key:            goal.BindingKey{WorkspaceID: workspaceID, LoopRunID: loopRunID, Handle: handle},
+			CheckpointKey:  cellKey,
+			CellFence:      &goal.BindingCellFence{Key: cellKey, Epoch: 2, TaskRunID: "taskrun-reviewed-1"},
+			IdentityHandle: "default",
+			CreationProfile: store.SessionCreationProfile{
+				Version: store.SessionCreationProfileVersion, AgentName: "general", Provider: "native",
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, CWD: "/tmp",
+			},
+			CreationOptions: store.SessionCreationOptions{SessionType: "loop-action"},
+			CreatedAt:       now.Add(time.Second),
+		}
+
+		mixed := request
+		mixed.TargetBindingEpoch = 3
+		if _, err := globalDB.AllocateSessionBindingAttempt(ctx, &mixed); !errors.Is(err, looppkg.ErrValidation) {
+			t.Fatalf("AllocateSessionBindingAttempt(cell + target epoch) error = %v, want validation", err)
+		}
+		stale := request
+		stale.CellFence = &goal.BindingCellFence{Key: cellKey, Epoch: 1, TaskRunID: "taskrun-reviewed-1"}
+		_, err := globalDB.AllocateSessionBindingAttempt(ctx, &stale)
+		requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+
+		first, err := globalDB.AllocateSessionBindingAttempt(ctx, &request)
+		if err != nil {
+			t.Fatalf("AllocateSessionBindingAttempt(reviewed cell) error = %v", err)
+		}
+		wantAttemptID, wantSessionID := goal.DeriveBindingIdentity(cellKey, "default", 1)
+		if first.BindingEpoch != 1 || first.State != goal.BindingStateCreating ||
+			first.BindingAttemptID != wantAttemptID || first.SessionID != wantSessionID {
+			t.Fatalf("reviewed cell binding = %#v, want creating epoch 1", first)
+		}
+		replayed, err := globalDB.AllocateSessionBindingAttempt(ctx, &request)
+		if err != nil || replayed.BindingEpoch != 1 || replayed.SessionID != first.SessionID {
+			t.Fatalf("AllocateSessionBindingAttempt(replay) = %#v, %v, want the same creating epoch 1", replayed, err)
+		}
+		registerGoalSessionIdentityForTest(
+			t,
+			globalDB,
+			goalSessionInfoForTest(first.SessionID, workspaceID, now.Add(2*time.Second)),
+			store.SessionCreationIdentity{
+				CreationProfileRef: first.CreationProfileRef,
+				PolicySpecDigest:   first.PolicySpecDigest,
+				CreationDigest:     first.CreationDigest,
+			},
+		)
+		activated, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+			Key: request.Key, CellFence: request.CellFence, ExpectedBindingEpoch: 1,
+			ActivatedAt: now.Add(3 * time.Second),
+		})
+		if err != nil || stopped || activated.State != goal.BindingStateActive {
+			t.Fatalf("FinalizeSessionBindingCreation(reviewed cell) = %#v/%t, %v", activated, stopped, err)
+		}
+
+		// A retry after a pause re-dispatches the cell several epochs later.
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_generation_outputs SET epoch = 5, task_run_id = 'taskrun-reviewed-2'
+			 WHERE loop_run_id = ? AND node_id = 'write_file'`,
+			loopRunID,
+		); err != nil {
+			t.Fatalf("advance reviewed action cell error = %v", err)
+		}
+		retry := request
+		retry.CellFence = &goal.BindingCellFence{Key: cellKey, Epoch: 5, TaskRunID: "taskrun-reviewed-2"}
+		retry.CreatedAt = now.Add(4 * time.Second)
+		successor, err := globalDB.AllocateSessionBindingAttempt(ctx, &retry)
+		if err != nil {
+			t.Fatalf("AllocateSessionBindingAttempt(retry) error = %v", err)
+		}
+		if successor.BindingEpoch != 2 || successor.State != goal.BindingStateCreating ||
+			successor.SessionID == first.SessionID {
+			t.Fatalf("retry binding = %#v, want a fresh creating epoch 2", successor)
+		}
+	})
+
 	t.Run("Should release an unsettled Stop creation cleanup after database reopen", func(t *testing.T) {
 		t.Parallel()
 

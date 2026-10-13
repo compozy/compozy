@@ -101,6 +101,16 @@
                             "text": "```json\n{\"summary\":\"fallback completed\",\"value\":\"fallback\"}\n```"
                         }
                     ]
+                },
+                {
+                    "name": "reviewed-action-success",
+                    "match": { "turn_source": "user", "user_text": "reviewed action" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"reviewed action completed\",\"value\":\"approved\"}\n```"
+                        }
+                    ]
                 }
             ]
         },

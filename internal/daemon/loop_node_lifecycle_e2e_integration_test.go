@@ -24,6 +24,7 @@ const (
 	lifecycleRouteLoopName        = "node-lifecycle-route"
 	lifecycleEscalationLoopName   = "node-lifecycle-escalation"
 	lifecycleTerminalToolLoopName = "node-lifecycle-terminal-tool"
+	lifecycleReviewLoopName       = "node-lifecycle-reviewed-run-agent"
 )
 
 func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteEscalateAndDeliverEffects(t *testing.T) {
@@ -46,6 +47,7 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteEscalateAndDeliverEffects(t *
 		lifecycleRouteLoopName,
 		lifecycleEscalationLoopName,
 		lifecycleTerminalToolLoopName,
+		lifecycleReviewLoopName,
 	} {
 		waitForLoopCatalogEntry(t, t.Context(), harness, name)
 	}
@@ -145,6 +147,21 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteEscalateAndDeliverEffects(t *
 		})
 	})
 
+	t.Run("Should bind and run a reviewed run-agent action after approval", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		run := runLoopViaHTTP(t, ctx, harness, lifecycleReviewLoopName)
+		approveLifecycleReview(t, ctx, harness, run.ID, "write_file")
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+
+		detail := lifecycleRunDetail(t, ctx, harness, run.ID)
+		output := lifecycleOutput(t, detail.Generations[0], "write_file")
+		if output.Status != "succeeded" || !strings.Contains(output.OutputRef, "reviewed action completed") {
+			t.Fatalf("reviewed run-agent output = %#v, want approved success", output)
+		}
+		lifecycleAssertPromptContains(t, harness, "lifecycle-route-agent", []string{"reviewed action"})
+	})
+
 	t.Run("Should deliver a daemon-owned terminal tool effect without a public agent", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
@@ -182,6 +199,81 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteEscalateAndDeliverEffects(t *
 	})
 }
 
+func lifecycleReviewLoopYAML() string {
+	return `apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: node-lifecycle-reviewed-run-agent, description: "E2E reviewed run-agent probe." }
+concurrency: allow
+contract:
+  goal: "Run one reviewed agent action after approval."
+  definition_of_done: "The approved action binds a session and succeeds."
+  stop_when: "nodes.write_file.status == 'succeeded'"
+  verification: []
+  terminal_states: [done, failed, blocked, exhausted, stalled]
+  iteration_cap: 1
+  no_progress: { window: 2 }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: write_file
+      class: action
+      kind: run-agent
+      retry: { max_attempts: 1 }
+      review:
+        when: "true"
+        prompt: "Approve the reviewed action?"
+        decisions: [approve, reject]
+        responders: { agents: deny }
+      session: { isolated: true }
+      params:
+        agent: lifecycle-route-agent
+        prompt: "reviewed action"
+        output_schema:
+          type: object
+          required: [summary, value]
+          properties:
+            summary: { type: string }
+            value: { type: string }
+  edges: []
+start: [{ kind: http }, { kind: uds }]
+`
+}
+
+func approveLifecycleReview(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	nodeID string,
+) {
+	t.Helper()
+	nodePath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID) + "/nodes/" + url.PathEscape(nodeID)
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var request compozycontract.LoopRequestPayload
+		err := harness.HTTPJSON(ctx, http.MethodGet, nodePath+"/request?generation=1", nil, &request)
+		if err == nil && request.State == looppkg.RequestStatePending {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("review request for %s never opened: last request = %#v, error = %v", nodeID, request, err)
+		case <-ticker.C:
+		}
+	}
+	var response compozycontract.RespondLoopRequestResponse
+	if err := harness.HTTPJSON(ctx, http.MethodPost, nodePath+"/respond", compozycontract.RespondLoopRequest{
+		Generation: 1, Decision: string(looppkg.RequestDecisionApprove),
+	}, &response); err != nil {
+		t.Fatalf("approve review for %s error = %v", nodeID, err)
+	}
+	if !response.OK || response.Decision != string(looppkg.RequestDecisionApprove) {
+		t.Fatalf("approve review response = %#v", response)
+	}
+}
+
 func seedLoopNodeLifecycleDefinitions(t testing.TB, workspaceRoot string) {
 	t.Helper()
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
@@ -190,6 +282,7 @@ func seedLoopNodeLifecycleDefinitions(t testing.TB, workspaceRoot string) {
 		lifecycleRouteLoopName:        lifecycleRouteLoopYAML(),
 		lifecycleEscalationLoopName:   lifecycleEscalationLoopYAML(),
 		lifecycleTerminalToolLoopName: lifecycleTerminalToolLoopYAML(),
+		lifecycleReviewLoopName:       lifecycleReviewLoopYAML(),
 	} {
 		if _, _, err := looppkg.WriteDefinition(root, []byte(source), looppkg.WriteDefinitionOptions{
 			Source: looppkg.SourceWorkspace,

@@ -98,10 +98,14 @@ type PrepareBindingAttemptRequest struct {
 	CreatedAt          time.Time
 }
 
-// AllocateBindingAttemptRequest atomically selects and prepares the next Goal-owned binding epoch.
+// AllocateBindingAttemptRequest atomically selects and prepares the next run-owned binding epoch.
 type AllocateBindingAttemptRequest struct {
-	Key                            BindingKey
-	CheckpointKey                  TurnKey
+	Key           BindingKey
+	CheckpointKey TurnKey
+	// CellFence makes an ordinary action cell the owner instead of the Goal checkpoint.
+	// It is mutually exclusive with TargetBindingEpoch and every Expected* checkpoint field;
+	// the epoch then follows the binding history because cell epochs also advance on waits.
+	CellFence                      *BindingCellFence
 	TargetBindingEpoch             int64
 	ExpectedControlEpoch           int64
 	ExpectedCheckpointPhase        string
@@ -117,7 +121,7 @@ type AllocateBindingAttemptRequest struct {
 	CreatedAt                      time.Time
 }
 
-// BindingAttemptAllocator reserves Goal-owned epochs under the checkpoint ownership fence.
+// BindingAttemptAllocator reserves run-owned epochs under a Goal checkpoint or action cell fence.
 type BindingAttemptAllocator interface {
 	AllocateSessionBindingAttempt(context.Context, *AllocateBindingAttemptRequest) (SessionBinding, error)
 }
