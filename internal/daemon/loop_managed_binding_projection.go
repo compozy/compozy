@@ -39,10 +39,10 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 	profile store.SessionCreationProfile,
 	opts session.CreateOpts,
 ) (goalpkg.SessionBinding, store.SessionCreationIdentity, error) {
-	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
+	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" || req.CellFence != nil {
 		if b.bindingAllocator == nil {
 			return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, errors.New(
-				"daemon: Goal binding attempt allocator is unavailable",
+				"daemon: binding attempt allocator is unavailable",
 			)
 		}
 		prepared, err := b.bindingAllocator.AllocateSessionBindingAttempt(
@@ -50,6 +50,7 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 			&goalpkg.AllocateBindingAttemptRequest{
 				Key:                            key,
 				CheckpointKey:                  bindingCheckpointKey(req),
+				CellFence:                      bindingCellFence(req),
 				TargetBindingEpoch:             req.TargetBindingEpoch,
 				ExpectedControlEpoch:           req.ExpectedControlEpoch,
 				ExpectedCheckpointPhase:        req.ExpectedCheckpointPhase,
@@ -80,6 +81,17 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 	return prepared, identity, err
 }
 
+func bindingCellFence(req looppkg.ActionSessionBindRequest) *goalpkg.BindingCellFence {
+	if req.CellFence == nil || strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
+		return nil
+	}
+	return &goalpkg.BindingCellFence{
+		Key:       bindingCheckpointKey(req),
+		Epoch:     req.CellFence.Epoch,
+		TaskRunID: strings.TrimSpace(req.CellFence.TaskRunID),
+	}
+}
+
 func bindingCheckpointKey(req looppkg.ActionSessionBindRequest) goalpkg.TurnKey {
 	return goalpkg.TurnKey{
 		WorkspaceID: req.WorkspaceID,
@@ -104,32 +116,13 @@ func activationRequest(
 	prepared goalpkg.SessionBinding,
 ) goalpkg.ActivateBindingRequest {
 	var checkpointKey *goalpkg.TurnKey
-	var cellFence *goalpkg.BindingCellFence
 	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
-		checkpointKey = &goalpkg.TurnKey{
-			WorkspaceID: req.WorkspaceID,
-			LoopRunID:   req.LoopRunID,
-			Generation:  req.Generation,
-			NodeID:      req.NodeID,
-			ItemIndex:   req.ItemIndex,
-		}
-	} else if req.CellFence != nil {
-		cellFence = &goalpkg.BindingCellFence{
-			Key: goalpkg.TurnKey{
-				WorkspaceID: req.WorkspaceID,
-				LoopRunID:   req.LoopRunID,
-				Generation:  req.Generation,
-				NodeID:      req.NodeID,
-				ItemIndex:   req.ItemIndex,
-			},
-			Epoch:     req.CellFence.Epoch,
-			TaskRunID: strings.TrimSpace(req.CellFence.TaskRunID),
-		}
+		checkpointKey = new(bindingCheckpointKey(req))
 	}
 	return goalpkg.ActivateBindingRequest{
 		Key:                  key,
 		CheckpointKey:        checkpointKey,
-		CellFence:            cellFence,
+		CellFence:            bindingCellFence(req),
 		ExpectedBindingEpoch: prepared.BindingEpoch,
 		ExpectedControlEpoch: req.ExpectedControlEpoch,
 		GrantID:              req.ReseedGrantID,
