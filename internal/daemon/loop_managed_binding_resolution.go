@@ -28,14 +28,11 @@ func (b *loopActionSessionBinder) bindFromActiveSession(
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, true, err
 	}
-	if req.CellFence != nil {
-		// Each action cell dispatch allocates its successor from the binding history.
-		return looppkg.ActionSessionBinding{}, false, nil
-	}
 	if active.BindingEpoch >= req.TargetBindingEpoch {
 		return actionBindingFromGoal(req, active, appliedRuntime), true, nil
 	}
-	if req.TargetBindingEpoch != active.BindingEpoch+1 {
+	// Action cell epochs also advance on waits, so their successors may skip epochs.
+	if req.CellFence == nil && req.TargetBindingEpoch != active.BindingEpoch+1 {
 		return looppkg.ActionSessionBinding{}, true, bindingMismatch(
 			"requested binding epoch skips the active epoch",
 		)

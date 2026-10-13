@@ -740,9 +740,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.ItemIndex != 2 {
 			t.Fatalf("bind item index = %d, want 2", bind.ItemIndex)
 		}
-		if bind.TargetBindingEpoch != 0 || bind.ExpectedControlEpoch != 0 || bind.CellFence == nil ||
+		if bind.TargetBindingEpoch != 5 || bind.ExpectedControlEpoch != 0 || bind.CellFence == nil ||
 			bind.CellFence.Epoch != 4 || bind.CellFence.TaskRunID != "taskrun-managed-5" {
-			t.Fatalf("managed bind fence = %#v, want binder-allocated epoch + exact cell owner", bind)
+			t.Fatalf("managed bind fence = %#v, want binding epoch 5 + exact cell owner", bind)
 		}
 		if bind.OriginSessionID != "" || bind.ProvenanceParentSessionID != "sess-provenance-parent" {
 			t.Fatalf("managed bind provenance = %#v, want a new child of the nearest parent", bind)

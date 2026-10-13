@@ -107,7 +107,7 @@ func validateGoalBindingAllocationFence(req *goal.AllocateBindingAttemptRequest)
 }
 
 func validateCellBindingAllocationFence(req *goal.AllocateBindingAttemptRequest) error {
-	if req.TargetBindingEpoch != 0 || req.ExpectedControlEpoch != 0 || req.ExpectedCheckpointPhase != "" ||
+	if req.ExpectedControlEpoch != 0 || req.ExpectedCheckpointPhase != "" ||
 		req.ExpectedTaskRunID != "" || req.ExpectedQueueEntryID != "" || req.ExpectedPromptID != "" ||
 		req.ExpectedCheckpointBindingEpoch != 0 || req.ExpectedCheckpointSessionID != "" ||
 		req.ExpectedCheckpointHandle != "" {
@@ -116,6 +116,7 @@ func validateCellBindingAllocationFence(req *goal.AllocateBindingAttemptRequest)
 	fence := req.CellFence
 	if fence.Key != req.CheckpointKey || req.Key.WorkspaceID != fence.Key.WorkspaceID ||
 		req.Key.LoopRunID != fence.Key.LoopRunID || fence.Epoch < 0 || fence.TaskRunID == "" ||
+		req.TargetBindingEpoch != fence.Epoch+1 ||
 		req.IdentityHandle == "" || req.CreationOptions.SessionID != "" {
 		return fmt.Errorf("%w: complete action cell binding allocation fence is required", looppkg.ErrValidation)
 	}
@@ -153,8 +154,7 @@ func allocateSessionBindingAttemptWithExecutor(
 		if active.CreationProfileRef != profileRef || active.PolicySpecDigest != policyDigest {
 			return goal.SessionBinding{}, goalBindingMismatchError("active binding policy/profile differs")
 		}
-		// Every dispatch of an action cell starts a fresh successor session.
-		if req.CellFence == nil && active.BindingEpoch >= req.TargetBindingEpoch {
+		if active.BindingEpoch >= req.TargetBindingEpoch {
 			return active, nil
 		}
 	}
@@ -230,17 +230,9 @@ func allocateNextSessionBindingAttempt(
 	if creatingCount != 0 {
 		return goal.SessionBinding{}, goalControlStaleError("another binding creation attempt is already pending")
 	}
-	epoch := req.TargetBindingEpoch
-	if req.CellFence != nil || (req.ExpectedCheckpointBindingEpoch == 0 && epoch == 1) {
-		// A new generation has no binding checkpoint, but the run-local handle
-		// can retain closed attempts from earlier generations. Action cells
-		// carry no binding epoch at all: their cell epoch also advances on
-		// review, ask, and pause waits. Allocate under this transaction's owner
-		// fence instead of restarting or skipping the binding history.
-		epoch = maximumEpoch + 1
-	}
-	if epoch != maximumEpoch+1 {
-		return goal.SessionBinding{}, goalControlStaleError("binding allocation must target the next epoch")
+	epoch, err := allocationBindingEpoch(req, maximumEpoch)
+	if err != nil {
+		return goal.SessionBinding{}, err
 	}
 	attemptID, sessionID := goal.DeriveBindingIdentity(req.CheckpointKey, req.IdentityHandle, epoch)
 	creationOptions := req.CreationOptions
@@ -263,6 +255,29 @@ func allocateNextSessionBindingAttempt(
 		return goal.SessionBinding{}, fmt.Errorf("store: insert allocated goal binding: %w", err)
 	}
 	return getSessionBindingAttemptWithExecutor(ctx, exec, prepare.Key, prepare.BindingEpoch)
+}
+
+func allocationBindingEpoch(req *goal.AllocateBindingAttemptRequest, maximumEpoch int64) (int64, error) {
+	epoch := req.TargetBindingEpoch
+	if req.CellFence != nil {
+		// Action cell bindings keep epoch = cell epoch + 1 so terminal cleanup and
+		// supervised recovery resolve them from task metadata. Review, ask, and
+		// pause waits advance the cell epoch without binding, so gaps are valid.
+		if epoch <= maximumEpoch {
+			return 0, goalControlStaleError("binding allocation must target a later epoch")
+		}
+		return epoch, nil
+	}
+	if req.ExpectedCheckpointBindingEpoch == 0 && epoch == 1 {
+		// A new generation has no binding checkpoint, but the run-local handle
+		// can retain closed attempts from earlier generations. Allocate under
+		// this transaction's owner fence instead of restarting its history.
+		epoch = maximumEpoch + 1
+	}
+	if epoch != maximumEpoch+1 {
+		return 0, goalControlStaleError("binding allocation must target the next epoch")
+	}
+	return epoch, nil
 }
 
 func allocatedBindingMatchesRequest(

@@ -103,8 +103,8 @@ type AllocateBindingAttemptRequest struct {
 	Key           BindingKey
 	CheckpointKey TurnKey
 	// CellFence makes an ordinary action cell the owner instead of the Goal checkpoint.
-	// It is mutually exclusive with TargetBindingEpoch and every Expected* checkpoint field;
-	// the epoch then follows the binding history because cell epochs also advance on waits.
+	// It is mutually exclusive with every Expected* checkpoint field. TargetBindingEpoch
+	// must then be CellFence.Epoch+1, so cell waits may leave gaps in the binding history.
 	CellFence                      *BindingCellFence
 	TargetBindingEpoch             int64
 	ExpectedControlEpoch           int64

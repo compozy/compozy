@@ -192,10 +192,8 @@ func runAgentSessionBindRequest(
 		WorkspaceID: in.WorkspaceID, LoopRunID: in.LoopRunID, Generation: in.Generation,
 		NodeID: in.NodeID, Agent: strings.TrimSpace(input.spec.Agent),
 		Environment: new(environment), Handle: handle, SharedKey: sharedKey,
-		ItemIndex:                 in.ItemIndex,
+		ItemIndex: in.ItemIndex, TargetBindingEpoch: in.CellEpoch + 1,
 		ProvenanceParentSessionID: strings.TrimSpace(in.ProvenanceParentSessionID),
-		// The binder allocates the binding epoch from history: review, ask, and
-		// pause waits advance the cell epoch without binding a session.
 		CellFence: &ActionSessionCellFence{
 			Epoch: in.CellEpoch, TaskRunID: strings.TrimSpace(in.CorrelationID),
 		},
