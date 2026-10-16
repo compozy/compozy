@@ -14,7 +14,9 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		ID:          strings.TrimSpace(info.ID),
 	}
 	if sortKey == ListSortName {
-		position.Name = new(store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(sessionInfoFromCatalog(info))))
+		position.Name = new(
+			store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(sessionInfoFromCatalog(info))),
+		)
 		position.PrimaryAt = info.CreatedAt.UTC()
 	}
 	if sortKey == ListSortCreated {

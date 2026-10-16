@@ -181,7 +181,10 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			registerManagerInputQueueWorkspace(t, catalog, h)
 			h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
 			cleanupTestManager(t, h.manager)
-			active, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Alpha", Workspace: h.workspaceID})
+			active, err := h.manager.Create(
+				ctx,
+				CreateOpts{AgentName: "coder", Name: "Alpha", Workspace: h.workspaceID},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -207,7 +210,12 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			if sortKey == ListSortCreated {
 				want = []string{"zulu", "unnamed", "unicode-z", "unicode-a", "zzz-alpha", active.ID, "aaa-alpha"}
 			}
-			query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, Sort: sortKey, Limit: 1}
+			query := ListQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: h.workspaceID,
+				Sort:        sortKey,
+				Limit:       1,
+			}
 			seen := []string{}
 			for index := range want {
 				page, err := h.manager.ListPage(ctx, query)
@@ -223,7 +231,14 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				active.UpdatedAt = base.Add(time.Duration(index+1) * time.Hour)
 				active.PendingClarifyCount = index + 1
 				active.mu.Unlock()
-				if err := catalog.UpdateSessionState(ctx, store.SessionStateUpdate{ID: "aaa-alpha", State: string(StateStopped), UpdatedAt: base.Add(48 * time.Hour)}); err != nil {
+				if err := catalog.UpdateSessionState(
+					ctx,
+					store.SessionStateUpdate{
+						ID:        "aaa-alpha",
+						State:     string(StateStopped),
+						UpdatedAt: base.Add(48 * time.Hour),
+					},
+				); err != nil {
 					t.Fatal(err)
 				}
 			}

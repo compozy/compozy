@@ -115,16 +115,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if err != nil {
 		return ListPage{}, err
 	}
-	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint)
+	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint, normalized.Sort)
 	if err != nil {
 		return ListPage{}, err
-	}
-
-	if normalized.Sort == ListSortName && after != nil && after.Name == nil {
-		return ListPage{}, fmt.Errorf("%w: name cursor key is required", ErrListCursorInvalid)
-	}
-	if normalized.Sort == ListSortNavigator && after != nil && after.NavigatorBand == nil {
-		return ListPage{}, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
