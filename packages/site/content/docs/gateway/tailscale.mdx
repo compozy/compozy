@@ -104,6 +104,13 @@ A healthy activation shows the provider and a verified address (output trimmed):
 }
 ```
 
+When the private `operator_ui` surface is enabled, open the advertised HTTPS address, including
+`:8443`, from a device on your tailnet. An unpaired browser reaches **Pair this device**;
+`/api/gateway/status` returns `401 gateway_device_unauthenticated` until pairing completes.
+The bundled proxy preserves the browser Host and sets the HTTPS forwarding metadata itself.
+No additional Tailscale Serve or reverse proxy is needed. Requests from another origin remain
+rejected, and client-supplied forwarding headers cannot change the trusted target.
+
 Two more inspection commands are specific to the extension: `compozy extension status tailscale`
 reports the runtime state — `Missing Env: TS_AUTHKEY` there is the clearest sign the key was never
 bound — and `compozy extension logs tailscale` streams the provider's own log lines.

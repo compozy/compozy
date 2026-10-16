@@ -925,14 +925,25 @@ describe("useSessionLiveTail", () => {
     };
 
     act(() => {
-      sources[0]?.emit("subagents_snapshot", { session_id: SESSION_ID, subagents: [subagent] });
+      sources[0]?.emit("subagents_snapshot", {
+        session_id: SESSION_ID,
+        subagents: [{ ...subagent, status: "queued", child_session_id: null }],
+      });
+    });
+    expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
+      rows: [{ id: "sub-1", status: "queued", child_session_id: null }],
+    });
+
+    act(() => {
       sources[0]?.emit("subagent_updated", {
         session_id: SESSION_ID,
         subagent: { ...subagent, progress: "Reading", updated_at: "2026-10-08T21:00:05.000Z" },
       });
     });
     expect(queryClient.getQueryData<SubagentRoster>(rosterKey)).toMatchObject({
-      rows: [{ id: "sub-1", progress: "Reading" }],
+      rows: [
+        { id: "sub-1", status: "running", child_session_id: "sess-child", progress: "Reading" },
+      ],
       staleIds: new Set(),
     });
 

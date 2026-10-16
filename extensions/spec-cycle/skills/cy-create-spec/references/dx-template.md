@@ -1,14 +1,14 @@
 # DX Template
 
-Structure for `_dx.md` — the developer-experience contract that freezes the public surface before internals are designed. It shows every interface exactly as its consumer will use it, written **as if the feature already shipped**. Downstream consumers: the Stage 2 surface grill reworks it, Part II of `_spec.md` is designed to serve it, `_tests.md` derives CLI/API E2E journeys from its examples, and `packages/site` docs pages seed from it.
+Structure for `_dx.md` — the developer-experience contract that freezes the public surface before internals are designed. It shows every interface exactly as its consumer will use it, written **as if the feature already shipped**. Downstream consumers: the Stage 2 surface grill reworks it, Part II of `_spec.md` is designed to serve it, `_tests.md` derives CLI/API E2E journeys from its examples, and the project's public documentation pages seed from it.
 
 ## Rules
 
 - **As-if-shipped**: real names, real values, real output — never `<TBD>`, never "for example, something like". If a value is undecided, that is a surface-grill question, not a placeholder.
-- **Zero internals**: no Go interfaces, no storage, no architecture, no package names. Those live in `_spec.md` Part II. This document never explains how — only what the user types and what they see.
+- **Zero internals**: no implementation interfaces, no storage, no architecture, no package names. Those live in `_spec.md` Part II. This document never explains how — only what the user types and what they see.
 - **Pair every example**: what the user writes → what comes back. A command without its output, a request without its response, or a YAML file without its observed effect is half an example.
 - **Runtime truth**: every surface shown must be one the design will actually ship; agents are users too — `compozy__*` native tools and structured CLI output are part of the DX.
-- **Vocabulary**: `docs/_memory/glossary.md` terms and the `COPY.md` register throughout.
+- **Vocabulary**: the target project's established domain terms and copy guidelines throughout; when none exist, define the terms in the spec.
 - **Quality test**: pasted into the docs site as the feature's usage page, a new user succeeds without asking anything.
 
 ## Document Skeleton
