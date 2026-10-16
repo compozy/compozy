@@ -383,3 +383,13 @@ export const PopupFavoritesRail: Story = {
     await expect(list.getByText("Claude Fable 5")).toBeInTheDocument();
   },
 };
+
+export const ProviderAuthRequired: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    providerCatalogIssues: { cursor: "Sign in to update the model list." },
+  },
+  play: async ({ canvasElement }) => {
+    await openPopup(canvasElement);
+  },
+};

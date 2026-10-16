@@ -35653,6 +35653,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -35734,28 +35735,46 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                error?: string;
+                sources: {
+                  failure_reason?: string;
+                  last_error?: string;
+                  last_refresh?: string;
+                  last_success?: string;
+                  next_refresh?: string;
+                  priority: number;
+                  provider_id: string;
+                  refresh_state: string;
+                  row_count: number;
+                  source_id: string;
+                  source_kind: string;
+                  stale: boolean;
+                }[];
+              }
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Model catalog refresh unavailable */
@@ -35764,22 +35783,46 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
+          "application/json":
+            | {
+                error?: string;
+                sources: {
+                  failure_reason?: string;
+                  last_error?: string;
+                  last_refresh?: string;
+                  last_success?: string;
+                  next_refresh?: string;
+                  priority: number;
+                  provider_id: string;
+                  refresh_state: string;
+                  row_count: number;
+                  source_id: string;
+                  source_kind: string;
+                  stale: boolean;
+                }[];
+              }
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              };
         };
       };
     };
@@ -36336,6 +36379,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36417,28 +36461,46 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            current_turn_id?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                error?: string;
+                sources: {
+                  failure_reason?: string;
+                  last_error?: string;
+                  last_refresh?: string;
+                  last_success?: string;
+                  next_refresh?: string;
+                  priority: number;
+                  provider_id: string;
+                  refresh_state: string;
+                  row_count: number;
+                  source_id: string;
+                  source_kind: string;
+                  stale: boolean;
+                }[];
+              }
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Model catalog refresh unavailable */
@@ -36447,22 +36509,46 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
+          "application/json":
+            | {
+                error?: string;
+                sources: {
+                  failure_reason?: string;
+                  last_error?: string;
+                  last_refresh?: string;
+                  last_success?: string;
+                  next_refresh?: string;
+                  priority: number;
+                  provider_id: string;
+                  refresh_state: string;
+                  row_count: number;
+                  source_id: string;
+                  source_kind: string;
+                  stale: boolean;
+                }[];
+              }
+            | {
+                code?: string;
+                current_turn_id?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              };
         };
       };
     };
@@ -36487,6 +36573,7 @@ export interface operations {
         content: {
           "application/json": {
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36641,6 +36728,7 @@ export interface operations {
         content: {
           "application/json": {
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;

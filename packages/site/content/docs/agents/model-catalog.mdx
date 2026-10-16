@@ -51,6 +51,13 @@ catalog read with no recorded status bootstraps these sources before returning; 
 rows and refresh them in the background. A failed attempt is recorded as source status and never replaces
 the last successful rows with an empty catalog.
 
+Failed source status includes `failure_reason`: `auth_required` means sign in to the
+provider, `timeout` means discovery exceeded its deadline, and `refresh_failed`
+means another discovery failure. CLI structured output, HTTP/UDS, native tools,
+and Settings share this classification. `last_error` retains redacted diagnostic
+detail. A provider failure does not remove cached or curated model choices; the
+session selector shows guidance attributed to that provider.
+
 ## Provider overlays
 
 A provider overlay with `runtime_provider = "claude"` uses the Claude live-discovery adapter while

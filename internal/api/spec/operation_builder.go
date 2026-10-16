@@ -114,6 +114,10 @@ func buildResponse(schemas openapi3.Schemas, response ResponseSpec) (*openapi3.R
 	schemaRef := schemaRefs[0]
 	if len(schemaRefs) > 1 {
 		schemaRef = &openapi3.SchemaRef{Value: &openapi3.Schema{OneOf: schemaRefs}}
+		if response.Bodies.overlapping {
+			schemaRef.Value.OneOf = nil
+			schemaRef.Value.AnyOf = schemaRefs
+		}
 	}
 	contentType := response.ContentType
 	if contentType == "" {

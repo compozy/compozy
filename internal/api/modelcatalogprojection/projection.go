@@ -137,17 +137,18 @@ func SourceStatuses(statuses []modelcatalog.SourceStatus) []contract.ModelCatalo
 	payloads := make([]contract.ModelCatalogSourceStatusPayload, 0, len(statuses))
 	for _, status := range statuses {
 		payloads = append(payloads, contract.ModelCatalogSourceStatusPayload{
-			SourceID:     status.SourceID,
-			SourceKind:   string(status.SourceKind),
-			ProviderID:   status.ProviderID,
-			Priority:     status.Priority,
-			LastRefresh:  TimeString(status.LastRefresh),
-			NextRefresh:  TimeString(status.NextRefresh),
-			LastSuccess:  TimeString(status.LastSuccess),
-			LastError:    modelcatalog.RedactString(status.LastError),
-			RefreshState: string(status.RefreshState),
-			RowCount:     status.RowCount,
-			Stale:        status.Stale,
+			FailureReason: status.FailureReason(),
+			SourceID:      status.SourceID,
+			SourceKind:    string(status.SourceKind),
+			ProviderID:    status.ProviderID,
+			Priority:      status.Priority,
+			LastRefresh:   TimeString(status.LastRefresh),
+			NextRefresh:   TimeString(status.NextRefresh),
+			LastSuccess:   TimeString(status.LastSuccess),
+			LastError:     modelcatalog.RedactString(status.LastError),
+			RefreshState:  string(status.RefreshState),
+			RowCount:      status.RowCount,
+			Stale:         status.Stale,
 		})
 	}
 	return payloads

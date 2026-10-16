@@ -1140,6 +1140,30 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t.Fatalf("refresh request body required = %#v, want optional body", refresh.RequestBody)
 				}
 				assertResponseStatus(t, refresh, 503)
+				for _, path := range []string{
+					"/api/model-catalog/models/refresh",
+					"/api/model-catalog/providers/{provider_id}/models/refresh",
+				} {
+					for _, status := range []int{500, 503} {
+						schema := jsonResponseSchema(t, operationFor(t, doc, path, "POST"), status)
+						for _, body := range []map[string]any{
+							{"error": "catalog unavailable"},
+							{
+								"error": "catalog refresh failed",
+								"sources": []any{map[string]any{
+									"source_id": "provider_live:cursor", "source_kind": "provider_live",
+									"provider_id": "cursor", "priority": float64(110),
+									"refresh_state": "failed", "row_count": float64(0), "stale": false,
+									"failure_reason": "auth_required",
+								}},
+							},
+						} {
+							if err := schema.VisitJSON(body); err != nil {
+								t.Fatalf("%s status %d rejects refresh error payload: %v", path, status, err)
+							}
+						}
+					}
+				}
 
 				curate := operationFor(
 					t,
