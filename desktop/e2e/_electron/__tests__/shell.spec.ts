@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createServer, request as forwardRequest } from "node:http";
+import type { AddressInfo } from "node:net";
+import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -974,6 +976,84 @@ test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and
       "Copied through the Electron Edit menu"
     );
   });
+});
+
+/**
+ * A loopback proxy that strips Cache-Control, as every runtime before #742 served its shell: a
+ * document fetched through it is cached heuristically fresh, like the shell an update leaves behind.
+ */
+async function startPreviousRuntimeProxy(): Promise<{ readonly port: number; close(): void }> {
+  const proxy = createServer((request, response) => {
+    const target = new URL(request.url ?? "/");
+    const upstream = forwardRequest(
+      {
+        host: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: request.method,
+        headers: request.headers,
+      },
+      reply => {
+        const headers = { ...reply.headers };
+        delete headers["cache-control"];
+        response.writeHead(reply.statusCode ?? 502, headers);
+        reply.pipe(response);
+      }
+    );
+    upstream.on("error", () => response.destroy());
+    request.pipe(upstream);
+  });
+  await new Promise<void>(resolveListen => proxy.listen(0, "127.0.0.1", resolveListen));
+  return { port: (proxy.address() as AddressInfo).port, close: () => proxy.close() };
+}
+
+test("a relaunch replaces a shell the renderer cached before a runtime update (#742)", async ({
+  launchDesktop,
+}) => {
+  // The runtime serves the shell; an update must never boot the previous release's bundle from
+  // the renderer's HTTP cache. An old Last-Modified makes the cached shell heuristically fresh.
+  const dist = await mkdtemp(join(tmpdir(), "compozy-shell-cache-"));
+  const proxy = await startPreviousRuntimeProxy();
+  try {
+    await cp(join(repositoryRoot, "web", "dist"), dist, { recursive: true });
+    const index = join(dist, "index.html");
+    const original = await readFile(index, "utf8");
+    const stamp = (release: string) =>
+      original.replace("</head>", `<meta name="compozy-e2e-release" content="${release}"></head>`);
+    const release = (product: Page) =>
+      product.locator('meta[name="compozy-e2e-release"]').getAttribute("content");
+    const prepare = async ({ environment }: { environment: Record<string, string> }) => {
+      environment.COMPOZY_WEB_DIST_DIR = dist;
+    };
+    await writeFile(index, stamp("previous"));
+    const released = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    await utimes(index, released, released);
+
+    const first = await launchDesktop({ prepare });
+    const product = await first.product();
+    const shell = new URL("/", product.url()).toString();
+    // Cache the shell the way an older runtime served it: through the proxy, without Cache-Control.
+    await first.app.evaluate(async ({ session }, port) => {
+      await session.defaultSession.clearCache();
+      await session.defaultSession.setProxy({
+        proxyRules: `http=127.0.0.1:${port}`,
+        proxyBypassRules: "<-loopback>",
+      });
+    }, proxy.port);
+    await product.goto(shell);
+    expect(await release(product)).toBe("previous");
+    await first.app.evaluate(async ({ session }) => {
+      await session.defaultSession.setProxy({ mode: "direct" });
+    });
+    await first.closeShell();
+
+    await writeFile(index, stamp("updated"));
+    const relaunched = await launchDesktop({ home: first.home, prepare });
+    expect(await release(await relaunched.product())).toBe("updated");
+  } finally {
+    proxy.close();
+    await rm(dist, { recursive: true, force: true });
+  }
 });
 
 test("native context menu copies text and preserves spelling preferences after relaunch", async ({

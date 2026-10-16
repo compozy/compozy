@@ -2962,6 +2962,36 @@ targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
   suite covers retained queue state. The reported Needs-you badge comes from loop_run quarantine
   supervision, not queue backlog, and remains outside this scheduling fix.
 
+## Issue 742 — Session message cards for real providers — 2026-10-16
+
+Owner: branch `fix/issue-742-session-message-cards`; issue #742 (regression of #722).
+`compozy__session_prompt` input, output, and errors are unchanged. Its transcript card part
+(`data-compozy-session-message`, `transcript.UISessionMessagePayload`) keeps its shape and now
+reads the recorded provider forms: Claude's streamed arguments and string `raw_output`, and
+Codex's MCP `{server, tool, arguments}` envelope with a result that names no tool. A part is
+projected only once the call names its target, so no part without `target_session_id` reaches
+clients. The composer prompt stream folds each turn's events through
+`transcript.SessionMessageCards`, matching the transcript entry.
+
+User state (SD-013): the materialized transcript projection moves from version 2 to 3. Opening a
+session database reprojects only the assistant entries that hold a `compozy__session_prompt` call,
+following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. The
+upgrade runs once per session database, in one write transaction that records the version last, so
+a rerun or an interrupted run reprojects the same entries from the ledger without duplicating or
+dropping a card. As with #670, an older runtime treats a version 3 projection as incompatible
+(ahead failure, explicit).
+
+HTTP: every listener that serves the Web (local, private tier, public operator) sends
+`Cache-Control: no-cache` for the SPA shell and unversioned public files, and
+`public, max-age=31536000, immutable` for Vite-fingerprinted `assets/` files. Routes, DTOs, OpenAPI, CLI, config, hooks,
+extension contracts, and native tool descriptors are unchanged, so the official
+`skills/compozy/` and `packages/site` docs need no update. Desktop loads the shell with
+`pragma: no-cache`, so a shell cached by an older runtime is skipped after an update. Web never
+draws a raw data row for a session-message part it cannot name, and a call split across two
+assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
+upgrade runs per session database. QA owners: ET-web-session-message-card and
+APP-desktop-runtime-bundle-coherence.
+
 ## Session row provider mark — 2026-10-16
 
 Owner: branch `feat/issue-754-session-provider-logo`; issue #754.

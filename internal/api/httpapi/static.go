@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	webassets "github.com/compozy/compozy-web-assets"
@@ -148,6 +149,7 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 	}
 	modified := cmp.Or(info.ModTime(), h.StartedAt)
 	c.Header("Content-Security-Policy", productionContentSecurityPolicy)
+	c.Header("Cache-Control", staticCacheControl(cleanAsset))
 
 	if seeker, ok := file.(io.ReadSeeker); ok {
 		http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, seeker)
@@ -160,6 +162,21 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 		return
 	}
 	http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, bytes.NewReader(data))
+}
+
+// fingerprintedAsset matches Vite's build output, assets/<name>-<8-character hash>.<ext>. Public
+// files copied under assets/ keep their own subdirectories (emojibase), so they never match.
+var fingerprintedAsset = regexp.MustCompile(`^assets/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$`)
+
+// staticCacheControl makes clients revalidate the SPA shell and every unversioned file before
+// reusing a cached copy. Without it a browser may keep a heuristically fresh index.html across a
+// runtime update and boot the previous release's bundle (#742). A fingerprinted file's URL
+// changes with its content, so it can be cached for good.
+func staticCacheControl(asset string) string {
+	if fingerprintedAsset.MatchString(asset) {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-cache"
 }
 
 func normalizedRequestPath(rawPath string) string {

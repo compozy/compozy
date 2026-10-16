@@ -36,6 +36,7 @@ import {
   subagentRowFromParts,
 } from "./session-timeline-subagents";
 import {
+  isSessionMessageDataPart,
   isSessionMessagePart,
   attributeSessionMessageParts,
   partitionSessionMessageParts,
@@ -254,10 +255,14 @@ function deriveBaseRows(
       continue;
     }
 
-    if (part.kind === "data" && isSessionMessagePart(part)) {
-      flushWorkCluster();
-      flushMarkerCluster();
-      rows.push(sentMessageRow(part, sentTools));
+    if (part.kind === "data" && isSessionMessageDataPart(part)) {
+      // A part the card cannot name draws nothing: its call keeps the tool row, never a raw
+      // data row (#742).
+      if (isSessionMessagePart(part)) {
+        flushWorkCluster();
+        flushMarkerCluster();
+        rows.push(sentMessageRow(part, sentTools));
+      }
       continue;
     }
 
