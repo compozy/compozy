@@ -464,11 +464,19 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		t.Parallel()
 
 		repository := t.TempDir()
+		// Hook/caller Git variables must never redirect this fixture or its scripts.
+		gitEnvironment := make([]string, 0, len(os.Environ())+2)
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "GIT_") {
+				gitEnvironment = append(gitEnvironment, entry)
+			}
+		}
+		gitEnvironment = append(gitEnvironment, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
 		runGit := func(args ...string) {
 			t.Helper()
 			command := exec.CommandContext(t.Context(), "git", args...)
 			command.Dir = repository
-			command.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+			command.Env = gitEnvironment
 			if output, err := command.CombinedOutput(); err != nil {
 				t.Fatalf("git %v: %v\n%s", args, err, output)
 			}
@@ -479,6 +487,7 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		validator := filepath.Join(root, "skills", "git-rebase", "scripts", "validate-merge.sh")
 		command := exec.CommandContext(t.Context(), "bash", validator)
 		command.Dir = repository
+		command.Env = gitEnvironment
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("installed validator: %v\n%s", err, output)
 		}
@@ -488,6 +497,7 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		runGit("add", "conflict.txt")
 		command = exec.CommandContext(t.Context(), "bash", validator)
 		command.Dir = repository
+		command.Env = gitEnvironment
 		output, err := command.CombinedOutput()
 		if err == nil || !strings.Contains(string(output), "Validation FAILED") ||
 			!strings.Contains(string(output), "conflict.txt") || !strings.Contains(string(output), validator) {
