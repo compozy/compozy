@@ -854,3 +854,7 @@ paths are invalid. CLI `--input key=value` parses JSON values: encode the proof 
 including its outer quotes and escaped inner quotes, rather than passing an object value.
 HTTP/UDS `inputs.reviewed_worktree` likewise contains the serialized string. A direct template
 reference forwards that exact original value to the child.
+
+### Verification session audit
+
+Agent judges run as daemon-owned `system` sessions. Verdict-only judges are excluded from default session lists and operator attention; expand a Goal and choose **Verification sessions** for attributed transcript links, or use `compozy session list --all --type system --parent <bound-session-id> -o json`. New judges carry informational parent lineage to the bound Goal session (ordinary gates use the Loop origin); this grants no spawn governance. Older parentless judges remain available with `--type system` alone. Per-turn verdicts remain in Run history. Completed idle judges close with verified process exit without false cancellation escalation; genuine stop failures remain recorded.

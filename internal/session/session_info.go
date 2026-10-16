@@ -43,6 +43,7 @@ func (s *Session) infoLocked() *Info {
 		Speed:                    s.Speed,
 		ACPOptions:               acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		SpeedResolution:          speedpkg.CloneResolution(s.SpeedResolution),
+		VerdictOnly:              s.creationProfile != nil && s.creationProfile.RuntimeMode == RuntimeModeVerdictOnly,
 		RuntimeStatus:            s.RuntimeStatus,
 		RuntimeTransition:        s.RuntimeTransition,
 		RuntimeFailure:           strings.TrimSpace(s.RuntimeFailure),

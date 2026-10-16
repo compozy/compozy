@@ -169,6 +169,77 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should hide verdict-only judges before counting and preserve actionable system sessions",
+		func(t *testing.T) {
+			t.Parallel()
+			catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+			h := newHarness(t, WithSessionCatalog(catalog))
+			ctx := testutil.Context(t)
+			for _, kind := range []Type{SessionTypeUser, SessionTypeSystem} {
+				opts := CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: kind}
+				if kind == SessionTypeSystem {
+					opts.RuntimeMode = RuntimeModeVerdictOnly
+				}
+				created, err := h.manager.Create(ctx, opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			}
+			stored := store.SessionInfo{
+				ID:            "persisted-judge",
+				ProfileID:     store.DefaultProfileID,
+				WorkspaceID:   h.workspaceID,
+				SessionType:   "system",
+				VerdictOnly:   true,
+				State:         "stopped",
+				StopEscalated: true,
+				CreatedAt: time.Date(
+					2026,
+					10,
+					16,
+					12,
+					0,
+					0,
+					0,
+					time.UTC,
+				),
+				UpdatedAt: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC),
+			}
+			catalog.durable = []store.SessionInfo{stored}
+			query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, Limit: 1}
+			page, err := h.manager.ListPage(ctx, query)
+			if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.HasMore ||
+				page.Sessions[0].Type != SessionTypeUser {
+				t.Fatalf("default catalog = %#v, %v", page, err)
+			}
+			summary, err := h.manager.AttentionSummary(ctx, query.ReadScope)
+			if err != nil || summary.NeedsYou != 0 || summary.Finished != 0 {
+				t.Fatalf("attention = %#v, %v", summary, err)
+			}
+			actionable, err := h.manager.Create(
+				ctx,
+				CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, actionable.ID) })
+			query.Limit = MaxListLimit
+			visible, err := h.manager.ListPage(ctx, query)
+			if err != nil || visible.Total != 2 {
+				t.Fatalf("actionable system catalog = %#v, %v", visible, err)
+			}
+			query.SessionType = SessionTypeSystem
+			query.Limit = MaxListLimit
+			page, err = h.manager.ListPage(ctx, query)
+			if err != nil || page.Total != 3 || len(page.Sessions) != 3 {
+				t.Fatalf("audit catalog = %#v, %v", page, err)
+			}
+		},
+	)
+
 	for _, sortKey := range []string{ListSortCreated, ListSortName} {
 		t.Run("Should keep "+sortKey+" pages stable across active and durable activity changes", func(t *testing.T) {
 			t.Parallel()
@@ -1247,6 +1318,11 @@ func (c *multiPagedRecordingSessionCatalog) SessionCatalogFacets(
 		if query.WorkspaceID != "" && info.WorkspaceID != query.WorkspaceID {
 			continue
 		}
+		if (query.ExcludeVerdictOnly && info.SessionType == "system" && info.VerdictOnly) ||
+			slices.Contains(query.ExcludeSessionTypes, info.SessionType) ||
+			(query.SessionType != "" && info.SessionType != query.SessionType) {
+			continue
+		}
 		badge := BadgeForInfo(sessionInfoFromCatalog(info))
 		addSessionFacet(&result.Facets, badge)
 		counts := workspaces[info.WorkspaceID]
@@ -1280,6 +1356,11 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 		archived := info.ArchivedAt != nil
 		if query.Archive == store.SessionArchiveExclude && archived ||
 			query.Archive == store.SessionArchiveOnly && !archived {
+			continue
+		}
+		if (query.ExcludeVerdictOnly && info.SessionType == "system" && info.VerdictOnly) ||
+			slices.Contains(query.ExcludeSessionTypes, info.SessionType) ||
+			(query.SessionType != "" && info.SessionType != query.SessionType) {
 			continue
 		}
 		badge := BadgeForInfo(sessionInfoFromCatalog(info))

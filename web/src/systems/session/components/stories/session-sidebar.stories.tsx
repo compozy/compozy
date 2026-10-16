@@ -318,6 +318,36 @@ export const StableSortMenu: Story = {
   },
 };
 
+const GOAL_OWNER = sidebarSession("sess-goal-owner", "Ship the scoped fix", "general", "running");
+const HISTORICAL_JUDGES = ["one", "two", "three"].map(suffix => ({
+  ...sidebarSession(
+    `sess-judge-${suffix}`,
+    "loop gate general objective_satisfied",
+    "general",
+    "needs-attention"
+  ),
+  type: "system" as const,
+  state: "stopped" as const,
+}));
+
+/** Historical unfiltered catalog fixture for before/after evidence. */
+export const BeforeGateFiltering: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [GOAL_OWNER, ...HISTORICAL_JUDGES],
+    currentSessionId: GOAL_OWNER.id,
+  },
+};
+
+/** The default server catalog omits system rows; the Goal retains audit access. */
+export const GateSessionsHidden: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [GOAL_OWNER],
+    currentSessionId: GOAL_OWNER.id,
+  },
+};
+
 /** The same row on another runtime; `null` is a session that has not bound one yet. */
 function onRuntime(session: SessionPayload, provider: string | null, model = ""): SessionPayload {
   return {

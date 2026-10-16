@@ -102,6 +102,7 @@ function renderList(
   overrides: {
     sessions?: SessionPayload[];
     revealedSession?: SessionPayload | null;
+    currentSessionId?: string;
     collapsedThreadIds?: string[];
     view?: SessionListViewModel;
   } = {}
@@ -124,6 +125,7 @@ function renderList(
     open: true,
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
+    currentSessionId: overrides.currentSessionId,
     disconnected: false,
     collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view: overrides.view ?? view,
@@ -345,7 +347,7 @@ describe("SessionList selection", () => {
 // children keep nesting, and a subagent session has no standalone archive verb.
 // Owner: SessionList through its sidebar host (same suite as the selection invariants).
 describe("SessionList subagents", () => {
-  const lineage = (parent: string, spawnRole?: string): SessionPayload["lineage"] => ({
+  const lineage = (parent: string, spawnRole?: string): NonNullable<SessionPayload["lineage"]> => ({
     parent_session_id: parent,
     root_session_id: parent,
     kind: "spawn",
@@ -400,6 +402,17 @@ describe("SessionList subagents", () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should keep a viewed verification judge out of default rows and child counts", () => {
+    const judge = row("judge", {
+      type: "system",
+      lineage: { ...lineage("parent"), kind: "provenance", auto_stop_on_parent: false },
+    });
+    renderList({ sessions: [row("parent")], revealedSession: judge, currentSessionId: judge.id });
+    expect(screen.getByTestId("session-sidebar-session-parent")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-judge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
   });
 
   it("UT-W18: reveals only the viewed subagent under its parent and keeps plain children nested", () => {

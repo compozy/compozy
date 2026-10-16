@@ -2743,6 +2743,7 @@ RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
 
 
+
 ## Bundled spec-cycle portability — issue #736 (2026-10-16)
 
 Owner: `fix/issue-736-spec-cycle-skills`. The spec-cycle 0.5.1 instruction payload
@@ -2769,6 +2770,9 @@ instruction; targeted checks do not establish provider-authored spec quality.
 
 
 
+
+
+
 ## Session attachment image previews — issue #738 (2026-10-16)
 
 - Web composer and transcript images open an accessible, dismissible preview inside the
@@ -2792,6 +2796,7 @@ while retaining SPA routes and the existing external-link policy. This is an int
 renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
 change. The existing desktop navigation-policy suite owns the additional guard; the
 browser walk verifies TXT/PDF downloads without unloading the session.
+
 
 ## Issue #751 — subagent drill-in E2E readiness (2026-10-16)
 
@@ -2927,7 +2932,6 @@ change; existing profile/workspace execution boundaries remain authoritative.
 Official runtime skill references and the site model-catalog guide explain status
 classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
 targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
-
 ## Issue #750 — Queued inputs before prepared Goal prompts
 
 - **Owner:** issue #750, branch `fix/issue-750-goal-queue-starvation`.
@@ -2991,6 +2995,18 @@ draws a raw data row for a session-message part it cannot name, and a call split
 assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
 upgrade runs per session database. QA owners: ET-web-session-message-card and
 APP-desktop-runtime-bundle-coherence.
+
+## Issue #756 — daemon-owned verification session visibility
+
+- Native tools, CLI, HTTP/UDS: public session catalogs omit `system` sessions whose immutable creation policy has `runtime_mode=verdict-only` when no type is selected; existing explicit `type=system` / `--type system` retains audit access. The filter applies to active overlays, durable pages, totals and facets before pagination. Direct ID/history reads remain available.
+- Goals: judge creation carries the bound Goal session as informational provenance; ordinary Loop gates use their origin. No spawn governance is granted. The Goal disclosure provides an explicit, paginated verification-session audit with transcript links, coordinated by a session hook and refreshed through the existing catalog stream rather than fixed polling.
+- Attention: verdict-only system sessions do not emit operator attention catalog events or contribute to default attention counts/bell candidates. Durable lifecycle events, hooks and owning work outcomes remain authoritative.
+- Shutdown: completed/owner-released idle sessions ask the driver to close the process directly and verify exit; active turns and failed termination retain cancellation/escalation behavior.
+- SD-013: no persisted shape change or destructive migration. Historical verdict-only system rows are filtered from their existing creation policy at read time. Public flags, routes, DTO shapes, hooks and tool IDs remain compatible; the intentional default population correction has an existing explicit audit selector. No config, extension SDK, permission or provider routing change. Profile/workspace predicates remain server-owned.
+- Web/docs/official skill: Goal audit UI, Goal/session-list QA scenarios, site Goal guide and `skills/compozy/` runtime/Loop guidance co-ship. Heavy validation is delegated to exact-head PR CI per maintainer instruction; targeted local suites and rendered evidence are recorded in the PR.
+
+
+Issue #756 system-session inventory: Loop/Goal judges (`loop_runtime_adapters.go`) force verdict-only/deny-all. Managed Loop/Goal workers (`loop_managed_binding_profile.go`), task workers (`task_session_bridge.go`), scheduler role workers (`task_role_sessions.go`), task reviewers (`review_router_create.go`), automations (`automation/dispatch_context.go`) and extension-created sessions (`extension/host_api_sessions.go`) also use system type and may require operator action; they remain visible. Heartbeat reuses its bound session; coordinator/spawned sessions use separate types; auto-title is already excluded by spawn role. Visibility therefore uses existing immutable `runtime_mode=verdict-only`, not type alone or a name heuristic. It is derived in bounded catalog projections; no stored shape changes. Judge lineage has no subagent spawn role, and the viewed-session path must not reveal it as a child/chip.
 
 ## Session row provider mark — 2026-10-16
 

@@ -752,13 +752,14 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		_, err := runner.Judge(t.Context(), gate.JudgeRequest{
-			GateID:        "quality-gate",
-			CriterionID:   "review",
-			LoopRunID:     "loop-run-judge",
-			Attempt:       2,
-			CorrelationID: "goal-judge:stable-attempt",
-			WorkspaceID:   "ws-loop",
-			Agent:         "loop-judge",
+			ParentSessionID: "sess-goal-owner",
+			GateID:          "quality-gate",
+			CriterionID:     "review",
+			LoopRunID:       "loop-run-judge",
+			Attempt:         2,
+			CorrelationID:   "goal-judge:stable-attempt",
+			WorkspaceID:     "ws-loop",
+			Agent:           "loop-judge",
 			Runtime: looppkg.RuntimeSpec{
 				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			},
@@ -768,6 +769,9 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("Judge() error = %v", err)
 		}
 		createCall := sessions.singleCreateCall(t)
+		if createCall.ProvenanceParentSessionID != "sess-goal-owner" || createCall.Type != session.SessionTypeSystem {
+			t.Fatalf("judge ownership = %#v", createCall)
+		}
 
 		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)

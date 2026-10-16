@@ -128,6 +128,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	usage := &loopGoalJudgeUsage{}
 	judgeGate := gate.GateFromGoalJudge(string(req.Key.NodeID), req.Criteria)
 	verdict, err := e.evaluator.Evaluate(ctx, judgeGate, gate.GateInput{
+		JudgeParentSessionID:   req.SessionID,
 		TrustedWorkspaceRoot:   trustedRoot,
 		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,

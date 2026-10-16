@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,6 +20,12 @@ vi.mock("@tanstack/react-router", async importOriginal => {
     ),
   };
 });
+
+const fetchSessions = vi.hoisted(() => vi.fn());
+vi.mock("../../adapters/session-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-api")>()),
+  fetchSessions,
+}));
 
 const { SessionGoalStrip } = await import("../goal/session-goal-strip");
 
@@ -50,6 +57,29 @@ function snapshot(overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnap
 }
 
 describe("SessionGoalStrip", () => {
+  it("Should load the bound session's explicit system audit and open a judge transcript", async () => {
+    fetchSessions.mockResolvedValue({
+      sessions: [{ id: "sess-judge", name: "Verification judge", state: "stopped" }],
+      page: { total: 1, limit: 50, has_more: false },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SessionGoalStrip snapshot={snapshot()} />
+      </QueryClientProvider>
+    );
+    fireEvent.click(screen.getByTestId("goal-strip-line"));
+    expect(fetchSessions).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Verification sessions" }));
+    const link = await screen.findByRole("link", { name: "Verification judge · stopped" });
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "sess-judge" }));
+    expect(fetchSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ parent: "session_1", type: "system", all_profiles: true }),
+      expect.any(AbortSignal)
+    );
+    client.clear();
+  });
+
   it.each([
     ["active", "running", "active"],
     ["paused", "paused", "paused"],

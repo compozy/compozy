@@ -217,6 +217,23 @@ func TestStopMethodsRejectNilManager(t *testing.T) {
 func TestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retire a completed idle process without canceling or escalating", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		if err := h.manager.StopWithCause(testutil.Context(t), sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitStopped(testutil.Context(t), sess.ID)
+		if err != nil || !outcome.Verified || outcome.Escalated || outcome.Cause != CauseCompleted {
+			t.Fatalf("stop = %#v, %v", outcome, err)
+		}
+		meta := readMeta(t, sess.MetaPath())
+		if meta.StopEscalated || meta.StopReason == nil || *meta.StopReason != store.StopCompleted {
+			t.Fatalf("stop metadata = %#v", meta)
+		}
+	})
+
 	t.Run("Should finalize already exited process with crash classification", func(t *testing.T) {
 		t.Parallel()
 

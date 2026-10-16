@@ -630,6 +630,9 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 					!strings.Contains(req.Rubric, "Candidate structured output:\n{\"status\":\"complete\"}") {
 					t.Fatalf("Goal judge rubric = %q, want unchanged rubric plus authoritative candidate", req.Rubric)
 				}
+				if req.ParentSessionID != "sess-bound-goal" {
+					t.Fatalf("judge parent = %q", req.ParentSessionID)
+				}
 				if req.CorrelationID != "judge-attempt-usage" {
 					t.Fatalf("Goal judge correlation id = %q, want judge-attempt-usage", req.CorrelationID)
 				}
@@ -643,6 +646,7 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			store: &storeStub, evaluator: evaluator, executions: newLoopJudgeExecutionRegistry(),
 		}
 		result, err := adapter.EvaluateGoal(testutil.Context(t), goalpkg.JudgeRequest{
+			SessionID: "sess-bound-goal",
 			AttemptID: "judge-attempt-usage",
 			Key: goalpkg.TurnKey{
 				WorkspaceID: run.WorkspaceID, LoopRunID: run.ID,

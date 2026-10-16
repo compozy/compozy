@@ -297,7 +297,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,
-		&row.createdAtRaw, &row.updatedAtRaw,
+		&row.createdAtRaw, &row.updatedAtRaw, &row.session.VerdictOnly,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}

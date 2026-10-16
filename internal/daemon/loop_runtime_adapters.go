@@ -142,14 +142,15 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 ) (session.CreateOpts, error) {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		ProfileID:       strings.TrimSpace(req.ProfileID),
-		AgentName:       agent,
-		Provider:        strings.TrimSpace(req.Runtime.Provider),
-		Model:           strings.TrimSpace(req.Runtime.Model),
-		ReasoningEffort: strings.TrimSpace(req.Runtime.Reasoning),
-		Speed:           req.Runtime.Speed,
-		ACPOptions:      loopACPOptionsForSession(req.Runtime.ACPOptions),
-		Name:            loopRuntimeSessionName("gate", agent, req.CriterionID),
+		ProvenanceParentSessionID: strings.TrimSpace(req.ParentSessionID),
+		ProfileID:                 strings.TrimSpace(req.ProfileID),
+		AgentName:                 agent,
+		Provider:                  strings.TrimSpace(req.Runtime.Provider),
+		Model:                     strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort:           strings.TrimSpace(req.Runtime.Reasoning),
+		Speed:                     req.Runtime.Speed,
+		ACPOptions:                loopACPOptionsForSession(req.Runtime.ACPOptions),
+		Name:                      loopRuntimeSessionName("gate", agent, req.CriterionID),
 
 		PromptOverlay:   contractOverlay,
 		ContractOverlay: contractOverlay,
