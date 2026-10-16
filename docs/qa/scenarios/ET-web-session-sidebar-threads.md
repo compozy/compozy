@@ -84,3 +84,11 @@ a Claude session and a Codex session in one rail show the spark and knot marks; 
 or Tab-focusing its row shows `Provider · Model` in display names, and Tab moves past the glyph; a freshly created session shows no mark until its first bind; switching a
 session's runtime to another provider repaints its row within one catalog re-read; selection mode
 covers only the state mark; nested children carry their own provider's mark.
+
+Issue #767 regression (2026-10-16): switch repeatedly between already-open session tabs,
+including different worktrees. Initial connection and reconnects shorter than the existing
+2-second session transport grace must not show the session-list warning. Hold a real session
+stream failure past that grace: the warning appears, then clears immediately when the stream
+recovers. Query cancellation on a scope switch must not become a catalog failure. The owning
+sidebar hook suite covers the grace boundary; the catalog hook suite covers superseded reads.
+Heavy packaged-desktop/E2E execution remains CI-owned for this round.

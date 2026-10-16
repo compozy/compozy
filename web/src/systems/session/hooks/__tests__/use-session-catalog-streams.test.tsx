@@ -156,6 +156,69 @@ describe("useSessionCatalogStreams", () => {
     resetProfileViews();
   });
 
+  it("Should tolerate brief reconnects and report sustained loss until recovery", () => {
+    vi.useFakeTimers();
+    const client = createQueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result, rerender, unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(client) }
+    );
+    expect(result.current).toBe("connecting");
+    act(() => sources[0]!.emit("open"));
+    act(() => sources[0]!.emit("error"));
+    rerender();
+    expect(sources).toHaveLength(1);
+    expect(result.current).toBe("live");
+    act(() => vi.advanceTimersByTime(9_999));
+    act(() => sources[0]!.emit("open"));
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("live");
+
+    act(() => sources[0]!.emit("error"));
+    act(() => vi.advanceTimersByTime(5_000));
+    act(() => sources[0]!.emit("error"));
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(result.current).toBe("stale");
+    act(() => sources[0]!.emit("open"));
+    expect(result.current).toBe("live");
+    act(() => sources[0]!.emit("error"));
+    unmount();
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(sources[0]!.closed).toBe(true);
+    client.clear();
+  });
+
+  it("Should bound initial connection grace and reset it for a new scope", () => {
+    vi.useFakeTimers();
+    const client = createQueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result, unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(client) }
+    );
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("stale");
+    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "other" }));
+    expect(result.current).toBe("connecting");
+    act(() => sources[0]!.emit("error"));
+    act(() => sources[1]!.emit("open"));
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe("live");
+    unmount();
+    client.clear();
+  });
+
   it("Should keep late source status events behind the current connection generation", () => {
     const store = sessionCatalogStreamsLogic.createStore();
     const [connecting] = store.transition(store.getInitialSnapshot(), {

@@ -13,6 +13,8 @@ import {
   useSessionLifecycleActions,
   useSessionListView,
   useSessionSidebarState,
+  useSessionTransportState,
+  useTransportGraceElapsed,
   type SessionListViewModel,
 } from "@/systems/session";
 
@@ -59,6 +61,8 @@ export function useSessionWindowSidebar({
   sessionId?: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
+  const transport = useSessionTransportState();
+  const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
@@ -118,7 +122,9 @@ export function useSessionWindowSidebar({
     toggle: sidebar.toggle,
     sessions: view.catalog?.sessions ?? [],
     disconnected:
-      sidebar.open && worktree.resolved && (view.catalog?.failed || transportDisconnected),
+      sidebar.open &&
+      worktree.resolved &&
+      (view.catalog?.failed || (transportDisconnected && transportGraceElapsed)),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
     onToggleThread: sidebar.toggleThread,
