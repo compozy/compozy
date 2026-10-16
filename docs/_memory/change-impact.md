@@ -2759,7 +2759,7 @@ instruction content without removing a public skill or changing authored task
 shapes; no migration or compatibility shim. The nine-skill catalog stays stable.
 The internal create-spec/create-tasks/final-verify variants remain separate under
 `scripts/postinstall.sh`; the shared execute-task copy inherits the portable edit.
-Official `skills/compozy/` and site API/usage docs stay accurate; no changes needed.
+Official `skills/compozy/` and site API contracts stay accurate. The site review-and-fix example mirrors the corrected shipped Loop definition.
 
 Owning checks: embedded spec-cycle product-contract suite, real materialization
 and managed-install update, dependency closure, and installed shell helper
