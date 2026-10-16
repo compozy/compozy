@@ -414,7 +414,9 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		skillReference := regexp.MustCompile(`\b(?:cy|eng|ui)-[a-z][a-z0-9-]*\b`)
 		listedSkillReference := regexp.MustCompile(`(?m)^[ \t]*- ([a-z][a-z0-9]*(?:-[a-z0-9]+)+):`)
 		resourceReference := regexp.MustCompile(`(?:references|scripts)/[a-zA-Z0-9_./-]+\.(?:md|sh|py)\b`)
-		internalReference := regexp.MustCompile(`SD-[0-9]+|docs/_memory/|\.agents/skills/|packages/(?:ui|site)|web/src/systems/|@compozy/ui`)
+		internalReference := regexp.MustCompile(
+			`SD-[0-9]+|docs/_memory/|\.agents/skills/|packages/(?:ui|site)|web/src/systems/|@compozy/ui`,
+		)
 		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -449,7 +451,9 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 				return nil
 			}
 			for _, resource := range resourceReference.FindAllString(body, -1) {
-				if _, err := os.Stat(filepath.Join(root, "skills", parts[1], filepath.FromSlash(resource))); err != nil {
+				if _, err := os.Stat(
+					filepath.Join(root, "skills", parts[1], filepath.FromSlash(resource)),
+				); err != nil {
 					t.Errorf("%s references unavailable skill resource %q: %v", path, resource, err)
 				}
 			}
@@ -482,7 +486,16 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 			}
 		}
 		runGit("init", "-b", "main")
-		runGit("-c", "user.name=Bundle test", "-c", "user.email=bundle@example.invalid", "commit", "--allow-empty", "-m", "Initial")
+		runGit(
+			"-c",
+			"user.name=Bundle test",
+			"-c",
+			"user.email=bundle@example.invalid",
+			"commit",
+			"--allow-empty",
+			"-m",
+			"Initial",
+		)
 		// No source-checkout skills, Makefile, or language toolchain exist here.
 		validator := filepath.Join(root, "skills", "git-rebase", "scripts", "validate-merge.sh")
 		command := exec.CommandContext(t.Context(), "bash", validator)
@@ -491,7 +504,11 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("installed validator: %v\n%s", err, output)
 		}
-		if err := os.WriteFile(filepath.Join(repository, "untracked.txt"), []byte("unrelated work\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(repository, "untracked.txt"),
+			[]byte("unrelated work\n"),
+			0o600,
+		); err != nil {
 			t.Fatal(err)
 		}
 		command = exec.CommandContext(t.Context(), "bash", validator)
@@ -506,7 +523,11 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		if err != nil || string(untrackedData) != "unrelated work\n" {
 			t.Fatalf("untracked work changed: data=%q err=%v", untrackedData, err)
 		}
-		if err := os.WriteFile(filepath.Join(repository, "conflict.txt"), []byte("<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(repository, "conflict.txt"),
+			[]byte("<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"),
+			0o600,
+		); err != nil {
 			t.Fatal(err)
 		}
 		runGit("add", "conflict.txt")
