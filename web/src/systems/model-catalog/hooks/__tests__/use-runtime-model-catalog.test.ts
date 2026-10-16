@@ -291,6 +291,46 @@ describe("useRuntimeModelCatalog", () => {
     expect(result.current.models.every(model => !model.disabled)).toBe(true);
   });
 
+  it("Should show current refresh guidance when a failed status reread retains older healthy data", async () => {
+    mockModels([payload("codex", "gpt-test"), payload("cursor", "cursor-test")]);
+    const source = {
+      source_id: "provider_live:cursor",
+      source_kind: "provider_live",
+      provider_id: "cursor",
+      priority: 110,
+      refresh_state: "succeeded",
+      row_count: 1,
+      stale: false,
+    };
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [source] });
+    const wrapper = createWrapper();
+    const { result } = renderHook(
+      () => useRuntimeModelCatalog([{ id: "codex" }, { id: "cursor" }]),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.models).toHaveLength(2));
+    expect(result.current.providerIssues).toEqual({});
+    vi.mocked(getModelSourceStatus).mockRejectedValue(
+      new ModelCatalogApiError("status unavailable", 403)
+    );
+    vi.mocked(refreshAllModels).mockRejectedValue(
+      new ModelCatalogApiError("refresh failed", 500, [
+        { ...source, refresh_state: "failed", failure_reason: "auth_required" },
+      ])
+    );
+    act(() => result.current.refresh());
+    await waitFor(() =>
+      expect(result.current.providerIssues.cursor).toBe("Sign in to update the model list.")
+    );
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.models.every(model => !model.disabled)).toBe(true);
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [source] });
+    vi.mocked(refreshProviderModels).mockResolvedValue({ sources: [source] });
+    const settings = renderHook(() => useRefreshProviderModels(), { wrapper });
+    act(() => settings.result.current.mutate({ providerId: "cursor", force: true }));
+    await waitFor(() => expect(result.current.providerIssues).toEqual({}));
+  });
+
   it.each(["successful", "disallowed"])(
     "Should preserve a request error for %s source rows",
     async kind => {
