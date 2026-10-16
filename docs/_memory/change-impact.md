@@ -2743,6 +2743,32 @@ RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
 
 
+## Bundled spec-cycle portability — issue #736 (2026-10-16)
+
+Owner: `fix/issue-736-spec-cycle-skills`. The spec-cycle 0.5.1 instruction payload
+replaces missing preflight/review dependencies with a language-neutral inline
+self-check and optional available reviewer. Templates use the target project's
+compatibility, design, vocabulary, and component authorities. Delivery/review
+instructions and rebase helpers no longer require repository-only skills or paths.
+All shipped skills, references, agents and loops in spec-cycle and open-design
+were audited; connectivity/tailscale and forge/github ship no such resources.
+
+Native tool IDs and schemas, CLI/HTTP/UDS, hooks, config, Web, workspace/profile
+isolation and persisted user data are unchanged. SD-013: this repairs extension
+instruction content without removing a public skill or changing authored task
+shapes; no migration or compatibility shim. The nine-skill catalog stays stable.
+The internal create-spec/create-tasks/final-verify variants remain separate under
+`scripts/postinstall.sh`; the shared execute-task copy inherits the portable edit.
+Official `skills/compozy/` and site API contracts stay accurate. The site review-and-fix example mirrors the corrected shipped Loop definition.
+
+Owning checks: embedded spec-cycle product-contract suite, real materialization
+and managed-install update, dependency closure, and installed shell helper
+execution in a foreign Git repository. QA owner: `ET-spec-cycle-skill-bundle`.
+Heavy daemon/provider-driven walks and full gates are CI-owned by maintainer
+instruction; targeted checks do not establish provider-authored spec quality.
+
+
+
 ## Session attachment image previews — issue #738 (2026-10-16)
 
 - Web composer and transcript images open an accessible, dismissible preview inside the
@@ -2843,6 +2869,48 @@ Provider health degrades only for listener/upstream dial failures; individual re
 and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
 settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
 WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.
+
+## Issue #739 — Loop action claim ownership and recovery
+
+The daemon retries SQLite claim persistence before executing an action. The task store applies
+its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
+bound worker from clearing the claim while its provider continues. Force failure commits the
+Loop node failure and canonical failure event with the task run, then publishes the terminal hook
+that wakes its coordinator.
+Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
+runs have no terminal-session resource to release.
+
+CLI and HTTP/UDS keep their verbs, routes and DTOs. Native `compozy__task_run_release` and the
+session-bound block path now enforce the existing Loop ownership contract; ordinary agent-owned
+leases still release normally. Extension terminal hooks retain their shapes and now receive the
+owning profile. No config, schema, migration, generated contract, workspace boundary or Web
+renderer changes. SD-013: lossless user state, stable public shapes and an authorization bug fix;
+no compatibility shim or removal release is needed. Official skill:
+`skills/compozy/references/loops.md`; public docs:
+`packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
+`TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.
+
+## Issue #746 — Stable session-list sorting
+
+- Owner: `fix/issue-746-session-sort-stable`. Shell sort adds `created` and `name`, defaulting only
+  unset preferences to `created`. Explicit persisted activity/attention choices are retained; no
+  state shape changes, migration, deletion, or compatibility shim. SD-013 regimes 1/2 preserved.
+- HTTP/UDS `/api/sessions`, CLI `session list --sort`, and native `compozy__session_list` add `name`;
+  existing `created` and all existing public defaults/orders remain unchanged. Name is visible-title
+  Unicode lowercase ascending, creation time descending, ID descending. Opaque cursors retain version
+  2 for existing sorts and add an optional name anchor bound to the query fingerprint.
+- Settings shell DTO/OpenAPI/generated clients add both values; config validation/defaults and
+  global-only persistence remain daemon-owned. No extensions, hooks, credentials, or isolation rules
+  change. Filtering/profile/workspace scope still precedes ordering and the page cut.
+- Web menu exposes four choices. The hierarchy preserves catalog order for nested children; no
+  client sorting or activity-based fallback is added. All-workspace groups request the same sort.
+- Official `skills/compozy/references/runtime-operations.md`, site config/CLI docs, and
+  `RT-web-session-attention-sort` QA scenario co-ship. Targeted tests cover config overlays, real
+  SQLite + active overlay pagination, Unicode/ties/search, menu selection and nested row stability.
+- The first automatic title after a session's first turn is a rename boundary: Name may reposition
+  the row once, whereas Created ignores title changes. Pointer overlays distinguish an absent sort
+  from an explicit persisted value; serialized old defaults are preserved as explicit values.
+- Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.
 
 ## Issue #750 — Queued inputs before prepared Goal prompts
 

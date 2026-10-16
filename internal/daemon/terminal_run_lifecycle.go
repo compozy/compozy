@@ -58,7 +58,11 @@ func (o *terminalRunLifecycleObserver) OnTaskRunTerminal(
 	if sessionID == "" {
 		sessionID = strings.TrimSpace(payload.TargetSessionID)
 	}
-	if sessionID == "" || strings.TrimSpace(payload.ProfileID) == "" ||
+	// Mechanical actions and coordinators have no session resources to release.
+	if sessionID == "" {
+		return nil
+	}
+	if strings.TrimSpace(payload.ProfileID) == "" ||
 		strings.TrimSpace(payload.WorkspaceID) == "" || strings.TrimSpace(payload.RunID) == "" {
 		return errors.New("daemon: terminal run lifecycle identity is incomplete")
 	}

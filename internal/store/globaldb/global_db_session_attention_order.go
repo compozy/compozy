@@ -33,6 +33,8 @@ const sessionCatalogDisplayTitleExpression = `(CASE WHEN trim(COALESCE(name, '')
  AND trim(name) <> id AND trim(name) <> trim(agent_name)
  THEN trim(name) ELSE 'New session' END)`
 
+const sessionCatalogNameExpression = "compozy_unicode_lower(" + sessionCatalogDisplayTitleExpression + ")"
+
 // This expression follows session.CanonicalBadge precedence for durable snapshots.
 // Health/supervision are runtime overlays and are applied by the manager before paging.
 const sessionCatalogBadgeExpression = `(CASE

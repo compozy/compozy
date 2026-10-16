@@ -169,6 +169,114 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	for _, sortKey := range []string{ListSortCreated, ListSortName} {
+		t.Run("Should keep "+sortKey+" pages stable across active and durable activity changes", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			ctx := t.Context()
+			if err := h.manager.Shutdown(ctx); err != nil {
+				t.Fatal(err)
+			}
+			catalog := openManagerInputQueueStore(t)
+			registerManagerInputQueueWorkspace(t, catalog, h)
+			h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+			cleanupTestManager(t, h.manager)
+			active, err := h.manager.Create(
+				ctx,
+				CreateOpts{AgentName: "coder", Name: "Alpha", Workspace: h.workspaceID},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			base := active.Info().CreatedAt
+			for _, fixture := range []struct {
+				id, name string
+				offset   time.Duration
+			}{
+				{"zzz-alpha", "ALPHA", 0}, {"aaa-alpha", "alpha", 0},
+				{"unicode-z", "İ", time.Second}, {"unicode-a", "i̇", time.Second},
+				{"unnamed", "", 2 * time.Second}, {"zulu", "Zulu", 3 * time.Second},
+				{"accent-z", "ÉCLAIR", 4 * time.Second}, {"accent-a", "éclair", 4 * time.Second},
+			} {
+				info := sessionCatalogInfoFromRuntime(active.Info())
+				info.ID, info.Name, info.State = fixture.id, fixture.name, string(StateStopped)
+				info.Lineage = nil
+				info.CreatedAt = base.Add(fixture.offset)
+				info.UpdatedAt = base.Add(-time.Hour)
+				if err := catalog.RegisterSession(ctx, info); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := []string{
+				"zzz-alpha",
+				active.ID,
+				"aaa-alpha",
+				"unicode-z",
+				"unicode-a",
+				"unnamed",
+				"zulu",
+				"accent-z",
+				"accent-a",
+			}
+			if sortKey == ListSortCreated {
+				want = []string{
+					"accent-z",
+					"accent-a",
+					"zulu",
+					"unnamed",
+					"unicode-z",
+					"unicode-a",
+					"zzz-alpha",
+					active.ID,
+					"aaa-alpha",
+				}
+			}
+			query := ListQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: h.workspaceID,
+				Sort:        sortKey,
+				Limit:       1,
+			}
+			seen := []string{}
+			for index := range want {
+				page, err := h.manager.ListPage(ctx, query)
+				if err != nil || len(page.Sessions) != 1 || page.Total != len(want) {
+					t.Fatalf("page %d = %#v, error=%v", index, page, err)
+				}
+				seen = append(seen, page.Sessions[0].ID)
+				if page.HasMore != (index < len(want)-1) {
+					t.Fatalf("page %d has_more=%v", index, page.HasMore)
+				}
+				query.Cursor = page.NextCursor
+				active.mu.Lock()
+				active.UpdatedAt = base.Add(time.Duration(index+1) * time.Hour)
+				active.PendingClarifyCount = index + 1
+				active.mu.Unlock()
+				if err := catalog.UpdateSessionState(
+					ctx,
+					store.SessionStateUpdate{
+						ID:        "aaa-alpha",
+						State:     string(StateStopped),
+						UpdatedAt: base.Add(48 * time.Hour),
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !slices.Equal(seen, want) {
+				t.Fatalf("stable %s walk = %v, want %v", sortKey, seen, want)
+			}
+			query.Cursor = ""
+			query.WorkspaceID, query.AllWorkspaces = "", true
+			query.SearchFields, query.Search = "title_agent", "ALPHA"
+			query.Limit = 100
+			page, err := h.manager.ListPage(ctx, query)
+			if err != nil || page.Total != 3 || len(page.Sessions) != 3 || page.Sessions[0].ID != "zzz-alpha" {
+				t.Fatalf("all-workspace search page = %#v, error=%v", page, err)
+			}
+		})
+	}
+
 	t.Run("Should accept pre-upgrade public cursors and fence visible search mode", func(t *testing.T) {
 		t.Parallel()
 		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}

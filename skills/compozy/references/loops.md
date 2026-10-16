@@ -545,8 +545,9 @@ A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while on
 A `run-agent` result is validated against its pinned `output_schema` before the owning daemon
 settles the task and again before node success is published. A mismatch fails with
 `invalid_output`; content-addressed storage preserves the exact structured value. The bound agent
-session may call `compozy__task_run_heartbeat`, but only the owning daemon may call the terminal
-complete or fail operations for that task.
+session may call `compozy__task_run_heartbeat`, but only the owning daemon may call
+complete, fail, release, or block-and-release operations for that task. A worker must return its
+result to the owning Loop executor instead of releasing that executor's claim.
 Loop action results up to 16 KiB stay inline; larger accepted values publish `result_ref` and
 `result_bytes`. Use `compozy__task_run_result` to page the exact bytes. The configured
 `tools.default_max_result_bytes` is the outer action bound, a literal tool action's smaller
