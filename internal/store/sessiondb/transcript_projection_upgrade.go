@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/compozy/internal/transcript"
@@ -135,6 +136,8 @@ func collectWhitespaceProjectionEntryKeys(
 
 // collectSessionMessageProjectionEntryKeys names the entries holding a session-prompt call. A
 // call's result is routed to the entry of its last tool_call, so these entries hold every card.
+// The text match only narrows the scan; a call that merely mentions the tool (a shell command)
+// does not make its entry eligible.
 func collectSessionMessageProjectionEntryKeys(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
@@ -153,8 +156,12 @@ func collectSessionMessageProjectionEntryKeys(
 			return fmt.Errorf("store: read transcript session-prompt calls for upgrade: %w", err)
 		}
 		for _, call := range calls {
-			keys[call.TranscriptEntryKey] = struct{}{}
 			afterSequence = call.Sequence
+			if transcript.IsSessionPromptCall(store.SessionEvent{
+				Sequence: call.Sequence, Type: acp.EventTypeToolCall, Content: call.Content,
+			}) {
+				keys[call.TranscriptEntryKey] = struct{}{}
+			}
 		}
 		if len(calls) < projectionUpgradeBatchSize {
 			return nil

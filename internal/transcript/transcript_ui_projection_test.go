@@ -3,6 +3,8 @@ package transcript
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -1202,75 +1204,68 @@ func TestSessionMessageUIProjection(t *testing.T) {
 		}
 	})
 
-	// Recorded provider shapes (#742): the card must not depend on one provider's wire form.
+	// Recorded provider shapes (#742), captured from real Claude and Codex sessions and sanitized:
+	// the card must not depend on one provider's wire form.
 	t.Run("Should name a Claude send once its streamed arguments do and read its string result", func(t *testing.T) {
 		t.Parallel()
-		rows := sessionPromptRows(
-			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"type":"tool_call","status":"pending","title":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt","tool_call_id":"toolu_send","tool_input":{}}`,
-			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"type":"tool_call","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"tool_call_id":"toolu_send","tool_input":{"session_id":"sess-target"}}`,
-			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"type":"tool_call","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"tool_call_id":"toolu_send","tool_input":{"idempotency_key":"msg-1","message":"Ready for review?",`+
-				`"message_id":"msg-1","mode":"queue","notify_on_complete":true,"session_id":"sess-target"}}`,
-			acp.EventTypeToolResult+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"type":"tool_result","status":"completed","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
-				`"tool_call_id":"toolu_send","tool_result":{`+
-				`"content":"{\"prompt\":{\"delivery\":\"direct\",\"message_id\":\"msg-1\",\"mode\":\"queue\",`+
-				`\"reply_watch\":{\"id\":\"rw-claude\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}",`+
-				`"raw_output":"{\"prompt\":{\"delivery\":\"direct\",\"message_id\":\"msg-1\",\"mode\":\"queue\",`+
-				`\"reply_watch\":{\"id\":\"rw-claude\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}"}}`,
-		)
+		rows := recordedSessionPromptRows(t, "claude.jsonl")
 		if cards := sessionMessageCardsOf(t, rows[:1]); len(cards) != 0 {
 			t.Fatalf("argument-less call projected cards %+v; want the tool row alone", cards)
 		}
-		want := UISessionMessagePayload{
-			ToolCallID: "toolu_send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
-			MessageID: "msg-1", Mode: "queue", Delivery: "direct", ReplyWatchID: "rw-claude", State: "done",
-		}
-		assertOneSessionMessageCard(t, rows, want)
+		assertSessionMessageCards(t, rows, UISessionMessagePayload{
+			ToolCallID: "toolu_01L3DE1yXY8CcKF8hkd3k8Z5", TargetSessionID: "sess-844b851f052bd406",
+			TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "issue742-goal-unavailable-v1", Mode: "queue",
+			Delivery: "direct", ReplyWatchID: "rw-f9a45066bce98c57", State: "done",
+		})
 	})
 
-	t.Run("Should project a Codex send reported as an MCP call envelope with a nameless result", func(t *testing.T) {
+	t.Run("Should project Codex sends reported as an MCP call envelope with a nameless result", func(t *testing.T) {
 		t.Parallel()
-		rows := sessionPromptRows(
-			acp.EventTypeToolCall+`|{"type":"tool_call","status":"in_progress",`+
-				`"title":"mcp.compozy-hosted-tools.compozy__session_prompt",`+
-				`"tool_name":"mcp.compozy-hosted-tools.compozy__session_prompt","tool_kind":"execute",`+
-				`"tool_call_id":"exec-send","tool_input":{"arguments":{"idempotency_key":"msg-2","message":"PR opened",`+
-				`"message_id":"msg-2","mode":"queue","notify_on_complete":true,"session_id":"sess-target"},`+
-				`"server":"compozy-hosted-tools","tool":"compozy__session_prompt"}}`,
-			acp.EventTypeToolResult+`|{"type":"tool_result","status":"completed","tool_call_id":"exec-send",`+
-				`"tool_result":{"raw_output":{"error":null,"result":{"_meta":null,"content":[`+
-				`{"text":"queued","type":"text"},`+
-				`{"text":"{\"prompt\":{\"delivery\":\"after_turn\",\"message_id\":\"msg-2\",\"mode\":\"queue\",`+
-				`\"reply_watch\":{\"id\":\"rw-codex\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}",`+
-				`"type":"text"}],"structuredContent":{"prompt":{"delivery":"after_turn","message_id":"msg-2",`+
-				`"mode":"queue","reply_watch":{"id":"rw-codex","state":"armed"},"target_workspace_id":"ws-target"}}}}}}`,
+		assertSessionMessageCards(t, recordedSessionPromptRows(t, "codex.jsonl"),
+			UISessionMessagePayload{
+				ToolCallID: "exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-review-remediation-1", Mode: "queue",
+				Delivery: "after_turn", State: "done",
+			},
+			UISessionMessagePayload{
+				ToolCallID: "exec-5f2789fa-43ce-4158-a1b6-190745d05f03", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-fixture-remediation-1518", Mode: "steer",
+				Delivery: "interrupt_then_prompt", SteerDelivery: "injected", State: "done",
+			},
 		)
-		want := UISessionMessagePayload{
-			ToolCallID: "exec-send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
-			MessageID: "msg-2", Mode: "queue", Delivery: "after_turn", ReplyWatchID: "rw-codex", State: "done",
-		}
-		assertOneSessionMessageCard(t, rows, want)
 	})
 }
 
-// sessionPromptRows stores "type|content" events of one turn in sequence order.
-func sessionPromptRows(events ...string) []store.SessionEvent {
-	rows := make([]store.SessionEvent, 0, len(events))
-	for i, event := range events {
-		eventType, content, _ := strings.Cut(event, "|")
+// recordedSessionPromptRows loads a recorded provider stream from
+// testdata/session-prompt/<name>: one {"type", "content"} event per line, in sequence order.
+func recordedSessionPromptRows(t *testing.T, name string) []store.SessionEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "session-prompt", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.SessionEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var recorded struct {
+			Type    string          `json:"type"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(line), &recorded); err != nil {
+			t.Fatal(err)
+		}
+		var turn struct {
+			TurnID string `json:"turn_id"`
+		}
+		if err := json.Unmarshal(recorded.Content, &turn); err != nil {
+			t.Fatal(err)
+		}
 		rows = append(rows, store.SessionEvent{
-			ID:        fmt.Sprintf("event-%d", i),
+			ID:        fmt.Sprintf("event-%d", len(rows)),
 			SessionID: "sender",
-			TurnID:    "turn",
-			Sequence:  int64(i + 1),
-			Type:      eventType,
-			Content:   content,
+			TurnID:    turn.TurnID,
+			Sequence:  int64(len(rows) + 1),
+			Type:      recorded.Type,
+			Content:   string(recorded.Content),
 		})
 	}
 	return rows
@@ -1298,22 +1293,32 @@ func sessionMessageCardsOf(t *testing.T, rows []store.SessionEvent) []UISessionM
 	return cards
 }
 
-// assertOneSessionMessageCard checks the transcript's card and the live stream's (the prompt
-// delivery folds the same events through SessionMessageCards) against want.
-func assertOneSessionMessageCard(t *testing.T, rows []store.SessionEvent, want UISessionMessagePayload) {
+// assertSessionMessageCards checks the transcript's cards and the live stream's (the prompt
+// delivery folds the same events through SessionMessageCards) against want, in call order.
+func assertSessionMessageCards(t *testing.T, rows []store.SessionEvent, want ...UISessionMessagePayload) {
 	t.Helper()
-	if cards := sessionMessageCardsOf(t, rows); len(cards) != 1 || cards[0] != want {
-		t.Fatalf("transcript cards = %+v, want [%+v]", cards, want)
+	if cards := sessionMessageCardsOf(t, rows); !slices.Equal(cards, want) {
+		t.Fatalf("transcript cards = %+v, want %+v", cards, want)
 	}
 	var live SessionMessageCards
-	var last UISessionMessagePayload
+	latest := make(map[string]UISessionMessagePayload)
+	var order []string
 	for _, row := range rows {
-		if card, ok := live.Card(row); ok {
-			last = card
+		card, ok := live.Card(row)
+		if !ok {
+			continue
 		}
+		if _, seen := latest[card.ToolCallID]; !seen {
+			order = append(order, card.ToolCallID)
+		}
+		latest[card.ToolCallID] = card
 	}
-	if last != want {
-		t.Fatalf("live card = %+v, want %+v", last, want)
+	got := make([]UISessionMessagePayload, 0, len(order))
+	for _, id := range order {
+		got = append(got, latest[id])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("live cards = %+v, want %+v", got, want)
 	}
 }
 

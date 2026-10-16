@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
@@ -94,6 +96,55 @@ func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
 	if strings.Contains(resp.Body.String(), "<!doctype html>") {
 		t.Fatalf("GET %s returned SPA HTML instead of asset payload", requestPath)
 	}
+}
+
+// Invariant: every listener revalidates the shell and unversioned files, so an updated runtime
+// never boots the previous release's bundle from a cache (#742); fingerprinted build output stays
+// cacheable for good. Owner: the shared static route behind every surface's NoRoute fallback.
+func TestStaticRoutesCachePolicy(t *testing.T) {
+	// not parallel: t.Setenv selects the process-wide local Web bundle.
+	t.Run("Should revalidate the shell on every listener surface and keep fingerprinted assets", func(t *testing.T) {
+		const fingerprinted = "assets/session-thread-Bg_R4-Fj.js"
+		distDir := writeLocalStaticDist(t, "cache policy shell", map[string]string{
+			fingerprinted:                   "console.log('chunk');",
+			"assets/emojibase/en/data.json": "[]",
+			"theme-boot.js":                 "void 0;",
+		})
+		t.Setenv(webDistDirEnvVar, distDir)
+		homePaths := newTestHomePaths(t)
+		want := map[string]string{
+			"/":                              "no-cache",
+			"/session/sess-001":              "no-cache",
+			"/theme-boot.js":                 "no-cache",
+			"/assets/emojibase/en/data.json": "no-cache",
+			"/" + fingerprinted:              "public, max-age=31536000, immutable",
+		}
+		// Every surface that serves the Web; public ingress carries webhooks only.
+		for _, surfaceSet := range []SurfaceSet{
+			SurfaceSetLocal,
+			SurfaceSetPrivate,
+			SurfaceSetPublicOperator,
+			SurfaceSetPublicCombined,
+		} {
+			router := gin.New()
+			RegisterSurfaceRoutes(
+				router,
+				newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths),
+				surfaceSet,
+			)
+			for requestPath, cacheControl := range want {
+				resp := performRequestWithHeaders(t, router, http.MethodGet, requestPath, nil, map[string]string{
+					"Accept": "text/html,application/xhtml+xml",
+				})
+				if resp.Code != http.StatusOK {
+					t.Fatalf("%s GET %s status = %d; body=%s", surfaceSet, requestPath, resp.Code, resp.Body.String())
+				}
+				if got := resp.Header().Get("Cache-Control"); got != cacheControl {
+					t.Fatalf("%s GET %s Cache-Control = %q, want %q", surfaceSet, requestPath, got, cacheControl)
+				}
+			}
+		}
+	})
 }
 
 func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {

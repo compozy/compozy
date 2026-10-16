@@ -542,7 +542,7 @@ func (q *Queries) ListTranscriptSearchCandidates(ctx context.Context, arg ListTr
 }
 
 const listTranscriptSessionPromptEventsForUpgrade = `-- name: ListTranscriptSessionPromptEventsForUpgrade :many
-SELECT sequence, transcript_entry_key
+SELECT sequence, transcript_entry_key, content
 FROM events
 WHERE sequence > ?1
   AND archived = 0 AND transcript_entry_key <> ''
@@ -560,6 +560,7 @@ type ListTranscriptSessionPromptEventsForUpgradeParams struct {
 type ListTranscriptSessionPromptEventsForUpgradeRow struct {
 	Sequence           int64  `json:"sequence"`
 	TranscriptEntryKey string `json:"transcript_entry_key"`
+	Content            string `json:"content"`
 }
 
 func (q *Queries) ListTranscriptSessionPromptEventsForUpgrade(ctx context.Context, arg ListTranscriptSessionPromptEventsForUpgradeParams) ([]ListTranscriptSessionPromptEventsForUpgradeRow, error) {
@@ -571,7 +572,7 @@ func (q *Queries) ListTranscriptSessionPromptEventsForUpgrade(ctx context.Contex
 	items := []ListTranscriptSessionPromptEventsForUpgradeRow{}
 	for rows.Next() {
 		var i ListTranscriptSessionPromptEventsForUpgradeRow
-		if err := rows.Scan(&i.Sequence, &i.TranscriptEntryKey); err != nil {
+		if err := rows.Scan(&i.Sequence, &i.TranscriptEntryKey, &i.Content); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

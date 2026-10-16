@@ -87,7 +87,7 @@ ORDER BY sequence ASC
 LIMIT sqlc.arg(row_limit);
 
 -- name: ListTranscriptSessionPromptEventsForUpgrade :many
-SELECT sequence, transcript_entry_key
+SELECT sequence, transcript_entry_key, content
 FROM events
 WHERE sequence > sqlc.arg(after_sequence)
   AND archived = 0 AND transcript_entry_key <> ''

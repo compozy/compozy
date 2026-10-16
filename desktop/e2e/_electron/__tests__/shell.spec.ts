@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -974,6 +974,39 @@ test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and
       "Copied through the Electron Edit menu"
     );
   });
+});
+
+test("a relaunch replaces a shell the renderer cached before a runtime update (#742)", async ({
+  launchDesktop,
+}) => {
+  // The runtime serves the shell; an update must never boot the previous release's bundle from
+  // the renderer's HTTP cache. An old Last-Modified makes the first shell heuristically fresh.
+  const dist = await mkdtemp(join(tmpdir(), "compozy-shell-cache-"));
+  try {
+    await cp(join(repositoryRoot, "web", "dist"), dist, { recursive: true });
+    const index = join(dist, "index.html");
+    const original = await readFile(index, "utf8");
+    const stamp = (release: string) =>
+      original.replace("</head>", `<meta name="compozy-e2e-release" content="${release}"></head>`);
+    const release = (product: Page) =>
+      product.locator('meta[name="compozy-e2e-release"]').getAttribute("content");
+    const prepare = async ({ environment }: { environment: Record<string, string> }) => {
+      environment.COMPOZY_WEB_DIST_DIR = dist;
+    };
+    await writeFile(index, stamp("previous"));
+    const released = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    await utimes(index, released, released);
+
+    const first = await launchDesktop({ prepare });
+    expect(await release(await first.product())).toBe("previous");
+    await first.closeShell();
+
+    await writeFile(index, stamp("updated"));
+    const relaunched = await launchDesktop({ home: first.home, prepare });
+    expect(await release(await relaunched.product())).toBe("updated");
+  } finally {
+    await rm(dist, { recursive: true, force: true });
+  }
 });
 
 test("native context menu copies text and preserves spelling preferences after relaunch", async ({

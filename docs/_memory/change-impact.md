@@ -2755,11 +2755,15 @@ clients. The composer prompt stream folds each turn's events through
 
 User state (SD-013): the materialized transcript projection moves from version 2 to 3. Opening a
 session database reprojects only the assistant entries that hold a `compozy__session_prompt` call,
-following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. As
-with #670, an older runtime treats a version 3 projection as incompatible (ahead failure, explicit).
+following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. The
+upgrade runs once per session database, in one write transaction that records the version last, so
+a rerun or an interrupted run reprojects the same entries from the ledger without duplicating or
+dropping a card. As with #670, an older runtime treats a version 3 projection as incompatible
+(ahead failure, explicit).
 
-HTTP: the daemon serves the SPA shell and the unversioned public files with `Cache-Control:
-no-cache`; fingerprinted `assets/` keep their headers. Routes, DTOs, OpenAPI, CLI, config, hooks,
+HTTP: every listener that serves the Web (local, private tier, public operator) sends
+`Cache-Control: no-cache` for the SPA shell and unversioned public files, and
+`public, max-age=31536000, immutable` for Vite-fingerprinted `assets/` files. Routes, DTOs, OpenAPI, CLI, config, hooks,
 extension contracts, and native tool descriptors are unchanged, so the official
 `skills/compozy/` and `packages/site` docs need no update. Desktop loads the shell with
 `pragma: no-cache`, so a shell cached by an older runtime is skipped after an update. Web never

@@ -132,6 +132,13 @@ func sessionMessagePartPayload(
 	return payload, true
 }
 
+// IsSessionPromptCall reports a stored tool call of `compozy__session_prompt`, under any provider's
+// name for the hosted tool.
+func IsSessionPromptCall(stored store.SessionEvent) bool {
+	decoded := decodeStoredEvent(stored)
+	return decoded.parsed.Type == acp.EventTypeToolCall && isSessionPromptEvent(decoded)
+}
+
 func isSessionPromptEvent(decoded *decodedStoredEvent) bool {
 	return toolmeta.NormalizeHostedToolName(decoded.agent.ProviderToolName()) == sessionPromptToolID ||
 		toolmeta.NormalizeHostedToolName(decoded.parsed.ToolName) == sessionPromptToolID

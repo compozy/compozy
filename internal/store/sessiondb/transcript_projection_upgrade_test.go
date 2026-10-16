@@ -281,6 +281,10 @@ func TestTranscriptProjectionUpgrade(t *testing.T) {
 				`{"delivery":"after_turn","message_id":"msg-1","mode":"queue","reply_watch":{"id":"rw-1"},` +
 				`"target_workspace_id":"ws-target"}}}}}}`},
 			{TurnID: "turn-unrelated", Type: acp.EventTypeAgentMessage, AgentName: "coder", Content: "Unaffected reply"},
+			// A shell command that only mentions the tool: its entry holds no card to repair.
+			{TurnID: "turn-mention", Type: acp.EventTypeToolCall, AgentName: "coder", Content: `{"type":"tool_call",` +
+				`"turn_id":"turn-mention","tool_name":"rg compozy__session_prompt internal","tool_call_id":"bash-1",` +
+				`"tool_input":{"command":"rg compozy__session_prompt internal"}}`},
 		} {
 			if err := opened.Record(ctx, event); err != nil {
 				t.Fatal(err)
@@ -320,6 +324,12 @@ func TestTranscriptProjectionUpgrade(t *testing.T) {
 			damaged, entryKey); err != nil {
 			t.Fatal(err)
 		}
+		// Only entries holding a session-prompt call are reprojected; this sentinel must survive.
+		const untouched = `{"id":"sentinel","role":"assistant","parts":[]}`
+		if _, err := fixture.ExecContext(ctx, `UPDATE transcript_entries SET message_json=?
+		WHERE kind='assistant' AND turn_id='turn-mention'`, untouched); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := fixture.ExecContext(
 			ctx,
 			`UPDATE transcript_projection_state SET projection_version=2`,
@@ -330,52 +340,76 @@ func TestTranscriptProjectionUpgrade(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		reader, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := reader.Close(ctx); err != nil {
-				t.Error(err)
-			}
-		})
-		var cards []transcript.UISessionMessagePayload
-		var version int
-		var unrelatedAfter string
-		if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE entry_key=?`,
-			entryKey).Scan(&projected); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal([]byte(projected), &message); err != nil {
-			t.Fatal(err)
-		}
-		for _, part := range message.Parts {
-			if part.Type != "data-compozy-session-message" {
-				continue
-			}
-			var card transcript.UISessionMessagePayload
-			if err := json.Unmarshal(part.Data, &card); err != nil {
-				t.Fatal(err)
-			}
-			cards = append(cards, card)
-		}
 		want := transcript.UISessionMessagePayload{
 			ToolCallID: "exec-send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
 			MessageID: "msg-1", Mode: "queue", Delivery: "after_turn", ReplyWatchID: "rw-1", State: "done",
 		}
-		if len(cards) != 1 || cards[0] != want {
-			t.Fatalf("upgraded cards = %+v, want [%+v]", cards, want)
-		}
-		if err := reader.db.QueryRowContext(ctx, `SELECT projection_version FROM transcript_projection_state`).
-			Scan(&version); err != nil {
-			t.Fatal(err)
-		}
-		if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE turn_id='turn-unrelated'`).
-			Scan(&unrelatedAfter); err != nil {
-			t.Fatal(err)
-		}
-		if version != transcript.ProjectionVersion || unrelatedAfter != unrelatedBefore {
-			t.Fatalf("upgrade version=%d, unrelated changed=%v", version, unrelatedAfter != unrelatedBefore)
+		// The second round reruns the upgrade over its own result, as a restart before the version
+		// was recorded would: it reprojects from the ledger again, never adding or dropping a card.
+		for round := range 2 {
+			if round == 1 {
+				rerun, err := sql.Open("sqlite", path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := rerun.ExecContext(
+					ctx,
+					`UPDATE transcript_projection_state SET projection_version=2`,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if err := rerun.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reader, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var projectedJSON, unrelatedAfter, mentionAfter string
+			var version int
+			if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE entry_key=?`,
+				entryKey).Scan(&projectedJSON); err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.db.QueryRowContext(ctx, `SELECT projection_version FROM transcript_projection_state`).
+				Scan(&version); err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE turn_id='turn-unrelated'`).
+				Scan(&unrelatedAfter); err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries
+			WHERE kind='assistant' AND turn_id='turn-mention'`).Scan(&mentionAfter); err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			var projectedMessage transcript.UIMessage
+			if err := json.Unmarshal([]byte(projectedJSON), &projectedMessage); err != nil {
+				t.Fatal(err)
+			}
+			var cards []transcript.UISessionMessagePayload
+			for _, part := range projectedMessage.Parts {
+				if part.Type != "data-compozy-session-message" {
+					continue
+				}
+				var card transcript.UISessionMessagePayload
+				if err := json.Unmarshal(part.Data, &card); err != nil {
+					t.Fatal(err)
+				}
+				cards = append(cards, card)
+			}
+			if len(cards) != 1 || cards[0] != want {
+				t.Fatalf("round %d upgraded cards = %+v, want [%+v]", round, cards, want)
+			}
+			if version != transcript.ProjectionVersion || unrelatedAfter != unrelatedBefore ||
+				mentionAfter != untouched {
+				t.Fatalf("round %d upgrade version=%d, unrelated changed=%v, mention reprojected=%v",
+					round, version, unrelatedAfter != unrelatedBefore, mentionAfter != untouched)
+			}
 		}
 	})
 }
