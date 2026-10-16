@@ -253,6 +253,35 @@ describe("useOsAttention", () => {
     expect(filtersForCall(MODAL_CALL).archive).toBeUndefined();
   });
 
+  it("Should keep session navigation loading separate from loss of updates", () => {
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
+    let status: SessionCatalogStreamStatus = "live";
+    const { result, rerender } = renderHook(() => useOsAttention(workspace, status, false));
+    expect(result.current.sessionsDisconnected).toBe(false);
+
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ isLoading: true }));
+    status = "live";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(false);
+    status = "disabled";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(false);
+    status = "connecting";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(false);
+    status = "stale";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(true);
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
+    status = "live";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(false);
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({ isError: true }));
+    status = "live";
+    rerender();
+    expect(result.current.sessionsDisconnected).toBe(true);
+  });
+
   it("Should isolate notification failures from the sessions modal catalog", () => {
     notificationStale = true;
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));

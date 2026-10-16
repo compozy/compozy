@@ -190,19 +190,26 @@ export function RuntimeSelector({
               {catalogStatus}
             </div>
           ) : null}
-          {providers.map(provider =>
-            providerCatalogIssues[provider.id] &&
-            (controller.railFilter === "all" ||
-              controller.railFilter === "fav" ||
-              controller.railFilter === provider.id ||
-              controller.listModel.searching) ? (
-              <p key={provider.id} role="status" className="px-3 py-1.5 text-form-hint text-subtle">
-                <span className="font-medium">{provider.name}</span>
-                {" · "}
-                {providerCatalogIssues[provider.id]}
-              </p>
-            ) : null
-          )}
+          {/* Keep provider guidance readable without consuming the models viewport. */}
+          <div className="max-h-24 shrink-0 overflow-y-auto overscroll-contain">
+            {providers.map(provider =>
+              providerCatalogIssues[provider.id] &&
+              (controller.railFilter === "all" ||
+                controller.railFilter === "fav" ||
+                controller.railFilter === provider.id ||
+                controller.listModel.searching) ? (
+                <p
+                  key={provider.id}
+                  role="status"
+                  className="px-3 py-1.5 text-form-hint text-subtle"
+                >
+                  <span className="font-medium">{provider.name}</span>
+                  {" · "}
+                  {providerCatalogIssues[provider.id]}
+                </p>
+              ) : null
+            )}
+          </div>
           <ModelList
             listId={popup.listId}
             optionId={popup.optionId}

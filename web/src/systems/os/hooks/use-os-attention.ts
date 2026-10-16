@@ -155,8 +155,7 @@ function useSessionAttentionSources({
     disconnected:
       !enabled ||
       (worktree.resolved &&
-        (sessionCatalogStreamStatus !== "live" ||
-          (modalEnabled && (modalSessionsQuery.failed || modalSessionsQuery.loading)))),
+        (sessionCatalogStreamStatus === "stale" || (modalEnabled && modalSessionsQuery.failed))),
     loading: enabled && (!worktree.resolved || summary.loading || modalSessionsQuery.loading),
     modal: modalSessionsQuery.sessions,
     summary,

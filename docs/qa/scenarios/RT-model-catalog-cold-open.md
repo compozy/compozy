@@ -92,3 +92,14 @@ Storybook and targeted Go/Web checks verify presentation/classification; no live
 provider login or full-daemon lab is implied by that evidence.
 
 Issue #740 evidence: [targeted verification and rendered before/after report](../reports/2026-10-16-issue-740.md). Live vendor login/recovery remains outside the authorized local validation scope.
+
+QA impact 2026-10-16, post-merge CI repair (#745): repeat the session selector search
+with at least twelve providers reporting multi-line discovery failures and one healthy
+model. Provider guidance must remain scrollable without collapsing the model viewport.
+Click the healthy model with a real pointer, confirm its reasoning controls remain
+usable, and preserve the provider/model/effort in the created session. The existing
+`ProviderAuthRequired` browser story owns the hit-target regression; the two
+`session-provider-override.spec.ts` journeys own persisted runtime truth. A local
+render reproduced an 8px model viewport and an intercepted click before the fix;
+the bounded guidance region is verified through the same rendered story after the fix.
+Full daemon and desktop validation remains CI-owned.

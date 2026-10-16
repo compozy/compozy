@@ -3,11 +3,12 @@
 // session goes through the workspace-ready jump coordinator.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
-const { jumpToSession, userRetarget } = vi.hoisted(() => ({
+const { jumpToSession, userRetarget, transport } = vi.hoisted(() => ({
+  transport: { degradedAt: null as number | null },
   jumpToSession: vi.fn(),
   userRetarget: vi.fn(),
 }));
@@ -23,7 +24,10 @@ vi.mock("../../../hooks/use-os-reduced-motion", () => ({ useOsReducedMotion: () 
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget } }),
 }));
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session", async () => ({
+  useSessionTransportState: () => transport,
+  useTransportGraceElapsed: (await import("@/systems/session/hooks/use-transport-grace-elapsed"))
+    .useTransportGraceElapsed,
   sessionListSortParam: (sort: string) => sort,
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
   useSessionLifecycleActions: () => ({
@@ -65,7 +69,47 @@ function session(workspaceId: string): SessionPayload {
 }
 
 describe("useSessionWindowSidebar", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    transport.degradedAt = null;
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // Invariant: tab reactivation and brief stream reconnects never warn; sustained loss does.
+  // Owner: sidebar transport feedback; canonical suite: this existing sidebar hook suite.
+  it("Should wait for transport grace and clear the warning immediately on recovery", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    let disconnected = false;
+    const { result, rerender, unmount } = renderHook(() =>
+      useSessionWindowSidebar({
+        windowId: "window-session",
+        workspaceId: "workspace-1",
+        transportDisconnected: disconnected,
+      })
+    );
+    transport.degradedAt = Date.now();
+    disconnected = true;
+    rerender();
+    expect(result.current.disconnected).toBe(false);
+    act(() => vi.advanceTimersByTime(1_999));
+    expect(result.current.disconnected).toBe(false);
+    transport.degradedAt = null;
+    disconnected = false;
+    rerender();
+    act(() => vi.advanceTimersByTime(2_000));
+    expect(result.current.disconnected).toBe(false);
+    transport.degradedAt = Date.now();
+    disconnected = true;
+    rerender();
+    act(() => vi.advanceTimersByTime(2_000));
+    expect(result.current.disconnected).toBe(true);
+    transport.degradedAt = null;
+    disconnected = false;
+    rerender();
+    expect(result.current.disconnected).toBe(false);
+    unmount();
+  });
 
   it("Should use the owning navigation path for local and foreign sessions", () => {
     const { result } = renderHook(() =>
