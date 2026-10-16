@@ -3029,6 +3029,21 @@ renders its own payload). No site documentation changes are needed. QA owner:
 `ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
 suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.
 
+
+## Post-merge runtime selector repair — 2026-10-16
+
+Owner: `fix/main-ci-after-merges`; main CI run 38936400681; originating PR #745.
+The Web runtime selector keeps provider discovery guidance in a bounded scroll region
+so multiple failures cannot collapse the model list or intercept model clicks. All
+provider guidance and keyboard/model/reasoning behavior remain available. Sidebar
+Storybook catalog fixtures move unchanged into a helper to satisfy the source-size
+limit after #758/#759. Internal Web-only changes: no native tool, CLI, HTTP/UDS,
+hook/extensibility/configuration, persisted-state, workspace/profile-isolation,
+official skill, or site documentation contract changes. QA owner:
+`RT-model-catalog-cold-open`; regression owner: the rendered `ProviderAuthRequired`
+story plus the existing session provider override E2E journeys.
+
+
 ## Session-list connection warnings — issue #767 — 2026-10-16
 
 Owner: branch `fix/issue-767-false-disconnected-banner`; issue #767.
@@ -3045,3 +3060,4 @@ Superseded catalog reads keep TanStack cancellation semantics; actual query fail
 - User state/migrations: none. Public compatibility: unchanged. Site docs: no public contract change.
 - QA: `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal`; targeted hook regressions,
   real local frontend walkthrough and rendered browser fault-injection evidence. Heavy gates run only in CI.
+
