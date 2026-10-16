@@ -17,6 +17,7 @@ export interface SessionAttachmentFrameProps extends ComponentProps<"button"> {
   height?: number;
 }
 
+/** Renders a transcript image as a preview button that preserves the session route. */
 export function SessionAttachmentFrame({
   filename,
   src,

@@ -102,6 +102,7 @@ function AttachmentThumb({
   );
 }
 
+/** Presents an assistant-ui draft attachment with preview, removal and upload retry actions. */
 export function SessionAttachmentTile({
   model,
   onRemove,

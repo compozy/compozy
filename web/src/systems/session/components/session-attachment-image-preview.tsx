@@ -8,6 +8,7 @@ interface SessionAttachmentImagePreviewProps {
   trigger: ReactElement;
 }
 
+/** Owns the mounted viewer image and releases file-backed preview URLs on close. */
 function PreviewImage({
   source,
   filename,

@@ -26,6 +26,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (ref) ref.current = value;
 }
 
+/** Arranges scoped transcript attachments in a rail with image previews and file links. */
 export function SessionAttachmentGallery({
   items,
   className,
