@@ -58,9 +58,11 @@ type HostedConfig struct {
 	HomePaths            compozyconfig.HomePaths
 	Registry             HostedRegistry
 	ProjectionGeneration HostedProjectionGeneration
-	Logger               *slog.Logger
-	Now                  func() time.Time
-	NonceReader          func([]byte) error
+	// ProjectionEpoch reports the daemon invalidation epoch that forces a stream rebuild without a generation.
+	ProjectionEpoch func() uint64
+	Logger          *slog.Logger
+	Now             func() time.Time
+	NonceReader     func([]byte) error
 }
 
 // HostedService owns session-scoped hosted MCP launch and bind lifecycle.
@@ -73,6 +75,7 @@ type HostedService struct {
 	homePaths            compozyconfig.HomePaths
 	registry             HostedRegistry
 	projectionGeneration HostedProjectionGeneration
+	projectionEpoch      func() uint64
 	logger               *slog.Logger
 	now                  func() time.Time
 	nonceReader          func([]byte) error
@@ -194,6 +197,7 @@ func NewHostedService(cfg *HostedConfig) (*HostedService, error) {
 		homePaths:            cfg.HomePaths,
 		registry:             cfg.Registry,
 		projectionGeneration: cfg.ProjectionGeneration,
+		projectionEpoch:      cfg.ProjectionEpoch,
 		logger:               cfg.Logger,
 		now:                  now,
 		nonceReader:          nonceReader,

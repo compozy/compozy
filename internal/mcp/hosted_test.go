@@ -916,6 +916,64 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound unversioned stream rebuilds by refresh interval and daemon epoch", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "", false },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-unversioned-stream", peer)
+		current := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		var epoch atomic.Uint64
+		epoch.Store(1)
+		service.now = func() time.Time { return current }
+		service.projectionEpoch = epoch.Load
+		baselineCalls := registry.listCallCount()
+		stream := func(label string) HostedProjectionResponse {
+			t.Helper()
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			if err != nil {
+				t.Fatalf("StreamProjection(%s) error = %v", label, err)
+			}
+			return response
+		}
+
+		stream("cold")
+		for range 5 {
+			stream("within refresh")
+		}
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+			t.Fatalf("registry List calls = %d, want %d within one refresh interval", got, want)
+		}
+
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+		epoch.Add(1)
+		if got := hostedToolIDs(stream("epoch advance").Tools); !slices.Equal(got, []string{"compozy__beta"}) {
+			t.Fatalf("StreamProjection(epoch advance) tools = %#v, want immediate rebuild", got)
+		}
+
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__gamma")})
+		current = current.Add(hostedUnversionedStreamRefresh)
+		if got := hostedToolIDs(stream("refresh elapsed").Tools); !slices.Equal(got, []string{"compozy__gamma"}) {
+			t.Fatalf("StreamProjection(refresh elapsed) tools = %#v, want live availability", got)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+3; got != want {
+			t.Fatalf("registry List calls = %d, want %d after epoch and refresh rebuilds", got, want)
+		}
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection() error = %v", err)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+4; got != want {
+			t.Fatalf("registry List calls = %d, want %d: one-shot Projection must stay fresh", got, want)
+		}
+	})
+
 	t.Run("Should discard a released bind cache entry", func(t *testing.T) {
 		t.Parallel()
 
