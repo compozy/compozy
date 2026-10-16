@@ -53,9 +53,19 @@ func newHTTPTierForwarder(
 		slots: make(chan struct{}, maxForwardConnections), connections: make(map[*httpForwardConn]struct{}),
 	}
 	f.transport = &http.Transport{
-		DialContext:     (&net.Dialer{Timeout: forwardDialTimeout}).DialContext,
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			connection, err := (&net.Dialer{Timeout: forwardDialTimeout}).DialContext(ctx, network, address)
+			if err != nil && ctx.Err() == nil {
+				f.mu.Lock()
+				if !f.closing {
+					f.forwardErr = errors.New("forward target unavailable")
+				}
+				f.mu.Unlock()
+			}
+			return connection, err
+		},
 		MaxConnsPerHost: maxForwardConnections, MaxIdleConnsPerHost: maxForwardConnections,
-		IdleConnTimeout: forwardIdleTimeout, ResponseHeaderTimeout: forwardIdleTimeout,
+		IdleConnTimeout: forwardIdleTimeout,
 	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
@@ -66,12 +76,7 @@ func newHTTPTierForwarder(
 			r.Out.Header.Set("X-Forwarded-Host", r.In.Host)
 		},
 		Transport: f.transport,
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, _ error) {
-			f.mu.Lock()
-			if !f.closing && r.Context().Err() == nil {
-				f.forwardErr = errors.New("forward target unavailable")
-			}
-			f.mu.Unlock()
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
 			http.Error(w, "gateway forward target unavailable", http.StatusBadGateway)
 		},
 	}
@@ -220,4 +225,8 @@ func (c *httpForwardConn) Close() error {
 		c.owner.workers.Done()
 	})
 	return c.err
+}
+
+func (c *httpForwardConn) Write(payload []byte) (int, error) {
+	return (idleDeadlineConn{Conn: c.Conn, timeout: forwardIdleTimeout}).Write(payload)
 }

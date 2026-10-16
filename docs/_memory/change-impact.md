@@ -2741,3 +2741,26 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Issue #737 — Tailscale HTTPS browser origin forwarding (2026-10-16)
+
+Owner: `fix/issue-737-tailscale-origin`, PR #743. The bundled provider uses an HTTP reverse
+proxy after TLS termination, replaces client forwarding headers with its HTTPS scheme and
+original Host, and rejects authorities other than its advertised endpoint. The private
+verification relay remains TCP with the existing end-to-end TLS/challenge proof. Forwarded
+schemes are trusted only by gateway-tier HTTP listeners from actual IP loopback peers;
+foreign origins and mismatched ports remain forbidden. Device pairing/authentication remains
+mandatory. No CLI verb/output, HTTP/UDS route/DTO, native tool ID, SDK/provider wire shape,
+hook or config key changes. Workspace/profile ownership, stored data and credentials retain
+their existing boundaries; no migration, compatibility alias or deprecation is required.
+
+The existing Web pairing and module requests now pass same-origin checks; no React or visual
+surface changes. Official `skills/compozy/` commands and gateway guidance remain accurate.
+Site Tailscale docs explain the advertised URL and pairing response. QA owner:
+`RT-connectivity-provider-route`, with focused socket/TLS/SQLite evidence and external-tailnet
+limits in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`.
+
+Provider health degrades only for listener/upstream dial failures; individual request errors
+and client cancellation do not withdraw the route. Long-poll responses have no fixed proxy
+header deadline, while client writes retain renewed inactivity deadlines, including hijacked
+WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.

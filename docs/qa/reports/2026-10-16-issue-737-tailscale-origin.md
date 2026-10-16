@@ -20,7 +20,9 @@ boundary without coupling the API listener to mutable provider status or bypassi
 - Provider forwarding: `extensions/connectivity/tailscale/provider_test.go`, existing provider suite.
   Real sockets prove Host/path/query/Origin preservation, removal of spoofed Forwarded and
   X-Forwarded headers, HTTPS replacement on repeated requests, spoofed Host rejection, streaming,
-  WebSocket upgrades and teardown. Existing TLS relay lifecycle proves challenge forwarding and closure.
+  WebSocket upgrades and teardown. A request-level response-header timeout must preserve provider
+  health and subsequent traffic; blocked writes must time out and the next write must renew its
+  inactivity deadline. Existing TLS relay lifecycle proves challenge forwarding and closure.
 - Origin authorization: `internal/api/httpapi/middleware_refac_test.go`,
   `TestGatewayForwardedOriginProtection`. Advertised HTTPS origin is accepted through IPv4/IPv6
   loopback tiers; foreign origins, different ports, remote forwarded schemes, local-tier spoofing
@@ -44,3 +46,18 @@ unchanged top-level tests (`TestTierForwarderBridgesToDaemonLoopback`, `TestBund
 This is a macOS real-socket/TLS/SQLite verification. No disposable authorized tailnet, Linux/systemd
 host or external browser device was supplied. The external browser scenario remains unverified;
 the user's running daemon, desktop, credentials and tailnet were not restarted or modified.
+
+## Review remediation
+
+Greptile identified two valid transport-lifetime regressions in the first head. Provider degradation
+now belongs only to a failed upstream dial or listener failure, preserving the previous health
+boundary. Request/response errors remain local to their request. The proxy no longer imposes a
+fixed response-header deadline on supported long-polling operations. Client writes reuse the existing
+per-write inactivity-deadline wrapper, including hijacked WebSockets, without setting a fixed lifetime
+for healthy streams. The provider suite exercises request timeout followed by healthy traffic and
+real net.Pipe writes with a shortened deadline at the I/O boundary.
+
+The initial CI head failed an unrelated session-stop recovery case in race shard 7:
+`TestSharedSessionStopOperation/Should_recover_active_stop_after_manager_restart_at_event_persistence`
+reported `pinned database identity mutated`. No session/store code was changed by this PR. The final
+head CI receipt in the PR records whether that failure reproduced; a green rerun is not causal proof.

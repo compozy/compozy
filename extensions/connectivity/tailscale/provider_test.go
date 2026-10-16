@@ -993,6 +993,112 @@ func TestHTTPTierForwarder(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("Should keep the provider healthy after an individual request timeout", func(t *testing.T) {
+		t.Parallel()
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/wait" {
+				<-r.Context().Done()
+				return
+			}
+			if _, err := io.WriteString(w, "ready"); err != nil {
+				t.Errorf("write response: %v", err)
+			}
+		}))
+		t.Cleanup(target.Close)
+		listener := newTestListener(t)
+		forwarder, err := newHTTPTierForwarder(
+			listener,
+			strings.TrimPrefix(target.URL, "http://"),
+			"https://gateway.example.ts.net:8443",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		forwarder.transport.ResponseHeaderTimeout = 250 * time.Millisecond
+		forwarder.Start()
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := forwarder.Close(ctx); err != nil {
+				t.Errorf("close forwarder: %v", err)
+			}
+		})
+		for _, test := range []struct {
+			path       string
+			wantStatus int
+			wantBody   string
+		}{
+			{"/wait", http.StatusBadGateway, "gateway forward target unavailable\n"},
+			{"/ready", http.StatusOK, "ready"},
+		} {
+			request, err := http.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"http://"+listener.Addr().String()+test.path,
+				http.NoBody,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Host = "gateway.example.ts.net:8443"
+			response, err := (&http.Client{Timeout: time.Second}).Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, readErr := io.ReadAll(response.Body)
+			closeErr := response.Body.Close()
+			if readErr != nil || closeErr != nil || response.StatusCode != test.wantStatus ||
+				string(body) != test.wantBody {
+				t.Fatalf(
+					"%s: status=%d body=%q read=%v close=%v",
+					test.path,
+					response.StatusCode,
+					body,
+					readErr,
+					closeErr,
+				)
+			}
+			if health, reason := forwarder.Health(); health != providerHealthHealthy || reason != "" {
+				t.Fatalf("Health()=(%q,%q) after %s", health, reason, test.path)
+			}
+		}
+	})
+	t.Run("Should bound stalled writes and refresh the deadline after progress", func(t *testing.T) {
+		t.Parallel()
+		writer, reader := net.Pipe()
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Errorf("close writer: %v", err)
+			}
+			if err := reader.Close(); err != nil {
+				t.Errorf("close reader: %v", err)
+			}
+		})
+		connection := &httpForwardConn{Conn: shortWriteDeadlineConn{Conn: writer}}
+		written := make(chan error, 1)
+		go func() { _, err := connection.Write([]byte("ping")); written <- err }()
+		select {
+		case err := <-written:
+			if timeout, ok := errors.AsType[net.Error](err); !ok || !timeout.Timeout() {
+				t.Fatalf("stalled write error=%v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("stalled writer was not released")
+		}
+		read := make(chan error, 1)
+		go func() {
+			payload := make([]byte, 4)
+			_, err := io.ReadFull(reader, payload)
+			read <- err
+		}()
+		if _, err := connection.Write([]byte("ping")); err != nil {
+			t.Fatalf("write after expired deadline: %v", err)
+		}
+		if err := <-read; err != nil {
+			t.Fatalf("read after renewed deadline: %v", err)
+		}
+	})
 }
 
 func newTestHTTPForwarder(t *testing.T, targetURL string) (*httpTierForwarder, string) {
@@ -1016,4 +1122,13 @@ func newTestHTTPForwarder(t *testing.T, targetURL string) (*httpTierForwarder, s
 		}
 	})
 	return forwarder, listener.Addr().String()
+}
+
+type shortWriteDeadlineConn struct{ net.Conn }
+
+func (c shortWriteDeadlineConn) SetWriteDeadline(deadline time.Time) error {
+	if !deadline.IsZero() {
+		deadline = time.Now().Add(250 * time.Millisecond)
+	}
+	return c.Conn.SetWriteDeadline(deadline)
 }
