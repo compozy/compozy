@@ -9,7 +9,7 @@
  * exactly; the daemon validates it and rejects anything else.
  */
 
-export const SESSION_LIST_SORTS = ["last_activity", "attention"] as const;
+export const SESSION_LIST_SORTS = ["created", "name", "last_activity", "attention"] as const;
 export const SESSION_LIST_SCOPES = ["workspace", "all-workspaces"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];
@@ -20,9 +20,9 @@ export interface SessionListPreferences {
   scope: SessionListScope;
 }
 
-/** Calm defaults: last activity, this workspace's own sessions. */
+/** Calm defaults: newest created first, this workspace's own sessions. */
 export const DEFAULT_SESSION_LIST_PREFERENCES: SessionListPreferences = {
-  sort: "last_activity",
+  sort: "created",
   scope: "workspace",
 };
 
@@ -42,7 +42,7 @@ export function toSessionListScope(value: string | null | undefined): SessionLis
 }
 
 /** The list order the daemon should serve for a given preference. */
-export function sessionListSortParam(sort: SessionListSort): "last_activity" | "attention" {
+export function sessionListSortParam(sort: SessionListSort): SessionListSort {
   return sort;
 }
 

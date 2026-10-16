@@ -23,6 +23,7 @@ const (
 
 	ListSortRecent       = "recent"
 	ListSortCreated      = "created"
+	ListSortName         = "name"
 	ListSortNavigator    = "navigator"
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
@@ -114,13 +115,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if err != nil {
 		return ListPage{}, err
 	}
-	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint)
+	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint, normalized.Sort)
 	if err != nil {
 		return ListPage{}, err
-	}
-
-	if normalized.Sort == ListSortNavigator && after != nil && after.NavigatorBand == nil {
-		return ListPage{}, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
@@ -277,7 +274,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
 	}
 	switch query.Sort {
-	case ListSortRecent, ListSortCreated, ListSortNavigator, ListSortLastActivity, ListSortAttention:
+	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}

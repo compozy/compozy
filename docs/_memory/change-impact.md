@@ -2889,3 +2889,25 @@ no compatibility shim or removal release is needed. Official skill:
 `skills/compozy/references/loops.md`; public docs:
 `packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
 `TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.
+
+## Issue #746 — Stable session-list sorting
+
+- Owner: `fix/issue-746-session-sort-stable`. Shell sort adds `created` and `name`, defaulting only
+  unset preferences to `created`. Explicit persisted activity/attention choices are retained; no
+  state shape changes, migration, deletion, or compatibility shim. SD-013 regimes 1/2 preserved.
+- HTTP/UDS `/api/sessions`, CLI `session list --sort`, and native `compozy__session_list` add `name`;
+  existing `created` and all existing public defaults/orders remain unchanged. Name is visible-title
+  Unicode lowercase ascending, creation time descending, ID descending. Opaque cursors retain version
+  2 for existing sorts and add an optional name anchor bound to the query fingerprint.
+- Settings shell DTO/OpenAPI/generated clients add both values; config validation/defaults and
+  global-only persistence remain daemon-owned. No extensions, hooks, credentials, or isolation rules
+  change. Filtering/profile/workspace scope still precedes ordering and the page cut.
+- Web menu exposes four choices. The hierarchy preserves catalog order for nested children; no
+  client sorting or activity-based fallback is added. All-workspace groups request the same sort.
+- Official `skills/compozy/references/runtime-operations.md`, site config/CLI docs, and
+  `RT-web-session-attention-sort` QA scenario co-ship. Targeted tests cover config overlays, real
+  SQLite + active overlay pagination, Unicode/ties/search, menu selection and nested row stability.
+- The first automatic title after a session's first turn is a rename boundary: Name may reposition
+  the row once, whereas Created ignores title changes. Pointer overlays distinguish an absent sort
+  from an explicit persisted value; serialized old defaults are preserved as explicit values.
+- Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.
