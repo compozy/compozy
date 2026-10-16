@@ -8,7 +8,7 @@
 - Pause, resume, recovery, blocks, and escalation
 - Scheduler controls
 - Coordinator, worker, and reviewer loops
-- Review verdicts, communication discipline, and safety
+- Review verdicts, communication discipline, supervisor/worker messaging, and safety
 
 ## Authority Model
 
@@ -285,6 +285,24 @@ Use task state and session surfaces for clarification and handoff. Include the r
 blocker, next action, and relevant persisted IDs.
 
 If a direct room produced a conclusion, summarize back to the public thread without leaking private details or raw tokens.
+
+## Supervisor And Worker Messaging Protocol
+
+When a supervisor session dispatches workers (executors, children), keep messaging cheap and
+attributable.
+
+- Use `compozy__session_prompt` on both sides, never the CLI. Put the supervisor's session ID in the
+  worker briefing so the worker can report back.
+- Workers report milestones only: plan ready, blocked, PR opened, CI diagnosis, final result. They set
+  `supersede: true` on status updates so only the latest is delivered, and `notify_on_complete` only
+  when they need an answer.
+- The supervisor answers with `in_reply_to` set to the worker's `message_id`. Urgent corrections use
+  `mode: "steer"`; routine additions can be queued, and a long-running worker still receives them
+  through `session.messaging.queue_promote_after`.
+- Workers do not co-edit shared files such as `docs/_memory/change-impact.md`; impact notes go in the PR
+  body and the supervisor consolidates them.
+- A `message_rate_limited` or `message_hop_limit` error means too many messages or a forwarding chain,
+  not an outage: batch updates or ask the operator.
 
 ## Safety
 

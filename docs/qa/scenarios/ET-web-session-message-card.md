@@ -33,10 +33,9 @@ is the real-provider walk with visual parity against the boards.
    from a session in another workspace (folder glyph + workspace name); send with attachments. Each
    matches `agent-collaboration-transcript.html#tr-card`.
 3. **Queue row (VC-05).** While B is busy, send a queued message from A: the strip row shows the
-   Claude mark and `From Refactor billing`, Remove only (aria `Remove message from Refactor
-   billing`). Remove it: the row leaves, and A's sent card resolves to `Dropped`. A deleted sender
-   reads `From a deleted session`. Operator rows keep Steer / edit / Remove; other actors' rows keep
-   none.
+   Claude mark and `From Refactor billing`, Steer (aria `Steer message from Refactor billing`) and
+   Remove (aria `Remove message from Refactor billing`), never edit. Steer moves it into the live turn. Remove it: the row leaves, and A's sent card resolves to `Dropped`. A deleted sender
+   reads `From a deleted session`. Operator rows keep Steer / edit / Remove.
 4. **Sender side (VC-04/VC-03).** In A, the call reads `Sending to Billing reviewer` with `Sending…`,
    then `Sent to Billing reviewer` · `Waiting for reply` (pulsing dot), never a "Used session
    prompt" tool row. When B's turn ends, `Reply from Billing reviewer` lands with `Completed` and the
@@ -69,5 +68,11 @@ existing transcripts are reprojected on open (projection version 3). Automated o
 `TestSessionMessageUIProjection` (recorded Claude and Codex shapes, live tracker parity),
 `TestTranscriptProjectionUpgrade` (version 2 → 3), `TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks`,
 and the Web timeline and thread suites. The real-provider walk in steps 7–8 remains to be run.
+
+7. **Replies and groups (#760).** A message sent with `in_reply_to` shows the `In reply` chip; clicking it
+   scrolls to the original when loaded. Three consecutive messages from one sender render as one group
+   `Refactor billing · 3 messages` (latest shown, toggle expands). An expired watch reads `No reply` on
+   the sent card, with the body `No reply arrived in time. The message may still be pending; check the
+   target session.` A session marked Needs attention shows its reason in the list row.
 
 QA impact 2026-10-09 (agent-collaboration tasks 03/05): new in this change; no prior verdict.
