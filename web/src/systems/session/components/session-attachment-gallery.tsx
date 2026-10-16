@@ -83,7 +83,6 @@ export function SessionAttachmentGallery({
           <li key={`${item.id}:${occurrence}`} data-attachment-rail-item className="shrink-0">
             {item.kind === "image" ? (
               <SessionAttachmentFrame
-                href={item.href}
                 src={item.src}
                 filename={item.filename}
                 title={imageTitle(item)}

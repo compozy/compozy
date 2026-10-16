@@ -7,6 +7,7 @@ import {
   isImageAttachmentMime,
 } from "@/systems/session/lib/attachment-kinds";
 import { Button, Eyebrow, Spinner } from "@compozy/ui";
+import { SessionAttachmentImagePreview } from "@/systems/session/components/session-attachment-image-preview";
 
 import type { SessionAttachmentTileModel } from "./session-attachment-tile-model";
 
@@ -139,13 +140,36 @@ export function SessionAttachmentTile({
         className
       )}
     >
-      <AttachmentThumb
-        canPreview={canPreview}
-        isImage={isImage}
-        model={model}
-        onPreviewLoad={setDimensions}
-        previewRef={previewRef}
-      />
+      {canPreview && model.file ? (
+        <SessionAttachmentImagePreview
+          filename={model.name}
+          source={model.file}
+          trigger={
+            <Button
+              type="button"
+              variant="ghost"
+              className="size-9 rounded-md p-0"
+              aria-label={`Preview ${model.name}`}
+            >
+              <AttachmentThumb
+                canPreview={canPreview}
+                isImage={isImage}
+                model={model}
+                onPreviewLoad={setDimensions}
+                previewRef={previewRef}
+              />
+            </Button>
+          }
+        />
+      ) : (
+        <AttachmentThumb
+          canPreview={canPreview}
+          isImage={isImage}
+          model={model}
+          onPreviewLoad={setDimensions}
+          previewRef={previewRef}
+        />
+      )}
       <span className="flex min-w-0 flex-1 flex-col gap-px">
         <span
           className="truncate text-small-body font-medium text-fg"

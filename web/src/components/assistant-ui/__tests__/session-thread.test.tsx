@@ -13,6 +13,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { OverlayContainerContext } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
@@ -2248,8 +2249,8 @@ describe("SessionThread transcript states", () => {
     expect(gallery.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const imageFrames = screen.getAllByTestId("user-message-attachment-frame");
     expect(imageFrames).toHaveLength(2);
-    expect(imageFrames[0]).toHaveAttribute(
-      "href",
+    expect(within(imageFrames[0]!).getByRole("img")).toHaveAttribute(
+      "src",
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-image/bytes`
     );
     expect(imageFrames[0]).not.toHaveAttribute("role");
@@ -2260,13 +2261,71 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-attachment-file-card")).not.toHaveAttribute("role");
     expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    expect(within(gallery).getAllByRole("link")).toHaveLength(3);
+    expect(within(gallery).getAllByRole("link")).toHaveLength(1);
+    expect(within(gallery).getAllByRole("button")).toHaveLength(2);
     const images = screen.getAllByRole("img", { name: "diagram.png" });
     expect(images).toHaveLength(2);
     expect(images[0]).toHaveAttribute("width", "1280");
     expect(images[0]).toHaveAttribute("height", "720");
     expect(images[0]?.getAttribute("src")).not.toMatch(/^data:/);
   });
+
+  // Invariant: image previews preserve the SPA and restore focus after every dismissal.
+  // Owner: session attachment interaction, canonical SessionThread suite.
+  it.each([
+    ["close", false],
+    ["escape", false],
+    ["backdrop", false],
+    ["close", true],
+    ["escape", true],
+    ["backdrop", true],
+  ] as const)(
+    "Should dismiss a transcript image with %s (window scoped: %s) and return to its origin",
+    async (dismissal, windowScoped) => {
+      const user = userEvent.setup();
+      const originalURL = window.location.href;
+      const transcript = [
+        {
+          id: "preview-image",
+          role: "user",
+          parts: [
+            {
+              type: "file",
+              mediaType: "image/png",
+              url: "compozy://session-attachments/att-shot",
+              filename: "shot.png",
+            },
+          ],
+        } as SessionMessage,
+      ];
+      const host = document.createElement("div");
+      document.body.append(host);
+      render(
+        <OverlayContainerContext value={windowScoped ? host : null}>
+          {threadStateElement(createQueryClient(), {
+            status: "success",
+            messages: toReadonlyThreadMessages(transcript),
+          })}
+        </OverlayContainerContext>,
+        { container: host }
+      );
+      const trigger = await screen.findByRole("button", { name: "Preview shot.png" });
+      expect(trigger).not.toHaveAttribute("href");
+      await user.click(trigger);
+      const dialog = await screen.findByRole("dialog", { name: "shot.png" });
+      expect(within(dialog).getByRole("img", { name: "shot.png" })).toHaveAttribute(
+        "src",
+        `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-shot/bytes`
+      );
+      if (dismissal === "close")
+        await user.click(within(dialog).getByRole("button", { name: "Close" }));
+      else if (dismissal === "escape") await user.keyboard("{Escape}");
+      else await user.click(document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(window.location.href).toBe(originalURL);
+    }
+  );
 
   it("Should skip the empty bubble on an image-only user turn", async () => {
     const transcript = [
@@ -2318,8 +2377,8 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
     expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
-    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
-      "href",
+    expect(screen.getByRole("img", { name: "local-shot.png" })).toHaveAttribute(
+      "src",
       `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-local-shot/bytes`
     );
     expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
@@ -4044,35 +4103,38 @@ async function placeComposerCursor(offset: number) {
 
 function renderComposer(
   overrides: Partial<ComponentProps<typeof SessionThread>>,
-  transport?: SessionTransportState
+  transport?: SessionTransportState,
+  overlayContainer: HTMLElement | null = null
 ) {
   const queryClient = createQueryClient();
   return render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <SessionChatRuntimeProvider
-          sessionId={primarySessionFixture.id}
-          workspaceId={fixtureWorkspaceId()}
-        >
-          <ComposerAuiProbe />
-          <SessionTranscriptThreadProvider
-            messages={[]}
-            status="success"
-            error={null}
-            retry={vi.fn()}
-            transport={transport}
+    <OverlayContainerContext value={overlayContainer}>
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <SessionChatRuntimeProvider
+            sessionId={primarySessionFixture.id}
+            workspaceId={fixtureWorkspaceId()}
           >
-            <SessionThread
-              sessionId={primarySessionFixture.id}
-              agentName={primarySessionFixture.agent_name}
-              canPrompt
-              onCancelPrompt={vi.fn()}
-              {...overrides}
-            />
-          </SessionTranscriptThreadProvider>
-        </SessionChatRuntimeProvider>
-      </QueryClientProvider>
-    </StrictMode>
+            <ComposerAuiProbe />
+            <SessionTranscriptThreadProvider
+              messages={[]}
+              status="success"
+              error={null}
+              retry={vi.fn()}
+              transport={transport}
+            >
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={vi.fn()}
+                {...overrides}
+              />
+            </SessionTranscriptThreadProvider>
+          </SessionChatRuntimeProvider>
+        </QueryClientProvider>
+      </StrictMode>
+    </OverlayContainerContext>
   );
 }
 
@@ -5726,6 +5788,51 @@ describe("SessionThread composer attachments", () => {
     expect(tile).toHaveTextContent("shot.png");
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
   });
+
+  it.each([
+    ["close", false],
+    ["escape", false],
+    ["backdrop", false],
+    ["close", true],
+    ["escape", true],
+    ["backdrop", true],
+  ] as const)(
+    "Should dismiss a composer image with %s (window scoped: %s) and keep the draft",
+    async (dismissal, windowScoped) => {
+      const previewUrls: string[] = [];
+      const MockURL = class extends URL {};
+      MockURL.createObjectURL = vi.fn(() => {
+        const url = `blob:composer-preview-${previewUrls.length}`;
+        previewUrls.push(url);
+        return url;
+      });
+      MockURL.revokeObjectURL = vi.fn();
+      vi.stubGlobal("URL", MockURL);
+      const user = userEvent.setup();
+      const originalURL = window.location.href;
+      const host = document.createElement("div");
+      document.body.append(host);
+      renderComposer({ promptImageCapability: "supported" }, undefined, windowScoped ? host : null);
+      await screen.findByTestId("composer-input");
+      await act(async () => {
+        await requireComposerAui().composer.addAttachment(pngFile());
+      });
+      const trigger = await screen.findByRole("button", { name: "Preview shot.png" });
+      await user.click(trigger);
+      const dialog = await screen.findByRole("dialog", { name: "shot.png" });
+      const source = within(dialog).getByRole("img", { name: "shot.png" }).getAttribute("src");
+      expect(source).toMatch(/^blob:composer-preview-/);
+      if (dismissal === "close")
+        await user.click(within(dialog).getByRole("button", { name: "Close" }));
+      else if (dismissal === "escape") await user.keyboard("{Escape}");
+      else await user.click(document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("shot.png");
+      expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(source);
+      expect(window.location.href).toBe(originalURL);
+    }
+  );
 
   it("Should add an attachment when browser crypto is unavailable", async () => {
     vi.stubGlobal("crypto", undefined);
