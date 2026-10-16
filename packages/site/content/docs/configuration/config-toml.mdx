@@ -881,6 +881,8 @@ updates them through the typed Settings API; operators and agents can also use
 Created keeps parent and nested child rows still while agents work. Name orders the visible title
 case-insensitively using Unicode lowercase, then creation time descending and ID descending; unnamed
 sessions sort as `New session`. Created uses creation time descending, then ID descending.
+When the automatic title arrives after the first turn, Name may move the row once; subsequent
+renames may move it again. Created stays in place.
 Last activity and Attention first remain opt-in choices. An unset sort uses Created; an explicitly
 persisted `last_activity` or `attention` remains unchanged, even if it matched the previous default.
 No user-state migration or rewrite is performed.

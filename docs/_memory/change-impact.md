@@ -2784,4 +2784,7 @@ browser walk verifies TXT/PDF downloads without unloading the session.
 - Official `skills/compozy/references/runtime-operations.md`, site config/CLI docs, and
   `RT-web-session-attention-sort` QA scenario co-ship. Targeted tests cover config overlays, real
   SQLite + active overlay pagination, Unicode/ties/search, menu selection and nested row stability.
+- The first automatic title after a session's first turn is a rename boundary: Name may reposition
+  the row once, whereas Created ignores title changes. Pointer overlays distinguish an absent sort
+  from an explicit persisted value; serialized old defaults are preserved as explicit values.
 - Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.

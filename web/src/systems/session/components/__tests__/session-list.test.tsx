@@ -126,11 +126,17 @@ describe("SessionList selection", () => {
     expect(setSort).toHaveBeenCalledWith("name");
   });
 
-  it.each(["created", "name"] as const)(
-    "Should preserve %s catalog order for nested running children",
-    sort => {
-      const parent = { ...sessions[0]!, id: "parent", name: "Parent" };
+  it.each([
+    ["created", false],
+    ["name", false],
+    ["created", true],
+    ["name", true],
+  ] as const)(
+    "Should preserve %s catalog order for nested running children (subagents: %s)",
+    (sort, subagents) => {
+      const parent = { ...sessions[0]!, id: "parent", name: "Parent work" };
       const lineage = {
+        ...(subagents ? { spawn_role: "subagent" } : {}),
         parent_session_id: "parent",
         root_session_id: "parent",
         spawn_depth: 1,
@@ -140,12 +146,12 @@ describe("SessionList selection", () => {
         permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
       };
       const children = [
-        { ...sessions[0]!, id: "child-b", name: "Beta", lineage },
-        { ...sessions[0]!, id: "child-a", name: "Alpha", lineage },
+        { ...sessions[0]!, id: "child-b", name: "Beta work", lineage },
+        { ...sessions[0]!, id: "child-a", name: "Alpha work", lineage },
       ];
       const ordered =
         sort === "name" ? [parent, ...[...children].reverse()] : [parent, ...children];
-      const stableView = { ...view, sort };
+      const stableView = { ...view, sort, ...(subagents ? { search: "work" } : {}) };
       const { update } = renderList({ sessions: ordered, view: stableView });
       const rowIds = () =>
         screen.getAllByTestId(/^session-sidebar-session-/).map(row => row.dataset.testid);

@@ -38,3 +38,7 @@ receives it. An existing explicit last_activity or attention must survive upgrad
 unset preference picks Created without rewriting config. Keep profile/workspace isolation intact.
 Targeted SQLite/catalog and rendered-sidebar validation owns the slice receipt; full integration
 and E2E gates run only in CI per maintainer instruction.
+
+First-title boundary: start an unnamed session in both stable orders and complete its first turn.
+When its automatic title arrives, Name may reposition it once, as for any rename; Created must
+retain its position. Include equal accented names ÉCLAIR/éclair in the paginated order walk.

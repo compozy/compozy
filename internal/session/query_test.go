@@ -196,6 +196,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				{"zzz-alpha", "ALPHA", 0}, {"aaa-alpha", "alpha", 0},
 				{"unicode-z", "İ", time.Second}, {"unicode-a", "i̇", time.Second},
 				{"unnamed", "", 2 * time.Second}, {"zulu", "Zulu", 3 * time.Second},
+				{"accent-z", "ÉCLAIR", 4 * time.Second}, {"accent-a", "éclair", 4 * time.Second},
 			} {
 				info := sessionCatalogInfoFromRuntime(active.Info())
 				info.ID, info.Name, info.State = fixture.id, fixture.name, string(StateStopped)
@@ -206,9 +207,29 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			want := []string{"zzz-alpha", active.ID, "aaa-alpha", "unicode-z", "unicode-a", "unnamed", "zulu"}
+			want := []string{
+				"zzz-alpha",
+				active.ID,
+				"aaa-alpha",
+				"unicode-z",
+				"unicode-a",
+				"unnamed",
+				"zulu",
+				"accent-z",
+				"accent-a",
+			}
 			if sortKey == ListSortCreated {
-				want = []string{"zulu", "unnamed", "unicode-z", "unicode-a", "zzz-alpha", active.ID, "aaa-alpha"}
+				want = []string{
+					"accent-z",
+					"accent-a",
+					"zulu",
+					"unnamed",
+					"unicode-z",
+					"unicode-a",
+					"zzz-alpha",
+					active.ID,
+					"aaa-alpha",
+				}
 			}
 			query := ListQuery{
 				ReadScope:   store.ReadScope{AllProfiles: true},
