@@ -21,6 +21,112 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
+	t.Run("Should preserve a bounded Goal input batch across new arrivals and reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "prepared-goal", SessionID: sessionID, Text: "goal", QueueCap: 10, Now: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx,
+			`UPDATE session_input_queue SET owner_kind = 'goal', dispatchable = 0 WHERE id = 'prepared-goal'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		for index, id := range []string{"batch-a", "batch-b", "batch-c"} {
+			_, position, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 10, Now: now.Add(time.Second),
+			})
+			if err != nil || position != index+1 {
+				t.Fatalf("public admission position = %d, %v", position, err)
+			}
+		}
+		current := db
+		for index, want := range []string{"batch-a", "batch-b", "batch-c"} {
+			peek, found, err := current.PeekNextSessionInput(ctx, sessionID)
+			if err != nil || !found || peek.ID != want {
+				t.Fatalf("batch selection = %q, %v, %v; want %q", peek.ID, found, err, want)
+			}
+			pending, err := current.ListPendingSessionInputs(ctx, sessionID)
+			if err != nil || len(pending) != 3 || pending[0].ID != want {
+				t.Fatalf("public batch order = %#v, %v; want first %q", pending, err, want)
+			}
+			at := now.Add(time.Duration(2+2*index) * time.Second)
+			claimed, found, err := current.ClaimNextSessionInput(ctx, sessionID, at)
+			if err != nil || !found || claimed.ID != want {
+				t.Fatalf("batch claim = %q, %v, %v; want %q", claimed.ID, found, err, want)
+			}
+			if err := current.MarkSessionInputSent(ctx, sessionID, claimed.ID, at); err != nil {
+				t.Fatal(err)
+			}
+			id := fmt.Sprintf("late-%d", index)
+			if _, _, err := current.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 10,
+				Priority: 10, Now: now.Add(time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if index == 0 {
+				reopened, err := OpenGlobalDB(ctx, db.path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := reopened.Close(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				current = reopened
+			}
+		}
+		peek, found, err := current.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !found || peek.ID != "prepared-goal" {
+			t.Fatalf("Goal after finite batch = %q, %v, %v", peek.ID, found, err)
+		}
+		if entry, found, err := current.ClaimNextSessionInput(
+			ctx,
+			sessionID,
+			now.Add(10*time.Second),
+		); err != nil ||
+			found {
+			t.Fatalf("claim must yield to Goal = %#v, %v, %v", entry, found, err)
+		}
+		pending, err := current.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil || len(pending) != 3 || pending[0].ID != "late-0" {
+			t.Fatalf("deferred public inputs = %#v, %v", pending, err)
+		}
+		if _, _, err := current.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "interrupt", SessionID: sessionID, Text: "interrupt", TargetTurnID: "active-turn", QueueCap: 10,
+			Mode: store.SessionInputQueueModeInterrupt, Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			Now: now.Add(11 * time.Second),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		peek, found, err = current.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !found || peek.ID != "interrupt" {
+			t.Fatalf("interrupt must retain precedence = %#v, %v, %v", peek, found, err)
+		}
+		interrupt, found, err := current.ClaimNextSessionInput(ctx, sessionID, now.Add(12*time.Second))
+		if err != nil || !found || interrupt.ID != "interrupt" {
+			t.Fatalf("interrupt claim = %#v, %v, %v", interrupt, found, err)
+		}
+		if err := current.MarkSessionInputSent(ctx, sessionID, interrupt.ID, now.Add(12*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := current.db.ExecContext(ctx,
+			`UPDATE session_input_queue SET status = 'sent' WHERE id = 'prepared-goal'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		peek, found, err = current.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !found || peek.ID != "late-0" {
+			t.Fatalf("deferred input after Goal = %q, %v, %v", peek.ID, found, err)
+		}
+	})
 	t.Run("Should hide pending Goals and reject direct operator mutations", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

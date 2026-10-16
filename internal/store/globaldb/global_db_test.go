@@ -447,6 +447,64 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 	})
 
+	// Invariant: adding the Goal batch boundary preserves authored queue state across upgrade and reopen.
+	t.Run("Should preserve queued inputs while adding Goal batch boundaries", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00137_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('queue-ws', '/queue', 'queue', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('queue-session', '00000000000000000000000000', 'coder', 'queue-ws', 'stopped', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, origin_json, runtime_provider, enqueued_at, updated_at)
+			 VALUES ('queue-input', 'queue-session', 'queued', 'queue', 'Retained message', '{"sender_session_id":"sender"}', 'codex', '2026-10-16', '2026-10-16')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retained = `SELECT json_array(text,status,mode,origin_json,runtime_provider,enqueued_at,updated_at)
+			FROM session_input_queue WHERE id='queue-input'`
+		var before string
+		if err := prior.QueryRowContext(ctx, retained).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after string
+			var boundary sql.NullInt64
+			if err := upgraded.db.QueryRowContext(ctx, retained).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx,
+				`SELECT goal_input_batch_max_rowid FROM session_input_queue WHERE id='queue-input'`,
+			).Scan(&boundary); err != nil {
+				t.Fatal(err)
+			}
+			if after != before || boundary.Valid {
+				t.Fatalf("queue changed across upgrade: before %s, after %s, boundary %#v", before, after, boundary)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
 	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
 		t.Parallel()
