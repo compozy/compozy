@@ -3007,3 +3007,24 @@ APP-desktop-runtime-bundle-coherence.
 
 
 Issue #756 system-session inventory: Loop/Goal judges (`loop_runtime_adapters.go`) force verdict-only/deny-all. Managed Loop/Goal workers (`loop_managed_binding_profile.go`), task workers (`task_session_bridge.go`), scheduler role workers (`task_role_sessions.go`), task reviewers (`review_router_create.go`), automations (`automation/dispatch_context.go`) and extension-created sessions (`extension/host_api_sessions.go`) also use system type and may require operator action; they remain visible. Heartbeat reuses its bound session; coordinator/spawned sessions use separate types; auto-title is already excluded by spawn role. Visibility therefore uses existing immutable `runtime_mode=verdict-only`, not type alone or a name heuristic. It is derived in bounded catalog projections; no stored shape changes. Judge lineage has no subagent spawn role, and the viewed-session path must not reveal it as a child/chip.
+
+## Session row provider mark — 2026-10-16
+
+Owner: branch `feat/issue-754-session-provider-logo`; issue #754.
+Every session row in the shared Web list (window sidebar, sessions modal, nested
+children, revealed subagents, all-workspaces groups) leads its sub line with the
+provider mark of `runtime.effective.provider`, drawn from `providerKindIconRegistry`
+in neutral ink. The row's accessible name and the mark's tooltip read `Provider · Model`
+in the runtime selector's display names, from the same cached `/api/providers` and
+`/api/model-catalog/models` reads (wire id where the catalog has none); the glyph is
+not a tab stop and the tooltip also opens on the row's keyboard focus. A session that
+has never bound a runtime renders no mark. The sub line now runs under the time
+column, so the mark costs no attention word. Data comes from the existing list
+payload and the catalog stream's `upserted` re-read, so continue, fork, and process
+replacement repaint the mark with no per-row request. Web-only (internal regime):
+HTTP/UDS DTOs, OpenAPI, CLI, native tools, hooks, extensibility, configuration keys,
+persisted state, and official `skills/compozy/` are unchanged; no migration or
+compatibility adapter is needed. Workspace/profile isolation is unaffected (the row
+renders its own payload). No site documentation changes are needed. QA owner:
+`ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
+suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.

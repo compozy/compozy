@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { HttpResponse } from "msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { BULK_SESSION_FAMILY, BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
 
+import { compozyApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
+import type { ProviderModelPayload } from "@/systems/model-catalog";
+import type { ProviderSummary } from "@/systems/providers";
 
 import { sessionRuntime } from "../../mocks/fixtures";
 import type { SessionPayload } from "../../types";
@@ -341,5 +345,181 @@ export const GateSessionsHidden: Story = {
     ...ProvenanceThreads.args,
     sessions: [GOAL_OWNER],
     currentSessionId: GOAL_OWNER.id,
+  },
+};
+
+/** The same row on another runtime; `null` is a session that has not bound one yet. */
+function onRuntime(session: SessionPayload, provider: string | null, model = ""): SessionPayload {
+  return {
+    ...session,
+    runtime:
+      provider === null
+        ? { status: "unbound", selection_revision: 0 }
+        : { ...sessionRuntime(provider), effective: { provider, ...(model ? { model } : {}) } },
+  };
+}
+
+const MIXED_RUNTIMES: SessionPayload[] = [
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-orch", "Orchestrate the October fixes", "general", "running"),
+      0
+    ),
+    "claude",
+    "claude-opus-5-5"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession(
+        "sess-sort",
+        "Stable session sort under parallel catalog writes",
+        "general",
+        "running",
+        "sess-orch"
+      ),
+      1
+    ),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession(
+        "sess-origin",
+        "Tailscale gateway origin",
+        "general",
+        "needs-attention",
+        "sess-orch"
+      ),
+      2
+    ),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-viewer", "Image viewer return path", "general", "running", "sess-orch"),
+      3
+    ),
+    "claude",
+    "claude-opus-5-5"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-claim", "Loop claim token", "general", "failed", "sess-orch"),
+      6
+    ),
+    "gemini",
+    "gemini-3.1-pro"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-cards", "Session message cards", "general", "done", "sess-orch"),
+      9
+    ),
+    "cursor"
+  ),
+  onRuntime(minutesAgo(sidebarSession("sess-new", "New session", "general", "idle"), 0), null),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-cart-2", "Refactor cart totals", "general", "waiting-for-input"),
+      14
+    ),
+    "claude",
+    "claude-sonnet-5-5"
+  ),
+  onRuntime(
+    minutesAgo(sidebarSession("sess-refund-2", "Fix flaky refund test", "general", "stopped"), 300),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+];
+
+function catalogProvider(name: string, displayName: string): ProviderSummary {
+  return {
+    name,
+    display_name: displayName,
+    default: false,
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "inherit",
+      home_policy: "operator",
+      state: "authenticated",
+      login: { configured: true, presence: "present" },
+    },
+  };
+}
+
+function catalogModel(provider: string, id: string, displayName: string): ProviderModelPayload {
+  return {
+    provider_id: provider,
+    model_id: id,
+    display_name: displayName,
+    availability_state: "available_live",
+    available: true,
+    curated: true,
+    deprecated: false,
+    featured: false,
+    hidden: false,
+    stale: false,
+    sources: [],
+  };
+}
+
+/** The runtime catalog the rows read their provider and model names from. */
+const MIXED_RUNTIME_CATALOG = [
+  compozyApiMock.get("/api/providers", () =>
+    HttpResponse.json({
+      providers: [
+        catalogProvider("claude", "Claude Code"),
+        catalogProvider("codex", "Codex"),
+        catalogProvider("gemini", "Gemini CLI"),
+        catalogProvider("cursor", "Cursor Agent"),
+      ],
+    })
+  ),
+  compozyApiMock.get("/api/model-catalog/models", () =>
+    HttpResponse.json({
+      models: [
+        catalogModel("claude", "claude-opus-5-5", "Claude Opus 5.5"),
+        catalogModel("claude", "claude-sonnet-5-5", "Claude Sonnet 5.5"),
+        catalogModel("codex", "gpt-6.1-sol", "GPT-6.1 Sol"),
+        catalogModel("gemini", "gemini-3.1-pro", "Gemini 3.1 Pro"),
+      ],
+    })
+  ),
+];
+
+/**
+ * Each row names its runtime with the provider's mark before the agent, in
+ * neutral ink so only live state carries color; the unbound session shows none.
+ */
+export const MixedRuntimes: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: MIXED_RUNTIMES,
+    currentSessionId: "sess-orch",
+  },
+};
+
+/** Selection keeps every provider mark; the checkbox covers only the state mark. */
+export const MixedRuntimesSelection: Story = {
+  ...MixedRuntimes,
+  tags: ["play-fn"],
+  args: {
+    ...MixedRuntimes.args,
+    sessionActions: SelectionMode.args!.sessionActions!,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}");
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-sort"));
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-claim"));
+    await user.keyboard("{/Control}");
+    await expect(canvas.getByTestId("session-sidebar-selection-count")).toHaveTextContent(
+      "2 selected"
+    );
   },
 };
