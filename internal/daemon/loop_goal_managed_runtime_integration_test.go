@@ -142,13 +142,15 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				if got.TurnID != want {
 					t.Fatalf("next turn = %q, want %q", got.TurnID, want)
 				}
-				if got.TurnID == agentEntry.TurnID && (got.Meta.Origin == nil || got.Meta.Origin.SessionID != target.ID || got.Meta.Origin.Hop != 1) {
+				if got.TurnID == agentEntry.TurnID &&
+					(got.Meta.Origin == nil || got.Meta.Origin.SessionID != target.ID || got.Meta.Origin.Hop != 1) {
 					t.Fatalf("queued agent origin = %#v", got.Meta.Origin)
 				}
 				if got.TurnID == entry.TurnID && got.Meta.Origin != nil {
 					t.Fatalf("operator origin = %#v", got.Meta.Origin)
 				}
-				if got.TurnID == wake.TurnID && (got.Meta.Synthetic == nil || got.Meta.Synthetic.Kind != acp.PromptSyntheticKindSessionReply || got.Meta.Synthetic.WakeEventID != watch.ID) {
+				if got.TurnID == wake.TurnID &&
+					(got.Meta.Synthetic == nil || got.Meta.Synthetic.Kind != acp.PromptSyntheticKindSessionReply || got.Meta.Synthetic.WakeEventID != watch.ID) {
 					t.Fatalf("reply metadata = %#v", got.Meta.Synthetic)
 				}
 			case <-ctx.Done():
