@@ -13,6 +13,7 @@ export function modelSourceFailureMessage(source: ProviderModelSourceStatus): st
   }
 }
 
+/** Hide a request error only when its current provider failure is already displayed. */
 export function modelRefreshErrorMessage(
   error: unknown,
   displayedSources: readonly ProviderModelSourceStatus[]

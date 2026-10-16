@@ -55,8 +55,11 @@ export function initialModelCatalogReadinessOptions(queryClient: QueryClient, en
   return queryOptions({
     queryKey: modelCatalogKeys.initialReadiness,
     queryFn: async ({ signal }) => {
-      await refreshAllModels({}, signal);
-      await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
+      try {
+        await refreshAllModels({}, signal);
+      } finally {
+        await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
+      }
       return true;
     },
     enabled,

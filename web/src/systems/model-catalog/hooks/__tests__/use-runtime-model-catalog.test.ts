@@ -130,6 +130,40 @@ describe("useRuntimeModelCatalog", () => {
     });
   });
 
+  it("Should reread source health when initial readiness fails after an empty status read", async () => {
+    mockModels([payload("codex", "gpt-test")]);
+    const source = {
+      source_id: "provider_live:cursor",
+      source_kind: "provider_live",
+      provider_id: "cursor",
+      priority: 110,
+      refresh_state: "failed",
+      row_count: 0,
+      stale: false,
+      failure_reason: "auth_required",
+    };
+    let rejectRefresh!: (error: Error) => void;
+    vi.mocked(refreshAllModels).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectRefresh = reject;
+      })
+    );
+    const { result } = renderHook(
+      () => useRuntimeModelCatalog([{ id: "codex" }, { id: "cursor" }]),
+      { wrapper: createWrapper() }
+    );
+    await waitFor(() => expect(refreshAllModels).toHaveBeenCalledTimes(1));
+    expect(result.current.providerIssues).toEqual({});
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [source] });
+    act(() => rejectRefresh(new ModelCatalogApiError("catalog refresh failed", 500, [source])));
+    await waitFor(() =>
+      expect(result.current.providerIssues.cursor).toBe("Sign in to update the model list.")
+    );
+    expect(getModelSourceStatus).toHaveBeenCalledTimes(2);
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.models[0]?.disabled).toBe(false);
+  });
+
   it("Should force rediscovery and reread the catalog when refreshed by the user", async () => {
     const stale = payload("claude", "claude-opus-5", { stale: true });
     const fresh = payload("claude", "claude-opus-5-5");

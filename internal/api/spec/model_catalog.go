@@ -172,10 +172,10 @@ func modelCatalogRefreshResponses() []ResponseSpec {
 		{Status: 200, Description: "OK", Body: contract.ProviderModelRefreshResponse{}},
 		{Status: 400, Description: "Invalid model catalog refresh request", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: modelCatalogForbiddenDescription, Body: contract.ErrorPayload{}},
-		{Status: 503, Description: "Model catalog refresh unavailable", Bodies: responseBodiesOf(
+		{Status: 503, Description: "Model catalog refresh unavailable", Bodies: overlappingResponseBodiesOf(
 			responseBodyOf[contract.ProviderModelRefreshResponse](), responseBodyOf[contract.ErrorPayload](),
 		)},
-		{Status: 500, Description: modelCatalogInternalServerErrorDescription, Bodies: responseBodiesOf(
+		{Status: 500, Description: modelCatalogInternalServerErrorDescription, Bodies: overlappingResponseBodiesOf(
 			responseBodyOf[contract.ProviderModelRefreshResponse](), responseBodyOf[contract.ErrorPayload](),
 		)},
 	}
