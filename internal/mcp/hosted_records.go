@@ -100,7 +100,7 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	return s.projectionForGeneration(ctx, record, registry)
+	return s.projectionForGeneration(ctx, record, registry, buildHostedProjection)
 }
 
 // hostedProjectionResponse returns isolated, ID-sorted views and a digest over their canonical empty form.

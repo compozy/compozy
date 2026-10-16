@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -810,4 +811,24 @@ func (s *fakeExecutorStore) BindCheckpoint(_ context.Context, req BindCheckpoint
 	s.checkpoint.BindingHandle = req.BindingHandle
 	s.checkpoint.BindingEpoch = req.BindingEpoch
 	return cloneTestCheckpoint(s.checkpoint), nil
+}
+
+// livenessSessionRecorder observes the action runtime liveness port without owning session binding.
+type livenessSessionRecorder struct {
+	mu    sync.Mutex
+	names []string
+}
+
+func (r *livenessSessionRecorder) ReportActionTokensUsed(int64) {}
+
+func (r *livenessSessionRecorder) ReportActionLivenessSession(sessionID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.names = append(r.names, sessionID)
+}
+
+func (r *livenessSessionRecorder) sessions() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.names)
 }

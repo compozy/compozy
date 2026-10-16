@@ -98,8 +98,14 @@ func (m *Manager) Deliveries(ctx context.Context, id string) ([]DeliveryEventEnv
 }
 
 func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvelope, error) {
-	rows, err := m.Events(ctx, id, store.EventQuery{})
-	if err != nil {
+	return compactionMarkers(ctx, func(ctx context.Context, kind string) ([]store.SessionEvent, error) {
+		return m.Events(ctx, id, store.EventQuery{Type: kind})
+	})
+}
+
+func compactionMarkers(ctx context.Context, read sessionEventsByType) ([]CompactionEnvelope, error) {
+	rows, err := readCompactionEventRows(ctx, read)
+	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
 	boundaries, err := firstCompactionBoundaries(rows)
@@ -151,6 +157,30 @@ func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvel
 	}
 	slices.SortFunc(result, func(a, b CompactionEnvelope) int { return cmp.Compare(a.Sequence, b.Sequence) })
 	return result, nil
+}
+
+type sessionEventsByType func(context.Context, string) ([]store.SessionEvent, error)
+
+// readCompactionEventRows skips the usage history for sessions without an ACP compaction marker.
+// Markers are re-read after the usage rows: a compaction appended between the reads then only adds
+// a boundary without observations, and can never lend its usage to an earlier compaction.
+func readCompactionEventRows(ctx context.Context, read sessionEventsByType) ([]store.SessionEvent, error) {
+	probe, err := read(ctx, acp.EventTypeCompaction)
+	if err != nil || len(probe) == 0 {
+		return nil, err
+	}
+	rows := make([]store.SessionEvent, 0)
+	for _, kind := range []string{
+		events.SessionCompactionFired, acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypeCompaction,
+	} {
+		kindRows, err := read(ctx, kind)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, kindRows...)
+	}
+	slices.SortFunc(rows, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return rows, nil
 }
 
 func contextAfterObservations(rows []store.SessionEvent) ([]contextusage.ContextAfter, error) {
