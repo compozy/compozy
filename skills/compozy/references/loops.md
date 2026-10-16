@@ -290,6 +290,22 @@ bounded criterion diagnostics and aggregate warnings. Command criteria include o
 standard output, standard error, blockers, and warnings when present; continuation prompts and the
 Web timeline use that durable evidence.
 
+### Queued inputs and Goal continuation
+
+At an idle turn boundary, CompozyOS drains a finite batch of eligible queued operator prompts,
+agent messages, and synthetic wakes (including session replies) before dispatching a prepared Goal
+prompt, even when that Goal prompt was prepared earlier. The first public-input claim freezes the
+batch's admission boundary durably. Inputs admitted later wait until after that Goal prompt; they
+cannot keep extending the batch. Interrupt replacements retain precedence. Within the batch,
+existing priority and FIFO ordering remain in force; unresolved steers retain their eligibility
+rules. Queue reads and positions show public inputs and exclude internal Goal prompts.
+
+Queued inputs run as their own turns and do not increment the Goal's work-turn count. Its binding,
+control epochs, turn limit, and existing budget guards remain intact. The saved batch boundary
+survives restart. Queue mode never preempts the currently running turn: a long turn can delay
+`after_turn` delivery until it ends. Use fenced steering or interrupt when guidance must arrive
+during that turn.
+
 ### Session stop, removal, and recovery
 
 Explicitly stopping a session-origin Goal's origin or current bound session cancels its live Run
