@@ -25,7 +25,7 @@ const (
 type activeTier struct {
 	endpoint     compozysdk.ConnectivityAdvertisedEndpoint
 	domain       string
-	forwarder    *tierForwarder
+	forwarder    *httpTierForwarder
 	verification *tierForwarder
 }
 
@@ -111,13 +111,15 @@ func (p *Provider) Establish(
 	if err := callCtx.Err(); err != nil {
 		return result, errors.Join(err, closeListener(listener))
 	}
-	forwarder, err := newTierForwarder(listener, target.String(), p.logger)
+	forwarder, err := newHTTPTierForwarder(listener, target.String(), endpoint.URL, p.logger)
 	if err != nil {
 		return result, errors.Join(err, closeListener(listener))
 	}
 	verification, err := startVerificationRelay(callCtx, node, tier, domain, p.logger)
 	if err != nil {
-		return result, errors.Join(err, closeListener(listener))
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(callCtx), providerShutdownTimeout)
+		defer cleanupCancel()
+		return result, errors.Join(err, forwarder.Close(cleanupCtx))
 	}
 	if verification != nil {
 		endpoint.VerificationAddress = verification.listener.Addr().String()

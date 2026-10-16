@@ -40,3 +40,14 @@ successful attempt recovers, and teardown closes the relay. Inspect safe DNS/con
 failure classes. Local automated evidence and external limits are tracked in
 `docs/qa/reports/2026-09-10-issue-602-endpoint-verification.md`. Real Tailnet/Linux validation remains
 blocked until an isolated authorized account/environment is supplied; never reuse active node state.
+
+QA impact 2026-10-16 (issue #737): after private-tier advertisement, load the HTTPS URL on
+`:8443` with browser `Origin` and `Sec-Fetch-Site: same-origin` metadata. Module requests must
+pass origin protection; `/api/gateway/status` must reach `401 gateway_device_unauthenticated`
+so the pairing gate can render, then a valid pairing artifact must issue a Secure cookie.
+Reject a foreign origin, a different port, a spoofed Host and client-supplied forwarding headers.
+The provider must preserve SSE/WebSocket traffic and close active streams on teardown; the
+private TLS verification relay must still authenticate the advertised endpoint.
+Focused real-socket proxy, HTTP middleware and SQLite pairing integration evidence is recorded
+in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`. An external tailnet browser walk
+remains unavailable without a disposable authorized tailnet/device; no live gateway was changed.

@@ -76,8 +76,11 @@ function cardPart(id: string, origin = "delegated"): SessionTimelinePart {
   };
 }
 
-function harness(rows: SubagentView[], navigation: SubagentNavigation | null = null) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function harness(
+  rows: SubagentView[],
+  navigation: SubagentNavigation | null = null,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
   queryClient.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
     rows,
     staleIds: new Set(),
@@ -110,10 +113,30 @@ beforeEach(() => {
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
-  it("Should open the child in this window on click and in a new window on ⌘/Ctrl-click", () => {
+  it("Should become navigable from a live roster update, then open here or in a new window", async () => {
+    // Invariant: a delegated card cannot navigate without a child; the live roster
+    // supplies that child without a reload or remount. Owner: view wiring, UT-W16.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const openSession = vi.fn();
-    renderRow([cardPart("sub-1")], harness([view("sub-1")], { openSession }));
-    const card = screen.getByRole("button", { name: "Open Task sub-1" });
+    renderRow(
+      [cardPart("sub-1")],
+      harness(
+        [view("sub-1", { status: "queued", child_session_id: null })],
+        { openSession },
+        queryClient
+      )
+    );
+    fireEvent.click(screen.getByRole("group", { name: "Task sub-1, Queued" }));
+    expect(openSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Open Task sub-1" })).toBeNull();
+
+    act(() => {
+      queryClient.setQueryData<SubagentRoster>(
+        sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID),
+        { rows: [view("sub-1")], staleIds: new Set() }
+      );
+    });
+    const card = await screen.findByRole("button", { name: "Open Task sub-1" });
     fireEvent.click(card);
     fireEvent.click(card, { metaKey: true });
     expect(openSession.mock.calls).toEqual([

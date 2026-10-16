@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -323,7 +325,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 	t.Run("Should pin the reconciled active model for a provider-native default session", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newGoalCommandHandlerFixtureWithModels(t, "", goalCommandCursorModel)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "cursor", "", goalCommandCursorModel)
 		decision, err := fixture.service.Handle(
 			testutil.Context(t),
 			fixture.workspaceID,
@@ -483,10 +485,13 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	t.Run("Should return a stable runtime-invalid result for an unknown provider", func(t *testing.T) {
+	t.Run("Should reject an unknown Goal provider after cross-provider binding", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newGoalCommandHandlerFixture(t)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "codex", "gpt-6.1-sol", "gpt-6.1-sol")
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.info.Provider = "claude"
+		status.info.Model = "claude-opus-5-5"
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
@@ -499,6 +504,62 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(unknown provider) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonRuntimeInvalid)
+		_, err = fixture.db.GetLoopRun(t.Context(), looppkg.WorkspaceID(fixture.workspaceID), "run-goal-command-1")
+		if !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("rejected runtime created a Run: %v", err)
+		}
+	})
+
+	t.Run("Should start and replace an agent-created Goal after a cross-provider runtime bind", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "codex", "gpt-6.1-sol", "gpt-6.1-sol")
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.callers["agent-operator"].Provider = "codex"
+		status.info.Provider = "claude"
+		status.info.Model = "claude-opus-5-5"
+		status.info.ReasoningEffort = "xhigh"
+		ctx := t.Context()
+		before, err := fixture.db.GetSessionCreationIdentity(ctx, fixture.sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller := session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"}
+		command := session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "Ship with a rebound runtime",
+			Runtime: &session.RuntimeSelection{Provider: "claude", Model: "claude-opus-5-5", ReasoningEffort: "xhigh"}}
+		for _, verb := range []string{session.GoalCommandVerbSet, session.GoalCommandVerbReplace} {
+			command.Verb = verb
+			decision, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID, caller, command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := session.GoalOutcomeStarted
+			if verb == session.GoalCommandVerbReplace {
+				want = session.GoalOutcomeReplaced
+			}
+			assertGoalCommandOutcome(t, decision, want, "")
+			run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
+			snapshot, err := fixture.db.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
+			if worker.Provider != "claude" || worker.Model != "claude-opus-5-5" || worker.Reasoning != "xhigh" {
+				t.Fatalf("Goal worker runtime = %#v, want Claude Opus 5.5 xhigh", worker)
+			}
+			if run.Origin.CreationProfileRef != before.CreationProfileRef ||
+				run.Origin.PolicySpecDigest != before.PolicySpecDigest || run.Origin.CreationDigest != before.CreationDigest {
+				t.Fatalf("Goal changed immutable creation identity: %#v", run.Origin)
+			}
+			command.ExpectedRunID = decision.Result.Snapshot.RunID
+		}
+		after, err := fixture.db.GetSessionCreationIdentity(ctx, fixture.sessionID)
+		if err != nil || after != before {
+			t.Fatalf("creation identity changed: before=%#v after=%#v err=%v", before, after, err)
+		}
 	})
 
 	t.Run("Should reject invalid origin sessions before creating a Run", func(t *testing.T) {
@@ -508,6 +569,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			name       string
 			mutate     func(*goalCommandSessionStatus)
 			wantReason session.GoalReasonCode
+			wantCheck  string
 		}{
 			{
 				name: "Should reject a stopped origin",
@@ -524,23 +586,18 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginWorkspaceMismatch),
 			},
 			{
-				name: "Should reject an origin without a persisted creation profile",
+				name:      "Should reject an origin without a persisted creation profile",
+				wantCheck: "creation_identity_missing",
 				mutate: func(status *goalCommandSessionStatus) {
 					status.info.ID = "session-missing-creation-profile"
 				},
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
 			},
 			{
-				name: "Should reject an origin whose active agent differs from its immutable profile",
+				name:      "Should reject an origin whose active agent differs from its immutable profile",
+				wantCheck: "creation_agent_mismatch",
 				mutate: func(status *goalCommandSessionStatus) {
 					status.info.AgentName = "different-agent"
-				},
-				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
-			},
-			{
-				name: "Should reject an origin whose active provider differs from its immutable profile",
-				mutate: func(status *goalCommandSessionStatus) {
-					status.info.Provider = "different-provider"
 				},
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
 			},
@@ -554,6 +611,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				if !ok {
 					t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
 				}
+				var logs bytes.Buffer
+				fixture.service.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 				tt.mutate(status)
 				decision, err := fixture.service.Handle(
 					testutil.Context(t),
@@ -568,6 +627,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 					t.Fatalf("Handle(set invalid origin) error = %v", err)
 				}
 				assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, tt.wantReason)
+				if tt.wantCheck != "" && !strings.Contains(logs.String(), `"check":"`+tt.wantCheck+`"`) {
+					t.Fatalf("origin diagnostic = %s, want check %q", logs.String(), tt.wantCheck)
+				}
 				if _, err := fixture.db.GetLoopRun(
 					testutil.Context(t),
 					looppkg.WorkspaceID(fixture.workspaceID),
@@ -864,15 +926,17 @@ type goalCommandHandlerFixture struct {
 
 func newGoalCommandHandlerFixture(t *testing.T) goalCommandHandlerFixture {
 	t.Helper()
-	return newGoalCommandHandlerFixtureWithModels(
+	return newGoalCommandHandlerFixtureWithRuntime(
 		t,
+		"cursor",
 		goalCommandCursorModel,
 		goalCommandActiveCursorModel,
 	)
 }
 
-func newGoalCommandHandlerFixtureWithModels(
+func newGoalCommandHandlerFixtureWithRuntime(
 	t *testing.T,
+	profileProvider string,
 	profileModel string,
 	activeModel string,
 ) goalCommandHandlerFixture {
@@ -908,7 +972,7 @@ context_nudge_ratio = 0.0
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
 		ProfileID: profileOwner.ID,
-		Provider:  "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
+		Provider:  profileProvider, Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
 		Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)
