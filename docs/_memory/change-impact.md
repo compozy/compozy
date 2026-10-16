@@ -2778,6 +2778,12 @@ child-window, origin-divider, composer, return-to-parent and second-window
 assertions remain intact. Owning suite: `web/e2e/__tests__/subagents.spec.ts`;
 QA scenario: `ET-web-subagent-card` drill-in (E2E-004).
 
+Product rule: a card without a confirmed child session does not navigate. The
+existing UT-W16 wiring case now starts with a queued delegated card without a
+child, confirms that clicking cannot navigate, then updates the live roster
+cache and verifies ordinary/modifier navigation without reload or remount.
+The existing live-tail suite owns `subagent_updated` delivery into that cache.
+
 This changes test synchronization only. Native tools, CLI, HTTP/UDS, config,
 extensions/hooks, workspace/profile isolation, persisted user state, Web
 behavior, official `skills/compozy/` and site docs are unchanged. SD-013:
