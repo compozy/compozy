@@ -1,6 +1,9 @@
 package task
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 func (m *Service) preflightForceReleaseRun(
 	previous Run,
@@ -158,4 +161,19 @@ func recoveredFromAttentionEventPayload(
 		QueueGeneration:      queueGeneration,
 		CanceledQueuedInputs: canceledInputs,
 	}
+}
+
+func (m *Service) newForcedLoopFailureEvent(
+	mutation *ForceRunMutationResult,
+	failure ForceFailRun,
+	actor ActorContext,
+	at time.Time,
+) (Event, error) {
+	return m.newTransactionalTaskEventAt(
+		mutation.Run.TaskID, mutation.Run.ID, taskWatchEventRunFailed, actor, at,
+		RunLeaseFailedEventPayload{
+			Status: mutation.Run.Status, Error: mutation.Run.Error,
+			Metadata: failure.Metadata, ClaimTokenHash: mutation.Previous.ClaimTokenHash,
+		},
+	)
 }

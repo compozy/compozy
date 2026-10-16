@@ -8879,6 +8879,61 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 func TestManagerForceRunOperations(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should publish Loop worker failure only after forced failure commits", func(t *testing.T) {
+		t.Parallel()
+		store := newInMemoryManagerStore()
+		var observed Run
+		var calls, eventCount int
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			failed: func(ctx context.Context, payload hookspkg.TaskRunFailedPayload) (hookspkg.TaskRunFailedPayload, error) {
+				calls++
+				var err error
+				observed, err = store.GetTaskRun(ctx, payload.RunID)
+				if err != nil {
+					return payload, err
+				}
+				events, err := store.ListTaskEvents(
+					ctx,
+					EventQuery{TaskID: payload.TaskID, RunID: payload.RunID, EventType: taskWatchEventRunFailed},
+				)
+				if err != nil {
+					return payload, err
+				}
+				eventCount = len(events)
+				return payload, nil
+			},
+		}))
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(
+			t.Context(),
+			CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Recover Loop worker"},
+			actor,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := manager.EnqueueRun(t.Context(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run.LoopRunID = "looprun-forced-failure"
+		if err := store.CreateTaskRun(t.Context(), *run); err != nil {
+			t.Fatal(err)
+		}
+		failed, err := manager.ForceFailRun(t.Context(), run.ID, ForceFailRun{Reason: "operator recovery"}, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if calls != 1 || eventCount != 1 || observed.ID != failed.ID || observed.Status != TaskRunStatusFailed {
+			t.Fatalf(
+				"failure hook calls/events/run = %d/%d/%#v, want one committed failed worker and event",
+				calls,
+				eventCount,
+				observed,
+			)
+		}
+	})
+
 	t.Run(
 		"Should force release claimed run and invalidate queued session input",
 		func(t *testing.T) {
@@ -10978,6 +11033,7 @@ func assertTaskRunEnqueuedPayload(
 		agentName = strings.TrimSpace(actor.Actor.Ref)
 	}
 	want := hookspkg.TaskRunContext{
+		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
 		TaskID:      strings.TrimSpace(run.TaskID),
 		RunID:       strings.TrimSpace(run.ID),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),

@@ -101,8 +101,12 @@ func (m *Service) taskRunHookContext(
 	if workspaceID == "" {
 		workspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
 	}
+	profileID := strings.TrimSpace(run.ProfileID)
+	if profileID == "" {
+		profileID = strings.TrimSpace(taskRecord.ProfileID)
+	}
 	return hookspkg.TaskRunContext{
-		ProfileID:      strings.TrimSpace(run.ProfileID),
+		ProfileID:      profileID,
 		TaskID:         strings.TrimSpace(run.TaskID),
 		RunID:          strings.TrimSpace(run.ID),
 		RunKind:        new(run.RunKind.Normalize().String()),

@@ -104,6 +104,7 @@ func (m *Service) forceFailRunSettlement(
 	commandAt time.Time,
 ) (forceRunSettlement, error) {
 	settlement := forceRunSettlement{}
+	var events []Event
 	err := m.store.WithTaskMutationTransaction(ctx, "force fail task run", func(store runMutationStore) error {
 		mutation, err := store.ForceFailTaskRun(
 			ctx,
@@ -148,6 +149,17 @@ func (m *Service) forceFailRunSettlement(
 		if err := store.CreateTaskEvent(ctx, event); err != nil {
 			return err
 		}
+		events = []Event{event}
+		if mutation.Run.IsLoopWorker() {
+			terminalEvent, err := m.newForcedLoopFailureEvent(&mutation, failure, actor, commandAt)
+			if err != nil {
+				return err
+			}
+			if err := store.CreateTaskEvent(ctx, terminalEvent); err != nil {
+				return err
+			}
+			events = append(events, terminalEvent)
+		}
 		settlement = forceRunSettlement{
 			mutation:          mutation,
 			task:              taskRecord,
@@ -159,7 +171,7 @@ func (m *Service) forceFailRunSettlement(
 	if err != nil {
 		return forceRunSettlement{}, err
 	}
-	m.publishLeaseSettlement(ctx, []Event{settlement.event}, settlement.statusTransitions, actor)
+	m.publishLeaseSettlement(ctx, events, settlement.statusTransitions, actor)
 	return settlement, nil
 }
 

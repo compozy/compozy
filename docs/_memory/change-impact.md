@@ -2768,6 +2768,7 @@ Heavy daemon/provider-driven walks and full gates are CI-owned by maintainer
 instruction; targeted checks do not establish provider-authored spec quality.
 
 
+
 ## Session attachment image previews — issue #738 (2026-10-16)
 
 - Web composer and transcript images open an accessible, dismissible preview inside the
@@ -2868,3 +2869,23 @@ Provider health degrades only for listener/upstream dial failures; individual re
 and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
 settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
 WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.
+
+## Issue #739 — Loop action claim ownership and recovery
+
+The daemon retries SQLite claim persistence before executing an action. The task store applies
+its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
+bound worker from clearing the claim while its provider continues. Force failure commits the
+Loop node failure and canonical failure event with the task run, then publishes the terminal hook
+that wakes its coordinator.
+Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
+runs have no terminal-session resource to release.
+
+CLI and HTTP/UDS keep their verbs, routes and DTOs. Native `compozy__task_run_release` and the
+session-bound block path now enforce the existing Loop ownership contract; ordinary agent-owned
+leases still release normally. Extension terminal hooks retain their shapes and now receive the
+owning profile. No config, schema, migration, generated contract, workspace boundary or Web
+renderer changes. SD-013: lossless user state, stable public shapes and an authorization bug fix;
+no compatibility shim or removal release is needed. Official skill:
+`skills/compozy/references/loops.md`; public docs:
+`packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
+`TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.

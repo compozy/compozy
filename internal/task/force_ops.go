@@ -137,6 +137,9 @@ func (m *Service) ForceFailRun(
 		return nil, err
 	}
 	mutation := settlement.mutation
+	if mutation.Run.IsLoopWorker() {
+		m.dispatchTaskRunFailed(ctx, mutation.Run, settlement.task, actor)
+	}
 	return &mutation.Run, nil
 }
 
