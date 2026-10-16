@@ -96,7 +96,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			if judge.AgentName != "goal-rejections" {
 				continue
 			}
-			if judge.Lineage == nil || judge.Lineage.ParentSessionID != rejectionSession.ID || judge.StopReason != store.StopCompleted || (judge.Escalated != nil && *judge.Escalated) {
+			if judge.Lineage == nil || judge.Lineage.ParentSessionID != rejectionSession.ID ||
+				judge.Lineage.SpawnRole != "" || judge.Lineage.Kind != "provenance" || judge.StopReason != store.StopCompleted || (judge.Escalated != nil && *judge.Escalated) {
 				t.Fatalf("judge ownership/completion = %#v", judge)
 			}
 		}

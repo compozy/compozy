@@ -22,4 +22,4 @@ errors:
 
 inventory: Needs QA — introduced by the session transcript redesign (goal strip + head actions, 2026-07-29).
 
-Issue #756 acceptance: expand a Goal, then **Verification sessions**. The request explicitly selects `type=system` and the bound session parent, with paginated results and transcript links. Loading, failed reads/retry and empty history remain distinct. Internal judges must not appear in the default sidebar/modal or produce bell/toast attention; a finished judge records completed with verified exit and no false stop escalation. Historical parentless judges remain discoverable through the explicit CLI filter.
+Issue #756 acceptance: expand a Goal, then **Verification sessions**. The request explicitly selects `type=system` and the bound session parent, with paginated results and transcript links. Loading, failed reads/retry and empty history remain distinct. Verdict-only judges must not appear in the default sidebar/modal or produce bell/toast attention; a finished judge records completed with verified exit and no false stop escalation. Historical parentless judges remain discoverable through the explicit CLI filter.

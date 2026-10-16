@@ -53,6 +53,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState
 	BusyInput                *BusyInputState
 	ID                       string

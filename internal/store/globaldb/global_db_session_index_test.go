@@ -83,34 +83,63 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should exclude persisted system sessions before the page cut and facet count", func(t *testing.T) {
+	t.Run("Should hide persisted verdict-only judges while preserving actionable system sessions", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		db := openTestGlobalDB(t)
 		workspace := registerWorkspaceForGlobalTests(t, db, "system-audit", filepath.Join(t.TempDir(), "workspace"))
 		base := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
-		for _, kind := range []string{"user", "system"} {
-			info := sessionInfoForWorkspaceStateIndexTest(kind, workspace, globalDBSessionStateStopped, base)
-			info.SessionType = kind
-			if err := db.RegisterSession(ctx, info); err != nil {
+		for _, id := range []string{"user", "automation", "judge"} {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)
+			info.SessionType = "system"
+			if id == "user" {
+				info.SessionType = "user"
+			}
+			if id != "judge" {
+				if err := db.RegisterSession(ctx, info); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			profile := store.SessionCreationProfile{Version: store.SessionCreationProfileVersion, AgentName: "judge", Provider: "mock",
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, CWD: t.TempDir(), RuntimeMode: "verdict-only"}
+			ref, err := db.PutSessionCreationProfile(ctx, profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy, err := profile.PolicySpecDigest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			digest, err := profile.CreationDigest(store.SessionCreationOptions{SessionID: id, SessionType: info.SessionType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+				CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest,
+			}); err != nil {
 				t.Fatal(err)
 			}
 		}
 		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			WorkspaceID: workspace, Sort: sessionCatalogSortRecent, Limit: 1, ExcludeSessionTypes: []string{"system"}}
+			WorkspaceID: workspace, Sort: sessionCatalogSortRecent, Limit: 1, ExcludeVerdictOnly: true}
 		page, err := db.PageSessions(ctx, query)
-		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "user" {
+		if err != nil || page.Total != 2 || len(page.Sessions) != 1 || page.Sessions[0].ID == "judge" {
 			t.Fatalf("page = %#v, %v", page, err)
 		}
 		facets, err := db.SessionCatalogFacets(ctx, query)
-		if err != nil || facets.Facets.All != 1 {
+		if err != nil || facets.Facets.All != 2 {
 			t.Fatalf("facets = %#v, %v", facets, err)
 		}
-		query.ExcludeSessionTypes = nil
+		query.ExcludeVerdictOnly = false
 		query.SessionType = "system"
+		query.Limit = 10
 		page, err = db.PageSessions(ctx, query)
-		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "system" {
+		if err != nil || page.Total != 2 || len(page.Sessions) != 2 {
 			t.Fatalf("audit = %#v, %v", page, err)
+		}
+		if !slices.ContainsFunc(page.Sessions, func(info store.SessionInfo) bool { return info.ID == "judge" && info.VerdictOnly }) {
+			t.Fatalf("missing typed judge = %#v", page)
 		}
 	})
 

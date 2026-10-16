@@ -58,3 +58,5 @@ docs/qa/evidence/2026-10-02-untested/native-cancel-replay-ended.json.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+Issue #756 acceptance: verdict-only system judge sessions do not contribute to attention totals, bell candidates or automatic attention toasts, including historical stopped/escalated judges. Automation/task/extension system sessions without verdict-only policy retain their attention behavior. Lifecycle events, explicit session audit reads and hooks remain available. Owning checks: TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages, TestSessionCatalogBroadcaster and TestPageSessionsVisibilityExclusion. Rendered before/after notification evidence is linked from PR #756's implementation PR.

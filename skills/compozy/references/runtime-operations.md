@@ -1266,4 +1266,4 @@ Desktop catalog wakes coalesce over five seconds, pause while hidden/unfocused, 
 reads for thirty seconds. Request logs include a validated opaque `client_id` from
 `X-Compozy-Client-ID` so request rates can be grouped by browser instance without inspecting payloads.
 
-Daemon-owned `system` sessions are omitted from default public catalogs and operator attention. Use explicit `type=system` / `session list --type system` for audit; add `parent` / `--parent` to inspect the bound Goal session's judges. Existing parentless judges remain discoverable by type. Direct session history reads are unchanged.
+Verdict-only daemon-owned `system` sessions are omitted from default public catalogs and operator attention. Use explicit `type=system` / `session list --type system` for audit; add `parent` / `--parent` to inspect the bound Goal session's judges. Existing parentless judges remain discoverable by type. Direct session history reads are unchanged.

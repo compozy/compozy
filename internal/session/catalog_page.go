@@ -195,7 +195,7 @@ func sessionCatalogPageQuery(
 		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
 	}
 	if normalized.SessionType == "" {
-		query.ExcludeSessionTypes = []string{string(SessionTypeSystem)}
+		query.ExcludeVerdictOnly = true
 	}
 	return query
 }
@@ -335,7 +335,7 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 
 func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 	if !isPublicSessionCatalogInfo(info) ||
-		(query.SessionType == "" && normalizeSessionType(info.Type) == SessionTypeSystem) {
+		(query.SessionType == "" && isInternalVerificationSession(info)) {
 		return false
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&
@@ -430,6 +430,7 @@ func projectSessionCatalogPage(
 func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
+		VerdictOnly:              info.VerdictOnly,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     strings.TrimSpace(info.Name),

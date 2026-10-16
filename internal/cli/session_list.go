@@ -43,6 +43,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   sessionListKey,
 		Short: "List sessions",
+		Long: "List sessions. Verdict-only system judges are hidden by default; " +
+			"use --type system to include them for audit. Other system sessions remain visible.",
 		Example: `  # List active sessions
   compozy session list
 

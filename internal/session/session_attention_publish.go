@@ -52,7 +52,7 @@ func (m *Manager) publishAttentionCommit(
 		At:          at,
 	}
 	m.publishWaitBadgeEdge(&after, to)
-	if normalizeSessionType(after.Type) != SessionTypeSystem {
+	if !isInternalVerificationSession(&after) {
 		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	}
 	m.dispatchSessionAttentionChanged(ctx, &after, event)
@@ -122,4 +122,8 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 
 func errorsForAttentionSnapshot(sessionID string) error {
 	return fmt.Errorf("session: attention event snapshot not found for %q", strings.TrimSpace(sessionID))
+}
+
+func isInternalVerificationSession(info *Info) bool {
+	return info != nil && normalizeSessionType(info.Type) == SessionTypeSystem && info.VerdictOnly
 }

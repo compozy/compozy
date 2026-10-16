@@ -295,6 +295,17 @@ describe("SessionList subagents", () => {
     vi.unstubAllGlobals();
   });
 
+  it("Should keep a viewed verification judge out of default rows and child counts", () => {
+    const judge = row("judge", {
+      type: "system",
+      lineage: { ...lineage("parent"), kind: "provenance", auto_stop_on_parent: false },
+    });
+    renderList({ sessions: [row("parent")], revealedSession: judge, currentSessionId: judge.id });
+    expect(screen.getByTestId("session-sidebar-session-parent")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-judge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+  });
+
   it("UT-W18: reveals only the viewed subagent under its parent and keeps plain children nested", () => {
     const parent = row("parent", summary(1, 3));
     const plainChild = row("plain", { lineage: lineage("parent") });
