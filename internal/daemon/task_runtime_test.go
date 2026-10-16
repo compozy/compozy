@@ -493,6 +493,47 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
+	t.Run("Should record liveness evidence from a liveness-only session without binding the run", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
+		activityAt := time.Now().UTC()
+		runtime, err := newLoopActionRuntime(
+			manager,
+			actionStore,
+			&loopActionLivenessTestRunner{livenessSessionID: "sess-goal-bound", completeAfter: 40 * time.Millisecond},
+			loopActionSessionStatusStub{info: &session.Info{
+				Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{LastActivityAt: &activityAt}},
+			}},
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+
+		if err := runtime.executeQueuedRun(
+			t.Context(), taskRecord, run, loopActionRuntimeReasonEnqueued,
+		); err != nil {
+			t.Fatalf("executeQueuedRun() error = %v", err)
+		}
+		observations := actionStore.livenessObservationsSnapshot()
+		if len(observations) == 0 {
+			t.Fatal("RecordNodeLiveness() calls = 0, want evidence from the liveness session")
+		}
+		for _, observation := range observations {
+			if !observation.Evidence {
+				t.Fatalf("observation = %#v, want evidence from the active liveness session", observation)
+			}
+		}
+		if got := manager.bindCalls.Load(); got != 0 {
+			t.Fatalf("BindLeasedRunSession() calls = %d, want no run-session ownership transfer", got)
+		}
+	})
+
 	t.Run("Should not treat a stalled session without activity as fresh evidence", func(t *testing.T) {
 		t.Parallel()
 
@@ -729,6 +770,12 @@ func (s *loopActionCapacityTestStore) RecordNodeLiveness(
 	return nil
 }
 
+func (s *loopActionCapacityTestStore) livenessObservationsSnapshot() []looppkg.NodeLivenessObservation {
+	s.livenessMu.Lock()
+	defer s.livenessMu.Unlock()
+	return slices.Clone(s.livenessObservations)
+}
+
 func (s *loopActionCapacityTestStore) livenessObservationCount() int {
 	s.livenessMu.Lock()
 	defer s.livenessMu.Unlock()
@@ -913,8 +960,10 @@ type loopActionLivenessTestRunner struct {
 	tokensUsed    int64
 	completeAfter time.Duration
 	sessionID     string
-	executeErr    error
-	result        json.RawMessage
+	// livenessSessionID reports progress evidence without transferring run-session ownership.
+	livenessSessionID string
+	executeErr        error
+	result            json.RawMessage
 }
 
 func (r *loopActionLivenessTestRunner) ActionRunTimeoutReason(
@@ -932,6 +981,9 @@ func (r *loopActionLivenessTestRunner) ExecuteActionRun(
 ) (taskpkg.RunResult, error) {
 	if r.sessionID != "" {
 		looppkg.ReportActionSessionBound(ctx, r.sessionID)
+	}
+	if r.livenessSessionID != "" {
+		looppkg.ReportActionLivenessSession(ctx, r.livenessSessionID)
 	}
 	if r.executeErr != nil {
 		return taskpkg.RunResult{TokensUsed: r.tokensUsed}, r.executeErr

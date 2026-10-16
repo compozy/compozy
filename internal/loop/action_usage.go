@@ -13,6 +13,10 @@ type actionSessionReporter interface {
 	ReportActionSessionBound(sessionID string)
 }
 
+type actionLivenessSessionReporter interface {
+	ReportActionLivenessSession(sessionID string)
+}
+
 // ActionUsageReporterFunc adapts a function into an ActionUsageReporter.
 type ActionUsageReporterFunc func(tokensUsed int64)
 
@@ -54,4 +58,15 @@ func reportActionSessionBound(ctx context.Context, sessionID string) {
 // ReportActionSessionBound records the exact ACP session used by an action executor.
 func ReportActionSessionBound(ctx context.Context, sessionID string) {
 	reportActionSessionBound(ctx, sessionID)
+}
+
+// ReportActionLivenessSession names the session whose activity proves an action is alive.
+// Unlike ReportActionSessionBound it transfers no run-session ownership or crash recovery,
+// so executors that own their binding and recovery, such as Goals, keep that authority.
+func ReportActionLivenessSession(ctx context.Context, sessionID string) {
+	reporter, ok := actionUsageReporterFromContext(ctx).(actionLivenessSessionReporter)
+	if !ok {
+		return
+	}
+	reporter.ReportActionLivenessSession(sessionID)
 }
