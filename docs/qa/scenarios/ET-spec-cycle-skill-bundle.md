@@ -58,7 +58,7 @@ follow-up script paths must resolve beside that installed helper.
 
 Verification scope: the owning `TestEmbeddedResourcesShouldKeepBundleContract`
 materializes the real extension into a fresh home, checks dependency closure, and
-executes the installed validator in a foreign Git repository (clean and conflict
+executes the installed validator in a foreign Git repository (clean, untracked-work, and conflict
 cases). Managed-install update coverage checks the replacement payload. This is
 focused product-artifact evidence; the provider-authored spec journey remains
 pending CI/authorized runtime QA. No daemon lab was started for this fix.

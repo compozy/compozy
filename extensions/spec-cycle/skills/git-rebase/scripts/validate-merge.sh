@@ -62,8 +62,9 @@ echo ""
 
 # 3. Check if working directory is clean
 echo "3️⃣  Checking working directory..."
-if git status --porcelain | grep -q '^ M\| ??'; then
-    echo "   ⚠️  Unstaged changes found:"
+WORKTREE_STATUS=$(git status --porcelain)
+if [ -n "$WORKTREE_STATUS" ]; then
+    echo "   ⚠️  Uncommitted changes found:"
     git status --short | sed 's/^/   /'
     echo ""
     echo "   Stage only the resolved paths owned by this operation"

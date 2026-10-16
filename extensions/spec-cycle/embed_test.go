@@ -491,6 +491,21 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("installed validator: %v\n%s", err, output)
 		}
+		if err := os.WriteFile(filepath.Join(repository, "untracked.txt"), []byte("unrelated work\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		command = exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		command.Env = gitEnvironment
+		untrackedOutput, err := command.CombinedOutput()
+		if err != nil || !strings.Contains(string(untrackedOutput), "Uncommitted changes found") ||
+			strings.Contains(string(untrackedOutput), "Working directory clean") {
+			t.Fatalf("installed validator with untracked work: err=%v\n%s", err, untrackedOutput)
+		}
+		untrackedData, err := os.ReadFile(filepath.Join(repository, "untracked.txt"))
+		if err != nil || string(untrackedData) != "unrelated work\n" {
+			t.Fatalf("untracked work changed: data=%q err=%v", untrackedData, err)
+		}
 		if err := os.WriteFile(filepath.Join(repository, "conflict.txt"), []byte("<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
