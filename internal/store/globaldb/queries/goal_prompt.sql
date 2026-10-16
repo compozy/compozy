@@ -77,7 +77,7 @@ INSERT INTO session_input_queue (
     task_run_id, run_generation, attempt_count, enqueued_at, updated_at,
     loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id,
     prompt_kind, prompt_attempt, operation_usage_base_tokens, dispatchable,
-    runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed
+    runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, origin_class
 ) VALUES (
     sqlc.arg(id), sqlc.arg(session_id), 'queued', sqlc.arg(mode), sqlc.arg(text),
     (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id)),
@@ -85,7 +85,7 @@ INSERT INTO session_input_queue (
     CAST(sqlc.arg(updated_at) AS TEXT), sqlc.narg(loop_run_id), sqlc.narg(owner_kind),
     sqlc.narg(owner_epoch), sqlc.narg(binding_epoch), sqlc.narg(prompt_id),
     sqlc.narg(prompt_kind), sqlc.arg(prompt_attempt), sqlc.narg(operation_usage_base_tokens), 0,
-    sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed)
+    sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), 'synthetic'
 );
 
 -- name: CheckpointPreparedGoalPrompt :execrows

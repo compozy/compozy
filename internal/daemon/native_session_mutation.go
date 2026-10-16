@@ -39,6 +39,8 @@ type sessionPromptInput struct {
 	ExpectedTurnID   string                                  `json:"expected_turn_id,omitempty"`
 	Wait             bool                                    `json:"wait,omitzero"`
 	Runtime          *contract.PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
+	InReplyTo        string                                  `json:"in_reply_to,omitempty"`
+	Supersede        bool                                    `json:"supersede,omitzero"`
 }
 
 type sessionRewindInput struct {
@@ -208,7 +210,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	origin, err := n.sessionPromptOrigin(ctx, scope, req.ToolID, sessionID, input.NotifyOnComplete)
+	origin, err := n.sessionPromptOrigin(ctx, scope, req.ToolID, sessionID, input)
 	if err != nil {
 		origin, err = n.sessionPromptReplayOrigin(ctx, scope, workspaceID, sessionID, messageID, idempotencyKey, err)
 		if err != nil {
@@ -221,7 +223,7 @@ func (n *daemonNativeTools) sessionPrompt(
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Mode: mode, ExpectedTurnID: expectedTurnID,
 		DeliveryContext: deliveryCtx,
-		Origin:          origin, NotifyOnComplete: input.NotifyOnComplete,
+		Origin:          origin, NotifyOnComplete: input.NotifyOnComplete, Supersede: input.Supersede,
 		Caller:  nativeSessionPromptCaller(scope, req.ToolID),
 		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
 	})
@@ -229,6 +231,7 @@ func (n *daemonNativeTools) sessionPrompt(
 		return toolspkg.ToolResult{}, err
 	}
 	logSessionMessageSent(ctx, origin, sessionID, messageID, mode)
+	n.acknowledgeSessionReply(ctx, origin, sessionID)
 	if input.Wait && result.Events != nil {
 		if err := drainNativeSessionPromptEvents(result.Events); err != nil {
 			return toolspkg.ToolResult{}, err

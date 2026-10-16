@@ -12,5 +12,6 @@ func redactPromptOrigin(meta *acp.PromptOriginMeta) *acp.PromptOriginMeta {
 	m.AgentName = redactDisplayString(m.AgentName)
 	m.TitleAtSend = redactDisplayString(m.TitleAtSend)
 	m.ReplyWatchID = redactStructuralString(m.ReplyWatchID)
+	m.InReplyTo = redactStructuralString(m.InReplyTo)
 	return m
 }

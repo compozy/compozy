@@ -454,7 +454,7 @@ INSERT INTO session_input_queue (
     task_run_id, run_generation, attempt_count, enqueued_at, updated_at,
     loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id,
     prompt_kind, prompt_attempt, operation_usage_base_tokens, dispatchable,
-    runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed
+    runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, origin_class
 ) VALUES (
     ?1, ?2, 'queued', ?3, ?4,
     (SELECT input_generation FROM sessions WHERE id = ?2),
@@ -462,7 +462,7 @@ INSERT INTO session_input_queue (
     CAST(?8 AS TEXT), ?9, ?10,
     ?11, ?12, ?13,
     ?14, ?15, ?16, 0,
-    ?17, ?18, ?19, ?20
+    ?17, ?18, ?19, ?20, 'synthetic'
 )
 `
 

@@ -990,6 +990,279 @@ func TestGlobalDBSessionInputQueueCapacity(t *testing.T) {
 	})
 }
 
+// Invariant: queue capacity, order, and supersede depend on who authored the input.
+func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
+	agentOrigin := func(sender string) json.RawMessage {
+		return json.RawMessage(`{"kind":"session","session_id":"` + sender + `","workspace_id":"ws","hop":1}`)
+	}
+	enqueue := func(
+		t *testing.T, db *GlobalDB, req store.SessionInputQueueInsert,
+	) (store.SessionInputQueueEntry, int) {
+		t.Helper()
+		if req.QueueCap == 0 {
+			req.QueueCap = 10
+		}
+		entry, position, err := db.EnqueueSessionInput(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput(%s) error = %v", req.ID, err)
+		}
+		return entry, position
+	}
+	pendingIDs := func(t *testing.T, db *GlobalDB, sessionID string) []string {
+		t.Helper()
+		pending, err := db.ListPendingSessionInputs(testutil.Context(t), sessionID)
+		if err != nil {
+			t.Fatalf("ListPendingSessionInputs() error = %v", err)
+		}
+		ids := make([]string, 0, len(pending))
+		for index := range pending {
+			ids = append(ids, pending[index].ID)
+		}
+		return ids
+	}
+
+	t.Run("Should dispatch human input before agent input and wakes and report its rank", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "wake", SessionID: sessionID, MessageID: "wake-message", TurnID: "wake-turn", Priority: 1,
+			Text: "wake", OwnerKind: store.SessionInputOwnerSynthetic,
+			SyntheticPrompt: &store.SessionInputSyntheticPrompt{RunID: "run", Metadata: []byte(`{"reason":"reply"}`)},
+			Now:             now,
+		})
+		agent, agentPosition := enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "agent", SessionID: sessionID, Text: "status", Origin: agentOrigin("sess-a"), Now: now.Add(time.Second),
+		})
+		human, humanPosition := enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "human", SessionID: sessionID, Text: "operator", Now: now.Add(2 * time.Second),
+		})
+		if agent.OriginClass != store.SessionInputOriginClassAgent || agent.OriginSessionID != "sess-a" ||
+			human.OriginClass != store.SessionInputOriginClassHuman {
+			t.Fatalf("origin classes = %q/%q, %q", agent.OriginClass, agent.OriginSessionID, human.OriginClass)
+		}
+		if agentPosition != 1 || humanPosition != 1 {
+			t.Fatalf(
+				"positions = agent %d, human %d; want each ranked first when enqueued",
+				agentPosition,
+				humanPosition,
+			)
+		}
+		if got, want := pendingIDs(t, db, sessionID), []string{"human", "agent", "wake"}; !slices.Equal(got, want) {
+			t.Fatalf("pending order = %v, want %v", got, want)
+		}
+		for _, want := range []string{"human", "agent", "wake"} {
+			peek, ok, err := db.PeekNextSessionInput(ctx, sessionID)
+			if err != nil || !ok || peek.ID != want {
+				t.Fatalf("peek = %q/%v/%v, want %q", peek.ID, ok, err, want)
+			}
+			claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Minute))
+			if err != nil || !ok || claimed.ID != want {
+				t.Fatalf("claim = %q/%v/%v, want %q", claimed.ID, ok, err, want)
+			}
+			if err := db.MarkSessionInputSent(ctx, sessionID, want, now.Add(time.Minute)); err != nil {
+				t.Fatalf("MarkSessionInputSent(%s) error = %v", want, err)
+			}
+		}
+	})
+
+	t.Run("Should cap human input separately from agent input and wakes", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 10, 0, 0, time.UTC)
+		enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "agent-1", SessionID: sessionID, Text: "one", Origin: agentOrigin("sess-a"), QueueCap: 1, Now: now,
+		})
+		_, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "agent-2", SessionID: sessionID, Text: "two", Origin: agentOrigin("sess-b"), QueueCap: 1,
+			Now: now.Add(time.Second),
+		})
+		if !errors.Is(err, store.ErrSessionInputQueueFull) {
+			t.Fatalf("second agent input error = %v, want ErrSessionInputQueueFull", err)
+		}
+		_, position := enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "human", SessionID: sessionID, Text: "operator", QueueCap: 1, Now: now.Add(2 * time.Second),
+		})
+		if position != 1 {
+			t.Fatalf("human position = %d, want 1 ahead of the agent input", position)
+		}
+	})
+
+	t.Run("Should supersede queued steers only from the same sender", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 20, 0, 0, time.UTC)
+		stage := func(id string, origin json.RawMessage, at time.Time) store.SessionInputQueueEntry {
+			t.Helper()
+			entry, err := db.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, TargetTurnID: "turn-live", Text: id, Origin: origin,
+				QueueCap: 10, Now: at,
+			})
+			if err != nil {
+				t.Fatalf("StageSessionSteer(%s) error = %v", id, err)
+			}
+			return entry
+		}
+		stage("human-steer", nil, now)
+		if first := stage("agent-steer-1", agentOrigin("sess-a"), now.Add(time.Second)); len(first.SupersededIDs) != 0 {
+			t.Fatalf("agent steer superseded %v, want the human steer kept", first.SupersededIDs)
+		}
+		second := stage("agent-steer-2", agentOrigin("sess-a"), now.Add(2*time.Second))
+		if !slices.Equal(second.SupersededIDs, []string{"agent-steer-1"}) {
+			t.Fatalf("superseded = %v, want only the same sender's older steer", second.SupersededIDs)
+		}
+		human, err := db.GetSessionInputQueueEntry(ctx, sessionID, "human-steer")
+		if err != nil || human.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("human steer = %q, %v; want queued", human.Status, err)
+		}
+	})
+
+	t.Run("Should degrade an agent steer fallback to after-turn delivery behind human input", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 30, 0, 0, time.UTC)
+		enqueue(t, db, store.SessionInputQueueInsert{ID: "human", SessionID: sessionID, Text: "operator", Now: now})
+		if _, err := db.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+			ID: "agent-steer", SessionID: sessionID, TargetTurnID: "turn-live", Text: "urgent",
+			Origin: agentOrigin("sess-a"), QueueCap: 10, Now: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("StageSessionSteer() error = %v", err)
+		}
+		if _, ok, err := db.ReserveSessionSteer(
+			ctx,
+			sessionID,
+			"agent-steer",
+			now.Add(time.Second),
+		); err != nil ||
+			!ok {
+			t.Fatalf("ReserveSessionSteer() = %v, %v", ok, err)
+		}
+		resolved, err := db.ResolveSessionSteer(
+			ctx, sessionID, "agent-steer", store.SteerDeliveryInterruptFallback, now.Add(time.Second),
+		)
+		if err != nil {
+			t.Fatalf("ResolveSessionSteer() error = %v", err)
+		}
+		if resolved.Delivery != store.SessionInputDeliveryAfterTurn ||
+			resolved.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("resolved = %q/%q, want queued after_turn", resolved.Status, resolved.Delivery)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+		if err != nil || !ok || claimed.ID != "human" {
+			t.Fatalf("claim = %q/%v/%v, want the human input first", claimed.ID, ok, err)
+		}
+	})
+
+	t.Run("Should promote an unchanged agent row as human steering and refuse edits", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 40, 0, 0, time.UTC)
+		agent, _ := enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "agent", SessionID: sessionID, Text: "child status", Origin: agentOrigin("sess-a"), Now: now,
+		})
+		if _, err := db.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+			ID: "human-steer", SessionID: sessionID, TargetTurnID: "turn-live", Text: "older human steer",
+			QueueCap: 10, Now: now,
+		}); err != nil {
+			t.Fatalf("StageSessionSteer() error = %v", err)
+		}
+		promotion := func(id, text string) store.SessionInputQueueInsert {
+			return store.SessionInputQueueInsert{
+				ID: id, TargetTurnID: "turn-live", Text: text, MessageID: id, IdempotencyKey: id,
+				QueueCap: 10, Now: now.Add(time.Second),
+			}
+		}
+		if _, _, err := db.ReplaceSessionInput(ctx, sessionID, agent.ID, promotion("replace", "edited")); !errors.Is(
+			err, store.ErrSessionInputAgentAuthored,
+		) {
+			t.Fatalf("replace error = %v, want ErrSessionInputAgentAuthored", err)
+		}
+		if _, _, err := db.PromoteSessionInputToSteer(
+			ctx,
+			sessionID,
+			agent.ID,
+			promotion("edit", "edited"),
+		); !errors.Is(
+			err,
+			store.ErrSessionInputAgentAuthored,
+		) {
+			t.Fatalf("promote with edited text error = %v, want ErrSessionInputAgentAuthored", err)
+		}
+		promoted, created, err := db.PromoteSessionInputToSteer(
+			ctx, sessionID, agent.ID, promotion("promoted", "child status"),
+		)
+		if err != nil || !created {
+			t.Fatalf("PromoteSessionInputToSteer() = %v, %v", created, err)
+		}
+		if promoted.OriginClass != store.SessionInputOriginClassHuman || promoted.OriginSessionID != "" ||
+			string(promoted.Origin) != string(agent.Origin) {
+			t.Fatalf("promoted origin = %q/%q/%s, want human-initiated with sender attribution",
+				promoted.OriginClass, promoted.OriginSessionID, promoted.Origin)
+		}
+		if !slices.Equal(promoted.SupersededIDs, []string{"human-steer"}) {
+			t.Fatalf("superseded = %v, want the older human steer", promoted.SupersededIDs)
+		}
+	})
+
+	t.Run("Should settle sent receipts idempotently and fail leases stranded by a restart", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 12, 50, 0, 0, time.UTC)
+		enqueue(
+			t,
+			db,
+			store.SessionInputQueueInsert{ID: "sent", SessionID: sessionID, Text: "one", QueueCap: 1, Now: now},
+		)
+		if _, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now); err != nil || !ok {
+			t.Fatalf("claim(sent) = %v, %v", ok, err)
+		}
+		for range 2 {
+			if err := db.MarkSessionInputSent(ctx, sessionID, "sent", now); err != nil {
+				t.Fatalf("MarkSessionInputSent() error = %v, want idempotent success", err)
+			}
+		}
+		enqueue(
+			t,
+			db,
+			store.SessionInputQueueInsert{ID: "stranded", SessionID: sessionID, Text: "two", QueueCap: 1, Now: now},
+		)
+		if _, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now); err != nil || !ok {
+			t.Fatalf("claim(stranded) = %v, %v", ok, err)
+		}
+		failed, err := db.FailStaleDispatchingSessionInputs(ctx, now.Add(time.Minute))
+		if err != nil || failed != 1 {
+			t.Fatalf("FailStaleDispatchingSessionInputs() = %d, %v; want 1", failed, err)
+		}
+		stranded, err := db.GetSessionInputQueueEntry(ctx, sessionID, "stranded")
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed ||
+			stranded.FailureSummary != store.SessionInputStaleDispatchSummary {
+			t.Fatalf(
+				"stranded = %q/%q, %v; want failed by restart recovery",
+				stranded.Status,
+				stranded.FailureSummary,
+				err,
+			)
+		}
+		enqueue(
+			t,
+			db,
+			store.SessionInputQueueInsert{ID: "after", SessionID: sessionID, Text: "three", QueueCap: 1, Now: now},
+		)
+	})
+}
+
 func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should create the prompt admission schema on a fresh database", func(t *testing.T) {
@@ -2526,7 +2799,7 @@ func requireSQLiteConstraintError(t *testing.T, err error) {
 
 // UT-058, IT-007: synthetic message replay and priority belong to the durable queue.
 func TestGlobalDBSubagentQueuePriority(t *testing.T) {
-	t.Run("Should replay synthetic messages and dispatch priority ahead of FIFO peers", func(t *testing.T) {
+	t.Run("Should replay synthetic messages and dispatch human input ahead of prioritized wakes", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db := openTestGlobalDB(t)
@@ -2564,14 +2837,22 @@ func TestGlobalDBSubagentQueuePriority(t *testing.T) {
 			t.Fatalf("replay while full=%#v %v", replay, err)
 		}
 		pending, err := db.ListPendingSessionInputs(ctx, sessionID)
-		if err != nil || len(pending) != 2 || pending[0].ID != "wake" || pending[0].Priority != 1 {
+		if err != nil || len(pending) != 2 || pending[0].ID != "user" || pending[1].ID != "wake" ||
+			pending[1].Priority != 1 {
 			t.Fatalf("order=%v %v", pending, err)
 		}
 		peek, ok, err := db.PeekNextSessionInput(ctx, sessionID)
-		if err != nil || !ok || peek.ID != "wake" {
+		if err != nil || !ok || peek.ID != "user" {
 			t.Fatalf("peek=%#v %v %v", peek, ok, err)
 		}
 		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+		if err != nil || !ok || claimed.ID != "user" {
+			t.Fatalf("claim=%#v %v %v", claimed, ok, err)
+		}
+		if err = db.MarkSessionInputSent(ctx, sessionID, "user", now.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		claimed, ok, err = db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
 		if err != nil || !ok || claimed.ID != "wake" {
 			t.Fatalf("claim=%#v %v %v", claimed, ok, err)
 		}
@@ -2889,7 +3170,8 @@ func TestGlobalDBReplyWatchHandoff(t *testing.T) {
 			store.SessionInputQueueInsert{
 				ID:        "full",
 				SessionID: entry.SessionID,
-				Text:      "operator",
+				Text:      "another session",
+				Origin:    json.RawMessage(`{"kind":"session","session_id":"sess-peer","workspace_id":"ws","hop":1}`),
 				QueueCap:  1,
 				Now:       entry.Now,
 			},

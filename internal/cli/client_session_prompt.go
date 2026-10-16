@@ -57,6 +57,17 @@ func (c *daemonClient) doSessionPrompt(
 	path string,
 	query url.Values,
 	requestBody any,
+) (SessionPromptRecord, error) {
+	return c.doSessionPromptAs(ctx, method, path, query, requestBody, agentidentity.Credentials{})
+}
+
+func (c *daemonClient) doSessionPromptAs(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	credentials agentidentity.Credentials,
 ) (record SessionPromptRecord, err error) {
 	query, err = c.withFreshStreamTicket(ctx, query)
 	if err != nil {
@@ -69,7 +80,7 @@ func (c *daemonClient) doSessionPrompt(
 		query,
 		requestBody,
 		"",
-		agentidentity.Credentials{},
+		credentials,
 		c.streamHTTPClient(),
 	)
 	if err != nil {
@@ -122,6 +133,17 @@ func (c *daemonClient) StreamPromptSession(
 	id string,
 	request SessionPromptRequest,
 	handler SSEHandler,
+) error {
+	return c.StreamPromptSessionAs(ctx, id, request, agentidentity.Credentials{}, handler)
+}
+
+// StreamPromptSessionAs streams a prompt sent on behalf of a validated agent session identity.
+func (c *daemonClient) StreamPromptSessionAs(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+	credentials agentidentity.Credentials,
+	handler SSEHandler,
 ) (err error) {
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
@@ -138,7 +160,7 @@ func (c *daemonClient) StreamPromptSession(
 		query,
 		request,
 		"",
-		agentidentity.Credentials{},
+		credentials,
 		c.streamHTTPClient(),
 	)
 	if err != nil {

@@ -115864,6 +115864,9 @@
                               "hop": {
                                 "type": "integer"
                               },
+                              "in_reply_to": {
+                                "type": "string"
+                              },
                               "kind": {
                                 "type": "string"
                               },
@@ -116481,6 +116484,9 @@
                                     },
                                     "hop": {
                                       "type": "integer"
+                                    },
+                                    "in_reply_to": {
+                                      "type": "string"
                                     },
                                     "kind": {
                                       "type": "string"
@@ -118070,6 +118076,9 @@
                             "hop": {
                               "type": "integer"
                             },
+                            "in_reply_to": {
+                              "type": "string"
+                            },
                             "kind": {
                               "type": "string"
                             },
@@ -118349,6 +118358,9 @@
                             },
                             "hop": {
                               "type": "integer"
+                            },
+                            "in_reply_to": {
+                              "type": "string"
                             },
                             "kind": {
                               "type": "string"
@@ -191833,6 +191845,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -193420,6 +193433,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -193853,6 +193867,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -194837,6 +194852,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195231,6 +195247,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -195630,6 +195647,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -196200,6 +196218,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -196565,6 +196584,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -196957,6 +196977,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -197356,6 +197377,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -197900,6 +197922,7 @@
                               "invalid_cwd",
                               "journal_unavailable",
                               "message_hop_limit",
+                              "message_rate_limited",
                               "model_not_found",
                               "profile_archived",
                               "profile_selection_conflict",
@@ -198340,6 +198363,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -198732,6 +198756,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199097,6 +199122,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -199489,6 +199515,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -199883,6 +199910,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -200248,6 +200276,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200611,6 +200640,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -200974,6 +201004,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -201413,6 +201444,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -202074,6 +202106,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -202744,6 +202777,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -203138,6 +203172,7 @@
                                 "invalid_cwd",
                                 "journal_unavailable",
                                 "message_hop_limit",
+                                "message_rate_limited",
                                 "model_not_found",
                                 "profile_archived",
                                 "profile_selection_conflict",
@@ -203537,6 +203572,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -273470,6 +273506,9 @@
                               "hop": {
                                 "type": "integer"
                               },
+                              "in_reply_to": {
+                                "type": "string"
+                              },
                               "kind": {
                                 "type": "string"
                               },
@@ -279960,6 +279999,9 @@
                                     "hop": {
                                       "type": "integer"
                                     },
+                                    "in_reply_to": {
+                                      "type": "string"
+                                    },
                                     "kind": {
                                       "type": "string"
                                     },
@@ -282086,6 +282128,9 @@
                   "idempotency_key": {
                     "type": "string"
                   },
+                  "in_reply_to": {
+                    "type": "string"
+                  },
                   "message": {
                     "type": "string"
                   },
@@ -282174,6 +282219,9 @@
                       "provider"
                     ],
                     "type": "object"
+                  },
+                  "supersede": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -285000,6 +285048,9 @@
                               "hop": {
                                 "type": "integer"
                               },
+                              "in_reply_to": {
+                                "type": "string"
+                              },
                               "kind": {
                                 "type": "string"
                               },
@@ -285535,6 +285586,9 @@
                               },
                               "hop": {
                                 "type": "integer"
+                              },
+                              "in_reply_to": {
+                                "type": "string"
                               },
                               "kind": {
                                 "type": "string"
@@ -286628,6 +286682,9 @@
                             },
                             "hop": {
                               "type": "integer"
+                            },
+                            "in_reply_to": {
+                              "type": "string"
                             },
                             "kind": {
                               "type": "string"
@@ -297386,6 +297443,9 @@
                             "hop": {
                               "type": "integer"
                             },
+                            "in_reply_to": {
+                              "type": "string"
+                            },
                             "kind": {
                               "type": "string"
                             },
@@ -297665,6 +297725,9 @@
                             },
                             "hop": {
                               "type": "integer"
+                            },
+                            "in_reply_to": {
+                              "type": "string"
                             },
                             "kind": {
                               "type": "string"
@@ -300085,6 +300148,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -301044,6 +301108,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -301407,6 +301472,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -319465,6 +319531,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -319828,6 +319895,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",
@@ -320191,6 +320259,7 @@
                             "invalid_cwd",
                             "journal_unavailable",
                             "message_hop_limit",
+                            "message_rate_limited",
                             "model_not_found",
                             "profile_archived",
                             "profile_selection_conflict",

@@ -39,6 +39,9 @@ type ErrorCode string
 
 const ErrorCodeSessionMessageHopLimit ErrorCode = "message_hop_limit"
 
+// ErrorCodeSessionMessageRateLimited reports an exhausted per sender→target session message budget.
+const ErrorCodeSessionMessageRateLimited ErrorCode = "message_rate_limited"
+
 const (
 	// ErrorCodeNotFound maps to ErrToolNotFound.
 	ErrorCodeNotFound ErrorCode = "tool_not_found"

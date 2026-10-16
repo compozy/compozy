@@ -92,5 +92,6 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id);
 UPDATE session_prompt_admissions
 SET state = 'completed', completed_at = sqlc.arg(now), updated_at = sqlc.arg(now),
     result_json = json_set(result_json, '$.steer_delivery', sqlc.arg(steer_delivery),
-                           '$.previous_turn_id', sqlc.arg(target_turn_id))
+                           '$.previous_turn_id', sqlc.arg(target_turn_id),
+                           '$.delivery', CAST(sqlc.arg(delivery) AS TEXT))
 WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND state = 'dispatch_committed';

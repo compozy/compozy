@@ -71,6 +71,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeCompactionUnsupported,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return http.StatusTooManyRequests
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
 		toolspkg.ErrorCodeModelNotFound,
@@ -268,6 +270,8 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "session is busy"
 	case toolspkg.ErrorCodeSessionMessageHopLimit:
 		return "Message chain limit reached (8 hops). Ask the operator to continue."
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return "Message rate limit reached. Send fewer, milestone-level messages."
 	case toolspkg.ErrorCodeCompactionUnsupported:
 		return "session compaction is unsupported"
 	}

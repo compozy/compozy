@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -56,6 +57,11 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		h.respondError(c, http.StatusForbidden, err)
 		return nil, false
 	}
+	origin, err := h.sessionPromptOrigin(c, c.Param("workspace_id"), sessionID, request, input)
+	if err != nil {
+		h.respondPromptOriginError(c, err)
+		return nil, false
+	}
 
 	deliveryContext, cancelDelivery := context.WithCancel(c.Request.Context())
 	result, err := h.Sessions.SendPrompt(
@@ -71,7 +77,10 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 			Attachments:     contract.AttachmentMetaFromRefs(input.Attachments),
 			DeliveryContext: deliveryContext,
 			Caller:          caller,
-			AllowCommands:   true,
+			// Slash commands stay operator ingress; agent-session callers send their text verbatim.
+			AllowCommands: strings.EqualFold(strings.TrimSpace(caller.Kind), "human"),
+			Origin:        origin,
+			Supersede:     request.Supersede,
 		},
 	)
 	if err != nil {
@@ -79,6 +88,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		h.respondError(c, StatusForSessionError(err), err)
 		return nil, false
 	}
+	h.acknowledgeSessionReply(c.Request.Context(), origin, sessionID)
 	return &PromptDispatch{sessionID: sessionID, result: result, cancelDelivery: cancelDelivery}, true
 }
 

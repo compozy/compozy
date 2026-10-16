@@ -1519,6 +1519,8 @@ type SessionInputQueue struct {
 	TerminalTokensUsed       sql.NullInt64  `json:"terminal_tokens_used"`
 	TerminalAt               sql.NullTime   `json:"terminal_at"`
 	Priority                 int64          `json:"priority"`
+	OriginClass              string         `json:"origin_class"`
+	OriginSessionID          string         `json:"origin_session_id"`
 }
 
 type SessionPendingInteraction struct {

@@ -34,6 +34,13 @@ compozy session prompt <id> <message> [flags]
   compozy session input list sess_1234
   compozy session input cancel sess_1234 queue_entry_1234
 
+  # From inside a managed session, the receiver sees this session as the sender;
+  # answer one of its messages explicitly with --in-reply-to
+  compozy session prompt sess_1234 "Plan approved." --in-reply-to msg_5678
+
+  # Send from inside a managed session as plain operator input
+  compozy session prompt sess_1234 "Run the next check." --from-session none
+
   # Retry the same submission with its original identities
   compozy session prompt sess_1234 "Run the next check." \
     --message-id msg_1234 --idempotency-key idem_1234
@@ -45,8 +52,10 @@ compozy session prompt <id> <message> [flags]
       --acp-option stringArray    ACP select override as id=value (repeatable)
       --acp-toggle stringArray    ACP boolean override as id=true|false (repeatable)
       --expected-turn string      Optional strict active turn fence
+      --from-session string       Send as this agent session so the receiver sees who wrote it and can reply (defaults to COMPOZY_SESSION_ID inside a managed session; "none" sends as operator input)
   -h, --help                      help for prompt
       --idempotency-key string    Stable command idempotency key for an explicit retry
+      --in-reply-to string        Message id this prompt answers; requires a calling agent session
       --interrupt                 Interrupt the active turn before sending this prompt
       --message-id string         Stable authored message id for an explicit retry
       --model string              Runtime model for this prompt
@@ -55,6 +64,7 @@ compozy session prompt <id> <message> [flags]
       --reasoning-effort string   Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)
       --speed string              Runtime speed for this prompt (normal|fast)
       --steer                     Deliver guidance into the active turn, with automatic fallback
+      --supersede                 Replace your own older queued prompt to the same session
 ```
 
 ### Options inherited from parent commands

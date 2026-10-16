@@ -1060,7 +1060,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			TurnID:     "turn",
 		}.WithTool(
 			"compozy__session_prompt",
-			json.RawMessage(`{"session_id":"target","message_id":"message","mode":"steer"}`),
+			json.RawMessage(`{"session_id":"target","message_id":"message","mode":"steer","in_reply_to":"msg-plan"}`),
 			false,
 		)
 		result := acp.AgentEvent{
@@ -1111,6 +1111,7 @@ func TestSessionMessageUIProjection(t *testing.T) {
 				if p.TargetSessionID != "target" || p.MessageID != "message" || p.Mode != "steer" ||
 					p.Delivery != "interrupt_then_prompt" || p.SteerDelivery != "interrupt_fallback" ||
 					p.ReplyWatchID != "rw-123" ||
+					p.InReplyTo != "msg-plan" ||
 					p.TargetWorkspaceID != "ws-target" ||
 					p.State != "done" ||
 					part.ID != "send" {

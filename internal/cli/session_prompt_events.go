@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -34,6 +35,10 @@ type sessionPromptCommandFlags struct {
 	expectedTurnID string
 	messageID      string
 	idempotencyKey string
+	fromSession    string
+	inReplyTo      string
+	supersede      bool
+	credentials    agentidentity.Credentials
 	runtime        sessionPromptRuntimeFlags
 }
 
@@ -64,6 +69,7 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 		"Stable command idempotency key for an explicit retry",
 	)
 	bindSessionPromptRuntimeFlags(cmd, &flags.runtime)
+	bindSessionPromptOriginFlags(cmd, flags)
 	return cmd
 }
 
@@ -90,6 +96,13 @@ func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandF
   # Manage an already queued input
   compozy session input list sess_1234
   compozy session input cancel sess_1234 queue_entry_1234
+
+  # From inside a managed session, the receiver sees this session as the sender;
+  # answer one of its messages explicitly with --in-reply-to
+  compozy session prompt sess_1234 "Plan approved." --in-reply-to msg_5678
+
+  # Send from inside a managed session as plain operator input
+  compozy session prompt sess_1234 "Run the next check." --from-session none
 
   # Retry the same submission with its original identities
   compozy session prompt sess_1234 "Run the next check." \
@@ -119,7 +132,7 @@ func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []
 	if len(args) != 2 {
 		return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
 	}
-	return nil
+	return flags.validateOriginFlags(cmd)
 }
 
 func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Command, []string) error {
@@ -138,6 +151,12 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 		}
 		if runtimeSelection != nil && flags.steer {
 			return errors.New("cli: runtime selection applies only to submitted prompts")
+		}
+		if !flags.steer {
+			flags.credentials, err = flags.originCredentials(cmd.Context(), deps, client)
+			if err != nil {
+				return err
+			}
 		}
 		if mode == OutputJSONL {
 			return flags.streamJSONL(cmd, client, args, runtimeSelection)
@@ -166,7 +185,8 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	return streamPromptEventsJSONL(cmd, client, args[0], SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
 		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
-	})
+		InReplyTo:      strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
+	}, flags.credentials)
 }
 
 func runSessionPromptAction(
@@ -195,6 +215,7 @@ func runSessionPromptAction(
 	request := SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
 		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
+		InReplyTo:      strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
 	}
 	if flags.queue {
 		request.Mode = contract.PromptModeQueue
@@ -202,7 +223,7 @@ func runSessionPromptAction(
 	if flags.interrupt {
 		request.Mode = contract.PromptModeInterrupt
 	}
-	return client.SendSessionPrompt(cmd.Context(), args[0], request)
+	return sendSessionPromptWithOrigin(cmd.Context(), client, args[0], request, flags.credentials)
 }
 
 func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (string, string, error) {
@@ -307,8 +328,9 @@ func streamPromptEventsJSONL(
 	client sessionPromptStreamClient,
 	id string,
 	request SessionPromptRequest,
+	credentials agentidentity.Credentials,
 ) error {
-	return client.StreamPromptSession(cmd.Context(), id, request, func(event SSEEvent) error {
+	return streamSessionPromptWithOrigin(cmd.Context(), client, id, request, credentials, func(event SSEEvent) error {
 		if len(event.Data) == 0 || strings.TrimSpace(string(event.Data)) == "[DONE]" {
 			return nil
 		}

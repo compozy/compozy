@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -228,7 +229,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			t.Fatalf("unprojected clear traces = %#v, %v", traces, err)
 		}
 	})
-	t.Run("Should fail the queue receipt and trace the entry when sent persistence fails", func(t *testing.T) {
+	t.Run("Should keep a started entry leased without failing it when sent persistence fails", func(t *testing.T) {
 		t.Parallel()
 		database := openManagerInputQueueStore(t)
 		queueStore := &queueSentFailureStore{GlobalDB: database}
@@ -250,21 +251,50 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 		m := h.manager
 		m.startNextQueuedInputPrompt(sess.ID)
-		waitForCondition(t, "failed queue receipt", func() bool {
-			stored, getErr := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
-			return getErr == nil && stored.Status == store.SessionInputQueueStatusFailed
-		})
-		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
-		if err != nil || !strings.Contains(stored.FailureSummary, "sent receipt unavailable") {
-			t.Fatalf("failed receipt = %#v, %v", stored, err)
+		waitForCondition(t, "queued input dispatch", func() bool { return len(managerPromptCalls(h)) == 1 })
+		if err := m.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
 		}
-		marker := requireTranscriptMarker(t, m, sess.ID, transcript.MarkerPromptDropped)
-		if marker.Evidence["queue_entry_id"] != entry.ID || marker.Evidence["queue_status"] != "failed" {
-			t.Fatalf("dropped marker evidence = %#v", marker.Evidence)
+		// The turn already ran: a failed row would invite a retry that duplicates it.
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || stored.Status != store.SessionInputQueueStatusDispatching {
+			t.Fatalf("started entry = %#v, %v; want still dispatching", stored, err)
+		}
+		if count := countTranscriptMarkers(t, m, sess.ID, transcript.MarkerPromptDropped); count != 0 {
+			t.Fatalf("dropped markers = %d, want none for a started turn", count)
 		}
 		m.startNextQueuedInputPrompt(sess.ID)
 		if calls := managerPromptCalls(h); len(calls) != 1 {
 			t.Fatalf("prompt dispatch count = %d, want one", len(calls))
+		}
+	})
+	t.Run("Should stop retrying when peek and claim keep disagreeing", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		queueStore := &queuePeekDisagreementStore{GlobalDB: database}
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		entry, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "claimable", SessionID: sess.ID, Text: "real", QueueCap: 3,
+			Now: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := queueStore.peeks.Load()
+		h.manager.startNextQueuedInputPrompt(sess.ID)
+		if got := queueStore.peeks.Load() - before; got != maxQueuedInputSelectAttempts {
+			t.Fatalf("peeks = %d, want %d bounded attempts", got, maxQueuedInputSelectAttempts)
+		}
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || stored.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("entry = %#v, %v; want released back to queued", stored, err)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 0 {
+			t.Fatalf("prompt dispatch count = %d, want none", len(calls))
 		}
 	})
 	t.Run("Should surface queue entry entropy failure before persistence", func(t *testing.T) {
@@ -3558,6 +3588,20 @@ func (s *queueSentFailureStore) MarkSessionInputSent(context.Context, string, st
 	return errors.New("sent receipt unavailable")
 }
 
+// queuePeekDisagreementStore peeks an entry that claim never returns.
+type queuePeekDisagreementStore struct {
+	*globaldb.GlobalDB
+	peeks atomic.Int32
+}
+
+func (s *queuePeekDisagreementStore) PeekNextSessionInput(
+	_ context.Context,
+	sessionID string,
+) (store.SessionInputQueueEntry, bool, error) {
+	s.peeks.Add(1)
+	return store.SessionInputQueueEntry{ID: "ghost", SessionID: sessionID}, true, nil
+}
+
 type queuePersistenceRaceStore struct {
 	*globaldb.GlobalDB
 	blockAdmitted      bool
@@ -4421,6 +4465,19 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				decoded, err := decodePromptOrigin(entry.Origin)
 				if err != nil || *decoded != wantOrigin {
 					t.Fatal(decoded, err)
+				}
+				unblock()
+			}
+			if mode == BusyInputModeSteer {
+				// Another session's steer never interrupts: without live injection
+				// it waits for the active turn to finish.
+				if result.Delivery != store.SessionInputDeliveryAfterTurn {
+					t.Fatalf("agent steer delivery = %q, want after_turn", result.Delivery)
+				}
+				select {
+				case req := <-sent:
+					t.Fatalf("agent steer dispatched before the active turn ended: %#v", req)
+				case <-time.After(100 * time.Millisecond):
 				}
 				unblock()
 			}

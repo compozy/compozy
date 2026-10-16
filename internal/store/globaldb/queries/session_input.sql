@@ -4,6 +4,7 @@ SET status = sqlc.arg(canceled_status), canceled_at = sqlc.narg(canceled_at), up
 WHERE session_id = sqlc.arg(session_id)
   AND mode = sqlc.arg(steer_mode)
   AND status = sqlc.arg(queued_status)
+  AND origin_session_id = sqlc.arg(origin_session_id)
 RETURNING id;
 
 -- name: GetNextDispatchableSessionInput :one
@@ -23,14 +24,15 @@ WHERE queued.session_id = sqlc.arg(session_id)
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR queued.delivery = 'interrupt_then_prompt')
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
 ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
              OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
            ELSE 3
          END,
+         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
          queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
 LIMIT 1;
 
@@ -77,12 +79,13 @@ WHERE queued.session_id = sqlc.arg(session_id)
   AND (((queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic') AND queued.dispatchable = 1)
        OR (owner_kind = 'goal' AND queued.dispatchable = 0 AND queued.fence_kind IS NULL))
 ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
              OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
            ELSE 3
          END,
+         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
          queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
 LIMIT 1;
 
@@ -101,12 +104,13 @@ WHERE queued.session_id = sqlc.arg(session_id)
   AND queued.status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
 ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
              OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
            ELSE 3
          END,
+         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
          queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC;
 
 -- name: GetSessionInputQueueEntry :one
@@ -128,6 +132,7 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
 UPDATE session_input_queue
 SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
     dispatchable = CASE WHEN sqlc.arg(status) = 'queued' THEN 1 ELSE 0 END,
+    delivery = CASE WHEN sqlc.arg(status) = 'queued' AND origin_class <> 'human' THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
@@ -145,6 +150,8 @@ UPDATE session_input_queue
 SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
     status = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
     dispatchable = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 1 ELSE 0 END,
+    delivery = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' AND origin_class <> 'human'
+                    THEN 'after_turn' ELSE delivery END,
     sent_at = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN NULL ELSE sent_at END,
     turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
@@ -174,7 +181,7 @@ INSERT INTO session_input_queue (
   status, mode, delivery, steer_delivery, text, owner_kind, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
-  attempt_count, enqueued_at, updated_at, dispatchable
+  attempt_count, enqueued_at, updated_at, dispatchable, origin_class, origin_session_id
 ) VALUES (
   sqlc.arg(priority), sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
   sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(target_turn_id), sqlc.arg(event_id),
@@ -184,14 +191,17 @@ INSERT INTO session_input_queue (
   sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json),
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),
   0, sqlc.arg(enqueued_at), sqlc.arg(updated_at),
-  CASE WHEN sqlc.arg(mode) = 'steer' AND sqlc.narg(steer_delivery) IS NULL THEN 0 ELSE 1 END
+  CASE WHEN sqlc.arg(mode) = 'steer' AND sqlc.narg(steer_delivery) IS NULL THEN 0 ELSE 1 END,
+  sqlc.arg(origin_class), sqlc.arg(origin_session_id)
 );
 
 -- name: CountPendingSessionInputs :one
+-- Human input and agent/synthetic input hold separate capacity pools.
 SELECT COUNT(*) FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id)
   AND (owner_kind IS NULL OR owner_kind != 'goal')
-  AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status));
+  AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
+  AND (origin_class = 'human') = (CAST(sqlc.arg(pool_class) AS TEXT) = 'human');
 
 -- name: ReleaseSessionInput :execrows
 UPDATE session_input_queue
@@ -227,3 +237,9 @@ WHERE session_id = sqlc.arg(session_id)
 -- name: GetSyntheticSessionInputByMessage :one
 SELECT * FROM session_input_queue WHERE session_id = ? AND message_id = ?
  AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
+
+-- name: ListStaleDispatchingSessionInputs :many
+-- Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process.
+SELECT session_id, id FROM session_input_queue
+WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+ORDER BY session_id, enqueued_at, id;

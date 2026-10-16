@@ -417,14 +417,16 @@ const resolveSessionSteerAdmission = `-- name: ResolveSessionSteerAdmission :exe
 UPDATE session_prompt_admissions
 SET state = 'completed', completed_at = ?1, updated_at = ?1,
     result_json = json_set(result_json, '$.steer_delivery', ?2,
-                           '$.previous_turn_id', ?3)
-WHERE id = ?4 AND session_id = ?5 AND state = 'dispatch_committed'
+                           '$.previous_turn_id', ?3,
+                           '$.delivery', CAST(?4 AS TEXT))
+WHERE id = ?5 AND session_id = ?6 AND state = 'dispatch_committed'
 `
 
 type ResolveSessionSteerAdmissionParams struct {
 	Now           sql.NullString `json:"now"`
 	SteerDelivery any            `json:"steer_delivery"`
 	TargetTurnID  any            `json:"target_turn_id"`
+	Delivery      string         `json:"delivery"`
 	ID            string         `json:"id"`
 	SessionID     string         `json:"session_id"`
 }
@@ -434,6 +436,7 @@ func (q *Queries) ResolveSessionSteerAdmission(ctx context.Context, arg ResolveS
 		arg.Now,
 		arg.SteerDelivery,
 		arg.TargetTurnID,
+		arg.Delivery,
 		arg.ID,
 		arg.SessionID,
 	)

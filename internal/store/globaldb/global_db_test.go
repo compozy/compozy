@@ -505,6 +505,92 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: classifying queue origins and widening reply-watch outcomes keeps every row across upgrade.
+	t.Run("Should backfill queue origin classes and keep reply watches across 00138", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00138_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('origin-ws', '/origin', 'origin', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO sessions (id, profile_id, agent_name, workspace_id, state, created_at, updated_at)
+			 VALUES ('origin-session', '00000000000000000000000000', 'coder', 'origin-ws', 'stopped', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('human-input', 'origin-session', 'queued', 'queue', 'Human message', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, origin_json, enqueued_at, updated_at)
+			 VALUES ('agent-input', 'origin-session', 'queued', 'queue', 'Agent message',
+			         '{"kind":"session","session_id":"sess-sender","workspace_id":"origin-ws","hop":1}', '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, owner_kind, priority, enqueued_at, updated_at)
+			 VALUES ('wake-input', 'origin-session', 'queued', 'queue', 'Wake', 'synthetic', 1, '2026-10-16', '2026-10-16')`,
+			`INSERT INTO session_prompt_reply_watches (id, workspace_id, sender_session_id, target_workspace_id,
+			   target_session_id, message_id, admission_id, hop, state, outcome, created_at)
+			 VALUES ('watch-1', 'origin-ws', 'sess-sender', 'origin-ws', 'origin-session', 'msg-1', 'adm-1', 1,
+			   'fired', 'unknown', '2026-10-16')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retainedQueue = `SELECT json_group_array(json_array(id, text, status, origin_json, owner_kind, priority))
+			FROM (SELECT * FROM session_input_queue ORDER BY id)`
+		const retainedWatches = `SELECT json_group_array(json_array(id, state, outcome, sender_session_id, message_id))
+			FROM session_prompt_reply_watches`
+		var beforeQueue, beforeWatches string
+		if err := prior.QueryRowContext(ctx, retainedQueue).Scan(&beforeQueue); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.QueryRowContext(ctx, retainedWatches).Scan(&beforeWatches); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var afterQueue, afterWatches, classes string
+			if err := upgraded.db.QueryRowContext(ctx, retainedQueue).Scan(&afterQueue); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, retainedWatches).Scan(&afterWatches); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT json_group_array(json_array(id, origin_class, origin_session_id))
+				FROM (SELECT * FROM session_input_queue ORDER BY id)`).
+				Scan(&classes); err != nil {
+				t.Fatal(err)
+			}
+			if afterQueue != beforeQueue || afterWatches != beforeWatches {
+				t.Fatalf("rows changed across upgrade: queue %s -> %s, watches %s -> %s",
+					beforeQueue, afterQueue, beforeWatches, afterWatches)
+			}
+			const wantClasses = `[["agent-input","agent","sess-sender"],["human-input","human",""],["wake-input","synthetic",""]]`
+			if classes != wantClasses {
+				t.Fatalf("origin classes = %s, want %s", classes, wantClasses)
+			}
+			for _, outcome := range []string{"expired", "unknown"} {
+				if _, err := upgraded.db.ExecContext(ctx,
+					`UPDATE session_prompt_reply_watches SET outcome = ? WHERE id = 'watch-1'`, outcome,
+				); err != nil {
+					t.Fatalf("outcome %q rejected after upgrade: %v", outcome, err)
+				}
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	// Invariant: contention indexes preserve session, task, and observability history across upgrades.
 	t.Run("Should preserve history while adding contention indexes", func(t *testing.T) {
 		t.Parallel()

@@ -31,24 +31,39 @@ type queuedInput struct {
 	sessionGeneration int64
 }
 
+// maxQueuedInputSelectAttempts bounds peek/claim disagreement retries. Each
+// disagreement means the queue changed between the reads; a persistent one
+// would otherwise recurse through Release without end.
+const maxQueuedInputSelectAttempts = 3
+
 func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
+	for attempt := 1; attempt <= maxQueuedInputSelectAttempts; attempt++ {
+		if !m.tryStartNextQueuedInputPrompt(sessionID, attempt) {
+			return
+		}
+	}
+}
+
+// tryStartNextQueuedInputPrompt reports whether selection must retry because
+// the claimed entry differed from the peeked one.
+func (m *Manager) tryStartNextQueuedInputPrompt(sessionID string, attempt int) bool {
 	target, session, selected, ok := m.peekNextQueuedInputPrompt(sessionID)
 	if !ok {
-		return
+		return false
 	}
 	if selected.OwnerKind == managedInputOwnerGoal {
 		m.startManagedInputPrompt(session, managedInputFromQueueEntry(&selected))
-		return
+		return false
 	}
 	dispatchCtx, unlock := m.lockSubagentInputDispatch(m.fallbackLifecycleContext(), &selected)
 	defer unlock()
 	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input failed", "error", err)
-		return
+		return false
 	}
 	if !ok {
-		return
+		return false
 	}
 	if entry.ID != selected.ID {
 		if releaseErr := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.ID); releaseErr != nil {
@@ -57,10 +72,16 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 				"entry_id", entry.ID,
 				"error", releaseErr,
 			)
+			return false
 		}
-		unlock()
-		m.startNextQueuedInputPrompt(target)
-		return
+		if attempt == maxQueuedInputSelectAttempts {
+			m.sessionLogger(session).Warn(
+				"session: queued input selection kept changing; waiting for the next turn edge",
+				"peeked_entry_id", selected.ID, "claimed_entry_id", entry.ID, "attempts", attempt,
+			)
+			return false
+		}
+		return true
 	}
 	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
 		id:                entry.ID,
@@ -79,6 +100,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		attachments:       attachmentMetaFromStore(entry.Attachments),
 		sessionGeneration: entry.SessionGeneration,
 	})
+	return false
 }
 
 func (m *Manager) peekNextQueuedInputPrompt(
@@ -247,26 +269,12 @@ func (m *Manager) acceptQueuedInputDispatch(
 	entry queuedInput,
 	req promptRequest,
 ) {
-	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.id); err != nil {
-		m.sessionLogger(session).Warn("session: mark queued input sent failed", "entry_id", entry.id, "error", err)
-		if failErr := m.inputQueue.MarkFailed(
-			m.fallbackLifecycleContext(),
-			target,
-			entry.id,
-			err.Error(),
-		); failErr != nil {
-			m.sessionLogger(session).Error("session: mark queued input failed", "entry_id", entry.id, "error", failErr)
-		}
-		if service := m.ReplyWatches(); service != nil {
-			service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
-		}
-		m.emitTranscriptMarker(
-			m.fallbackLifecycleContext(),
-			session,
-			req.turnID,
-			transcript.MarkerPromptDropped,
-			"Queued input dispatched but its sent receipt could not be persisted.",
-			queueEntryEvidence(entry.id, entry.sessionGeneration, store.SessionInputQueueStatusFailed, entry.mode, 0),
+	if err := m.markQueuedInputSent(target, entry.id); err != nil {
+		// The turn already started with this input, so the entry must not
+		// become failed: a failed row invites a retry that duplicates the turn.
+		// The lease stays dispatching until boot recovery settles it.
+		m.sessionLogger(session).Error(
+			"session: mark queued input sent failed after dispatch", "entry_id", entry.id, "error", err,
 		)
 		return
 	}
@@ -283,4 +291,17 @@ func (m *Manager) acceptQueuedInputDispatch(
 		"Queued input accepted for dispatch.",
 		evidence,
 	)
+}
+
+// queuedInputSentAttempts bounds retries of the idempotent sent receipt.
+const queuedInputSentAttempts = 3
+
+func (m *Manager) markQueuedInputSent(target, entryID string) error {
+	var err error
+	for range queuedInputSentAttempts {
+		if err = m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entryID); err == nil {
+			return nil
+		}
+	}
+	return err
 }

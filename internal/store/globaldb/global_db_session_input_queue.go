@@ -55,23 +55,19 @@ func (g *SessionRepo) EnqueueSessionInput(
 				return lookupErr
 			}
 		}
-		count, countErr := countPendingSessionInputs(ctx, exec, normalized.SessionID)
-		if countErr != nil {
-			return countErr
-		}
-		if count >= normalized.QueueCap {
-			return &store.SessionInputQueueFullError{
-				SessionID: normalized.SessionID,
-				Cap:       normalized.QueueCap,
-				Count:     count,
-			}
+		if capErr := checkSessionInputQueueCap(ctx, exec, normalized); capErr != nil {
+			return capErr
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)
 		if insertErr != nil {
 			return insertErr
 		}
+		rank, rankErr := sessionInputQueuePosition(ctx, exec, normalized.SessionID, inserted.ID)
+		if rankErr != nil {
+			return rankErr
+		}
 		entry = inserted
-		position = count + 1
+		position = rank
 		return nil
 	})
 	if err != nil {
@@ -103,7 +99,7 @@ func (g *SessionRepo) StageSessionSteer(
 		superseded, cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
 			CanceledStatus: store.SessionInputQueueStatusCanceled, CanceledAt: nullableSessionTime(normalized.Now),
 			UpdatedAt: nowRaw, SessionID: normalized.SessionID, SteerMode: store.SessionInputQueueModeSteer,
-			QueuedStatus: store.SessionInputQueueStatusQueued,
+			QueuedStatus: store.SessionInputQueueStatusQueued, OriginSessionID: normalized.OriginSessionID,
 		})
 		if cancelErr != nil {
 			return fmt.Errorf("store: cancel prior session steer input: %w", cancelErr)
@@ -414,19 +410,75 @@ func insertSessionInputQueueEntry(
 		RunGeneration:          runGeneration,
 		EnqueuedAt:             nowRaw,
 		UpdatedAt:              nowRaw,
+		OriginClass:            normalized.OriginClass,
+		OriginSessionID:        normalized.OriginSessionID,
 	}); err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: insert session input queue entry: %w", err)
 	}
 	return getSessionInputQueueEntry(ctx, exec, normalized.SessionID, normalized.ID)
 }
 
-func countPendingSessionInputs(ctx context.Context, exec globalSQLExecutor, sessionID string) (int, error) {
+// countPendingSessionInputs counts the capacity pool of originClass: human
+// input and agent/synthetic input are capped separately so other sessions can
+// never exhaust the operator's slots.
+func countPendingSessionInputs(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	sessionID string,
+	originClass string,
+) (int, error) {
+	pool := store.SessionInputOriginClassAgent
+	if store.IsHumanSessionInputOriginClass(originClass) {
+		pool = store.SessionInputOriginClassHuman
+	}
 	count, err := sqlcgen.New(exec).CountPendingSessionInputs(ctx, sqlcgen.CountPendingSessionInputsParams{
 		SessionID: sessionID, QueuedStatus: store.SessionInputQueueStatusQueued,
-		DispatchingStatus: store.SessionInputQueueStatusDispatching,
+		DispatchingStatus: store.SessionInputQueueStatusDispatching, PoolClass: pool,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("store: count pending session inputs: %w", err)
 	}
 	return int(count), nil
+}
+
+// checkSessionInputQueueCap refuses an insert whose capacity pool is full.
+func checkSessionInputQueueCap(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	req store.SessionInputQueueInsert,
+) error {
+	normalized := req.Normalize()
+	count, err := countPendingSessionInputs(ctx, exec, normalized.SessionID, normalized.OriginClass)
+	if err != nil {
+		return err
+	}
+	if count >= normalized.QueueCap {
+		return &store.SessionInputQueueFullError{
+			SessionID: normalized.SessionID, Cap: normalized.QueueCap, Count: count,
+		}
+	}
+	return nil
+}
+
+// sessionInputQueuePosition reports the 1-based rank of one entry in the
+// pending list's dispatch order, matching what queue readers display.
+func sessionInputQueuePosition(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	sessionID string,
+	entryID string,
+) (int, error) {
+	rows, err := sqlcgen.New(exec).ListPendingSessionInputs(ctx, sqlcgen.ListPendingSessionInputsParams{
+		SessionID: sessionID, QueuedStatus: store.SessionInputQueueStatusQueued,
+		DispatchingStatus: store.SessionInputQueueStatusDispatching,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("store: rank pending session input: %w", err)
+	}
+	for index := range rows {
+		if rows[index].ID == entryID {
+			return index + 1, nil
+		}
+	}
+	return 0, fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 }

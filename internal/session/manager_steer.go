@@ -86,7 +86,7 @@ func (m *Manager) activateSteeringInput(
 	if delivery != store.SteerDeliveryInterruptFallback {
 		return nil
 	}
-	if session.CurrentTurnID() != entry.TargetTurnID {
+	if steerFallbackWaitsForTurn(entry) || session.CurrentTurnID() != entry.TargetTurnID {
 		m.startNextQueuedInputPrompt(session.ID)
 		return nil
 	}
@@ -107,11 +107,13 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 		)
 	}
 	message := "Steering interrupted and replaced the active turn."
-	switch entry.SteerDelivery {
-	case store.SteerDeliveryInjected:
+	switch {
+	case entry.SteerDelivery == store.SteerDeliveryInjected:
 		message = "Steering delivered into the live turn."
-	case store.SteerDeliveryPendingInjection:
+	case entry.SteerDelivery == store.SteerDeliveryPendingInjection:
 		message = "Steering is waiting for the active tool to finish."
+	case steerFallbackWaitsForTurn(entry):
+		message = "Steering from another session will be delivered after the active turn."
 	}
 	evidence := queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0)
 	addSteerAuthoredEvidence(evidence, entry)
@@ -140,6 +142,14 @@ func (m *Manager) recordInjectedSteerInput(
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
 	}
 	return m.recordPromptInputEvent(ctx, session, &req)
+}
+
+// steerFallbackWaitsForTurn reports a steer from another session or the daemon
+// whose live injection was unavailable. It never interrupts the active turn:
+// the store degrades it to after-turn delivery so it cannot displace human input.
+func steerFallbackWaitsForTurn(entry *store.SessionInputQueueEntry) bool {
+	return entry.SteerDelivery == store.SteerDeliveryInterruptFallback &&
+		entry.Delivery == store.SessionInputDeliveryAfterTurn
 }
 
 func addSteerAuthoredEvidence(evidence map[string]any, entry *store.SessionInputQueueEntry) {

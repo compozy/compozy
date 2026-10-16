@@ -158,6 +158,9 @@ func (c SessionConfig) Validate() error {
 	if err := c.BusyInput.Validate(); err != nil {
 		return err
 	}
+	if err := c.Messaging.Validate(); err != nil {
+		return err
+	}
 	if err := c.Derive.Validate(); err != nil {
 		return err
 	}
