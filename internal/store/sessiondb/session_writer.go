@@ -49,6 +49,9 @@ func (s *SessionDB) writerLoop() {
 			var weight int
 			pending, weight = s.writePendingChunks(request)
 			writesSinceCheckpoint += weight
+			if weight > 0 {
+				maintenance.Reset(idleDelay())
+			}
 			continue
 		}
 		select {
