@@ -9,6 +9,7 @@ export interface SessionAttachmentFileCardProps extends ComponentProps<"a"> {
   sizeLabel?: string;
 }
 
+/** Downloads non-image attachments without replacing the session or desktop window. */
 export function SessionAttachmentFileCard({
   filename,
   extension,
@@ -31,6 +32,9 @@ export function SessionAttachmentFileCard({
         className
       )}
       {...props}
+      download={filename}
+      target="_blank"
+      rel="noopener noreferrer"
     >
       <span
         aria-hidden="true"
