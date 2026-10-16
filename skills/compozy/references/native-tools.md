@@ -120,6 +120,10 @@ origin separately. Without `notify_on_complete`, the header tells the recipient 
 `compozy__session_prompt` targeting the sender. `notify_on_complete: true` requests the reply-watch
 flow; it requires an agent session and is part of the admission identity.
 
+Queued session messages and reply wakes take precedence over prepared Goal prompts at idle turn
+boundaries. An active turn still runs to its boundary; queue mode does not interrupt it. See
+`references/loops.md#queued-inputs-and-goal-continuation` for ordering and Goal accounting.
+
 Keep the same `message_id` and `idempotency_key` when retrying. Another sender or a changed
 `notify_on_complete` conflicts. Renaming the sender does not change the admitted origin. Historical
 v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed

@@ -57,3 +57,17 @@ provider/commit faults, pending steering, and the automatic eight-hop reply limi
 owners are the session reply suite, global admission/queue suite, and daemon subagent integration
 suite. Public Web/real-provider QA remains untested until the controller's integrated QA run;
 this worker packet prohibits QA labs and full E2E runs.
+
+
+Queue fairness regression (#750)
+
+Keep A in a Goal with a prepared prompt while its current turn is active. Send a watched question
+to B, finish B, and inspect A's pending `prompt-reply:` entry. At A's next idle boundary, the reply
+wake runs before the prepared Goal and ordinary queued inputs according to its existing priority.
+A queued agent message and operator prompt also run before the Goal. Retry the watched send and
+wake delivery: exactly one wake runs. The Goal then resumes with its binding and turn limit intact;
+only its own dispatched work increments its work-turn count. Repeat across restart.
+
+Automated owner: `TestLoopGoalManagedRuntimeIntegration/Should_drain_messages_and_reply_wakes_before_a_prepared_Goal_at_the_turn_boundary`
+(real SQLite, admission, reply-watch service and managed session selector). Full public UI and
+real-provider walks remain delegated to CI/integrated QA per maintainer instruction.

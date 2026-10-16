@@ -31,7 +31,8 @@ WHERE session_id = sqlc.arg(session_id)
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
   AND (((owner_kind IS NULL OR owner_kind = 'synthetic') AND dispatchable = 1)
        OR (owner_kind = 'goal' AND dispatchable = 0 AND fence_kind IS NULL))
-ORDER BY delivery DESC, priority DESC, enqueued_at ASC, id ASC
+ORDER BY CASE WHEN owner_kind = 'goal' THEN 1 ELSE 0 END,
+         delivery DESC, priority DESC, enqueued_at ASC, id ASC
 LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
