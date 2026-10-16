@@ -2796,4 +2796,3 @@ draws a raw data row for a session-message part it cannot name, and a call split
 assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
 upgrade runs per session database. QA owners: ET-web-session-message-card and
 APP-desktop-runtime-bundle-coherence.
-||||||| 2cf9f5fae
