@@ -2774,24 +2774,30 @@ browser walk verifies TXT/PDF downloads without unloading the session.
 - **Cause and policy:** a Goal can prepare a durable prompt during an existing turn. Its older
   enqueue time allowed it to win FIFO over later admitted input at that turn's boundary. The unified
   selector now drains eligible public inputs before a prepared Goal, preserving interrupt,
-  priority and FIFO ordering among public inputs. Continuous public input may defer Goal work;
-  queue mode never interrupts the active turn.
+  priority and FIFO ordering within a finite public batch. The first claim durably freezes its
+  maximum admitted rowid; later arrivals follow one Goal prompt, preventing livelock. Queue mode
+  never interrupts a long active turn; urgent guidance uses fenced steer or interrupt.
 - **Native tools / CLI / HTTP / UDS:** queued `compozy__session_prompt` inputs, operator prompts and
   `prompt-reply:` wakes receive the same ordering. Existing queue/status positions and counts remain
   public-only. No IDs, routes, DTOs, command grammar, error codes or configuration keys change.
 - **Goal / reply ownership:** the existing managed claim, budget checks, binding/control fences,
   work-turn accounting, reply-watch admission and atomic wake handoff remain authoritative. Public
   input turns do not consume Goal work turns. The selector reads persisted queue state on resume;
-  no in-memory fairness cursor or new recovery state is introduced.
+  the nullable batch boundary survives restart without an in-memory fairness cursor.
 - **Extensibility / hooks / config:** existing synthetic wakes share the ordering; no extension SDK,
   hook payload, permission, provider or configuration changes.
 - **Isolation / compatibility:** selection stays scoped to the exact session and current input
   generation. Profile/workspace admission and origin authority are unchanged. SD-013 public behavior
-  bug fix with unchanged shapes; no user-state migration or compatibility shim is needed.
+  bug fix with unchanged public shapes. Append-only migration 00137 adds one nullable integer
+  boundary without backfill; Atlas/sqlc own the generated artifacts. Existing queue rows and user
+  data survive migration and reopen; no public compatibility shim is needed.
 - **Official skill / Web / site docs:** document ordering in `skills/compozy/references/loops.md`
   and the session messaging reference, plus the site's Goal guide. Web observes the corrected queue
   dispatch through existing session events; no React changes or visual evidence required.
 - **QA / validation:** update RT-session-message-origin, RT-session-message-reply and GL-015.
   The existing managed-runtime integration suite owns deterministic real-SQLite admission, reply
   wake priority/deduplication and Goal state/accounting coverage. Heavy gates, full E2E and labs are
-  CI-owned by explicit maintainer instruction; targeted race checks run locally.
+  CI-owned by explicit maintainer instruction; targeted race checks run locally. The existing
+  global queue suite covers finite batches with concurrent admissions/reopen; the global migration
+  suite covers retained queue state. The reported Needs-you badge comes from loop_run quarantine
+  supervision, not queue backlog, and remains outside this scheduling fix.

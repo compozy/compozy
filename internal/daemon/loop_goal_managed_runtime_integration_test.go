@@ -81,7 +81,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			MessageID: "queued-operator", IdempotencyKey: "queued-operator",
 			Caller: session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 		})
-		if err != nil || queued.Status != store.SessionPromptResultStatusQueued {
+		if err != nil || queued.Status != store.SessionPromptResultStatusQueued || queued.QueuePosition != 1 {
 			t.Fatalf("queue admission = %#v, %v", queued, err)
 		}
 		target, err := fixture.manager.Create(ctx, session.CreateOpts{
@@ -96,7 +96,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: target.ID,
 				WorkspaceID: string(fixture.run.WorkspaceID), Hop: 1},
 		})
-		if err != nil || agentInput.Status != store.SessionPromptResultStatusQueued {
+		if err != nil || agentInput.Status != store.SessionPromptResultStatusQueued || agentInput.QueuePosition != 2 {
 			t.Fatalf("agent admission = %#v, %v", agentInput, err)
 		}
 		question := session.SendPromptOpts{

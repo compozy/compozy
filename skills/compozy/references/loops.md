@@ -292,18 +292,19 @@ Web timeline use that durable evidence.
 
 ### Queued inputs and Goal continuation
 
-At each idle turn boundary, CompozyOS drains eligible queued operator prompts, agent messages,
-and synthetic wakes (including session replies) before dispatching a prepared Goal prompt, even
-when that Goal prompt was prepared earlier. Interrupt replacements retain precedence; among the
-other inputs, existing priority and FIFO ordering remain in force. An unresolved steer is not
-eligible until its delivery is resolved. Queue reads and positions continue to show public inputs;
-internal Goal prompts are excluded.
+At an idle turn boundary, CompozyOS drains a finite batch of eligible queued operator prompts,
+agent messages, and synthetic wakes (including session replies) before dispatching a prepared Goal
+prompt, even when that Goal prompt was prepared earlier. The first public-input claim freezes the
+batch's admission boundary durably. Inputs admitted later wait until after that Goal prompt; they
+cannot keep extending the batch. Interrupt replacements retain precedence. Within the batch,
+existing priority and FIFO ordering remain in force; unresolved steers retain their eligibility
+rules. Queue reads and positions show public inputs and exclude internal Goal prompts.
 
-The Goal resumes when no eligible public input remains. Queued inputs run as their own turns and
-do not increment the Goal's work-turn count; its binding, control epochs, turn limit, and existing
-budget guards remain intact. A continuous stream of eligible inputs can defer Goal work. This
-ordering is derived from the durable queue after restart as well. Queue mode never preempts the
-currently running turn; use fenced steering or interrupt when guidance must arrive during it.
+Queued inputs run as their own turns and do not increment the Goal's work-turn count. Its binding,
+control epochs, turn limit, and existing budget guards remain intact. The saved batch boundary
+survives restart. Queue mode never preempts the currently running turn: a long turn can delay
+`after_turn` delivery until it ends. Use fenced steering or interrupt when guidance must arrive
+during that turn.
 
 ### Session stop, removal, and recovery
 

@@ -56,3 +56,7 @@ the active turn; fenced steer and interrupt retain their existing delivery behav
 Automated owner: `TestLoopGoalManagedRuntimeIntegration/Should_drain_messages_and_reply_wakes_before_a_prepared_Goal_at_the_turn_boundary`
 (real SQLite, admission, reply-watch service and managed session selector). Full public UI and
 real-provider walks remain delegated to CI/integrated QA per maintainer instruction.
+
+The first public claim freezes a finite admission batch before the Goal. Add more messages during
+that batch and reopen the store: the Goal runs after the original batch, before later arrivals.
+Store owner: `TestGlobalDBSessionInputQueueGeneration/Should_preserve_a_bounded_Goal_input_batch_across_new_arrivals_and_reopen`.

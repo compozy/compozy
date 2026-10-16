@@ -7,14 +7,51 @@ WHERE session_id = sqlc.arg(session_id)
 RETURNING id;
 
 -- name: GetNextDispatchableSessionInput :one
-SELECT * FROM session_input_queue
-WHERE session_id = sqlc.arg(session_id)
-  AND status = sqlc.arg(queued_status)
-  AND dispatchable = 1
-  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
-  AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-ORDER BY delivery DESC, priority DESC, enqueued_at ASC, id ASC
+WITH prepared_goal AS (
+  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
+    AND status = sqlc.arg(queued_status) AND dispatchable = 0
+    AND terminal_at IS NULL AND fence_kind IS NULL
+    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+  ORDER BY enqueued_at, id LIMIT 1
+)
+SELECT queued.* FROM session_input_queue AS queued
+WHERE queued.session_id = sqlc.arg(session_id)
+  AND queued.status = sqlc.arg(queued_status)
+  AND queued.dispatchable = 1
+  AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
+  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+  AND ((SELECT cutoff FROM prepared_goal) IS NULL
+       OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
+       OR queued.delivery = 'interrupt_then_prompt')
+ORDER BY CASE
+           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.owner_kind = 'goal' THEN 2
+           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
+             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
+           ELSE 3
+         END,
+         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
 LIMIT 1;
+
+-- name: FreezePreparedGoalInputBatch :exec
+UPDATE session_input_queue
+SET goal_input_batch_max_rowid = (
+  SELECT COALESCE(MAX(input.rowid), 0) FROM session_input_queue AS input
+  WHERE input.session_id = sqlc.arg(session_id)
+    AND input.session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+    AND input.status = sqlc.arg(queued_status) AND input.dispatchable = 1
+    AND input.terminal_at IS NULL
+    AND (input.owner_kind IS NULL OR input.owner_kind = 'synthetic')
+)
+WHERE session_input_queue.id = (
+  SELECT id FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
+    AND status = sqlc.arg(queued_status) AND dispatchable = 0
+    AND terminal_at IS NULL AND fence_kind IS NULL
+    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+  ORDER BY enqueued_at, id LIMIT 1
+) AND session_input_queue.goal_input_batch_max_rowid IS NULL;
 
 -- name: ClaimSessionInput :execrows
 UPDATE session_input_queue
@@ -24,24 +61,53 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
   AND status = sqlc.arg(queued_status) AND dispatchable = 1 AND (owner_kind IS NULL OR owner_kind = 'synthetic');
 
 -- name: PeekNextSessionInput :one
-SELECT * FROM session_input_queue
-WHERE session_id = sqlc.arg(session_id)
-  AND status = sqlc.arg(queued_status)
-  AND terminal_at IS NULL
-  AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-  AND (((owner_kind IS NULL OR owner_kind = 'synthetic') AND dispatchable = 1)
-       OR (owner_kind = 'goal' AND dispatchable = 0 AND fence_kind IS NULL))
-ORDER BY CASE WHEN owner_kind = 'goal' THEN 1 ELSE 0 END,
-         delivery DESC, priority DESC, enqueued_at ASC, id ASC
+WITH prepared_goal AS (
+  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
+    AND status = sqlc.arg(queued_status) AND dispatchable = 0
+    AND terminal_at IS NULL AND fence_kind IS NULL
+    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+  ORDER BY enqueued_at, id LIMIT 1
+)
+SELECT queued.* FROM session_input_queue AS queued
+WHERE queued.session_id = sqlc.arg(session_id)
+  AND queued.status = sqlc.arg(queued_status)
+  AND queued.terminal_at IS NULL
+  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+  AND (((queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic') AND queued.dispatchable = 1)
+       OR (owner_kind = 'goal' AND queued.dispatchable = 0 AND queued.fence_kind IS NULL))
+ORDER BY CASE
+           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.owner_kind = 'goal' THEN 2
+           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
+             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
+           ELSE 3
+         END,
+         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
 LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
-SELECT * FROM session_input_queue
-WHERE session_id = sqlc.arg(session_id)
-  AND (owner_kind IS NULL OR owner_kind != 'goal')
-  AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
-  AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-ORDER BY delivery DESC, priority DESC, enqueued_at ASC, id ASC;
+WITH prepared_goal AS (
+  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
+    AND status = sqlc.arg(queued_status) AND dispatchable = 0
+    AND terminal_at IS NULL AND fence_kind IS NULL
+    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+  ORDER BY enqueued_at, id LIMIT 1
+)
+SELECT queued.* FROM session_input_queue AS queued
+WHERE queued.session_id = sqlc.arg(session_id)
+  AND (queued.owner_kind IS NULL OR queued.owner_kind != 'goal')
+  AND queued.status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
+  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+ORDER BY CASE
+           WHEN queued.delivery = 'interrupt_then_prompt' THEN 0
+           WHEN queued.owner_kind = 'goal' THEN 2
+           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
+             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
+           ELSE 3
+         END,
+         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC;
 
 -- name: GetSessionInputQueueEntry :one
 SELECT * FROM session_input_queue
@@ -124,6 +190,7 @@ INSERT INTO session_input_queue (
 -- name: CountPendingSessionInputs :one
 SELECT COUNT(*) FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id)
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status));
 
 -- name: ReleaseSessionInput :execrows

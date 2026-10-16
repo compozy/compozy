@@ -1460,6 +1460,7 @@ type SessionInputClearTrace struct {
 }
 
 type SessionInputQueue struct {
+	GoalInputBatchMaxRowid   sql.NullInt64  `json:"goal_input_batch_max_rowid"`
 	ID                       string         `json:"id"`
 	SessionID                string         `json:"session_id"`
 	PromptAdmissionID        sql.NullString `json:"prompt_admission_id"`
