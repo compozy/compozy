@@ -3060,4 +3060,3 @@ Superseded catalog reads keep TanStack cancellation semantics; actual query fail
 - User state/migrations: none. Public compatibility: unchanged. Site docs: no public contract change.
 - QA: `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal`; targeted hook regressions,
   real local frontend walkthrough and rendered browser fault-injection evidence. Heavy gates run only in CI.
-
