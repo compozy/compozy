@@ -20,8 +20,8 @@ const (
 	sessionWALTruncateBytes = 16 << 20
 	// sessionWALTruncateWait caps how long readers may delay the writer during a truncation.
 	sessionWALTruncateWait = 200 * time.Millisecond
-	// sessionWALMaintenanceDelay is the idle time after writes before the writer checkpoints
-	// without waiting for a full interval, and the first retry delay for a deferred truncation.
+	// sessionWALMaintenanceDelay is the idle time after writes before the writer checkpoints and
+	// truncates an oversized WAL, and the first retry delay for a deferred truncation.
 	sessionWALMaintenanceDelay = time.Second
 	// sessionWALMaintenanceMaxDelay caps the backoff while readers keep deferring truncation.
 	sessionWALMaintenanceMaxDelay = 30 * time.Second
@@ -30,24 +30,19 @@ const (
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	var pending *sessionWriteRequest
+	// Truncation can wait on readers while it holds the SQLite writer lock, so it runs only
+	// after the writer has been idle; every write pushes the maintenance timer back.
 	maintenance := time.NewTimer(time.Hour)
 	maintenance.Stop()
 	defer maintenance.Stop()
 	var retryDelay time.Duration
-	// checkpoint runs on the writer goroutine, so maintenance needs no extra lifetime to join.
-	checkpoint := func() {
-		writesSinceCheckpoint = 0
-		if !s.checkpointWAL() {
-			retryDelay = 0
-			maintenance.Stop()
-			return
-		}
-		retryDelay = min(max(2*retryDelay, s.walMaintenanceDelay()), sessionWALMaintenanceMaxDelay)
-		maintenance.Reset(retryDelay)
-	}
+	idleDelay := func() time.Duration { return max(retryDelay, s.walMaintenanceDelay()) }
 	for {
 		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
-			checkpoint()
+			writesSinceCheckpoint = 0
+			if err := s.passiveCheckpoint(s.writerCtx); err != nil {
+				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+			}
 		}
 		if pending != nil {
 			request := *pending
@@ -61,11 +56,17 @@ func (s *SessionDB) writerLoop() {
 			var weight int
 			pending, weight = s.writePendingChunks(req)
 			writesSinceCheckpoint += weight
-			if weight > 0 && retryDelay == 0 {
-				maintenance.Reset(s.walMaintenanceDelay())
+			if weight > 0 {
+				maintenance.Reset(idleDelay())
 			}
 		case <-maintenance.C:
-			checkpoint()
+			writesSinceCheckpoint = 0
+			if !s.checkpointWAL() {
+				retryDelay = 0
+				continue
+			}
+			retryDelay = min(max(2*retryDelay, s.walMaintenanceDelay()), sessionWALMaintenanceMaxDelay)
+			maintenance.Reset(retryDelay)
 		case shutdown := <-s.shutdownCh:
 			shutdown.result <- s.drainWrites(shutdown.ctx)
 			return
@@ -156,8 +157,9 @@ func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
 	return s.checkpointWithLease(ctx, store.CheckpointPassiveConnection)
 }
 
-// checkpointWAL backfills the WAL and truncates it once it outgrows the live-session bound. It
-// reports whether the WAL is still oversized because readers outlasted the bounded wait.
+// checkpointWAL backfills the WAL and truncates it once it outgrows the live-session bound. The
+// writer calls it only when idle. It reports whether the WAL is still oversized because readers
+// outlasted the bounded wait.
 func (s *SessionDB) checkpointWAL() bool {
 	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
 		slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)

@@ -568,6 +568,10 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		if refresh("stalled with new activity") {
 			t.Fatal("detected stall = evidence, want no evidence")
 		}
+		info.Liveness.StallState = ""
+		if !refresh("stall cleared with the same activity") {
+			t.Fatal("activity first seen during a stall = no evidence after the stall cleared, want evidence")
+		}
 	})
 
 	t.Run("Should not treat a stalled session without activity as fresh evidence", func(t *testing.T) {

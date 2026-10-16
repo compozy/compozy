@@ -50,18 +50,31 @@ func (s *HostedService) boundedUnversionedProjection(
 	record *hostedBindRecord,
 ) (HostedProjectionResponse, error) {
 	epoch := s.currentProjectionEpoch()
-	now := s.now()
-	if cached, ok := s.projectionCache.loadUnversioned(record.bindID, epoch, now); ok {
+	if cached, ok := s.projectionCache.loadUnversioned(record.bindID, epoch, s.now()); ok {
 		return cached, nil
 	}
-	response, err := buildHostedProjection(ctx, registry, record)
-	if err != nil {
-		return HostedProjectionResponse{}, err
+	var response HostedProjectionResponse
+	for attempt := 0; ; attempt++ {
+		var err error
+		response, err = buildHostedProjection(ctx, registry, record)
+		if err != nil {
+			return HostedProjectionResponse{}, err
+		}
+		// An epoch advance during the build may have invalidated the listed views.
+		after := s.currentProjectionEpoch()
+		if after == epoch {
+			break
+		}
+		if attempt+1 >= hostedProjectionGenerationRetries {
+			// Keep the fresher build but leave it uncached so the next poll rebuilds.
+			return cloneHostedProjectionResponse(response), nil
+		}
+		epoch = after
 	}
 	s.mu.Lock()
 	if s.ownsBindRecord(record) {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
-			epoch: epoch, builtAt: now, response: response,
+			epoch: epoch, builtAt: s.now(), response: response,
 		})
 	}
 	s.mu.Unlock()

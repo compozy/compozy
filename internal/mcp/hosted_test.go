@@ -982,6 +982,41 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rebuild an unversioned stream projection invalidated during its build", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "", false },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-unversioned-race", peer)
+		var epoch atomic.Uint64
+		epoch.Store(1)
+		service.projectionEpoch = epoch.Load
+		invalidate := sync.OnceFunc(func() {
+			registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+			epoch.Add(1)
+		})
+		registry.mu.Lock()
+		registry.onListed = invalidate
+		registry.mu.Unlock()
+
+		for _, label := range []string{"invalidated build", "cached rebuild"} {
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			if err != nil {
+				t.Fatalf("StreamProjection(%s) error = %v", label, err)
+			}
+			if got := hostedToolIDs(response.Tools); !slices.Equal(got, []string{"compozy__beta"}) {
+				t.Fatalf("StreamProjection(%s) tools = %#v, want views listed after the epoch advance", label, got)
+			}
+		}
+	})
+
 	t.Run("Should discard a released bind cache entry", func(t *testing.T) {
 		t.Parallel()
 
@@ -1598,6 +1633,8 @@ type hostedRegistryStub struct {
 	listCalls      int
 	listStarted    chan<- struct{}
 	releaseList    <-chan struct{}
+	// onListed runs after List captured its views, simulating an invalidation during a build.
+	onListed func()
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)
@@ -1614,7 +1651,11 @@ func (r *hostedRegistryStub) List(ctx context.Context, scope tools.Scope) ([]too
 	}
 	out := make([]tools.ToolView, len(r.views))
 	copy(out, r.views)
+	onListed := r.onListed
 	r.mu.Unlock()
+	if onListed != nil {
+		onListed()
+	}
 	if listStarted != nil {
 		select {
 		case listStarted <- struct{}{}:

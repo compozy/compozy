@@ -3083,10 +3083,10 @@ Owner: branch `daemon-cpu-attention`.
   This lowers the cost of `/usage` and `/usage/turns` for large sessions. Markers are read after the
   usage rows, so a compaction appended between reads cannot lend its usage to an earlier one. The attention bell's
   per-workspace inbox fan-out is unchanged and stays open on #764.
-- #765 session WAL: after each passive checkpoint, the session writer truncates a WAL above 16MB,
-  letting readers delay it by at most 200ms. The writer goroutine also checkpoints after 1s idle
-  following writes and retries a deferred truncation with 1s–30s backoff, so the WAL shrinks
-  without waiting for another 128 writes.
+- #765 session WAL: the writer keeps its PASSIVE checkpoint every 128 writes. Once it has been idle
+  for 1s after writes, it checkpoints and truncates a WAL above 16MB, letting readers delay that
+  idle-only truncation by at most 200ms, and retries a deferred truncation with 1s–30s idle-gated
+  backoff. Truncation never runs inside a write burst, so it adds no writer stall there.
   `store.CheckpointTruncateConnection` exposes the existing busy-aware TRUNCATE on an acquired
   connection.
 - SD-013: no persisted shape, migration, config key, CLI, HTTP/UDS DTO, hook, extension SDK or

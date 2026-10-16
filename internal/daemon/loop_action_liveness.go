@@ -186,11 +186,15 @@ func (r *loopActionRuntime) refreshActionProgress(
 	if activity == nil {
 		return !stalled, nil
 	}
+	if stalled {
+		// Leave the activity unobserved so it can still clear silence once the stall ends.
+		return false, nil
+	}
 	fresh := activity.LastActivityAt != nil && usage.observeActivity(*activity.LastActivityAt)
 	inFlightTool := strings.TrimSpace(activity.CurrentTool) != "" || strings.TrimSpace(activity.ToolCallID) != ""
 	// Only activity newer than the last observation is evidence; a stale timestamp would
 	// otherwise renew liveness forever and hide a stuck node from its silence window.
-	return !stalled && (fresh || inFlightTool), nil
+	return fresh || inFlightTool, nil
 }
 
 func (r *loopActionRuntime) recordActionLiveness(

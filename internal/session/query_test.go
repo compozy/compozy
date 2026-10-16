@@ -2258,13 +2258,14 @@ func TestCompactionMarkersAcrossConcurrentAppends(t *testing.T) {
 		if err != nil {
 			t.Fatalf("compactionMarkers() error = %v", err)
 		}
-		for _, marker := range markers {
-			if marker.Payload.CompactionID == "a" && marker.ContextAfter != nil {
-				t.Fatalf(
-					"compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b",
-					marker.ContextAfter,
-				)
-			}
+		index := slices.IndexFunc(markers, func(marker CompactionEnvelope) bool {
+			return marker.Payload.CompactionID == "a"
+		})
+		if index < 0 {
+			t.Fatalf("markers = %#v, want compaction a", markers)
+		}
+		if after := markers[index].ContextAfter; after != nil {
+			t.Fatalf("compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b", after)
 		}
 	})
 }

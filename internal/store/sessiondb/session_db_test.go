@@ -267,7 +267,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	})
 
 	// Invariant: a live session's WAL stays bounded while readers keep polling it.
-	t.Run("Should truncate an oversized live WAL while a reader polls", func(t *testing.T) {
+	// Invariant: truncation stays off the write path during a burst, and an oversized WAL still
+	// shrinks once writes go idle while a reader keeps polling.
+	t.Run("Should truncate an oversized live WAL only after a write burst", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -291,10 +293,21 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 				_, _ = sessionDB.Query(readerCtx, EventQuery{Type: "usage"})
 			}
 		}()
+		t.Cleanup(func() {
+			stopReader()
+			<-readerDone
+		})
+		walSize := func() int64 {
+			info, err := os.Stat(path + "-wal")
+			if err != nil {
+				return 0
+			}
+			return info.Size()
+		}
 		payload := strings.Repeat("x", 2048)
-		var peak int64
-		// The writer checkpoints before the write that follows each full interval, so the final
-		// write lands in a WAL truncated just before it.
+		var previous int64
+		// Only TRUNCATE shrinks the WAL file, so a shrink during the burst means the write path
+		// truncated.
 		for idx := range 2*sessionPassiveCheckpointEvery + 1 {
 			if err := sessionDB.Record(ctx, SessionEvent{
 				TurnID:    fmt.Sprintf("turn-%d", idx),
@@ -304,23 +317,22 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("Record(%d) error = %v", idx, err)
 			}
-			if info, err := os.Stat(path + "-wal"); err == nil {
-				peak = max(peak, info.Size())
+			size := walSize()
+			if size < previous {
+				t.Fatalf("WAL shrank from %d to %d bytes at write %d, want no truncation during the burst",
+					previous, size, idx)
 			}
+			previous = size
 		}
-		stopReader()
-		<-readerDone
-		info, err := os.Stat(path + "-wal")
-		if err != nil {
-			t.Fatalf("Stat(wal) error = %v", err)
+		if previous < limit {
+			t.Fatalf("WAL after burst = %d bytes, want it above the %d-byte bound", previous, limit)
 		}
-		if peak < limit || info.Size() >= limit {
-			t.Fatalf(
-				"WAL peak/final = %d/%d bytes, want truncation below %d after exceeding it",
-				peak,
-				info.Size(),
-				limit,
-			)
+		deadline := time.Now().Add(5 * time.Second)
+		for walSize() >= limit {
+			if time.Now().After(deadline) {
+				t.Fatalf("WAL = %d bytes 5s after the burst, want truncation below %d", walSize(), limit)
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 
