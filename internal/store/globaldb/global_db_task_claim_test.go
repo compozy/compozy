@@ -3871,6 +3871,21 @@ func testGlobalDBLoopWorkerSettlementAuthority(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HeartbeatRunLease(agent) error = %v", err)
 	}
+	if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Reason: "worker finished its prompt", Now: now.Add(3 * time.Second),
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("ReleaseRunLease(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
+	if _, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Now: now.Add(3 * time.Second),
+		Block: taskpkg.TaskBlock{
+			ID: "block-loop-worker", TaskID: taskRecord.ID, Kind: taskpkg.BlockKindNeedsInput,
+			Reason: "worker attempted release", CreatedBy: agent.Actor, CreatedAt: now,
+		},
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("BlockTaskAndReleaseRun(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
 	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 		Actor: coordinatorActorContextForTest(), RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 		Result: taskpkg.RunResult{Value: json.RawMessage(`{"status":"done"}`)},
@@ -6915,6 +6930,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	cases := []struct {
 		name             string
 		complete         bool
+		forceStatus      taskpkg.RunStatus
 		result           json.RawMessage
 		failureMetadata  json.RawMessage
 		tokensUsed       int64
@@ -6925,6 +6941,14 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		wantRecovery     string
 		wantEvents       []string
 	}{
+		{
+			name: "operator fails queued worker", forceStatus: taskpkg.TaskRunStatusQueued,
+			wantOutputStatus: "failed", wantEvents: []string{loopRunEventStatusChanged, loopRunEventNodeFailed, loopRunEventTokenTick},
+		},
+		{
+			name: "operator fails claimed worker", forceStatus: taskpkg.TaskRunStatusClaimed,
+			wantOutputStatus: "failed", wantEvents: []string{loopRunEventStatusChanged, loopRunEventNodeRunning, loopRunEventNodeFailed, loopRunEventTokenTick},
+		},
 		{
 			name:             "success records terminal output",
 			complete:         true,
@@ -7020,20 +7044,31 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			); err != nil {
 				t.Fatalf("insert generation output error = %v", err)
 			}
-			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:            taskpkg.ScopeGlobal,
-				ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
-				ClaimedBy: &taskpkg.ActorIdentity{
-					Kind: taskpkg.ActorKindDaemon,
-					Ref:  "loop",
-				},
-				LeaseDuration: time.Minute,
-				Now:           now,
-			})
-			if err != nil {
-				t.Fatalf("ClaimNextRun() error = %v", err)
+			var claim taskpkg.ClaimResult
+			if tc.forceStatus != taskpkg.TaskRunStatusQueued {
+				claim, err = globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+					Scope:            taskpkg.ScopeGlobal,
+					ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
+					ClaimedBy: &taskpkg.ActorIdentity{
+						Kind: taskpkg.ActorKindDaemon,
+						Ref:  "loop",
+					},
+					LeaseDuration: time.Minute,
+					Now:           now,
+				})
+				if err != nil {
+					t.Fatalf("ClaimNextRun() error = %v", err)
+				}
 			}
-			if tc.complete {
+			if tc.forceStatus != taskpkg.TaskRunStatusUnknown {
+				manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB), taskpkg.WithManagerNow(func() time.Time { return terminalAt }))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.ForceFailRun(ctx, runID, taskpkg.ForceFailRun{Reason: "operator recovery"}, coordinatorActorContextForTest()); err != nil {
+					t.Fatal(err)
+				}
+			} else if tc.complete {
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,

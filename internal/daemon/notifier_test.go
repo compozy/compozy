@@ -1668,6 +1668,25 @@ func TestHooksNotifierShouldFenceTerminalRuntimeRecoveryGeneration(t *testing.T)
 
 func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *testing.T) {
 	t.Parallel()
+	t.Run("Should ignore terminal task runs without an executing session", func(t *testing.T) {
+		t.Parallel()
+		spy := &spyTerminalSessionRunEnder{}
+		observer := &terminalRunLifecycleObserver{
+			terminals: spy,
+			sessions: apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("sessionless run must not look up a session")
+				return nil, nil
+			}},
+		}
+		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", RunID: "run-mechanical",
+		}); err != nil {
+			t.Fatalf("OnTaskRunTerminal(sessionless) error = %v", err)
+		}
+		if len(spy.calls) != 0 {
+			t.Fatalf("terminal calls = %v, want none", spy.calls)
+		}
+	})
 	spy := &spyTerminalSessionRunEnder{}
 	observer := &terminalRunLifecycleObserver{
 		terminals: spy,

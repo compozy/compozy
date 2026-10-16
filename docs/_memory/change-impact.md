@@ -2741,3 +2741,22 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Issue #739 — Loop action claim ownership and recovery
+
+The daemon retries SQLite claim persistence before executing an action. The task store applies
+its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
+bound worker from clearing the claim while its provider continues. Force failure commits the
+Loop node failure with the task run and publishes the terminal hook that wakes its coordinator.
+Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
+runs have no terminal-session resource to release.
+
+CLI and HTTP/UDS keep their verbs, routes and DTOs. Native `compozy__task_run_release` and the
+session-bound block path now enforce the existing Loop ownership contract; ordinary agent-owned
+leases still release normally. Extension terminal hooks retain their shapes and now receive the
+owning profile. No config, schema, migration, generated contract, workspace boundary or Web
+renderer changes. SD-013: lossless user state, stable public shapes and an authorization bug fix;
+no compatibility shim or removal release is needed. Official skill:
+`skills/compozy/references/loops.md`; public docs:
+`packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
+`TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.
