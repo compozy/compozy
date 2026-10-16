@@ -11,16 +11,17 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
 import { SubagentChip } from "../subagent-chip";
+import { SubagentComposerControl } from "../subagent-composer-control";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
 
 // Suite: subagent presentational components.
-// Invariant: rendered copy, roles and controls of the card, hover card, divider, banner, chip and
-// inspector roster follow `_uiux.md` S1–S5, S9, S10 (and agent-collaboration S5 worktree facts);
-// elapsed ticks from server timestamps on a
-// shared ticker without re-rendering React. Owning layer: session subagent components (props in,
-// callbacks out). Canonical suite: this file. Boundary OUT: sonner toast.
+// Invariant: rendered copy, roles and controls of the card, hover card, divider, banner, chip,
+// composer control (issue #766) and inspector roster follow `_uiux.md` S1–S5, S9, S10 (and
+// agent-collaboration S5 worktree facts); elapsed ticks from server timestamps on a shared ticker
+// without re-rendering React. Owning layer: session subagent components (props in, callbacks out).
+// Canonical suite: this file. Boundary OUT: sonner toast.
 const NO_RUNTIME = { agent: "", provider: "", model: "", reasoning_effort: "", speed: "" };
 const T0 = Date.parse("2026-10-08T21:00:00.000Z");
 const at = (seconds: number) => new Date(T0 + seconds * 1_000).toISOString();
@@ -308,6 +309,110 @@ describe("SubagentChip (UT-W17)", () => {
       />
     );
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("SubagentComposerControl (issue #766)", () => {
+  const counts = (live: number, total: number, attention = 0) => ({
+    live,
+    total,
+    failed: 0,
+    attention,
+  });
+
+  it("Should stay a quiet icon with an empty popover while the session has none", async () => {
+    const user = userEvent.setup();
+    renderUI(<SubagentComposerControl subagents={[]} counts={counts(0, 0)} />);
+    const trigger = screen.getByRole("button", { name: "Subagents, none yet" });
+    expect(trigger).toHaveAttribute("data-state", "idle");
+    expect(trigger).not.toHaveTextContent(/\d/);
+    await user.click(trigger);
+    expect(await screen.findByText("Nothing delegated yet.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Subagents" })).toBeInTheDocument();
+  });
+
+  it("Should read the live count with the avatar's live dot while subagents run", () => {
+    const rows = [...many(2, "running"), ...many(1, "waiting"), ...many(3, "completed")];
+    const { rerender } = renderUI(
+      <SubagentComposerControl subagents={rows} counts={counts(3, 6, 1)} />
+    );
+    const trigger = screen.getByRole("button", { name: "Subagents, 3 running, 1 needs you" });
+    expect(trigger).toHaveAttribute("data-state", "attention");
+    expect(trigger).toHaveTextContent("3");
+    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
+      "data-tone",
+      "accent"
+    );
+    rerender(
+      <UIProvider>
+        <SubagentComposerControl subagents={rows} counts={counts(2, 6)} />
+      </UIProvider>
+    );
+    const running = screen.getByRole("button", { name: "Subagents, 2 running" });
+    expect(running).toHaveAttribute("data-state", "running");
+    expect(running.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
+      "data-tone",
+      "success"
+    );
+  });
+
+  it("Should list current rows first, fold previous ones, and return focus on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    renderUI(
+      <SubagentComposerControl
+        subagents={[...many(2, "completed"), ...many(1, "running")]}
+        counts={counts(1, 3)}
+        onOpen={onOpen}
+      />
+    );
+    const trigger = screen.getByRole("button", { name: "Subagents, 1 running" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    const popover = await screen.findByRole("dialog");
+    expect(within(popover).getByText("Subagents · 1 running")).toBeInTheDocument();
+    expect(
+      within(popover)
+        .getAllByRole("button", { name: /^Open / })
+        .map(row => row.getAttribute("aria-label"))
+    ).toEqual(["Open running subagent 0"]);
+    expect(within(popover).getByRole("button", { name: "Previous subagents (2)" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    await user.click(trigger);
+    await user.click(await screen.findByRole("button", { name: "Open running subagent 0" }));
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sub-running-0" }), {
+      newWindow: false,
+    });
+  });
+
+  it("Should open previous rows when nothing runs and hold their place while they load", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderUI(
+      <SubagentComposerControl subagents={[]} counts={counts(0, 2)} onOpen={vi.fn()} />
+    );
+    const trigger = screen.getByRole("button", { name: "Subagents, none running" });
+    await user.click(trigger);
+    const popover = await screen.findByRole("dialog");
+    expect(popover.querySelector('[data-slot="skeleton-rows"]')).not.toBeNull();
+    rerender(
+      <UIProvider>
+        <SubagentComposerControl
+          subagents={many(2, "completed")}
+          counts={counts(0, 2)}
+          onOpen={vi.fn()}
+        />
+      </UIProvider>
+    );
+    expect(await screen.findByRole("button", { name: "Previous subagents (2)" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getAllByRole("button", { name: /^Open completed/ })).toHaveLength(2);
   });
 });
 

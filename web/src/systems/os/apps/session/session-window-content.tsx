@@ -1,4 +1,5 @@
 import {
+  SessionComposerSubagents,
   SessionContextControl,
   useSessionContextActivity,
   type SessionContextActivitySource,
@@ -71,6 +72,24 @@ function SessionWindowInspector({
 }
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
+
+/** Drill-in from a subagent row (S1 rule): this window, or a new one with ⌘/Ctrl. */
+function subagentOpener(
+  openSession: ReturnType<typeof useSessionWindowController>["sidebar"]["openSession"],
+  workspaceId: string
+): NonNullable<SessionInspectorProps["onOpenSubagent"]> {
+  return (subagent, options) => {
+    if (subagent.child_session_id === null) return;
+    openSession(
+      {
+        sessionId: subagent.child_session_id,
+        agentName: subagent.runtime.agent ?? "",
+        workspaceId,
+      },
+      options
+    );
+  };
+}
 
 /**
  * The one session-level notice above the transcript, on the transcript's inset
@@ -233,6 +252,7 @@ export function SessionWindowContent({
 
   const quietWarning = sessionQuietWarning(session);
   const subagentParent = derive.subagentOrigin?.parent ?? null;
+  const openSubagent = subagentOpener(sidebar.openSession, workspaceId);
 
   const handleForkDeadSession = () => {
     forkSession.mutate(
@@ -323,6 +343,7 @@ export function SessionWindowContent({
                   onOpen={() => inspector.setOpen(true)}
                 />
               }
+              subagentControl={<SessionComposerSubagents session={session} onOpen={openSubagent} />}
               runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
               environmentControl={
                 <SessionEnvironmentControl
@@ -379,17 +400,7 @@ export function SessionWindowContent({
                 }}
                 context={sessionContext.context}
                 session={session}
-                onOpenSubagent={(subagent, options) => {
-                  if (subagent.child_session_id === null) return;
-                  sidebar.openSession(
-                    {
-                      sessionId: subagent.child_session_id,
-                      agentName: subagent.runtime.agent ?? "",
-                      workspaceId,
-                    },
-                    options
-                  );
-                }}
+                onOpenSubagent={openSubagent}
                 turns={sessionUsageTurns.data}
                 turnsUnavailable={sessionUsageTurns.isError}
                 usage={inspectorUsage}

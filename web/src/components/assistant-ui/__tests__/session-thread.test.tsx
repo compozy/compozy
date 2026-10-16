@@ -432,6 +432,7 @@ interface ThreadStateOptions {
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
+  subagentControl?: ComponentProps<typeof SessionThread>["subagentControl"];
   origin?: SessionOriginContextValue | null;
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
@@ -457,6 +458,7 @@ function threadStateElement(
     transport,
     liveDataEnabled = true,
     contextControl,
+    subagentControl,
     origin = null,
     forkRequest = null,
   }: ThreadStateOptions
@@ -520,6 +522,7 @@ function threadStateElement(
                 readOnly={readOnly}
                 liveDataEnabled={liveDataEnabled}
                 contextControl={contextControl}
+                subagentControl={subagentControl}
               />
             </SessionForkContext>
           </SessionOriginContext>
@@ -555,6 +558,27 @@ describe("SessionThread transcript states", () => {
         .getByRole("button", { name: "Inspect context" })
         .closest('[data-testid="composer-shell"]')
     ).not.toBeNull();
+  });
+
+  // Invariant: the subagents control sits after the context ring and before Attach files (#766);
+  // owner: composer toolbar composition.
+  it("Should place the subagents control between the context action and Attach files", () => {
+    renderThreadState({
+      status: "success",
+      contextControl: <button type="button">Inspect context</button>,
+      subagentControl: <button type="button">Subagents</button>,
+    });
+    const order = [
+      screen.getByRole("button", { name: "Inspect context" }),
+      screen.getByRole("button", { name: "Subagents" }),
+      screen.getByRole("button", { name: "Attach files" }),
+    ];
+    for (const [before, after] of [
+      [order[0]!, order[1]!],
+      [order[1]!, order[2]!],
+    ] as const) {
+      expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 
   it("Should preview non-JSON values without returning undefined", () => {

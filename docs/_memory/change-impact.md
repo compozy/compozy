@@ -3028,3 +3028,39 @@ compatibility adapter is needed. Workspace/profile isolation is unaffected (the 
 renders its own payload). No site documentation changes are needed. QA owner:
 `ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
 suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.
+
+## Issue #766 — background native subagents and the composer subagents control
+
+Owner: branch `fix/issue-766-subagent-status-indicator`; issue #766.
+
+- Runtime: a Claude Agent/Task call that runs in the background returns a launch receipt at once.
+  The ACP layer lifts claude-agent-acp's PostToolUse marker (`_meta.claudeCode.toolResponse`
+  `status: "async_launched"` / `isAsync: true`) and stamps it on that tool result; the session
+  layer also reads the launch input `run_in_background: true`. The receipt no longer settles the
+  provider-native row: it stays `running`/`working`. claude-agent-acp holds the prompt response
+  until every background subagent of the turn has settled and reports each outcome only to the
+  model, so the turn's non-canceled `done` (handled on the persistence path, before turn
+  settlement) completes those rows with `result: null`. Canceled turns, parent stops and boot
+  recovery still settle them `interrupted`. Foreground calls keep settling on their result.
+  Codex's own collab subagents are still not recorded as provider-native rows (unchanged).
+- Native tools, CLI, HTTP/UDS: `compozy__subagent_status`, `compozy session subagents`, and the
+  subagent routes keep their shapes; background provider-native rows now read `running` until the
+  turn ends and then `completed` without a result. The `subagent.settled` hook fires at that later
+  point with the same payload shape. Session events gain an optional `provider_tool_async` field on
+  the launch result (additive, omitted otherwise).
+- Persisted state (SD-013): no SQLite schema change or migration. Rows written before this change
+  that settled on a launch receipt keep their recorded status and result; they are settled history
+  and are not rewritten from prose. The event-ledger field is additive and older readers ignore it.
+- Web: the composer toolbar adds `SessionComposerSubagents` after the context ring and before the
+  attach button — a quiet icon while nothing runs, the subagent avatar's live dot plus the live
+  count while subagents work — and a `@compozy/ui` Popover that hosts the inspector's roster rows
+  (`SubagentRoster`, extracted from the inspector section and shared). The inspector section stays:
+  the inspector is closed by default, and the sidebar chip and transcript group "and N more" land on
+  it. The roster hook gains `coldRead` so an always-mounted host reads only the stream roster until
+  the session reports subagents or the popover opens.
+- Workspace/profile isolation: unchanged; rows stay scoped to their parent session and workspace.
+- Official skill and docs: `skills/compozy/references/native-tools.md`, the site subagents guide,
+  `COPY.md` Subagent Terms, and QA scenarios `ET-web-native-subagent` and `ET-web-subagent-card`
+  co-ship. Automated owners: `TestClaudeAgentSubagentContract`, `TestNativeSubagentEventFromStored`,
+  `TestSubagentNativeLifecycle`, IT-020 `TestSubagentNativeDaemonIntegration`, and the
+  `SubagentComposerControl` and composer-placement web tests.

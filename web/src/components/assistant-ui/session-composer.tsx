@@ -92,6 +92,8 @@ export interface SessionComposerProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  /** After the context ring, before the attach button: this session's subagents. */
+  subagentControl?: ReactNode;
   promptImageCapability?: SessionPromptCapability;
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
@@ -255,6 +257,7 @@ function SessionComposerControls() {
       composerAttachmentCount={state.composerAttachmentCount}
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
+      subagentControl={meta.subagentControl}
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }

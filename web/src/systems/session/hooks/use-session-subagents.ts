@@ -22,6 +22,12 @@ export interface SessionSubagentsOptions {
    * set; a five-row preview reads one page.
    */
   allPages?: boolean;
+  /**
+   * Fall back to the paged list route while the stream roster is not live.
+   * False reads only the stream roster: a host that is always mounted reads
+   * the list once the session reports subagents or the operator asks.
+   */
+  coldRead?: boolean;
 }
 
 /**
@@ -65,17 +71,17 @@ function useLiveSubagentRoster(
 export function useSessionSubagents(
   workspaceId: string,
   sessionId: string,
-  { enabled = true, allPages = true }: SessionSubagentsOptions = {}
+  { enabled = true, allPages = true, coldRead = true }: SessionSubagentsOptions = {}
 ): SessionSubagentsModel {
   const queryClient = useQueryClient();
   const scoped = enabled && workspaceId !== "" && sessionId !== "";
   const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
   const query = useInfiniteQuery({
     ...sessionSubagentsOptions(workspaceId, sessionId),
-    enabled: scoped && live === null,
+    enabled: scoped && coldRead && live === null,
   });
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
-  const walk = allPages && live === null;
+  const walk = allPages && coldRead && live === null;
   useEffect(() => {
     if (walk && hasNextPage && !isFetchingNextPage) void fetchNextPage().catch(() => undefined);
   }, [walk, hasNextPage, isFetchingNextPage, fetchNextPage]);
