@@ -88,7 +88,6 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		h.respondError(c, StatusForSessionError(err), err)
 		return nil, false
 	}
-	h.acknowledgeSessionReply(c.Request.Context(), origin, sessionID)
 	return &PromptDispatch{sessionID: sessionID, result: result, cancelDelivery: cancelDelivery}, true
 }
 

@@ -38,6 +38,9 @@ type promptRequest struct {
 	supersede bool
 	// batch carries the queued entries dispatched in the same turn after this request's own input.
 	batch []queuedInput
+	// batchDropped reports a batched entry that left the batch before the turn started and went back
+	// to the queue on its own.
+	batchDropped func(entryID string)
 }
 
 func (m *Manager) recordPromptInputEvent(

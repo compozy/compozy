@@ -20,8 +20,6 @@ const (
 	ReplyOutcomeUnknown   = "unknown"
 	// ReplyOutcomeExpired reports an armed watch released by its TTL before the target answered.
 	ReplyOutcomeExpired = "expired"
-	// ReplyAbandonAnswered releases a watch whose target answered it explicitly with in_reply_to.
-	ReplyAbandonAnswered = "answered"
 )
 
 // DBTX allows registration to join the admission owner's transaction.

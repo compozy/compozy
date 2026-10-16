@@ -67,13 +67,16 @@ include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `ag
 delivery modes and daemon restarts. It cannot be supplied through a request body. HTTP and operator
 prompts remain unattributed operator input.
 
-`compozy session prompt` run inside a managed session sends the daemon-issued `COMPOZY_SESSION_ID` and
-`COMPOZY_AGENT` identity, so the message carries that session's origin exactly like the native tool:
-the receiver sees who sent it and can reply. Pass `--from-session <id>` to name a session explicitly,
-or `--from-session none` to send as operator input. Outside a managed session nothing is stamped
-unless `--from-session` is given, and the daemon validates the named session like any agent identity.
-An origin-stamped CLI prompt follows the same self-target, hop, and rate rules as the native tool.
-`--steer` keeps sending operator input.
+`compozy session prompt` sends operator input unless you opt in. Pass `--from-session auto` inside a
+managed session to send with the daemon-issued `COMPOZY_SESSION_ID` and `COMPOZY_AGENT` identity, so
+the message carries that session's origin exactly like the native tool: the receiver sees who sent it
+and can reply. Pass `--from-session <id>` to name a session explicitly. Without the flag, a prompt run
+inside a managed session stays operator input and prints a one-line hint on stderr; sending as the
+session becomes the default in a later release. The daemon validates the named session like any agent
+identity, but the identity is a local, trusted session-ID header: it does not protect against a local
+operator who names another session. An origin-stamped CLI prompt follows the same self-target, hop,
+rate, and workspace rules as the native tool, and loses operator-only behavior (interrupt, slash
+commands, operator priority). `--steer` keeps sending operator input.
 
 The receiving provider sees a one-line sender header followed by the message. The header does not
 become stored message text. Without a reply watch, it tells the recipient to answer by calling
@@ -83,9 +86,10 @@ Changing that flag on a retry conflicts, as does retrying another sender's messa
 rename preserves the original admission.
 
 To answer a specific message, pass its message ID as `in_reply_to` (`--in-reply-to` on the CLI). It is
-carried in the origin, so the receiver's card can link the answer to the original. If the original
-sender armed a reply watch for that message, the explicit answer releases the watch, so the sender is
-woken once with your message instead of twice. An armed watch waits for as long as the target works;
+carried in the origin, so the receiver's card can link the answer to the original. An explicit answer
+never releases the original sender's reply watch: an early "ack, starting" must not cancel the
+completion wake, so a sender that asked for `notify_on_complete` still gets the final answer when your
+turn ends. An armed watch waits for as long as the target works;
 set `session.messaging.reply_watch_ttl` to expire unanswered watches with the `expired` outcome
 (disabled by default).
 
@@ -103,7 +107,9 @@ The hop counts forwarding depth. A message forwarded to a session that is not dr
 turn takes the turn's highest accepted hop plus one; steer also raises that value before provider
 delivery. A message answering the session that started or joined your current turn (its message or
 its reply wake), or one sent with an `in_reply_to` that names a message that session sent you, keeps
-the turn's hop. A plain conversation between two sessions therefore stays at hop 1. A ninth forwarding
+the turn's hop. A reply wake carries the hop you had when you sent the message, so an orchestrator
+that dispatches the next child after each completion stays at hop 1 however many stages it runs. A
+plain conversation between two sessions therefore stays at hop 1. A ninth forwarding
 hop returns `message_hop_limit`: ask the operator to continue in a fresh turn.
 
 Each sender→target pair has a rate budget, `session.messaging.rate_limit_messages` per

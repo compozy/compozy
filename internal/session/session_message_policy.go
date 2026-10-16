@@ -163,17 +163,3 @@ func (m *Manager) checkSessionMessageBudget(ctx context.Context, sender, target 
 		TargetSessionID: target, Limit: cfg.RateLimitMessages, Window: cfg.RateLimitWindow, RetryAfter: retryAfter,
 	}
 }
-
-// AcknowledgeSessionReply releases the reply watch an explicit in_reply_to answer satisfies, so the
-// original sender is not woken a second time with the same turn's final text.
-func (m *Manager) AcknowledgeSessionReply(ctx context.Context, origin *acp.PromptOriginMeta, target string) {
-	origin = acp.ClonePromptOriginMeta(origin)
-	if origin == nil || origin.InReplyTo == "" {
-		return
-	}
-	service, ok := m.ReplyWatches().(*replyWatchService)
-	if !ok || service == nil {
-		return
-	}
-	service.answer(ctx, origin.SessionID, strings.TrimSpace(target), origin.InReplyTo)
-}

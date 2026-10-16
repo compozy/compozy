@@ -82,9 +82,10 @@ Busy-target policy regression (#760)
     the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
     that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, other
     sends and sessions are unaffected; `-1` disables the budget.
-15. CLI origin: inside a managed session run `compozy session prompt <id> "hi"`; the receiver sees A as
-    sender. `--from-session none` sends operator input, `--in-reply-to` links the card, `--supersede`
-    replaces the older queued prompt.
+15. CLI origin: inside a managed session run `compozy session prompt <id> "hi"`; it stays operator
+    input and stderr prints the `--from-session auto` hint. With `--from-session auto` the receiver sees
+    A as sender, `--in-reply-to` links the card, and `--supersede` replaces the older queued prompt.
+    `--from-session auto` outside a managed session is refused.
 16. Web: the queue strip shows "From {title}" with Steer and Remove; consecutive inbound cards from one
     sender collapse into "{title} · N messages"; a reply shows the "In reply" chip; a session in
     Needs attention shows its reason.

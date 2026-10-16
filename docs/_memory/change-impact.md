@@ -3322,11 +3322,16 @@ Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
   and guidance that taught the failing paths. The queue is now operator-first with separate caps and a
   real `queue_position`; agent steer never interrupts; `supersede`, batched dispatch (up to 8) and
   promotion to steer after `queue_promote_after` apply; hops count forwarding only and a per sender→target
-  rate budget replaces depth as the flood guard; `in_reply_to` and a reply-watch TTL make replies explicit.
+  rate budget replaces depth as the flood guard, and a reply wake restores the sender's own hop so
+  sequential orchestration never accumulates; `in_reply_to` and a reply-watch TTL make replies explicit,
+  and an explicit answer never releases the sender's reply watch (the completion wake still fires).
 - **Native tools / CLI / HTTP / UDS:** `compozy__session_prompt` gains `supersede` and `in_reply_to`,
   and its descriptor text explains `mode` and `notify_on_complete` (catalog fixture updated). New typed
-  error `message_rate_limited` (HTTP 429). `compozy session prompt` stamps origin inside a managed
-  session and gains `--from-session`, `--in-reply-to`, `--supersede`. Operator promote of agent rows is
+  error `message_rate_limited` (HTTP 429). `compozy session prompt` gains `--from-session`,
+  `--in-reply-to`, `--supersede`; origin stamping is opt-in this release (`--from-session auto` or an
+  id; inside a managed session without the flag it prints a stderr hint and stays operator input) so
+  existing scripts keep interrupt, slash commands and operator priority. Identity is a local trusted
+  session-ID header: no spoof protection beyond local operator trust. Operator promote of agent rows is
   allowed (edit still `input_agent_authored`). OpenAPI and generated web types co-ship. All additive.
 - **Extensibility / hooks / config:** new `[session.messaging]` keys `rate_limit_messages`,
   `rate_limit_window`, `reply_watch_ttl` (opt-in, default never) and `queue_promote_after`; no hook,

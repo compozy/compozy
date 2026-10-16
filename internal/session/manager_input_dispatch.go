@@ -59,25 +59,39 @@ func queuedInputFromEntry(entry *store.SessionInputQueueEntry) queuedInput {
 // would otherwise recurse through Release without end.
 const maxQueuedInputSelectAttempts = 3
 
-// queuedInputReselectDelay spaces the one deferred retry after the selection bound, so a queue that
-// kept changing is picked up again even when no turn end or new enqueue follows.
-const queuedInputReselectDelay = time.Second
+// queuedInputReselectDelay is the first pause before re-selecting after the selection bound; each further
+// bounded pass doubles it up to queuedInputReselectMaxDelay, so a queue that keeps changing is picked up
+// again even when no turn end or new enqueue follows, without a busy loop.
+const (
+	queuedInputReselectDelay    = time.Second
+	queuedInputReselectMaxDelay = 30 * time.Second
+)
 
 func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 	if m.selectNextQueuedInputPrompt(sessionID) {
-		// The bound only paces selection; the queue stays live. One deferred pass re-kicks it, and
-		// any later turn end or enqueue does the same.
-		m.startTrackedPromptTask(func() {
-			timer := time.NewTimer(queuedInputReselectDelay)
-			defer timer.Stop()
+		m.scheduleQueuedInputReselect(sessionID)
+	}
+}
+
+// scheduleQueuedInputReselect re-kicks a queue whose selection stopped at its bound. It keeps retrying with
+// bounded backoff while selection still hits the bound (entries pending, session idle) and stops once a
+// pass dispatches, finds nothing to start, or the manager shuts down. Any turn end or enqueue also kicks.
+func (m *Manager) scheduleQueuedInputReselect(sessionID string) {
+	m.startTrackedPromptTask(func() {
+		ctx := m.fallbackLifecycleContext()
+		for delay := queuedInputReselectDelay; ; delay = min(2*delay, queuedInputReselectMaxDelay) {
+			timer := time.NewTimer(delay)
 			select {
-			case <-m.fallbackLifecycleContext().Done():
+			case <-ctx.Done():
+				timer.Stop()
 				return
 			case <-timer.C:
 			}
-			m.selectNextQueuedInputPrompt(sessionID)
-		})
-	}
+			if !m.selectNextQueuedInputPrompt(sessionID) {
+				return
+			}
+		}
+	})
 }
 
 // selectNextQueuedInputPrompt reports whether selection stopped at its bound with the queue still
@@ -188,7 +202,10 @@ func (m *Manager) dispatchQueuedInput(
 	// Freeze the claimed batch, then release the parent lock before submission: failed
 	// provider setup can synchronously publish a turn-settled lifecycle edge.
 	unlock()
+	dropped := map[string]struct{}{}
+	req.batchDropped = func(entryID string) { dropped[entryID] = struct{}{} }
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
+	entry.batch = withoutDroppedQueuedInputs(entry.batch, dropped)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
@@ -208,6 +225,20 @@ func (m *Manager) dispatchQueuedInput(
 			}
 		}
 	})
+}
+
+// withoutDroppedQueuedInputs keeps the batched entries the head's turn actually carries.
+func withoutDroppedQueuedInputs(batch []queuedInput, dropped map[string]struct{}) []queuedInput {
+	if len(dropped) == 0 {
+		return batch
+	}
+	kept := make([]queuedInput, 0, len(batch))
+	for index := range batch {
+		if _, gone := dropped[batch[index].id]; !gone {
+			kept = append(kept, batch[index])
+		}
+	}
+	return kept
 }
 
 func (m *Manager) newQueuedInputPromptRequest(
@@ -319,14 +350,18 @@ func (m *Manager) acceptQueuedInputDispatch(
 
 func (m *Manager) acceptQueuedInputEntry(session *Session, target string, entry queuedInput, turnID string) {
 	if err := m.markQueuedInputSent(target, entry.id, turnID); err != nil {
-		// The turn already started with this input, so the entry must not
-		// become failed: a failed row invites a retry that duplicates the turn.
-		// The lease stays dispatching until boot recovery settles it.
-		m.sessionLogger(session).Error(
-			"session: mark queued input sent failed after dispatch", "entry_id", entry.id, "error", err,
+		// The turn already started with this input, so the entry must not become failed: a failed row
+		// invites a retry that duplicates the turn. The receipt is retried in the background instead.
+		m.sessionLogger(session).Warn(
+			"session: mark queued input sent failed after dispatch; retrying", "entry_id", entry.id, "error", err,
 		)
+		m.retryQueuedInputSent(session, target, entry, turnID)
 		return
 	}
+	m.emitQueuedInputAccepted(session, entry, turnID)
+}
+
+func (m *Manager) emitQueuedInputAccepted(session *Session, entry queuedInput, turnID string) {
 	evidence := queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0)
 	evidence["message_id"] = entry.messageID
 	evidence["authored_text"] = entry.text
@@ -342,8 +377,14 @@ func (m *Manager) acceptQueuedInputEntry(session *Session, target string, entry 
 	)
 }
 
-// queuedInputSentAttempts bounds retries of the idempotent sent receipt.
+// queuedInputSentAttempts bounds the synchronous retries of the idempotent sent receipt.
 const queuedInputSentAttempts = 3
+
+// queuedInputSentRetryDelay and queuedInputSentRetryMaxDelay pace the background sent-receipt retry.
+const (
+	queuedInputSentRetryDelay    = 100 * time.Millisecond
+	queuedInputSentRetryMaxDelay = 5 * time.Second
+)
 
 func (m *Manager) markQueuedInputSent(target, entryID, turnID string) error {
 	var err error
@@ -353,4 +394,36 @@ func (m *Manager) markQueuedInputSent(target, entryID, turnID string) error {
 		}
 	}
 	return err
+}
+
+// retryQueuedInputSent keeps retrying the idempotent sent receipt of a started entry with bounded backoff
+// until it lands, so the row stops holding a cap slot, blocking promotions, and reading as sending. It
+// gives up after the first failed attempt once the consuming turn settled, or on shutdown; boot recovery
+// settles a row still dispatching then.
+func (m *Manager) retryQueuedInputSent(session *Session, target string, entry queuedInput, turnID string) {
+	m.startTrackedPromptTask(func() {
+		ctx := m.fallbackLifecycleContext()
+		for delay := queuedInputSentRetryDelay; ; delay = min(2*delay, queuedInputSentRetryMaxDelay) {
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			err := m.inputQueue.MarkSentInTurn(ctx, target, entry.id, turnID)
+			if err == nil {
+				m.emitQueuedInputAccepted(session, entry, turnID)
+				m.startNextQueuedInputPrompt(target)
+				return
+			}
+			if session.CurrentTurnID() != turnID {
+				m.sessionLogger(session).Error(
+					"session: mark queued input sent failed after its turn settled; boot recovery settles it",
+					"entry_id", entry.id, "error", err,
+				)
+				return
+			}
+		}
+	})
 }

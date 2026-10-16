@@ -310,11 +310,14 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
   );
 
 -- name: RevertPromotedAgentSessionInput :execrows
--- A promotion whose live delivery could not start returns the message to after-turn delivery instead of
--- canceling it.
+-- A promotion whose live delivery could not start, or whose injection fell back, returns the message to
+-- plain after-turn delivery instead of canceling it, so it never holds the sender's queued-steer slot.
 UPDATE session_input_queue
 SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, dispatchable = 1, target_turn_id = '',
     status = 'queued', dispatch_started_at = NULL, updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
   AND origin_class = 'agent' AND owner_kind IS NULL AND mode = 'steer'
-  AND status IN ('queued', 'dispatching') AND steer_delivery IS NULL;
+  AND (
+    (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
+    OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')
+  );

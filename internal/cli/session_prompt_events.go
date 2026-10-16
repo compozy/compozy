@@ -97,12 +97,9 @@ func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandF
   compozy session input list sess_1234
   compozy session input cancel sess_1234 queue_entry_1234
 
-  # From inside a managed session, the receiver sees this session as the sender;
+  # From inside a managed session, send as this session so the receiver sees the sender;
   # answer one of its messages explicitly with --in-reply-to
-  compozy session prompt sess_1234 "Plan approved." --in-reply-to msg_5678
-
-  # Send from inside a managed session as plain operator input
-  compozy session prompt sess_1234 "Run the next check." --from-session none
+  compozy session prompt sess_1234 "Plan approved." --from-session auto --in-reply-to msg_5678
 
   # Retry the same submission with its original identities
   compozy session prompt sess_1234 "Run the next check." \
@@ -153,7 +150,7 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 			return errors.New("cli: runtime selection applies only to submitted prompts")
 		}
 		if !flags.steer {
-			flags.credentials, err = flags.originCredentials(cmd.Context(), deps, client)
+			flags.credentials, err = flags.originCredentials(cmd, deps, client)
 			if err != nil {
 				return err
 			}

@@ -240,6 +240,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		delivery.cancel()
 		return nil, err
 	}
+	m.recordBatchedPromptInputs(ctx, session, dispatchInput.batched)
 	m.consumeReservedPromptContext(session, req, replayBlock)
 
 	lifecycleCtx := m.fallbackLifecycleContext()
@@ -394,9 +395,7 @@ func (m *Manager) prepareReservedPromptInput(
 	if err := m.recordPromptInputEvent(ctx, session, req); err != nil {
 		return "", "", err
 	}
-	if err := m.recordBatchedPromptInputs(ctx, session, input.batched); err != nil {
-		return "", "", err
-	}
+	raiseBatchedPromptHops(session, input.batched)
 	replayBlock := ""
 	if req.delivery != PromptDeliveryMaintenance {
 		replayBlock = m.pendingResumeReplay(session.ID)
