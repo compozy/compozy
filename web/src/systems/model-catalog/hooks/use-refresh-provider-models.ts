@@ -13,7 +13,10 @@ export function useRefreshProviderModels() {
       if (!providerId) {
         return queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
       }
-      return queryClient.invalidateQueries({ queryKey: modelCatalogKeys.providerRoot(providerId) });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: modelCatalogKeys.providerRoot(providerId) }),
+        queryClient.invalidateQueries({ queryKey: modelCatalogKeys.sourceStatus }),
+      ]);
     },
   });
 }

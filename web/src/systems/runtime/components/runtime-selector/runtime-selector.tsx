@@ -38,6 +38,7 @@ export interface RuntimeSelectorProps {
   refreshing?: boolean;
   /** Rendered under the search header (stale/error/count status). */
   catalogStatus?: ReactNode;
+  providerCatalogIssues?: Record<string, string>;
   /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
   allowCustomProvider?: boolean;
   onOpenProviderSettings?: () => void;
@@ -70,6 +71,7 @@ export function RuntimeSelector({
   onRefreshCatalog,
   refreshing = false,
   catalogStatus,
+  providerCatalogIssues = {},
   allowCustomProvider = false,
   onOpenProviderSettings,
   speed,
@@ -188,6 +190,19 @@ export function RuntimeSelector({
               {catalogStatus}
             </div>
           ) : null}
+          {providers.map(provider =>
+            providerCatalogIssues[provider.id] &&
+            (controller.railFilter === "all" ||
+              controller.railFilter === "fav" ||
+              controller.railFilter === provider.id ||
+              controller.listModel.searching) ? (
+              <p key={provider.id} role="status" className="px-3 py-1.5 text-form-hint text-subtle">
+                <span className="font-medium">{provider.name}</span>
+                {" · "}
+                {providerCatalogIssues[provider.id]}
+              </p>
+            ) : null
+          )}
           <ModelList
             listId={popup.listId}
             optionId={popup.optionId}

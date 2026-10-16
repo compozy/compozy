@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { allModelsListOptions } from "../lib/query-options";
+import { ModelCatalogApiError } from "../adapters/model-catalog-api";
+import { modelSourceFailureMessage, modelRefreshErrorMessage } from "../lib/model-source-failure";
+import { allModelsListOptions, modelSourceStatusOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
-import type { AllModelsRefreshResponse, ProviderModelPayload } from "../types";
+import type { ProviderModelPayload } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
 import { useRefreshAllModels } from "./use-refresh-all-models";
 import type { RuntimeModelOption } from "@/systems/runtime";
@@ -32,28 +34,7 @@ export interface RuntimeModelCatalog {
   refresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
-}
-
-/**
- * The aggregate refresh answers 200 when any source succeeds, so a provider whose
- * discovery failed is reported only in `sources`. Surface the first failure among
- * the surface's signed-in providers instead of treating the refresh as clean.
- */
-function describeFailedRefreshSource(
-  response: AllModelsRefreshResponse | undefined,
-  allowed: ReadonlyMap<string, boolean>
-): string | null {
-  const failed = response?.sources.find(
-    source =>
-      source.refresh_state === "failed" &&
-      allowed.has(source.provider_id) &&
-      !allowed.get(source.provider_id)
-  );
-  if (!failed) return null;
-  const reason = failed.last_error?.trim() || response?.error?.trim();
-  return reason
-    ? `Couldn't refresh ${failed.provider_id} models: ${reason}`
-    : `Couldn't refresh ${failed.provider_id} models.`;
+  providerIssues: Record<string, string>;
 }
 
 function describeCatalogError(error: unknown): string {
@@ -79,6 +60,7 @@ export function useRuntimeModelCatalog(
   const { enabled = true, includeStale = true } = options;
   const query = useQuery(allModelsListOptions({ view: "all", includeStale, enabled }));
   const refreshMutation = useRefreshAllModels();
+  const sourceStatus = useQuery(modelSourceStatusOptions(enabled));
 
   // Ordered allow-list: preserves the surface's provider order and carries each
   // provider's auth state so rows for a signed-out provider render disabled.
@@ -120,6 +102,32 @@ export function useRuntimeModelCatalog(
   // while the daemon's cached source status (even a failed one) is within its TTL.
   const refresh = () => refreshMutation.mutate({ force: true });
 
+  const refreshFailure = refreshMutation.isIdle
+    ? missingAllowedProvider
+      ? initialRefresh.error
+      : null
+    : refreshMutation.error;
+  const failureSources =
+    refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : [];
+  const failureIsCurrent =
+    refreshFailure instanceof ModelCatalogApiError &&
+    refreshFailure.observedAt >= sourceStatus.dataUpdatedAt;
+  const sources =
+    sourceStatus.isError && failureIsCurrent && failureSources.length > 0
+      ? failureSources
+      : (sourceStatus.data?.sources ?? refreshMutation.data?.sources ?? failureSources);
+  const providerIssues: Record<string, string> = {};
+  const displayedSources = sources.filter(source => allowed.has(source.provider_id));
+  for (const source of displayedSources) {
+    const message = modelSourceFailureMessage(source);
+    if (
+      message &&
+      (!providerIssues[source.provider_id] || source.failure_reason === "auth_required")
+    ) {
+      providerIssues[source.provider_id] = message;
+    }
+  }
+
   return {
     models,
     payloadsByProvider,
@@ -129,11 +137,7 @@ export function useRuntimeModelCatalog(
     stale,
     refresh,
     refreshing: refreshMutation.isPending || initialRefresh.isFetching,
-    refreshError: refreshMutation.error
-      ? describeCatalogError(refreshMutation.error)
-      : (describeFailedRefreshSource(refreshMutation.data, allowed) ??
-        (missingAllowedProvider && initialRefresh.error
-          ? describeCatalogError(initialRefresh.error)
-          : null)),
+    providerIssues,
+    refreshError: modelRefreshErrorMessage(refreshFailure, displayedSources),
   };
 }

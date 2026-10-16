@@ -17,6 +17,7 @@ export const modelCatalogKeys = {
       sourceId ?? "",
       Boolean(includeStale),
     ] as const,
+  sourceStatus: ["model-catalog", "sources", "status"] as const,
   providers: () => [...modelCatalogKeys.all, "providers"] as const,
   providerRoot: (providerId: string) =>
     [...modelCatalogKeys.providers(), providerId.trim()] as const,

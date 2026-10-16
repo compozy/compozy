@@ -18,7 +18,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
       <p className="px-3 py-2 text-form-hint text-danger" role="status">
         {runtime.catalog.refreshError ?? runtime.catalog.error}
       </p>
-    ) : runtime.catalog.stale ? (
+    ) : runtime.catalog.stale && Object.keys(runtime.catalog.providerIssues).length === 0 ? (
       <p className="px-3 py-2 text-form-hint text-warning" role="status">
         Model catalog may be out of date.
       </p>
@@ -32,6 +32,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
       <RuntimeSelector
         ariaLabelledby="session-prompt-runtime-label"
         catalogStatus={catalogStatus}
+        providerCatalogIssues={runtime.catalog.providerIssues}
         disabled={disabled}
         loading={runtime.catalog.loading}
         models={runtime.catalog.models}

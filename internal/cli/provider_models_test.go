@@ -287,6 +287,38 @@ func TestProviderModelsCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should separate sign-in guidance from diagnostic status", func(t *testing.T) {
+		t.Parallel()
+		source := ProviderModelSourceStatusRecord{
+			ProviderID:    "cursor",
+			SourceID:      "provider_live:cursor",
+			RefreshState:  "failed",
+			FailureReason: "auth_required",
+			LastError:     "discovery command failed: exit status 1: Authentication required",
+		}
+		client := &stubClient{providerModelStatusFn: func(context.Context, string) (ProviderModelStatusRecord, error) {
+			return ProviderModelStatusRecord{Sources: []ProviderModelSourceStatusRecord{source}}, nil
+		}}
+		human, _, err := executeRootCommand(t, newTestDeps(t, client), "provider", "models", "status", "cursor")
+		if err != nil || !strings.Contains(human, "Sign in to update") || strings.Contains(human, "exit status") {
+			t.Fatalf("human status = %q, error = %v", human, err)
+		}
+		structured, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"provider",
+			"models",
+			"status",
+			"cursor",
+			"-o",
+			"json",
+		)
+		if err != nil || !strings.Contains(structured, "auth_required") ||
+			!strings.Contains(structured, "exit status") {
+			t.Fatalf("structured status = %q, error = %v", structured, err)
+		}
+	})
+
 	t.Run("Should show status for provider", func(t *testing.T) {
 		t.Parallel()
 
