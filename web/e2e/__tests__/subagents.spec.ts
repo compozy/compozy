@@ -209,7 +209,9 @@ test("E2E-004: a card opens its child here with the Subagent of divider, Open pa
   await expect(review).toBeVisible();
   const childId = await childSessionId(scene, reviewTitle);
 
-  await review.click();
+  // The API can know the child before the rendered roster does. Wait for the
+  // card's drill-in control; its queued placeholder is visible but not interactive.
+  await review.getByRole("button", { name: `Open ${reviewTitle}`, exact: true }).click();
   const child = sessionWindow(appPage, childId);
   await expect(child).toBeVisible();
   const divider = child.locator('[data-testid="session-origin-divider"][data-kind="subagent"]');
@@ -220,7 +222,9 @@ test("E2E-004: a card opens its child here with the Subagent of divider, Open pa
   await expect(scene.window).toBeVisible();
 
   await openFolds(scene);
-  await card(scene, reviewTitle).click({ modifiers: ["ControlOrMeta"] });
+  await card(scene, reviewTitle)
+    .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
+    .click({ modifiers: ["ControlOrMeta"] });
   await expect(sessionWindow(appPage, childId)).toBeVisible();
   await expect(scene.window).toBeVisible();
 });
