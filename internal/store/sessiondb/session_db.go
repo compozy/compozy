@@ -69,6 +69,8 @@ type SessionDB struct {
 
 	// transcriptFolds is touched only by the writer goroutine.
 	transcriptFolds transcriptFoldCache
+	// walTruncateBytes overrides the live WAL truncation bound when positive.
+	walTruncateBytes atomic.Int64
 }
 
 var _ store.EventRecorder = (*SessionDB)(nil)

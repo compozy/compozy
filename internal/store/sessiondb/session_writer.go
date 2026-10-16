@@ -2,23 +2,32 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPassiveCheckpointEvery = 128
+const (
+	sessionPassiveCheckpointEvery = 128
+	// sessionWALTruncateBytes bounds a live session WAL. PASSIVE checkpoints never shrink the
+	// file, and frequent readers keep SQLite from restarting it, so it otherwise grows for the
+	// whole session.
+	sessionWALTruncateBytes = 16 << 20
+	// sessionWALTruncateWait caps how long readers may delay the writer during a truncation.
+	sessionWALTruncateWait = 200 * time.Millisecond
+)
 
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	var pending *sessionWriteRequest
 	for {
 		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
-			if err := s.passiveCheckpoint(s.writerCtx); err != nil {
-				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
-			}
+			s.checkpointWAL()
 			writesSinceCheckpoint = 0
 		}
 		if pending != nil {
@@ -119,7 +128,45 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 	}
 }
 
-func (s *SessionDB) passiveCheckpoint(ctx context.Context) (err error) {
+func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
+	return s.checkpointWithLease(ctx, store.CheckpointPassiveConnection)
+}
+
+// checkpointWAL backfills the WAL and truncates it once it outgrows the live-session bound.
+// Readers that outlast the bounded wait defer truncation to the next checkpoint cycle.
+func (s *SessionDB) checkpointWAL() {
+	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
+		slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+		return
+	}
+	info, err := os.Stat(s.path + "-wal")
+	if err != nil || info.Size() < s.walTruncateLimit() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALTruncateWait)
+	defer cancel()
+	err = s.checkpointWithLease(ctx, store.CheckpointTruncateConnection)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.DeadlineExceeded):
+		slog.Default().DebugContext(s.writerCtx, "store: session wal truncation deferred by readers",
+			"wal_bytes", info.Size())
+	default:
+		slog.Default().WarnContext(s.writerCtx, "store: truncate session wal failed", "error", err)
+	}
+}
+
+func (s *SessionDB) walTruncateLimit() int64 {
+	if limit := s.walTruncateBytes.Load(); limit > 0 {
+		return limit
+	}
+	return sessionWALTruncateBytes
+}
+
+func (s *SessionDB) checkpointWithLease(
+	ctx context.Context,
+	checkpoint func(context.Context, *sql.Conn) error,
+) (err error) {
 	// Acquire the connection before the family lease: opening a pool connection
 	// itself takes that lease to verify the immutable database identity.
 	connection, err := s.db.Conn(ctx)
@@ -136,5 +183,5 @@ func (s *SessionDB) passiveCheckpoint(ctx context.Context) (err error) {
 		return err
 	}
 	defer lease.Release()
-	return store.CheckpointPassiveConnection(ctx, connection)
+	return checkpoint(ctx, connection)
 }

@@ -265,6 +265,59 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			t.Fatalf("len(events) = %d, want %d", got, want)
 		}
 	})
+
+	// Invariant: a live session's WAL stays bounded while readers keep polling it.
+	t.Run("Should truncate an oversized live WAL while a reader polls", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sessionDB, err := OpenSessionDB(ctx, testSessionDBOwner("sess-wal-bound"), path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sessionDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		const limit = 256 << 10
+		sessionDB.walTruncateBytes.Store(limit)
+		readerCtx, stopReader := context.WithCancel(ctx)
+		readerDone := make(chan struct{})
+		go func() {
+			defer close(readerDone)
+			for readerCtx.Err() == nil {
+				_, _ = sessionDB.Query(readerCtx, EventQuery{Type: "usage"})
+			}
+		}()
+		payload := strings.Repeat("x", 2048)
+		var peak int64
+		// The writer checkpoints before the write that follows each full interval, so the final
+		// write lands in a WAL truncated just before it.
+		for idx := range 2*sessionPassiveCheckpointEvery + 1 {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    fmt.Sprintf("turn-%d", idx),
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"text":%q}`, payload),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", idx, err)
+			}
+			if info, err := os.Stat(path + "-wal"); err == nil {
+				peak = max(peak, info.Size())
+			}
+		}
+		stopReader()
+		<-readerDone
+		info, err := os.Stat(path + "-wal")
+		if err != nil {
+			t.Fatalf("Stat(wal) error = %v", err)
+		}
+		if peak < limit || info.Size() >= limit {
+			t.Fatalf("WAL peak/final = %d/%d bytes, want truncation below %d after exceeding it", peak, info.Size(), limit)
+		}
+	})
 }
 
 func TestSessionDBAppendEventIfAbsent(t *testing.T) {
