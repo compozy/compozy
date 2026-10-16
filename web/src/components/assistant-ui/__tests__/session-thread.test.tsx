@@ -6317,4 +6317,95 @@ describe("SessionThread session messages", () => {
       await screen.findByRole("article", { name: "Sent to Billing reviewer, dropped" })
     ).toBeInTheDocument();
   });
+
+  it("Should show the message a Codex send carried in its MCP call envelope (#742)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-codex-send",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-mcp.compozy-hosted-tools.compozy__session_prompt",
+                toolCallId: "exec-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: {
+                  server: "compozy-hosted-tools",
+                  tool: "compozy__session_prompt",
+                  arguments: { session_id: targetId, message: "PR opened and ready for review." },
+                },
+                output: { status: "queued" },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "exec-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-codex",
+                  mode: "queue",
+                  delivery: "after_turn",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+        ]),
+      },
+      clientWithPeers()
+    );
+    const card = await screen.findByRole("article", { name: "Sent to Billing reviewer" });
+    expect(within(card).getByText("PR opened and ready for review.")).toBeVisible();
+  });
+
+  it("Should draw one Sent to card for a call a queued prompt split across two messages (#742)", async () => {
+    // A prompt queued while the call streamed its arguments ends the first message; the call's
+    // later events and result land in the continuation, so both messages hold its part.
+    const send = (id: string, settled: boolean): SessionMessage =>
+      ({
+        id,
+        role: "assistant",
+        metadata: { turn_id: "turn-send" },
+        parts: [
+          {
+            type: "tool-compozy__session_prompt",
+            toolCallId: "call-send",
+            state: settled ? "output-available" : "input-available",
+            turnId: "turn-send",
+            input: { session_id: targetId, message: "Is the retry budget per request or per job?" },
+            ...(settled ? { output: { status: "accepted" } } : {}),
+          },
+          {
+            type: "data-compozy-session-message",
+            turnId: "turn-send",
+            data: {
+              tool_call_id: "call-send",
+              target_session_id: targetId,
+              target_workspace_id: fixtureWorkspaceId(),
+              message_id: "msg-retry-q",
+              mode: "queue",
+              ...(settled ? { reply_watch_id: "rw-6e2d81a0" } : {}),
+              state: settled ? "done" : "running",
+            },
+          },
+        ],
+      }) as unknown as SessionMessage;
+
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([send("turn-send", false), send("turn-send-2", true)]),
+      },
+      clientWithPeers()
+    );
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, waiting for reply" })
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("session-sent-message-row")).toHaveLength(1);
+  });
 });

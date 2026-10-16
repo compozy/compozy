@@ -148,6 +148,9 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 	}
 	modified := cmp.Or(info.ModTime(), h.StartedAt)
 	c.Header("Content-Security-Policy", productionContentSecurityPolicy)
+	if cacheControl := staticCacheControl(cleanAsset); cacheControl != "" {
+		c.Header("Cache-Control", cacheControl)
+	}
 
 	if seeker, ok := file.(io.ReadSeeker); ok {
 		http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, seeker)
@@ -160,6 +163,17 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 		return
 	}
 	http.ServeContent(c.Writer, c.Request, path.Base(asset), modified, bytes.NewReader(data))
+}
+
+// staticCacheControl makes clients revalidate the SPA shell and the unversioned public files
+// before reusing a cached copy. Without it a browser may keep a heuristically fresh index.html
+// across a runtime update and boot the previous release's bundle (#742). Vite fingerprints the
+// build output under assets/, so a new release requests new URLs there.
+func staticCacheControl(asset string) string {
+	if strings.HasPrefix(asset, "assets/") {
+		return ""
+	}
+	return "no-cache"
 }
 
 func normalizedRequestPath(rawPath string) string {

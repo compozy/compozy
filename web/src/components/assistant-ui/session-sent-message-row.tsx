@@ -1,3 +1,4 @@
+import { useAuiState } from "@assistant-ui/react";
 import { use } from "react";
 
 import { SessionSentCard } from "@/systems/session/components/session-messages/session-sent-card";
@@ -6,7 +7,9 @@ import { useSessionLabel } from "@/systems/session/components/session-messages/u
 import { useSessionMessageOpen } from "@/systems/session/components/session-messages/use-session-message-open";
 import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
 import {
+  sessionPromptMessageText,
   sessionReplyOutcomes,
+  sessionSentCardOwners,
   sessionSentMessagePart,
   type SessionSentCallState,
   type SessionSentMessagePart,
@@ -53,6 +56,7 @@ function callState(
  */
 export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow }) {
   const context = useSessionRuntimeRenderContext();
+  const messageId = useAuiState(state => state.message.id);
   // Outside a thread provider (a story, a nested host) no reply is loaded: waiting.
   const messages = use(SessionTranscriptMessagesContext) ?? NO_MESSAGES;
   const onOpen = useSessionMessageOpen();
@@ -64,8 +68,11 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
     agentName: null,
   });
   if (!part) return null;
+  // One card per call: a later message that also holds its part draws it (#742).
+  const owner = sessionSentCardOwners(messages).get(part.toolCallId);
+  if (owner !== undefined && owner !== messageId) return null;
   const tool = row.toolPart;
-  const message = tool ? (stringField(tool.args, "message") ?? "") : "";
+  const message = sessionPromptMessageText(tool?.args);
   const outcome = part.replyWatchId
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;

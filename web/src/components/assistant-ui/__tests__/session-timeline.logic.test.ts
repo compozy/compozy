@@ -1635,7 +1635,7 @@ describe("session timeline subagent cards", () => {
 function sessionMessagePart(
   id: string,
   toolCallId: string,
-  overrides: { state?: string; turnId?: string } = {}
+  overrides: { state?: string; turnId?: string; targetSessionId?: string } = {}
 ): SessionTimelinePart {
   return {
     kind: "data",
@@ -1643,7 +1643,7 @@ function sessionMessagePart(
     name: "data-compozy-session-message",
     data: {
       tool_call_id: toolCallId,
-      target_session_id: "sess-c03f9d61b2e84a07",
+      target_session_id: overrides.targetSessionId ?? "sess-c03f9d61b2e84a07",
       target_workspace_id: "ws_alpha",
       message_id: `msg-${id}`,
       mode: "queue",
@@ -1717,6 +1717,15 @@ describe("session timeline sent messages", () => {
 
   it("UT-065: Should leave a session_prompt call with no part as a tool row", () => {
     expect(deriveSessionRows([sessionPrompt(1)]).map(row => row.kind)).toEqual(["work"]);
+  });
+
+  it("Should keep the tool row and draw no raw data row for a part that names no target (#742)", () => {
+    // How an older daemon stored a settled Codex send: the part never named its target.
+    const rows = deriveSessionRows([
+      sessionPrompt(1),
+      sessionMessagePart("sm-1", "tool-call-1", { state: "running", targetSessionId: "" }),
+    ]);
+    expect(rows.map(row => row.kind)).toEqual(["work"]);
   });
 
   it("UT-065: Should keep the sent row visible when its settled turn folds", () => {

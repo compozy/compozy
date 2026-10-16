@@ -2741,3 +2741,29 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Issue 742 — Session message cards for real providers — 2026-10-16
+
+Owner: branch `fix/issue-742-session-message-cards`; issue #742 (regression of #722).
+`compozy__session_prompt` input, output, and errors are unchanged. Its transcript card part
+(`data-compozy-session-message`, `transcript.UISessionMessagePayload`) keeps its shape and now
+reads the recorded provider forms: Claude's streamed arguments and string `raw_output`, and
+Codex's MCP `{server, tool, arguments}` envelope with a result that names no tool. A part is
+projected only once the call names its target, so no part without `target_session_id` reaches
+clients. The composer prompt stream folds each turn's events through
+`transcript.SessionMessageCards`, matching the transcript entry.
+
+User state (SD-013): the materialized transcript projection moves from version 2 to 3. Opening a
+session database reprojects only the assistant entries that hold a `compozy__session_prompt` call,
+following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. As
+with #670, an older runtime treats a version 3 projection as incompatible (ahead failure, explicit).
+
+HTTP: the daemon serves the SPA shell and the unversioned public files with `Cache-Control:
+no-cache`; fingerprinted `assets/` keep their headers. Routes, DTOs, OpenAPI, CLI, config, hooks,
+extension contracts, and native tool descriptors are unchanged, so the official
+`skills/compozy/` and `packages/site` docs need no update. Desktop loads the shell with
+`pragma: no-cache`, so a shell cached by an older runtime is skipped after an update. Web never
+draws a raw data row for a session-message part it cannot name, and a call split across two
+assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
+upgrade runs per session database. QA owners: ET-web-session-message-card and
+APP-desktop-runtime-bundle-coherence.

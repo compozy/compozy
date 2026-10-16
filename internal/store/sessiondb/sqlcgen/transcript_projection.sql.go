@@ -541,6 +541,50 @@ func (q *Queries) ListTranscriptSearchCandidates(ctx context.Context, arg ListTr
 	return items, nil
 }
 
+const listTranscriptSessionPromptEventsForUpgrade = `-- name: ListTranscriptSessionPromptEventsForUpgrade :many
+SELECT sequence, transcript_entry_key
+FROM events
+WHERE sequence > ?1
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type = 'tool_call'
+  AND instr(content, 'compozy__session_prompt') > 0
+ORDER BY sequence ASC
+LIMIT ?2
+`
+
+type ListTranscriptSessionPromptEventsForUpgradeParams struct {
+	AfterSequence int64 `json:"after_sequence"`
+	RowLimit      int64 `json:"row_limit"`
+}
+
+type ListTranscriptSessionPromptEventsForUpgradeRow struct {
+	Sequence           int64  `json:"sequence"`
+	TranscriptEntryKey string `json:"transcript_entry_key"`
+}
+
+func (q *Queries) ListTranscriptSessionPromptEventsForUpgrade(ctx context.Context, arg ListTranscriptSessionPromptEventsForUpgradeParams) ([]ListTranscriptSessionPromptEventsForUpgradeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptSessionPromptEventsForUpgrade, arg.AfterSequence, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptSessionPromptEventsForUpgradeRow{}
+	for rows.Next() {
+		var i ListTranscriptSessionPromptEventsForUpgradeRow
+		if err := rows.Scan(&i.Sequence, &i.TranscriptEntryKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptTextEventsForUpgrade = `-- name: ListTranscriptTextEventsForUpgrade :many
 SELECT sequence, transcript_entry_key, content
 FROM events

@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
+func TestTranscriptProjectionUpgrade(t *testing.T) {
 	t.Parallel()
 	t.Run("Should repair affected entries without changing unrelated persisted state", func(t *testing.T) {
 		t.Parallel()
@@ -173,7 +173,7 @@ func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
 		}
 		blocked, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
-		upgradeErr := upgradeTranscriptWhitespaceProjection(blocked, db.db, db.SessionID())
+		upgradeErr := upgradeTranscriptProjection(blocked, db.db, db.SessionID())
 		if _, err := holder.ExecContext(ctx, "ROLLBACK"); err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +188,7 @@ func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
 		if version != whitespaceProjectionVersion {
 			t.Fatalf("canceled upgrade changed version to %d", version)
 		}
-		if err := upgradeTranscriptWhitespaceProjection(ctx, db.db, db.SessionID()); err != nil {
+		if err := upgradeTranscriptProjection(ctx, db.db, db.SessionID()); err != nil {
 			t.Fatal(err)
 		}
 		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})
@@ -256,6 +256,126 @@ func TestTranscriptWhitespaceProjectionUpgrade(t *testing.T) {
 		}
 		if err := reader.Close(ctx); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should project the Codex session-message cards a version 2 projection dropped", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		owner := testSessionDBOwner("sess-session-message-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		opened, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The recorded Codex shape (#742): an MCP call envelope, then a result that names no tool.
+		for _, event := range []SessionEvent{
+			{TurnID: "turn-send", Type: acp.EventTypeToolCall, AgentName: "coder", Content: `{"type":"tool_call",` +
+				`"turn_id":"turn-send","tool_name":"mcp.compozy-hosted-tools.compozy__session_prompt",` +
+				`"tool_call_id":"exec-send","tool_input":{"arguments":{"message":"PR opened","message_id":"msg-1",` +
+				`"mode":"queue","session_id":"sess-target"},"server":"compozy-hosted-tools",` +
+				`"tool":"compozy__session_prompt"}}`},
+			{TurnID: "turn-send", Type: acp.EventTypeToolResult, AgentName: "coder", Content: `{"type":"tool_result",` +
+				`"turn_id":"turn-send","status":"completed","tool_call_id":"exec-send","tool_result":{"raw_output":` +
+				`{"error":null,"result":{"content":[{"text":"queued","type":"text"}],"structuredContent":{"prompt":` +
+				`{"delivery":"after_turn","message_id":"msg-1","mode":"queue","reply_watch":{"id":"rw-1"},` +
+				`"target_workspace_id":"ws-target"}}}}}}`},
+			{TurnID: "turn-unrelated", Type: acp.EventTypeAgentMessage, AgentName: "coder", Content: "Unaffected reply"},
+		} {
+			if err := opened.Record(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := opened.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		fixture, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var entryKey, projected, unrelatedBefore string
+		if err := fixture.QueryRowContext(ctx, `SELECT entry_key,message_json FROM transcript_entries
+		WHERE kind='assistant' AND turn_id='turn-send'`).Scan(&entryKey, &projected); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE turn_id='turn-unrelated'`).
+			Scan(&unrelatedBefore); err != nil {
+			t.Fatal(err)
+		}
+		var message transcript.UIMessage
+		if err := json.Unmarshal([]byte(projected), &message); err != nil {
+			t.Fatal(err)
+		}
+		// What version 2 stored for this call: a card that names no target and never settles.
+		message.Parts = append(message.Parts[:0:0], transcript.UIMessagePart{
+			Type: "data-compozy-session-message", ID: "exec-send",
+			Data: json.RawMessage(`{"tool_call_id":"exec-send","target_session_id":"","state":"running"}`),
+		})
+		damaged, err := json.Marshal(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.ExecContext(ctx, `UPDATE transcript_entries SET message_json=? WHERE entry_key=?`,
+			damaged, entryKey); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.ExecContext(
+			ctx,
+			`UPDATE transcript_projection_state SET projection_version=2`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		reader, err := OpenSessionDBReadOnlyWithProjectionUpgrade(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(ctx); err != nil {
+				t.Error(err)
+			}
+		})
+		var cards []transcript.UISessionMessagePayload
+		var version int
+		var unrelatedAfter string
+		if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE entry_key=?`,
+			entryKey).Scan(&projected); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(projected), &message); err != nil {
+			t.Fatal(err)
+		}
+		for _, part := range message.Parts {
+			if part.Type != "data-compozy-session-message" {
+				continue
+			}
+			var card transcript.UISessionMessagePayload
+			if err := json.Unmarshal(part.Data, &card); err != nil {
+				t.Fatal(err)
+			}
+			cards = append(cards, card)
+		}
+		want := transcript.UISessionMessagePayload{
+			ToolCallID: "exec-send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
+			MessageID: "msg-1", Mode: "queue", Delivery: "after_turn", ReplyWatchID: "rw-1", State: "done",
+		}
+		if len(cards) != 1 || cards[0] != want {
+			t.Fatalf("upgraded cards = %+v, want [%+v]", cards, want)
+		}
+		if err := reader.db.QueryRowContext(ctx, `SELECT projection_version FROM transcript_projection_state`).
+			Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.db.QueryRowContext(ctx, `SELECT message_json FROM transcript_entries WHERE turn_id='turn-unrelated'`).
+			Scan(&unrelatedAfter); err != nil {
+			t.Fatal(err)
+		}
+		if version != transcript.ProjectionVersion || unrelatedAfter != unrelatedBefore {
+			t.Fatalf("upgrade version=%d, unrelated changed=%v", version, unrelatedAfter != unrelatedBefore)
 		}
 	})
 }

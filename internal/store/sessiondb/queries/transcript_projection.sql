@@ -86,6 +86,16 @@ WHERE sequence > sqlc.arg(after_sequence)
 ORDER BY sequence ASC
 LIMIT sqlc.arg(row_limit);
 
+-- name: ListTranscriptSessionPromptEventsForUpgrade :many
+SELECT sequence, transcript_entry_key
+FROM events
+WHERE sequence > sqlc.arg(after_sequence)
+  AND archived = 0 AND transcript_entry_key <> ''
+  AND type = 'tool_call'
+  AND instr(content, 'compozy__session_prompt') > 0
+ORDER BY sequence ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: UpsertTranscriptToolRoute :exec
 INSERT INTO transcript_tool_routes (tool_key, entry_key)
 VALUES (sqlc.arg(tool_key), sqlc.arg(entry_key))

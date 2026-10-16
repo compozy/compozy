@@ -1122,7 +1122,12 @@ func TestSessionMessageUIProjection(t *testing.T) {
 	})
 	t.Run("Should expose failure state without inventing a reply watch UT-014", func(t *testing.T) {
 		t.Parallel()
-		event := acp.AgentEvent{
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "send", TurnID: "turn"}.WithTool(
+			"mcp__compozy-hosted-tools__compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		)
+		failure := acp.AgentEvent{
 			Type:       acp.EventTypeToolResult,
 			ToolCallID: "send",
 			TurnID:     "turn",
@@ -1131,14 +1136,19 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			nil,
 			true,
 		)
-		content, err := MarshalAgentEvent(event)
-		if err != nil {
-			t.Fatal(err)
+		var cards SessionMessageCards
+		var p UISessionMessagePayload
+		var ok bool
+		for i, event := range []acp.AgentEvent{call, failure} {
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, ok = cards.Card(
+				store.SessionEvent{Type: event.Type, TurnID: "turn", Sequence: int64(i + 1), Content: content},
+			)
 		}
-		p, ok := SessionMessagePartForStoredEvent(
-			store.SessionEvent{Type: event.Type, TurnID: "turn", Content: content},
-		)
-		if !ok || p.State != "error" || p.ReplyWatchID != "" {
+		if !ok || p.State != "error" || p.ReplyWatchID != "" || p.TargetSessionID != "target" {
 			t.Fatalf("failure card = %+v, %v", p, ok)
 		}
 	})
@@ -1191,6 +1201,120 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			t.Fatalf("metadata = %+v", meta.Synthetic)
 		}
 	})
+
+	// Recorded provider shapes (#742): the card must not depend on one provider's wire form.
+	t.Run("Should name a Claude send once its streamed arguments do and read its string result", func(t *testing.T) {
+		t.Parallel()
+		rows := sessionPromptRows(
+			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"type":"tool_call","status":"pending","title":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt","tool_call_id":"toolu_send","tool_input":{}}`,
+			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"type":"tool_call","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"tool_call_id":"toolu_send","tool_input":{"session_id":"sess-target"}}`,
+			acp.EventTypeToolCall+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"type":"tool_call","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"tool_call_id":"toolu_send","tool_input":{"idempotency_key":"msg-1","message":"Ready for review?",`+
+				`"message_id":"msg-1","mode":"queue","notify_on_complete":true,"session_id":"sess-target"}}`,
+			acp.EventTypeToolResult+`|{"provider_tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"type":"tool_result","status":"completed","tool_name":"mcp__compozy-hosted-tools__compozy__session_prompt",`+
+				`"tool_call_id":"toolu_send","tool_result":{`+
+				`"content":"{\"prompt\":{\"delivery\":\"direct\",\"message_id\":\"msg-1\",\"mode\":\"queue\",`+
+				`\"reply_watch\":{\"id\":\"rw-claude\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}",`+
+				`"raw_output":"{\"prompt\":{\"delivery\":\"direct\",\"message_id\":\"msg-1\",\"mode\":\"queue\",`+
+				`\"reply_watch\":{\"id\":\"rw-claude\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}"}}`,
+		)
+		if cards := sessionMessageCardsOf(t, rows[:1]); len(cards) != 0 {
+			t.Fatalf("argument-less call projected cards %+v; want the tool row alone", cards)
+		}
+		want := UISessionMessagePayload{
+			ToolCallID: "toolu_send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
+			MessageID: "msg-1", Mode: "queue", Delivery: "direct", ReplyWatchID: "rw-claude", State: "done",
+		}
+		assertOneSessionMessageCard(t, rows, want)
+	})
+
+	t.Run("Should project a Codex send reported as an MCP call envelope with a nameless result", func(t *testing.T) {
+		t.Parallel()
+		rows := sessionPromptRows(
+			acp.EventTypeToolCall+`|{"type":"tool_call","status":"in_progress",`+
+				`"title":"mcp.compozy-hosted-tools.compozy__session_prompt",`+
+				`"tool_name":"mcp.compozy-hosted-tools.compozy__session_prompt","tool_kind":"execute",`+
+				`"tool_call_id":"exec-send","tool_input":{"arguments":{"idempotency_key":"msg-2","message":"PR opened",`+
+				`"message_id":"msg-2","mode":"queue","notify_on_complete":true,"session_id":"sess-target"},`+
+				`"server":"compozy-hosted-tools","tool":"compozy__session_prompt"}}`,
+			acp.EventTypeToolResult+`|{"type":"tool_result","status":"completed","tool_call_id":"exec-send",`+
+				`"tool_result":{"raw_output":{"error":null,"result":{"_meta":null,"content":[`+
+				`{"text":"queued","type":"text"},`+
+				`{"text":"{\"prompt\":{\"delivery\":\"after_turn\",\"message_id\":\"msg-2\",\"mode\":\"queue\",`+
+				`\"reply_watch\":{\"id\":\"rw-codex\",\"state\":\"armed\"},\"target_workspace_id\":\"ws-target\"}}",`+
+				`"type":"text"}],"structuredContent":{"prompt":{"delivery":"after_turn","message_id":"msg-2",`+
+				`"mode":"queue","reply_watch":{"id":"rw-codex","state":"armed"},"target_workspace_id":"ws-target"}}}}}}`,
+		)
+		want := UISessionMessagePayload{
+			ToolCallID: "exec-send", TargetSessionID: "sess-target", TargetWorkspaceID: "ws-target",
+			MessageID: "msg-2", Mode: "queue", Delivery: "after_turn", ReplyWatchID: "rw-codex", State: "done",
+		}
+		assertOneSessionMessageCard(t, rows, want)
+	})
+}
+
+// sessionPromptRows stores "type|content" events of one turn in sequence order.
+func sessionPromptRows(events ...string) []store.SessionEvent {
+	rows := make([]store.SessionEvent, 0, len(events))
+	for i, event := range events {
+		eventType, content, _ := strings.Cut(event, "|")
+		rows = append(rows, store.SessionEvent{
+			ID:        fmt.Sprintf("event-%d", i),
+			SessionID: "sender",
+			TurnID:    "turn",
+			Sequence:  int64(i + 1),
+			Type:      eventType,
+			Content:   content,
+		})
+	}
+	return rows
+}
+
+func sessionMessageCardsOf(t *testing.T, rows []store.SessionEvent) []UISessionMessagePayload {
+	t.Helper()
+	messages, err := ToUIMessages(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cards []UISessionMessagePayload
+	for _, message := range messages {
+		for _, part := range message.Parts {
+			if part.Type != "data-compozy-session-message" {
+				continue
+			}
+			var card UISessionMessagePayload
+			if err := json.Unmarshal(part.Data, &card); err != nil {
+				t.Fatal(err)
+			}
+			cards = append(cards, card)
+		}
+	}
+	return cards
+}
+
+// assertOneSessionMessageCard checks the transcript's card and the live stream's (the prompt
+// delivery folds the same events through SessionMessageCards) against want.
+func assertOneSessionMessageCard(t *testing.T, rows []store.SessionEvent, want UISessionMessagePayload) {
+	t.Helper()
+	if cards := sessionMessageCardsOf(t, rows); len(cards) != 1 || cards[0] != want {
+		t.Fatalf("transcript cards = %+v, want [%+v]", cards, want)
+	}
+	var live SessionMessageCards
+	var last UISessionMessagePayload
+	for _, row := range rows {
+		if card, ok := live.Card(row); ok {
+			last = card
+		}
+	}
+	if last != want {
+		t.Fatalf("live card = %+v, want %+v", last, want)
+	}
 }
 
 // UT-013: operator inputs remain unattributed while session origins reach the UI.
