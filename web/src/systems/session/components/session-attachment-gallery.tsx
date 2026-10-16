@@ -11,6 +11,7 @@ export interface SessionAttachmentGalleryProps extends ComponentProps<"div"> {
   items: readonly SessionAttachmentItem[];
 }
 
+/** Describes a transcript image using its filename and any known dimensions. */
 function imageTitle(item: Extract<SessionAttachmentItem, { kind: "image" }>): string {
   if (item.width && item.height) {
     return `${item.filename} · ${item.width}×${item.height}`;
@@ -18,6 +19,7 @@ function imageTitle(item: Extract<SessionAttachmentItem, { kind: "image" }>): st
   return item.filename;
 }
 
+/** Shares the gallery rail element with a caller-provided callback or object ref. */
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (typeof ref === "function") {
     ref(value);

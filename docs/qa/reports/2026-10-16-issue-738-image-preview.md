@@ -78,3 +78,31 @@ Evidence directory (Skeeper-managed, gitignored per `docs/qa/README.md`):
 | `issue738-tests.log`, `issue738-attachment-suite.log`, `issue738-typecheck.log` | Targeted local commands |
 
 R2 publishing and final-head CI/bot disposition are recorded in the PR delivery receipt.
+
+
+## Non-image attachments and desktop defense in depth
+
+Coordinator follow-up expanded the no-navigation requirement to non-image attachments.
+`SessionAttachmentFileCard` now requests a download named after the attachment and uses
+a separate browsing context if the browser cannot honor download. The existing Electron
+`classifyNavigation` owner rejects decoded same-origin `/api` and `/api/…` document
+navigations, including attachment bytes. SPA routes and external-link handling retain
+their existing policy. This guard is deliberately scoped to the server API namespace,
+which owns session attachment bytes; no speculative whitelist of SPA routes was added.
+
+The existing `navigation-policy.test.ts` owns this invariant. Added API/bytes, query and
+encoded-path cases without changing any existing expectation. The focused policy file
+passed all 18 tests; the first single-file command failed its global imported-module
+coverage threshold. Running it with the existing adjacent global-shortcuts suite covers
+the shared accessibility import and passes the unchanged threshold. No tests or coverage
+settings were weakened.
+
+- `bunx --no-install turbo run test --only --filter=./desktop -- src/window/__tests__/navigation-policy.test.ts src/shortcuts/__tests__/global-shortcuts.test.ts` — passed.
+- `bunx --no-install turbo run test --only --filter=./web -- src/components/assistant-ui/__tests__/session-thread.test.tsx -t 'attachment gallery|local image-only|dismiss.*image|attachments|image-only'` — 33 passed, 126 skipped.
+- `bunx --no-install turbo run typecheck --only --filter=./web --filter=./desktop` — both passed.
+
+Real Chrome additionally downloads TXT and PDF files, checks completed download events
+and non-empty files, and confirms the session URL and React root survive. The eight
+combinations cover both viewport sizes and both portal contexts. Current screenshot URLs,
+final-head CI and bot dispositions are in PR #744. No packaged desktop or daemon restart
+is claimed by this lightweight browser run.

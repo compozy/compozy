@@ -2757,3 +2757,12 @@ Windows evidence and packaged desktop evidence must be recorded before delivery.
   contracts need no update. QA owner: ET-session-attachment-paste-reload; the existing
   SessionThread suite owns preview behavior. Heavy delivery gates run only in CI by
   maintainer instruction; rendered evidence uses isolated Storybook, not a daemon lab.
+
+
+Issue #738 follow-up: non-image attachment cards request a filename-preserving download,
+with a separate browsing context as a fallback. The Electron navigation-policy owner now
+rejects same-origin `/api` documents (including scoped attachment bytes and encoded paths)
+while retaining SPA routes and the existing external-link policy. This is an internal
+renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
+change. The existing desktop navigation-policy suite owns the additional guard; the
+browser walk verifies TXT/PDF downloads without unloading the session.

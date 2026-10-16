@@ -2260,6 +2260,15 @@ describe("SessionThread transcript states", () => {
     );
     expect(screen.getByTestId("user-message-attachment-file-card")).not.toHaveAttribute("role");
     expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
+    // Non-image files download, with a separate browsing context if download is unavailable.
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "download",
+      "notes.pdf"
+    );
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "target",
+      "_blank"
+    );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
     expect(within(gallery).getAllByRole("link")).toHaveLength(1);
     expect(within(gallery).getAllByRole("button")).toHaveLength(2);
@@ -4101,6 +4110,7 @@ async function placeComposerCursor(offset: number) {
   });
 }
 
+/** Mounts the real composer runtime, optionally scoping overlays to its desktop host. */
 function renderComposer(
   overrides: Partial<ComponentProps<typeof SessionThread>>,
   transport?: SessionTransportState,

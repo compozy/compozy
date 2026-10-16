@@ -27,10 +27,12 @@ interface AttachmentDimensions {
   height: number;
 }
 
+/** Seeds dimensions from persisted attachment metadata when available. */
 function initialDimensions(model: SessionAttachmentTileModel): AttachmentDimensions | null {
   return model.width && model.height ? { width: model.width, height: model.height } : null;
 }
 
+/** Includes known image dimensions in the thumbnail filename tooltip. */
 function attachmentNameTitle(
   model: SessionAttachmentTileModel,
   isImage: boolean,
@@ -41,6 +43,7 @@ function attachmentNameTitle(
     : model.name;
 }
 
+/** Chooses the size label tone from the current upload outcome. */
 function attachmentSizeTone(state: SessionAttachmentTileModel["state"]): string {
   return state === "error" || state === "rejected" ? "text-danger" : "text-faint";
 }
