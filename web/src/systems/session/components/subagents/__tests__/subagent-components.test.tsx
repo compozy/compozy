@@ -434,6 +434,24 @@ describe("SubagentComposerControl (issue #766)", () => {
     await user.click(within(popover).getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
+
+  it("Should keep the rows that loaded and still offer Try again when a later page fails", async () => {
+    const user = userEvent.setup();
+    renderUI(
+      <SubagentComposerControl
+        subagents={many(1, "running")}
+        counts={counts(3, 250)}
+        failed
+        onRetry={vi.fn()}
+        onOpen={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Subagents, 3 running" }));
+    const popover = await screen.findByRole("dialog");
+    expect(within(popover).getByRole("button", { name: "Open running subagent 0" })).toBeVisible();
+    expect(within(popover).getByText("Couldn't load subagents.")).toBeInTheDocument();
+    expect(within(popover).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
 });
 
 describe("SessionInspectorSubagentsSection (UT-W19)", () => {

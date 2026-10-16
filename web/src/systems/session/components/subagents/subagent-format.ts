@@ -411,6 +411,8 @@ export function subagentChipState(
 }
 
 export interface SubagentComposerSignal {
+  /** `idle` while nothing runs; `attention` when a live subagent needs you. */
+  state: "idle" | "running" | "attention";
   /** The live dot on the subagents icon, as on a subagent's avatar; `null` while nothing runs. */
   dot: SubagentDotSignal | null;
   /** Live subagents beside the icon; `null` while nothing runs. */
@@ -427,6 +429,7 @@ export function subagentComposerSignal(counts: SubagentCounts): SubagentComposer
   const { live, total, attention } = counts;
   if (live === 0) {
     return {
+      state: "idle",
       dot: null,
       count: null,
       ariaLabel: total === 0 ? "Subagents, none yet" : "Subagents, none running",
@@ -434,6 +437,7 @@ export function subagentComposerSignal(counts: SubagentCounts): SubagentComposer
   }
   const needsYou = attention > 0 ? `, ${attention} needs you` : "";
   return {
+    state: attention > 0 ? "attention" : "running",
     dot: subagentDot(attention > 0 ? "waiting" : "running"),
     count: live,
     ariaLabel: `Subagents, ${live} running${needsYou}`,
