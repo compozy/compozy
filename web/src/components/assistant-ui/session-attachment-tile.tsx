@@ -7,6 +7,7 @@ import {
   isImageAttachmentMime,
 } from "@/systems/session/lib/attachment-kinds";
 import { Button, Eyebrow, Spinner } from "@compozy/ui";
+import { SessionAttachmentImagePreview } from "@/systems/session/components/session-attachment-image-preview";
 
 import type { SessionAttachmentTileModel } from "./session-attachment-tile-model";
 
@@ -26,10 +27,12 @@ interface AttachmentDimensions {
   height: number;
 }
 
+/** Seeds dimensions from persisted attachment metadata when available. */
 function initialDimensions(model: SessionAttachmentTileModel): AttachmentDimensions | null {
   return model.width && model.height ? { width: model.width, height: model.height } : null;
 }
 
+/** Includes known image dimensions in the thumbnail filename tooltip. */
 function attachmentNameTitle(
   model: SessionAttachmentTileModel,
   isImage: boolean,
@@ -40,6 +43,7 @@ function attachmentNameTitle(
     : model.name;
 }
 
+/** Chooses the size label tone from the current upload outcome. */
 function attachmentSizeTone(state: SessionAttachmentTileModel["state"]): string {
   return state === "error" || state === "rejected" ? "text-danger" : "text-faint";
 }
@@ -101,6 +105,7 @@ function AttachmentThumb({
   );
 }
 
+/** Presents an assistant-ui draft attachment with preview, removal and upload retry actions. */
 export function SessionAttachmentTile({
   model,
   onRemove,
@@ -139,13 +144,36 @@ export function SessionAttachmentTile({
         className
       )}
     >
-      <AttachmentThumb
-        canPreview={canPreview}
-        isImage={isImage}
-        model={model}
-        onPreviewLoad={setDimensions}
-        previewRef={previewRef}
-      />
+      {canPreview && model.file ? (
+        <SessionAttachmentImagePreview
+          filename={model.name}
+          source={model.file}
+          trigger={
+            <Button
+              type="button"
+              variant="ghost"
+              className="size-9 rounded-md p-0"
+              aria-label={`Preview ${model.name}`}
+            >
+              <AttachmentThumb
+                canPreview={canPreview}
+                isImage={isImage}
+                model={model}
+                onPreviewLoad={setDimensions}
+                previewRef={previewRef}
+              />
+            </Button>
+          }
+        />
+      ) : (
+        <AttachmentThumb
+          canPreview={canPreview}
+          isImage={isImage}
+          model={model}
+          onPreviewLoad={setDimensions}
+          previewRef={previewRef}
+        />
+      )}
       <span className="flex min-w-0 flex-1 flex-col gap-px">
         <span
           className="truncate text-small-body font-medium text-fg"
