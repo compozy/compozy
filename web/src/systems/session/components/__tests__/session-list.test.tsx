@@ -150,6 +150,69 @@ function renderList(
 }
 
 describe("SessionList selection", () => {
+  it("Should offer all four sort choices and send the selected stable order", async () => {
+    const user = userEvent.setup();
+    const setSort = vi.fn();
+    renderList({ view: { ...view, sort: "created", setSort } });
+    await user.click(screen.getByRole("button", { name: "Sort sessions" }));
+    const choices = await screen.findAllByRole("menuitemradio");
+    expect(choices.map(choice => choice.textContent)).toEqual([
+      "Created",
+      "Name",
+      "Last activity",
+      "Attention first",
+    ]);
+    expect(screen.getByRole("menuitemradio", { name: "Created" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    await user.click(screen.getByRole("menuitemradio", { name: "Name" }));
+    expect(setSort).toHaveBeenCalledWith("name");
+  });
+
+  it.each([
+    ["created", false],
+    ["name", false],
+    ["created", true],
+    ["name", true],
+  ] as const)(
+    "Should preserve %s catalog order for nested running children (subagents: %s)",
+    (sort, subagents) => {
+      const parent = { ...sessions[0]!, id: "parent", name: "Parent work" };
+      const lineage = {
+        ...(subagents ? { spawn_role: "subagent" } : {}),
+        parent_session_id: "parent",
+        root_session_id: "parent",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      };
+      const children = [
+        { ...sessions[0]!, id: "child-b", name: "Beta work", lineage },
+        { ...sessions[0]!, id: "child-a", name: "Alpha work", lineage },
+      ];
+      const ordered =
+        sort === "name" ? [parent, ...[...children].reverse()] : [parent, ...children];
+      const stableView = { ...view, sort, ...(subagents ? { search: "work" } : {}) };
+      const { update } = renderList({ sessions: ordered, view: stableView });
+      const rowIds = () =>
+        screen.getAllByTestId(/^session-sidebar-session-/).map(row => row.dataset.testid);
+      const before = rowIds();
+      expect(before).toEqual(ordered.map(session => `session-sidebar-session-${session.id}`));
+      update(
+        ordered.map((session, index) => ({
+          ...session,
+          updated_at: `2026-10-16T15:0${index}:00Z`,
+          badge: index === 1 ? "waiting-for-input" : "running",
+        })),
+        stableView
+      );
+      expect(rowIds()).toEqual(before);
+    }
+  );
+
   it("selects with the checkbox, shows eligible verbs, and keeps filtered selection", async () => {
     const user = userEvent.setup();
     const { onSelect, actions } = renderList();

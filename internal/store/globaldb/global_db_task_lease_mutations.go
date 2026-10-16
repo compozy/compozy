@@ -64,6 +64,9 @@ func (g *TaskRunRepo) releaseRunLeaseWithExecutor(
 	if err := requireCurrentRunLease(current, release.ClaimToken, release.Now); err != nil {
 		return taskpkg.Run{}, err
 	}
+	if err := taskpkg.RequireLeaseSettlementActor(current, release.Actor); err != nil {
+		return taskpkg.Run{}, err
+	}
 	if err := requeueLeasedRun(ctx, exec, current.ID); err != nil {
 		return taskpkg.Run{}, err
 	}

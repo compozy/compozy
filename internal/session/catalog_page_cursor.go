@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func decodeSessionListCursor(raw string, fingerprint string) (*store.SessionCatalogPosition, error) {
+func decodeSessionListCursor(raw string, fingerprint string, sortKey string) (*store.SessionCatalogPosition, error) {
 	if raw == "" {
 		return nil, nil
 	}
@@ -24,6 +24,12 @@ func decodeSessionListCursor(raw string, fingerprint string) (*store.SessionCata
 	}
 	if err := position.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
+	}
+	if sortKey == ListSortName && position.Name == nil {
+		return nil, fmt.Errorf("%w: name cursor key is required", ErrListCursorInvalid)
+	}
+	if sortKey == ListSortNavigator && position.NavigatorBand == nil {
+		return nil, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
 	position.PrimaryAt = position.PrimaryAt.UTC()
 	position.SecondaryAt = position.SecondaryAt.UTC()

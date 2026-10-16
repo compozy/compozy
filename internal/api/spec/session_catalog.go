@@ -115,7 +115,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam(
 				"sort",
 				"Stable session ordering",
-				[]string{"recent", "created", "last_activity", "attention", "navigator"},
+				[]string{"recent", "created", "name", "last_activity", "attention", "navigator"},
 			),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),

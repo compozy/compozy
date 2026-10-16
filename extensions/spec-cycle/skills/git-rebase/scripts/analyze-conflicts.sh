@@ -11,7 +11,10 @@ echo "======================================"
 echo ""
 
 # Check if we're in a rebase
-if [ ! -d ".git/rebase-merge" ] && [ ! -d ".git/rebase-apply" ]; then
+rebase_merge_dir=$(git rev-parse --git-path rebase-merge)
+rebase_apply_dir=$(git rev-parse --git-path rebase-apply)
+helper_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [ ! -d "$rebase_merge_dir" ] && [ ! -d "$rebase_apply_dir" ]; then
     echo "❌ No active rebase detected"
     echo "Start a rebase first: git rebase origin/main"
     exit 1
@@ -99,9 +102,9 @@ echo "   ⚠️  Unresolved: $UNRESOLVED"
 echo ""
 
 # Get rebase progress
-if [ -f ".git/rebase-merge/msgnum" ]; then
-    CURRENT=$(cat .git/rebase-merge/msgnum)
-    TOTAL=$(cat .git/rebase-merge/end)
+if [ -f "$rebase_merge_dir/msgnum" ]; then
+    CURRENT=$(cat "$rebase_merge_dir/msgnum")
+    TOTAL=$(cat "$rebase_merge_dir/end")
     echo "📈 Rebase Progress: $CURRENT / $TOTAL commits"
     echo ""
 fi
@@ -113,9 +116,9 @@ if [ "$UNRESOLVED" -gt 0 ]; then
 else
     echo "   1. All conflicts appear resolved!"
 fi
-echo "   2. Run from the repository root: bash .agents/skills/git-rebase/scripts/validate-merge.sh"
-echo "   3. Run from the repository root: make gate"
-echo "   4. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
+printf '   2. Run from the repository root: bash %q\n' "$helper_dir/validate-merge.sh"
+echo "   3. Run the target repository documented validation commands"
+echo "   4. Run the checks for the changed language and packages"
 echo "   5. Run a manual smoke test if needed"
 echo "   6. Stage the resolved files explicitly, then run: git rebase --continue"
 

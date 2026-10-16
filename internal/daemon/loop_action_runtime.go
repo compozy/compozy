@@ -196,18 +196,7 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		RunID:       strings.TrimSpace(run.ID),
-		Scope:       taskRecord.Scope.Normalize(),
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		RunKind:     taskpkg.RunKindWorker,
-		ClaimedBy: &taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKindDaemon,
-			Ref:  loopActionRuntimeActorRef,
-		},
-		LeaseDuration: policy.leaseDuration,
-		Now:           r.now().UTC(),
-	}, actor)
+	claim, err := r.claimQueuedRun(ctx, taskRecord, run, policy.leaseDuration, actor)
 	if err != nil {
 		if errors.Is(err, taskpkg.ErrNoClaimableRun) {
 			return nil
@@ -229,6 +218,33 @@ func (r *loopActionRuntime) executeQueuedRun(
 		return err
 	}
 	return r.settleExecutedRun(ctx, claim, actor, reason, result, err)
+}
+
+func (r *loopActionRuntime) claimQueuedRun(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	leaseDuration time.Duration,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	var claim *taskpkg.ClaimResult
+	err := retrySQLitePersistence(ctx, r.persistenceAttemptTimeout, func(attemptCtx context.Context) error {
+		var err error
+		claim, err = r.manager.ClaimNextRun(attemptCtx, taskpkg.ClaimCriteria{
+			RunID:       strings.TrimSpace(run.ID),
+			Scope:       taskRecord.Scope.Normalize(),
+			WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+			RunKind:     taskpkg.RunKindWorker,
+			ClaimedBy: &taskpkg.ActorIdentity{
+				Kind: taskpkg.ActorKindDaemon,
+				Ref:  loopActionRuntimeActorRef,
+			},
+			LeaseDuration: leaseDuration,
+			Now:           r.now().UTC(),
+		}, actor)
+		return err
+	})
+	return claim, err
 }
 
 func (r *loopActionRuntime) settleExecutedRun(
