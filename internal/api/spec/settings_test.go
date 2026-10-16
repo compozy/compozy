@@ -384,6 +384,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(
 			t,
 			propertySchema(t, shellSessionsSchema, "sort"),
+			"created",
+			"name",
 			"attention",
 			"last_activity",
 		)

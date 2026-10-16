@@ -110030,6 +110030,7 @@
               "enum": [
                 "recent",
                 "created",
+                "name",
                 "last_activity",
                 "attention",
                 "navigator"
@@ -140910,6 +140911,8 @@
                             },
                             "sort": {
                               "enum": [
+                                "created",
+                                "name",
                                 "last_activity",
                                 "attention"
                               ],
@@ -141073,6 +141076,8 @@
                           },
                           "sort": {
                             "enum": [
+                              "created",
+                              "name",
                               "last_activity",
                               "attention"
                             ],
@@ -257996,6 +258001,7 @@
               "enum": [
                 "recent",
                 "created",
+                "name",
                 "last_activity",
                 "attention",
                 "navigator"

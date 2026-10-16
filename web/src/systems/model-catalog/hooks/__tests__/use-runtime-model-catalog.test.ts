@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +23,7 @@ import {
   refreshAllModels,
 } from "../../adapters/model-catalog-api";
 import type { ProviderModelPayload } from "../../types";
+import { modelCatalogKeys } from "../../lib/query-keys";
 import { useRefreshProviderModels } from "../use-refresh-provider-models";
 import { useRuntimeModelCatalog } from "../use-runtime-model-catalog";
 
@@ -291,7 +292,7 @@ describe("useRuntimeModelCatalog", () => {
     expect(result.current.models.every(model => !model.disabled)).toBe(true);
   });
 
-  it("Should show current refresh guidance when a failed status reread retains older healthy data", async () => {
+  it("Should retire refresh guidance after recovery even when a later status reread fails", async () => {
     mockModels([payload("codex", "gpt-test"), payload("cursor", "cursor-test")]);
     const source = {
       source_id: "provider_live:cursor",
@@ -326,9 +327,23 @@ describe("useRuntimeModelCatalog", () => {
     expect(result.current.models.every(model => !model.disabled)).toBe(true);
     vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [source] });
     vi.mocked(refreshProviderModels).mockResolvedValue({ sources: [source] });
-    const settings = renderHook(() => useRefreshProviderModels(), { wrapper });
-    act(() => settings.result.current.mutate({ providerId: "cursor", force: true }));
+    const settings = renderHook(
+      () => ({ refresh: useRefreshProviderModels(), client: useQueryClient() }),
+      { wrapper }
+    );
+    act(() => settings.result.current.refresh.mutate({ providerId: "cursor", force: true }));
     await waitFor(() => expect(result.current.providerIssues).toEqual({}));
+    vi.mocked(getModelSourceStatus).mockRejectedValue(
+      new ModelCatalogApiError("later status unavailable", 403)
+    );
+    await act(() =>
+      settings.result.current.client.refetchQueries({ queryKey: modelCatalogKeys.sourceStatus })
+    );
+    expect(
+      settings.result.current.client.getQueryState(modelCatalogKeys.sourceStatus)?.status
+    ).toBe("error");
+    expect(result.current.providerIssues).toEqual({});
+    expect(result.current.models.every(model => !model.disabled)).toBe(true);
   });
 
   it.each(["successful", "disallowed"])(

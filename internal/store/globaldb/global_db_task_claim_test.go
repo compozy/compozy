@@ -3871,6 +3871,21 @@ func testGlobalDBLoopWorkerSettlementAuthority(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HeartbeatRunLease(agent) error = %v", err)
 	}
+	if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Reason: "worker finished its prompt", Now: now.Add(3 * time.Second),
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("ReleaseRunLease(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
+	if _, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Now: now.Add(3 * time.Second),
+		Block: taskpkg.TaskBlock{
+			ID: "block-loop-worker", TaskID: taskRecord.ID, Kind: taskpkg.BlockKindNeedsInput,
+			Reason: "worker attempted release", CreatedBy: agent.Actor, CreatedAt: now,
+		},
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("BlockTaskAndReleaseRun(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
 	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 		Actor: coordinatorActorContextForTest(), RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 		Result: taskpkg.RunResult{Value: json.RawMessage(`{"status":"done"}`)},
@@ -6915,6 +6930,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	cases := []struct {
 		name             string
 		complete         bool
+		forceStatus      taskpkg.RunStatus
 		result           json.RawMessage
 		failureMetadata  json.RawMessage
 		tokensUsed       int64
@@ -6925,6 +6941,23 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		wantRecovery     string
 		wantEvents       []string
 	}{
+		{
+			name:             "operator fails queued worker",
+			forceStatus:      taskpkg.TaskRunStatusQueued,
+			wantOutputStatus: "failed",
+			wantEvents:       []string{loopRunEventStatusChanged, loopRunEventNodeFailed, loopRunEventTokenTick},
+		},
+		{
+			name:             "operator fails claimed worker",
+			forceStatus:      taskpkg.TaskRunStatusClaimed,
+			wantOutputStatus: "failed",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeFailed,
+				loopRunEventTokenTick,
+			},
+		},
 		{
 			name:             "success records terminal output",
 			complete:         true,
@@ -7020,20 +7053,41 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			); err != nil {
 				t.Fatalf("insert generation output error = %v", err)
 			}
-			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:            taskpkg.ScopeGlobal,
-				ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
-				ClaimedBy: &taskpkg.ActorIdentity{
-					Kind: taskpkg.ActorKindDaemon,
-					Ref:  "loop",
-				},
-				LeaseDuration: time.Minute,
-				Now:           now,
-			})
-			if err != nil {
-				t.Fatalf("ClaimNextRun() error = %v", err)
+			var claim taskpkg.ClaimResult
+			if tc.forceStatus != taskpkg.TaskRunStatusQueued {
+				claim, err = globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+					Scope:            taskpkg.ScopeGlobal,
+					ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
+					ClaimedBy: &taskpkg.ActorIdentity{
+						Kind: taskpkg.ActorKindDaemon,
+						Ref:  "loop",
+					},
+					LeaseDuration: time.Minute,
+					Now:           now,
+				})
+				if err != nil {
+					t.Fatalf("ClaimNextRun() error = %v", err)
+				}
 			}
-			if tc.complete {
+			switch {
+			case tc.forceStatus != taskpkg.TaskRunStatusUnknown:
+				manager, err := taskpkg.NewManager(
+					taskpkg.WithStore(globalDB),
+					taskpkg.WithManagerNow(func() time.Time { return terminalAt }),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.ForceFailRun(
+					ctx,
+					runID,
+					taskpkg.ForceFailRun{Reason: "operator recovery"},
+					coordinatorActorContextForTest(),
+				); err != nil {
+					t.Fatal(err)
+				}
+				globalDB = testGlobalDBForcedLoopFailureReplay(t, globalDB, runID, terminalAt)
+			case tc.complete:
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
@@ -7044,7 +7098,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				}); err != nil {
 					t.Fatalf("CompleteRunLease() error = %v", err)
 				}
-			} else {
+			default:
 				metadata := tc.failureMetadata
 				if len(metadata) == 0 {
 					metadata = json.RawMessage(`{"reason_code":"credential_missing"}`)
@@ -7128,6 +7182,52 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: replaying operator recovery after reopening durable state cannot duplicate
+// a Loop worker's canonical failure event. The existing terminal progress suite owns it.
+func testGlobalDBForcedLoopFailureReplay(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	at time.Time,
+) *GlobalDB {
+	t.Helper()
+	ctx := testutil.Context(t)
+	query := taskpkg.EventQuery{RunID: runID, EventType: "task.run.failed"}
+	before, err := globalDB.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 {
+		t.Fatalf("canonical failure events before restart = %d, want 1", len(before))
+	}
+	path := globalDB.Path()
+	if err := globalDB.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := openGlobalDBForTest(t, path)
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(reopened),
+		taskpkg.WithManagerNow(func() time.Time { return at.Add(time.Second) }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = manager.ForceFailRun(
+		ctx, runID, taskpkg.ForceFailRun{Reason: "operator recovery"}, coordinatorActorContextForTest(),
+	)
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("replayed recovery error = %v, want ErrInvalidStatusTransition", err)
+	}
+	after, err := reopened.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 || after[0].ID != before[0].ID {
+		t.Fatalf("canonical failure events after restart = %#v, want original event %q", after, before[0].ID)
+	}
+	return reopened
 }
 
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {

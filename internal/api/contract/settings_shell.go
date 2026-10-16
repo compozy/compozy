@@ -4,6 +4,8 @@ package contract
 type SettingsShellSessionSort string
 
 const (
+	SettingsShellSessionSortCreated      SettingsShellSessionSort = "created"
+	SettingsShellSessionSortName         SettingsShellSessionSort = "name"
 	SettingsShellSessionSortLastActivity SettingsShellSessionSort = "last_activity"
 	SettingsShellSessionSortAttention    SettingsShellSessionSort = "attention"
 )

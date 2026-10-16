@@ -101,6 +101,12 @@ func (g *TaskRunRepo) forceFailTaskRunWithExecutor(
 	if err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}
+	if err := recordLoopNodeTerminalWithExecutor(ctx, exec, previous, loopNodeOutcomeFailure, "", now); err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
+	if err := closeTerminalRunAgentBinding(ctx, exec, previous, now); err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
 	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, next); err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}

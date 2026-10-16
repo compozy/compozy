@@ -3569,8 +3569,21 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		sourceRun := taskRunForTest("taskrun-quarantine-failed-source", sourceTaskID)
 		sourceRun.LoopRunID = string(created.ID)
 		sourceRun.RunKind = taskpkg.RunKindWorker
+		sourceRun.Metadata = json.RawMessage(
+			`{"generation":2,"node_id":"review","item_index":0,"attempt":1,"epoch":1}`,
+		)
 		if err := globalDB.CreateTaskRun(ctx, sourceRun); err != nil {
 			t.Fatalf("CreateTaskRun(source) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs
+				(loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch)
+			 VALUES (?, 2, 'review', 0, 'enqueued', ?, 1, 1)`,
+			created.ID,
+			sourceRun.ID,
+		); err != nil {
+			t.Fatalf("insert source generation output error = %v", err)
 		}
 		sourceRun, err = globalDB.GetTaskRun(ctx, sourceRun.ID)
 		if err != nil {

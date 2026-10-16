@@ -19,6 +19,9 @@ import type {
 } from "../types";
 
 export class ModelCatalogApiError extends Error {
+  /** Client-side observation time, comparable to Query's successful-read timestamp. */
+  readonly observedAt = Date.now();
+
   constructor(
     message: string,
     public readonly status: number,

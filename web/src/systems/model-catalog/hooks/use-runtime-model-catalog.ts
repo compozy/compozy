@@ -109,8 +109,11 @@ export function useRuntimeModelCatalog(
     : refreshMutation.error;
   const failureSources =
     refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : [];
+  const failureIsCurrent =
+    refreshFailure instanceof ModelCatalogApiError &&
+    refreshFailure.observedAt >= sourceStatus.dataUpdatedAt;
   const sources =
-    sourceStatus.isError && failureSources.length > 0
+    sourceStatus.isError && failureIsCurrent && failureSources.length > 0
       ? failureSources
       : (sourceStatus.data?.sources ?? refreshMutation.data?.sources ?? failureSources);
   const providerIssues: Record<string, string> = {};
