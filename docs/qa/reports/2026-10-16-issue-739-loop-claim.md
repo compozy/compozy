@@ -35,6 +35,8 @@ state, database, daemon, desktop or provider configuration was changed during th
 
 - Store: `TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress` owns daemon claim protection,
   successful completion, and queued/claimed force failure committing the node's terminal output.
+  Both forced-failure cases close/reopen real SQLite, construct a fresh manager, replay recovery
+  and require the original single canonical `task.run.failed` event to remain unchanged.
 - Daemon: `TestLoopGoalManagedRuntimeIntegration/Should_wait_for_a_durable_claim` uses real SQLite,
   a non-reviewed isolated `run-agent` node and a deterministic writer barrier. The first claim
   times out, no action executes without a persisted claim, retry executes once, and node success

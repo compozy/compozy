@@ -7086,6 +7086,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				); err != nil {
 					t.Fatal(err)
 				}
+				globalDB = testGlobalDBForcedLoopFailureReplay(t, globalDB, runID, terminalAt)
 			case tc.complete:
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
@@ -7181,6 +7182,52 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: replaying operator recovery after reopening durable state cannot duplicate
+// a Loop worker's canonical failure event. The existing terminal progress suite owns it.
+func testGlobalDBForcedLoopFailureReplay(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	at time.Time,
+) *GlobalDB {
+	t.Helper()
+	ctx := testutil.Context(t)
+	query := taskpkg.EventQuery{RunID: runID, EventType: "task.run.failed"}
+	before, err := globalDB.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 {
+		t.Fatalf("canonical failure events before restart = %d, want 1", len(before))
+	}
+	path := globalDB.Path()
+	if err := globalDB.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := openGlobalDBForTest(t, path)
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(reopened),
+		taskpkg.WithManagerNow(func() time.Time { return at.Add(time.Second) }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = manager.ForceFailRun(
+		ctx, runID, taskpkg.ForceFailRun{Reason: "operator recovery"}, coordinatorActorContextForTest(),
+	)
+	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("replayed recovery error = %v, want ErrInvalidStatusTransition", err)
+	}
+	after, err := reopened.ListTaskEvents(ctx, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 || after[0].ID != before[0].ID {
+		t.Fatalf("canonical failure events after restart = %#v, want original event %q", after, before[0].ID)
+	}
+	return reopened
 }
 
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
