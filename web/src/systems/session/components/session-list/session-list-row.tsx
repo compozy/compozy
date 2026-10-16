@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+
 import { Checkbox, Time } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
@@ -52,6 +54,9 @@ export function SessionListRow({
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
   const subagentCounts = sessionSubagentCounts(session);
+  // Each keyboard focus gets its own id; pointer focus reveals nothing.
+  const focusCount = useRef(0);
+  const [keyboardFocus, setKeyboardFocus] = useState<number | null>(null);
   return (
     <div className="group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
       <button
@@ -73,6 +78,13 @@ export function SessionListRow({
             selection.toggle(session.id);
           else onSelect();
         }}
+        onFocus={event => {
+          focusCount.current += 1;
+          setKeyboardFocus(
+            event.currentTarget.matches(":focus-visible") ? focusCount.current : null
+          );
+        }}
+        onBlur={() => setKeyboardFocus(null)}
       >
         <SessionBadgeMark
           badge={session.badge}
@@ -88,6 +100,7 @@ export function SessionListRow({
           session={session}
           current={current}
           orphanedSubagent={orphanedSubagent}
+          keyboardFocus={keyboardFocus}
         />
         <span className="col-start-3 row-start-1 mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
@@ -133,10 +146,12 @@ function SessionListRowDetails({
   session,
   current,
   orphanedSubagent,
+  keyboardFocus,
 }: {
   session: SessionPayload;
   current: boolean;
   orphanedSubagent: boolean;
+  keyboardFocus: number | null;
 }) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
@@ -153,7 +168,7 @@ function SessionListRowDetails({
         {getSessionDisplayTitle(session)}
       </span>
       <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-1 text-eyebrow text-subtle">
-        <SessionListProviderMark session={session} />
+        <SessionListProviderMark session={session} keyboardFocus={keyboardFocus} />
         <span className="min-w-0 truncate">
           <span className="font-medium text-muted">{session.agent_name}</span>
           {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}

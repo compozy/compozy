@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
+import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
+import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -55,6 +57,47 @@ const view: SessionListViewModel = {
   scopeLabel: "default",
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
 };
+function catalogProvider(name: string, displayName: string): ProviderSummary {
+  return {
+    name,
+    display_name: displayName,
+    default: false,
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "inherit",
+      home_policy: "operator",
+      state: "authenticated",
+      login: { configured: true, presence: "present" },
+    },
+  };
+}
+function catalogModel(provider: string, id: string, displayName: string): ProviderModelPayload {
+  return {
+    provider_id: provider,
+    model_id: id,
+    display_name: displayName,
+    availability_state: "available_live",
+    available: true,
+    curated: true,
+    deprecated: false,
+    featured: false,
+    hidden: false,
+    stale: false,
+    sources: [],
+  };
+}
+/** The rail lives in a session window whose composer has already read the runtime catalog. */
+function seedRuntimeCatalog(queryClient: QueryClient) {
+  queryClient.setQueryData(providerListOptions().queryKey, {
+    providers: [catalogProvider("codex", "Codex"), catalogProvider("claude", "Claude Code")],
+  });
+  queryClient.setQueryData(allModelsListOptions({ view: "all", includeStale: true }).queryKey, {
+    models: [
+      catalogModel("codex", "gpt-6.1-sol", "GPT-6.1 Sol"),
+      catalogModel("claude", "claude-opus-5-5", "Claude Opus 5.5"),
+    ],
+  });
+}
 function renderList(
   overrides: {
     sessions?: SessionPayload[];
@@ -90,6 +133,7 @@ function renderList(
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seedRuntimeCatalog(queryClient);
   const tree = (node: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
   );
@@ -491,19 +535,13 @@ describe("SessionList subagents", () => {
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    expect(within(waiting).getByRole("img", { name: /^Session badge/ })).toHaveAttribute(
-      "data-badge",
-      "delegated"
-    );
+    expect(within(waiting).getByRole("img")).toHaveAttribute("data-badge", "delegated");
     expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
       "data-state",
       "delegated"
     );
     const working = screen.getByTestId("session-sidebar-session-working-parent");
-    expect(within(working).getByRole("img", { name: /^Session badge/ })).toHaveAttribute(
-      "data-badge",
-      "running"
-    );
+    expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
   });
 
   it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
@@ -540,8 +578,9 @@ describe("SessionList subagents", () => {
   });
 });
 
-// Invariant: every row, nested children included, names the runtime it is bound to from the
-// payload's effective runtime, so a catalog re-read repaints it; an unbound row shows no mark.
+// Invariant: every row, nested children included, names the runtime it is bound to in the
+// runtime catalog's display names (wire ids only where the catalog has none), repaints when a
+// re-read reports another runtime, shows no mark before the first bind, and adds no tab stop.
 describe("SessionList provider marks", () => {
   const runtime = (provider: string, model?: string): SessionPayload["runtime"] => ({
     status: "ready",
@@ -558,9 +597,9 @@ describe("SessionList provider marks", () => {
     badge: "running",
     ...patch,
   });
-  const rowOf = (id: string) => within(screen.getByTestId(`session-sidebar-session-${id}`));
+  const rowButton = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
 
-  it("names the effective runtime on root and nested rows and shows none before the first bind", () => {
+  it("names root and nested rows in catalog display names and shows none before the first bind", () => {
     renderList({
       sessions: [
         row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
@@ -580,27 +619,64 @@ describe("SessionList provider marks", () => {
       ],
     });
 
-    expect(rowOf("root").getByRole("img", { name: "codex · gpt-6.1-sol" })).toHaveAttribute(
-      "data-kind",
-      "codex"
-    );
+    expect(rowButton("root")).toHaveAccessibleName(/Session root\s*Codex · GPT-6\.1 Sol/);
+    const rootMark = screen.getByTestId("session-provider-mark-root");
+    expect(rootMark).toHaveAttribute("data-kind", "codex");
+    expect(rootMark).toHaveAttribute("aria-hidden", "true");
     expect(
-      within(screen.getByTestId("session-sidebar-thread-root")).getByRole("img", {
-        name: "claude",
-      })
+      within(screen.getByTestId("session-sidebar-thread-root")).getByTestId(
+        "session-provider-mark-child"
+      )
     ).toHaveAttribute("data-kind", "claude");
-    expect(rowOf("unbound").getByText(primarySessionFixture.agent_name)).toBeInTheDocument();
+    expect(rowButton("child")).toHaveAccessibleName(/Session child\s*Claude Code/);
     expect(screen.queryByTestId("session-provider-mark-unbound")).not.toBeInTheDocument();
+    expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
+  });
+
+  it("keeps the wire ids and the neutral glyph for a runtime the catalog does not name", () => {
+    const warn = vi.spyOn(console, "warn");
+    renderList({ sessions: [row("custom", { runtime: runtime("acme-agent", "m-1") })] });
+
+    expect(rowButton("custom")).toHaveAccessibleName(/acme-agent · m-1/);
+    const mark = screen.getByTestId("session-provider-mark-custom");
+    expect(mark).toHaveAttribute("data-kind", "acme-agent");
+    expect(mark.querySelector("svg")).not.toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("repaints the mark when a re-read reports another runtime", () => {
     const before = row("switched", { runtime: runtime("codex", "gpt-6.1-sol") });
     const { update } = renderList({ sessions: [before] });
-    expect(rowOf("switched").getByRole("img", { name: "codex · gpt-6.1-sol" })).toBeVisible();
+    expect(rowButton("switched")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol/);
 
     update([{ ...before, runtime: runtime("claude", "claude-opus-5-5") }]);
 
-    expect(rowOf("switched").getByRole("img", { name: "claude · claude-opus-5-5" })).toBeVisible();
-    expect(rowOf("switched").queryByRole("img", { name: /codex/ })).not.toBeInTheDocument();
+    expect(rowButton("switched")).toHaveAccessibleName(/Claude Code · Claude Opus 5\.5/);
+    expect(screen.getByTestId("session-provider-mark-switched")).toHaveAttribute(
+      "data-kind",
+      "claude"
+    );
+  });
+
+  it("reveals the runtime on keyboard focus, closes on Escape, and adds no tab stop", async () => {
+    const user = userEvent.setup();
+    renderList({ sessions: [row("keyed", { runtime: runtime("codex", "gpt-6.1-sol") })] });
+
+    await user.click(screen.getByRole("searchbox", { name: "Filter sessions" }));
+    while (document.activeElement !== rowButton("keyed")) await user.tab();
+    const tooltip = { selector: '[data-slot="tooltip-content"]' };
+    expect(await screen.findByText("Codex · GPT-6.1 Sol", tooltip)).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByText("Codex · GPT-6.1 Sol", tooltip)).not.toBeInTheDocument()
+    );
+
+    // The next stop is the row's own selection checkbox: the glyph inside the row is not one.
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("checkbox", { name: "Select Session keyed" })
+    );
   });
 });

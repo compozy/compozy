@@ -2773,7 +2773,10 @@ Owner: branch `feat/issue-754-session-provider-logo`; issue #754.
 Every session row in the shared Web list (window sidebar, sessions modal, nested
 children, revealed subagents, all-workspaces groups) leads its sub line with the
 provider mark of `runtime.effective.provider`, drawn from `providerKindIconRegistry`
-in neutral ink, with accessible name and tooltip `provider · model`. A session that
+in neutral ink. The row's accessible name and the mark's tooltip read `Provider · Model`
+in the runtime selector's display names, from the same cached `/api/providers` and
+`/api/model-catalog/models` reads (wire id where the catalog has none); the glyph is
+not a tab stop and the tooltip also opens on the row's keyboard focus. A session that
 has never bound a runtime renders no mark. The sub line now runs under the time
 column, so the mark costs no attention word. Data comes from the existing list
 payload and the catalog stream's `upserted` re-read, so continue, fork, and process
