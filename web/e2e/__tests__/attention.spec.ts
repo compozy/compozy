@@ -370,10 +370,14 @@ test.describe("E2E-015 sidebar badges and sort", () => {
 
     const modal = await openSessionsModal(page);
     await expect(
-      modal.getByTestId(`os-sessions-modal-session-${failed.id}`).getByRole("img")
+      modal
+        .getByTestId(`os-sessions-modal-session-${failed.id}`)
+        .getByRole("img", { name: /^Session badge/ })
     ).toHaveAttribute("aria-label", "Session badge: failed");
     await expect(
-      modal.getByTestId(`os-sessions-modal-session-${done.id}`).getByRole("img")
+      modal
+        .getByTestId(`os-sessions-modal-session-${done.id}`)
+        .getByRole("img", { name: /^Session badge/ })
     ).toHaveAttribute("aria-label", "Session badge: done");
     await modal.getByTestId("os-sessions-modal-sort-trigger").click();
     await page.getByTestId("os-sessions-modal-sort-attention").click();
@@ -396,8 +400,9 @@ test.describe("E2E-015 sidebar badges and sort", () => {
 
       const modal = await openSessionsModal(page);
       const row = modal.getByTestId(`os-sessions-modal-session-${session.id}`);
-      await expect(row.getByRole("img")).toHaveAttribute("aria-label", "Session badge: unknown");
-      await expect(row.getByRole("img")).toHaveAttribute("data-badge", "unknown");
+      const badge = row.getByRole("img", { name: /^Session badge/ });
+      await expect(badge).toHaveAttribute("aria-label", "Session badge: unknown");
+      await expect(badge).toHaveAttribute("data-badge", "unknown");
     } finally {
       await page.unrouteAll({ behavior: "ignoreErrors" });
     }

@@ -13,6 +13,7 @@ import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
 import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
+import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
@@ -56,7 +57,7 @@ export function SessionListRow({
       <button
         type="button"
         className={cn(
-          "relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
+          "relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
           (selected || current) && "bg-selected"
         )}
         data-status={session.badge}
@@ -88,7 +89,7 @@ export function SessionListRow({
           current={current}
           orphanedSubagent={orphanedSubagent}
         />
-        <span className="mt-0.5 flex items-center gap-1.5">
+        <span className="col-start-3 row-start-1 mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
           <Time iso={session.updated_at} className="text-eyebrow text-subtle" />
         </span>
@@ -123,25 +124,27 @@ export function SessionListRow({
   );
 }
 
-/** Keep attention and lifecycle words visible when the selection checkbox covers the badge. */
+/**
+ * Keep attention and lifecycle words visible when the selection checkbox covers the badge.
+ * Two grid items: the title sits beside the time, and the sub line runs under the time
+ * column so the provider mark costs it no attention word.
+ */
 function SessionListRowDetails({
   session,
   current,
   orphanedSubagent,
-  className,
-  ...props
 }: {
   session: SessionPayload;
   current: boolean;
   orphanedSubagent: boolean;
-} & React.ComponentProps<"span">) {
+}) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
   return (
-    <span className={cn("min-w-0", className)} {...props}>
+    <>
       <span
         className={cn(
-          "block truncate text-body",
+          "col-start-2 row-start-1 block min-w-0 truncate text-body",
           // A needs-you row keeps its pull even when the window is not focused.
           signal.attention === "needs-you" ? "font-medium text-fg" : "text-fg",
           current && "font-medium"
@@ -149,34 +152,37 @@ function SessionListRowDetails({
       >
         {getSessionDisplayTitle(session)}
       </span>
-      <span className="block truncate text-eyebrow text-subtle">
-        <span className="font-medium text-muted">{session.agent_name}</span>
-        {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}
-        {signal.speaks ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>
-          </>
-        ) : null}
-        {maskedNote !== null ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            {maskedNote}
-          </>
-        ) : null}
-        {orphanedSubagent ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            {SUBAGENT_OF_DELETED_SESSION}
-          </>
-        ) : null}
-        {session.archived_at !== null ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            Archived
-          </>
-        ) : null}
+      <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-1 text-eyebrow text-subtle">
+        <SessionListProviderMark session={session} />
+        <span className="min-w-0 truncate">
+          <span className="font-medium text-muted">{session.agent_name}</span>
+          {/* The mark carries the state; the word speaks up whenever the glyph is shared. */}
+          {signal.speaks ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>
+            </>
+          ) : null}
+          {maskedNote !== null ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {maskedNote}
+            </>
+          ) : null}
+          {orphanedSubagent ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {SUBAGENT_OF_DELETED_SESSION}
+            </>
+          ) : null}
+          {session.archived_at !== null ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              Archived
+            </>
+          ) : null}
+        </span>
       </span>
-    </span>
+    </>
   );
 }

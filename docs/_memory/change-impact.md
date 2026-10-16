@@ -2741,3 +2741,21 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Session row provider mark — 2026-10-16
+
+Owner: branch `feat/issue-754-session-provider-logo`; issue #754.
+Every session row in the shared Web list (window sidebar, sessions modal, nested
+children, revealed subagents, all-workspaces groups) leads its sub line with the
+provider mark of `runtime.effective.provider`, drawn from `providerKindIconRegistry`
+in neutral ink, with accessible name and tooltip `provider · model`. A session that
+has never bound a runtime renders no mark. The sub line now runs under the time
+column, so the mark costs no attention word. Data comes from the existing list
+payload and the catalog stream's `upserted` re-read, so continue, fork, and process
+replacement repaint the mark with no per-row request. Web-only (internal regime):
+HTTP/UDS DTOs, OpenAPI, CLI, native tools, hooks, extensibility, configuration keys,
+persisted state, and official `skills/compozy/` are unchanged; no migration or
+compatibility adapter is needed. Workspace/profile isolation is unaffected (the row
+renders its own payload). No site documentation changes are needed. QA owner:
+`ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
+suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.

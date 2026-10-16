@@ -491,13 +491,19 @@ describe("SessionList subagents", () => {
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    expect(within(waiting).getByRole("img")).toHaveAttribute("data-badge", "delegated");
+    expect(within(waiting).getByRole("img", { name: /^Session badge/ })).toHaveAttribute(
+      "data-badge",
+      "delegated"
+    );
     expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
       "data-state",
       "delegated"
     );
     const working = screen.getByTestId("session-sidebar-session-working-parent");
-    expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
+    expect(within(working).getByRole("img", { name: /^Session badge/ })).toHaveAttribute(
+      "data-badge",
+      "running"
+    );
   });
 
   it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
@@ -531,5 +537,70 @@ describe("SessionList subagents", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("session-row-actions-parent"));
     expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
+  });
+});
+
+// Invariant: every row, nested children included, names the runtime it is bound to from the
+// payload's effective runtime, so a catalog re-read repaints it; an unbound row shows no mark.
+describe("SessionList provider marks", () => {
+  const runtime = (provider: string, model?: string): SessionPayload["runtime"] => ({
+    status: "ready",
+    transition: "initial_bind",
+    effective: { provider, ...(model ? { model } : {}) },
+    selection_revision: 0,
+  });
+  const row = (id: string, patch: Partial<SessionPayload> = {}): SessionPayload => ({
+    ...primarySessionFixture,
+    id,
+    name: `Session ${id}`,
+    archived_at: null,
+    state: "active",
+    badge: "running",
+    ...patch,
+  });
+  const rowOf = (id: string) => within(screen.getByTestId(`session-sidebar-session-${id}`));
+
+  it("names the effective runtime on root and nested rows and shows none before the first bind", () => {
+    renderList({
+      sessions: [
+        row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
+        row("child", {
+          runtime: runtime("claude"),
+          lineage: {
+            parent_session_id: "root",
+            root_session_id: "root",
+            spawn_depth: 1,
+            auto_stop_on_parent: false,
+            notify_creator: true,
+            spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+            permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+          },
+        }),
+        row("unbound", { runtime: { status: "unbound", selection_revision: 0 } }),
+      ],
+    });
+
+    expect(rowOf("root").getByRole("img", { name: "codex · gpt-6.1-sol" })).toHaveAttribute(
+      "data-kind",
+      "codex"
+    );
+    expect(
+      within(screen.getByTestId("session-sidebar-thread-root")).getByRole("img", {
+        name: "claude",
+      })
+    ).toHaveAttribute("data-kind", "claude");
+    expect(rowOf("unbound").getByText(primarySessionFixture.agent_name)).toBeInTheDocument();
+    expect(screen.queryByTestId("session-provider-mark-unbound")).not.toBeInTheDocument();
+  });
+
+  it("repaints the mark when a re-read reports another runtime", () => {
+    const before = row("switched", { runtime: runtime("codex", "gpt-6.1-sol") });
+    const { update } = renderList({ sessions: [before] });
+    expect(rowOf("switched").getByRole("img", { name: "codex · gpt-6.1-sol" })).toBeVisible();
+
+    update([{ ...before, runtime: runtime("claude", "claude-opus-5-5") }]);
+
+    expect(rowOf("switched").getByRole("img", { name: "claude · claude-opus-5-5" })).toBeVisible();
+    expect(rowOf("switched").queryByRole("img", { name: /codex/ })).not.toBeInTheDocument();
   });
 });

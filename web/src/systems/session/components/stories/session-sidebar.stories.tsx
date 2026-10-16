@@ -275,3 +275,122 @@ export const RevealedSubagent: Story = {
     revealedSession: VIEWED_SUBAGENT,
   },
 };
+
+/** The same row on another runtime; `null` is a session that has not bound one yet. */
+function onRuntime(session: SessionPayload, provider: string | null, model = ""): SessionPayload {
+  return {
+    ...session,
+    runtime:
+      provider === null
+        ? { status: "unbound", selection_revision: 0 }
+        : { ...sessionRuntime(provider), effective: { provider, ...(model ? { model } : {}) } },
+  };
+}
+
+const MIXED_RUNTIMES: SessionPayload[] = [
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-orch", "Orchestrate the October fixes", "general", "running"),
+      0
+    ),
+    "claude",
+    "claude-opus-5-5"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession(
+        "sess-sort",
+        "Stable session sort under parallel catalog writes",
+        "general",
+        "running",
+        "sess-orch"
+      ),
+      1
+    ),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession(
+        "sess-origin",
+        "Tailscale gateway origin",
+        "general",
+        "needs-attention",
+        "sess-orch"
+      ),
+      2
+    ),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-viewer", "Image viewer return path", "general", "running", "sess-orch"),
+      3
+    ),
+    "claude",
+    "claude-opus-5-5"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-claim", "Loop claim token", "general", "failed", "sess-orch"),
+      6
+    ),
+    "gemini",
+    "gemini-3.1-pro"
+  ),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-cards", "Session message cards", "general", "done", "sess-orch"),
+      9
+    ),
+    "cursor"
+  ),
+  onRuntime(minutesAgo(sidebarSession("sess-new", "New session", "general", "idle"), 0), null),
+  onRuntime(
+    minutesAgo(
+      sidebarSession("sess-cart-2", "Refactor cart totals", "general", "waiting-for-input"),
+      14
+    ),
+    "claude",
+    "claude-sonnet-5-5"
+  ),
+  onRuntime(
+    minutesAgo(sidebarSession("sess-refund-2", "Fix flaky refund test", "general", "stopped"), 300),
+    "codex",
+    "gpt-6.1-sol"
+  ),
+];
+
+/**
+ * Each row names its runtime with the provider's mark before the agent, in
+ * neutral ink so only live state carries color; the unbound session shows none.
+ */
+export const MixedRuntimes: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: MIXED_RUNTIMES,
+    currentSessionId: "sess-orch",
+  },
+};
+
+/** Selection keeps every provider mark; the checkbox covers only the state mark. */
+export const MixedRuntimesSelection: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...MixedRuntimes.args,
+    sessionActions: SelectionMode.args!.sessionActions!,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}");
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-sort"));
+    await user.click(canvas.getByTestId("session-sidebar-session-sess-claim"));
+    await user.keyboard("{/Control}");
+    await expect(canvas.getByTestId("session-sidebar-selection-count")).toHaveTextContent(
+      "2 selected"
+    );
+  },
+};
