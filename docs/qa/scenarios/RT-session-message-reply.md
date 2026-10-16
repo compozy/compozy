@@ -75,3 +75,14 @@ real-provider walks remain delegated to CI/integrated QA per maintainer instruct
 The first public claim freezes a finite admission batch before the Goal. Add more messages during
 that batch and reopen the store: the Goal runs after the original batch, before later arrivals.
 Store owner: `TestGlobalDBSessionInputQueueGeneration/Should_preserve_a_bounded_Goal_input_batch_across_new_arrivals_and_reopen`.
+
+Explicit reply and expiry regression (#760)
+
+12. B answers A with `compozy__session_prompt` and `in_reply_to` set to A's message id: A's card shows
+    "In reply", the hop does not increase, and A's armed watch is released so A is woken once, not
+    twice.
+13. Set `session.messaging.reply_watch_ttl = "1m"` (restart the daemon), send a watched message to a
+    busy B and wait past the TTL: A receives one wake with the `expired` outcome, the sent card reads
+    "No reply" and the body "No reply arrived in time. The message may still be pending; check the
+    target session." With the default `0s` an armed watch never expires and keeps A out of inactivity
+    stop while B is live.

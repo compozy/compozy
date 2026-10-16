@@ -69,8 +69,10 @@ Perform these dependent operations in order:
    `issue-<number>-<slug>`, branch such as `fix/issue-<number>-<slug>`.
 2. `compozy__worktree_inspect`: confirm creation reached `ready`, and retain the returned path/ID.
 3. `compozy__session_create`: selected agent, descriptive issue name, exact workspace/worktree ID.
-4. Load [assets/executor-prompt.md](assets/executor-prompt.md), fill every field, and send the full
-   briefing with `compozy__session_prompt`. Set runtime explicitly on this first prompt:
+4. Load [assets/executor-prompt.md](assets/executor-prompt.md), fill every field (including
+   `<ORCHESTRATOR_SESSION_ID>`, your own session ID, so the executor can report back), and send the
+   full briefing with the native `compozy__session_prompt` tool, never `compozy session prompt`
+   (the CLI carries no sender identity unless run inside a managed session). Set runtime explicitly on this first prompt:
    `{"provider":"codex","model":"gpt-6-astra","reasoning_effort":"high"}` unless overridden.
    Use unique stable `message_id` and `idempotency_key`; use `wait:false` for background dispatch.
 5. `compozy__session_status`: confirm the prompt is accepted, runtime ready with the requested
@@ -88,9 +90,15 @@ claim a pending worktree, unbound runtime, or merely accepted prompt is executin
 
 ## 4. Follow-ups and delivery
 
-Send additional evidence only to the same issue's recorded executor. Inspect its current turn and
-busy-input capabilities: queue nonurgent additions; steer only when timely correction is needed,
-using the expected active turn and checking whether the runtime would interrupt. Do not assume a
+Send additional evidence only to the same issue's recorded executor, with native
+`compozy__session_prompt`. Executors usually sit in one long turn, so a `queue` message may wait an
+hour: use `mode: "steer"` for anything the executor must see soon, and `queue` only for material it
+can read at its next boundary (the daemon also injects long-waiting queued messages after
+`session.messaging.queue_promote_after`). Check the reported mode and `disposition`. Answer executor
+messages with `in_reply_to` set to their `message_id`; use `supersede: true` when a new instruction
+replaces an unread one. Executors report milestones only, so do not poll them for status and do not
+answer pure acknowledgments. Consolidate cross-surface impact notes from the PR bodies yourself;
+executors must not co-edit shared files such as `docs/_memory/change-impact.md`. Do not assume a
 slash-shaped string in an agent prompt activates a skill or Goal; require the native operation.
 
 The executor prompt owns implementation, validation, PR description, and the complete review cycle.

@@ -57,6 +57,9 @@ Agents use `compozy__session_prompt` to address another session. Supply `session
 `"interrupt"` when the target is busy; without `mode`, `session.busy_input.default_mode` applies
 (`steer` by default). Retry with the same message and idempotency IDs. Every message costs the
 receiver a full turn, so send at milestones instead of streaming status updates.
+For a long-running receiver, prefer `steer` for anything it must see soon; `queue` only waits for the end
+of its current turn, which can be long. Set `supersede: true` on a status update so only your latest one
+stays queued.
 
 CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
 include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,
@@ -86,8 +89,15 @@ woken once with your message instead of twice. An armed watch waits for as long 
 set `session.messaging.reply_watch_ttl` to expire unanswered watches with the `expired` outcome
 (disabled by default).
 
-An operator can cancel an agent-authored queued message, but cannot replace or promote its text.
-Those mutations return HTTP 409 `input_agent_authored`.
+An operator can cancel an agent-authored queued message or promote it to steer (**Steer** on its queue
+row in the Web UI), but cannot replace its text: that returns HTTP 409 `input_agent_authored`.
+
+When the receiver is busy, the order is operator input, then messages from other sessions, then reply
+and subagent wakes, and enqueue time within each group. The queue cap counts operator and agent entries
+separately, so agents cannot fill the operator's slots, and `queue_position` is the real dispatch rank.
+An agent's `steer` never interrupts the receiver: if the provider cannot take an injection, it waits in
+the queue. Steer replacement is per sender, so an agent cannot cancel another sender's or the
+operator's steer.
 
 The hop counts forwarding depth. A message forwarded to a session that is not driving your current
 turn takes the turn's highest accepted hop plus one; steer also raises that value before provider
@@ -200,3 +210,11 @@ from the sender's queue does not send it again. `notify_on_complete` belongs to 
 tool; HTTP operator prompts have no equivalent option. Operator-scoped native calls with this
 option return `invalid_request`: `notify_on_complete requires an agent session`. Archiving or deleting
 an unconsumed target settles its outstanding watches as `unknown` without waiting for a restart.
+
+## What the Web UI shows
+
+A received message shows an **In reply** chip when it answers an earlier message; click it to jump to the
+original. Several consecutive messages from the same sender collapse into one group labeled
+"{title} · N messages", showing the latest and expanding to all. An expired reply watch appears as
+**No reply** on the sender's card. In the session list, a session marked **Needs attention** says why,
+for example "Stop not confirmed" or "Loop run went stale", with every cause in the hover text.

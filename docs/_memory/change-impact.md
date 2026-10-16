@@ -3131,3 +3131,36 @@ Owner: branch `daemon-cpu-attention`.
   native tool change. Workspace/profile isolation is unchanged. Official `skills/compozy/` and
   `packages/site` need no update; behavior only becomes accurate (no false attention) and cheaper.
   QA owner: `TA-action-run-liveness`.
+
+
+## Issue #760 — Session messaging for long orchestrations
+
+- **Owner:** issue #760, branch `fix/issue-760-session-messaging`, stacked on #755.
+- **Cause and policy:** a real 10-executor run showed queued agent messages never reaching long-turn
+  targets, agents outranking the operator, one turn per message, a hop limit that measured chat length,
+  and guidance that taught the failing paths. The queue is now operator-first with separate caps and a
+  real `queue_position`; agent steer never interrupts; `supersede`, batched dispatch (up to 8) and
+  promotion to steer after `queue_promote_after` apply; hops count forwarding only and a per sender→target
+  rate budget replaces depth as the flood guard; `in_reply_to` and a reply-watch TTL make replies explicit.
+- **Native tools / CLI / HTTP / UDS:** `compozy__session_prompt` gains `supersede` and `in_reply_to`,
+  and its descriptor text explains `mode` and `notify_on_complete` (catalog fixture updated). New typed
+  error `message_rate_limited` (HTTP 429). `compozy session prompt` stamps origin inside a managed
+  session and gains `--from-session`, `--in-reply-to`, `--supersede`. Operator promote of agent rows is
+  allowed (edit still `input_agent_authored`). OpenAPI and generated web types co-ship. All additive.
+- **Extensibility / hooks / config:** new `[session.messaging]` keys `rate_limit_messages`,
+  `rate_limit_window`, `reply_watch_ttl` (opt-in, default never) and `queue_promote_after`; no hook,
+  extension SDK or permission change; origin gains `in_reply_to`.
+- **Isolation / compatibility:** all reads and rate counts are scoped to the exact sender and target
+  session; no cross-workspace change. Append-only migration 00138 (with the Atlas/sqlc
+  artifacts) widens the reply-watch outcome and abandon-reason checks and the session-input queue
+  schema; existing rows survive. SD-013: public additions only, behavior fixes inside the
+  experimental-free messaging contract; no shim.
+- **Official skill / Web / site docs:** `native-tools.md`, `runtime-operations.md` and
+  `tasks-and-orchestration.md` carry the queue-vs-steer guidance and supervisor/worker protocol; the
+  `cy-orquestrate-issue` skill and executor prompt use the native tool with an orchestrator ID and a
+  milestone-only reporting protocol. Web adds the In reply chip, No reply outcome, grouped inbound
+  cards, Steer on agent queue rows and attention reasons; site orchestration, config and CLI prompt
+  pages and COPY.md §Session Message Terms updated.
+- **QA / validation:** RT-session-message-origin (steps 9–16) and RT-session-message-reply (12–13)
+  updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
+

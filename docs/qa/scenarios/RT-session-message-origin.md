@@ -60,3 +60,31 @@ real-provider walks remain delegated to CI/integrated QA per maintainer instruct
 The first public claim freezes a finite admission batch before the Goal. Add more messages during
 that batch and reopen the store: the Goal runs after the original batch, before later arrivals.
 Store owner: `TestGlobalDBSessionInputQueueGeneration/Should_preserve_a_bounded_Goal_input_batch_across_new_arrivals_and_reopen`.
+
+Busy-target policy regression (#760)
+
+9. Human-first order: with B busy, queue a human prompt and several agent messages and a reply wake.
+   The queue list shows the human entry first with `queue_position` equal to its rank; agent steers
+   sent afterwards never jump it. Fill B with agent messages up to `queue_cap`: a human send still
+   succeeds (separate caps).
+10. An agent `mode: "steer"` to a provider without injection stays queued (no interrupt, active turn
+    untouched). An agent `mode: "interrupt"` is delivered as steer and the result reports `steer`.
+    A queued human steer survives a later agent steer.
+11. Send three status messages with `supersede: true` from A to B: only the latest remains queued and
+    `canceled_queued_entries` counts the replaced ones; another sender's and the human's entries stay.
+12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
+    origin event and reply watch; a human entry is never merged.
+13. Promotion: keep B in one turn past `session.messaging.queue_promote_after` (shorten it for the lab).
+    A queued agent message is injected as steer with its original message id; with `0s` it keeps
+    waiting; with a human entry waiting it is not promoted. As the operator, Steer an agent queue row
+    (works) and try to replace it (409 `input_agent_authored`).
+14. Hop and rate: A answering the session that drives its turn, or sending with `in_reply_to`, keeps
+    the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
+    that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, other
+    sends and sessions are unaffected; `-1` disables the budget.
+15. CLI origin: inside a managed session run `compozy session prompt <id> "hi"`; the receiver sees A as
+    sender. `--from-session none` sends operator input, `--in-reply-to` links the card, `--supersede`
+    replaces the older queued prompt.
+16. Web: the queue strip shows "From {title}" with Steer and Remove; consecutive inbound cards from one
+    sender collapse into "{title} · N messages"; a reply shows the "In reply" chip; a session in
+    Needs attention shows its reason.

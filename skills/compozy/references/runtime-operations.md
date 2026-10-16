@@ -529,6 +529,18 @@ Clear parked entries explicitly with `compozy session input clear <session-id>`,
 with per-entry statuses, `cleared_count`, and `queue_generation`. Entries already dispatching
 retain their dispatch outcome. Every removed entry has a durable `queue_cleared` transcript trace
 with the actor identity. A lost transcript projection is repaired from the durable trace.
+Busy input order is operator input, then messages from other sessions, then synthetic wakes
+(reply wakes, subagent wakes), then enqueue time within each class. `queue_cap` applies separately to
+operator and agent/wake entries, so agents cannot exhaust the operator's slots; `queue_position` is
+the real rank in that order. An agent-origin `steer` never interrupts: when injection is unavailable
+it is queued, and steer supersede is scoped per sender, so it cannot cancel an operator steer.
+Consecutive agent messages and reply wakes (up to 8) dispatch as one turn, each keeping its own origin
+and reply watch; operator input is never merged. A message from another session that waits on a
+target in the same turn longer than `session.messaging.queue_promote_after` (default `2m`, `0s`
+disables) is injected as steer when the target supports injection and no operator input waits. The
+operator can promote (Steer) an agent-authored row but not edit it. `session.messaging` also holds
+`rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`) and the opt-in
+`reply_watch_ttl` (default `0s`, never expires); see `references/configuration.md`.
 Queue list and session status include `queue: {entries, cap}`. A full queue returns `queue_full`
 with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt remain admitted.
 An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored
