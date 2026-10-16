@@ -50,7 +50,7 @@ Passed local, race enabled:
 
 ```sh
 CGO_ENABLED=1 go test -race -run TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress ./internal/store/globaldb
-CGO_ENABLED=1 go test -race -run 'TestGlobalDBBlockTaskAndReleaseRun|TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress|TestGlobalDBTokenFencedLeaseLifecycle' ./internal/store/globaldb
+CGO_ENABLED=1 go test -race -run 'TestGlobalDBBlockTaskAndReleaseRun|TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress|TestGlobalDBClaimLeaseLifecycleFencing' ./internal/store/globaldb
 CGO_ENABLED=1 go test -race -tags integration -timeout 90s -run 'TestLoopGoalManagedRuntimeIntegration/Should_wait_for_a_durable_claim' ./internal/daemon
 CGO_ENABLED=1 go test -race -run 'TestTaskRunHookContextCarriesLoopFilterKeys|TestTokenFencedLeaseTransitionsDispatchTaskRunHooks' ./internal/task
 CGO_ENABLED=1 go test -race -run 'TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration|TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral|TestLoopActionRuntimeEnforcesActionLiveness' ./internal/daemon
@@ -77,4 +77,11 @@ lane, is the delivery gate. No UI implementation changed; screenshots are not ap
 
 ## Delivery receipts
 
-Pending: scoped lint, final PR head CI, CodeRabbit, Greptile and React Doctor.
+PR: https://github.com/compozy/compozy/pull/748 (open; do not merge).
+
+The full `TestManagerForceRunOperations` suite and `TestGlobalDBClaimLeaseLifecycleFencing` also
+passed with race enabled. Scoped lint across daemon/task/globaldb found one test-only if/else
+chain and two formatting findings; the chain was converted to a switch and the official formatter
+was applied only to the changed Go files. `golangci-lint fmt --diff` passes for the adjusted tests.
+The authoritative final lint, complete CI and bot-review receipts are the current-head checks and
+resolved review threads on PR #748; this report does not claim unobserved CI or review success.

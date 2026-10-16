@@ -8896,7 +8896,11 @@ func TestManagerForceRunOperations(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(t.Context(), CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Recover Loop worker"}, actor)
+		taskRecord, err := manager.CreateTask(
+			t.Context(),
+			CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Recover Loop worker"},
+			actor,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

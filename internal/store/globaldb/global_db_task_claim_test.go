@@ -6942,12 +6942,21 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		wantEvents       []string
 	}{
 		{
-			name: "operator fails queued worker", forceStatus: taskpkg.TaskRunStatusQueued,
-			wantOutputStatus: "failed", wantEvents: []string{loopRunEventStatusChanged, loopRunEventNodeFailed, loopRunEventTokenTick},
+			name:             "operator fails queued worker",
+			forceStatus:      taskpkg.TaskRunStatusQueued,
+			wantOutputStatus: "failed",
+			wantEvents:       []string{loopRunEventStatusChanged, loopRunEventNodeFailed, loopRunEventTokenTick},
 		},
 		{
-			name: "operator fails claimed worker", forceStatus: taskpkg.TaskRunStatusClaimed,
-			wantOutputStatus: "failed", wantEvents: []string{loopRunEventStatusChanged, loopRunEventNodeRunning, loopRunEventNodeFailed, loopRunEventTokenTick},
+			name:             "operator fails claimed worker",
+			forceStatus:      taskpkg.TaskRunStatusClaimed,
+			wantOutputStatus: "failed",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeFailed,
+				loopRunEventTokenTick,
+			},
 		},
 		{
 			name:             "success records terminal output",
@@ -7060,15 +7069,24 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 					t.Fatalf("ClaimNextRun() error = %v", err)
 				}
 			}
-			if tc.forceStatus != taskpkg.TaskRunStatusUnknown {
-				manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB), taskpkg.WithManagerNow(func() time.Time { return terminalAt }))
+			switch {
+			case tc.forceStatus != taskpkg.TaskRunStatusUnknown:
+				manager, err := taskpkg.NewManager(
+					taskpkg.WithStore(globalDB),
+					taskpkg.WithManagerNow(func() time.Time { return terminalAt }),
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := manager.ForceFailRun(ctx, runID, taskpkg.ForceFailRun{Reason: "operator recovery"}, coordinatorActorContextForTest()); err != nil {
+				if _, err := manager.ForceFailRun(
+					ctx,
+					runID,
+					taskpkg.ForceFailRun{Reason: "operator recovery"},
+					coordinatorActorContextForTest(),
+				); err != nil {
 					t.Fatal(err)
 				}
-			} else if tc.complete {
+			case tc.complete:
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
@@ -7079,7 +7097,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				}); err != nil {
 					t.Fatalf("CompleteRunLease() error = %v", err)
 				}
-			} else {
+			default:
 				metadata := tc.failureMetadata
 				if len(metadata) == 0 {
 					metadata = json.RawMessage(`{"reason_code":"credential_missing"}`)

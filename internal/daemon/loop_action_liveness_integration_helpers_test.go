@@ -92,8 +92,12 @@ func testLoopActionSettlementIntegration(
 		definition.Graph.Nodes[0].Kind = string(loopdsl.ActionRunAgent)
 		definition.Graph.Nodes[0].Session = &loopdsl.SessionSpec{Isolated: true}
 		definition.Graph.Nodes[0].Params = loopdsl.NodeParams{
-			"agent": "worker", "prompt": "Complete the claimed task",
-			"output_schema": map[string]any{"type": "object", "properties": map[string]any{"status": map[string]any{"type": "string"}}},
+			"agent":  "worker",
+			"prompt": "Complete the claimed task",
+			"output_schema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			},
 		}
 		var err error
 		resolved, err = looppkg.NewCompiler().Compile(definition)
@@ -802,7 +806,11 @@ func testLoopActionClaimContention(t *testing.T) {
 			runtime.persistenceAttemptTimeout = 100 * time.Millisecond
 		})
 	if observed.calls.Load() < 2 || executor.calls.Load() != 1 {
-		t.Fatalf("claim/action calls = %d/%d, want retried claim and one action", observed.calls.Load(), executor.calls.Load())
+		t.Fatalf(
+			"claim/action calls = %d/%d, want retried claim and one action",
+			observed.calls.Load(),
+			executor.calls.Load(),
+		)
 	}
 }
 
@@ -813,7 +821,11 @@ type contendedLoopClaimManager struct {
 	calls atomic.Int32
 }
 
-func (m *contendedLoopClaimManager) ClaimNextRun(ctx context.Context, criteria taskpkg.ClaimCriteria, actor taskpkg.ActorContext) (*taskpkg.ClaimResult, error) {
+func (m *contendedLoopClaimManager) ClaimNextRun(
+	ctx context.Context,
+	criteria taskpkg.ClaimCriteria,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
 	if m.calls.Add(1) != 1 {
 		return m.loopActionTaskManager.ClaimNextRun(ctx, criteria, actor)
 	}
@@ -851,7 +863,11 @@ type claimCheckingLoopActionExecutor struct {
 	calls atomic.Int32
 }
 
-func (e *claimCheckingLoopActionExecutor) Execute(ctx context.Context, node loopdsl.Node, in looppkg.ActionExecutionInput) (looppkg.ActionRawResult, error) {
+func (e *claimCheckingLoopActionExecutor) Execute(
+	ctx context.Context,
+	node loopdsl.Node,
+	in looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
 	e.calls.Add(1)
 	runs, err := e.db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusClaimed})
 	if err != nil {
