@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import type { RuntimeSpeed } from "@/lib/api-contract";
 
@@ -385,11 +385,44 @@ export const PopupFavoritesRail: Story = {
 };
 
 export const ProviderAuthRequired: Story = {
+  tags: ["play-fn"],
   args: {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
-    providerCatalogIssues: { cursor: "Sign in to update the model list." },
+    providers: [
+      ...providers,
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `offline-${index}`,
+        name: `Offline provider ${index}`,
+        runtime_provider: "codex",
+      })),
+    ],
+    providerCatalogIssues: Object.fromEntries([
+      ["cursor", "Sign in to update the model list."],
+      ...Array.from({ length: 12 }, (_, index) => [
+        `offline-${index}`,
+        "Could not update the model list. Try refreshing again.",
+      ]),
+    ]),
   },
+  // Invariant: discovery guidance cannot cover a healthy model's pointer target.
+  // Owner: rendered RuntimeSelector; canonical suite: this browser interaction story.
   play: async ({ canvasElement }) => {
-    await openPopup(canvasElement);
+    const body = await openPopup(canvasElement);
+    await userEvent.type(body.getByTestId("runtime-selector-search"), "GPT-5.6 Sol");
+    const option = body.getByRole("option", { name: /GPT-5.6 Sol from Codex/ });
+    option.scrollIntoView({ block: "nearest" });
+    await waitFor(async () => {
+      const bounds = option.getBoundingClientRect();
+      const hit = option.ownerDocument.elementFromPoint(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2
+      );
+      await expect(option.contains(hit)).toBe(true);
+    });
+    await userEvent.click(option);
+    await expect(body.getByTestId("runtime-selector-reasoning")).toHaveAttribute(
+      "data-reasoning-mode",
+      "levels"
+    );
   },
 };
