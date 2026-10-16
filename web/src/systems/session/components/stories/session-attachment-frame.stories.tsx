@@ -4,8 +4,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 
 import { SessionAttachmentFrame } from "../session-attachment-frame";
 
-const STORY_IMAGE =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const STORY_IMAGE = "/icon-512.png";
 
 const meta: Meta<typeof SessionAttachmentFrame> = {
   title: "systems/session/components/SessionAttachmentFrame",
@@ -15,7 +14,7 @@ const meta: Meta<typeof SessionAttachmentFrame> = {
     docs: {
       description: {
         component:
-          "Fixed 280px transcript image frame. Caption appears on hover or focus-visible only. Click opens the bytes URL.",
+          "Fixed 280px transcript image frame. Caption appears on hover or focus-visible only. Click opens a dismissible image preview without leaving the session.",
       },
     },
   },
@@ -29,7 +28,6 @@ const meta: Meta<typeof SessionAttachmentFrame> = {
     ),
   ],
   args: {
-    href: "#att-diagram",
     src: STORY_IMAGE,
     filename: "diagram.png",
     title: "diagram.png · 1280×720",

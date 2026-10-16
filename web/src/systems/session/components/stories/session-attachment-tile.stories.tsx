@@ -46,7 +46,18 @@ const meta: Meta<typeof SessionAttachmentTile> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const ReadyImage: Story = {};
+export const ReadyImage: Story = {
+  loaders: [
+    async () => ({
+      previewFile: new File([await (await fetch("/icon-512.png")).blob()], "goal-chip.png", {
+        type: "image/png",
+      }),
+    }),
+  ],
+  render: (args, { loaded }) => (
+    <SessionAttachmentTile {...args} model={{ ...args.model, file: loaded.previewFile }} />
+  ),
+};
 
 export const Uploading: Story = {
   args: {

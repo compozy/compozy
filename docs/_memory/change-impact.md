@@ -2742,6 +2742,32 @@ APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
 
+
+
+## Session attachment image previews — issue #738 (2026-10-16)
+
+- Web composer and transcript images open an accessible, dismissible preview inside the
+  session using the existing @compozy/ui Dialog. The transcript trigger no longer links
+  the Electron/browser app window to the attachment bytes route. Close, Escape and
+  backdrop dismissal return focus to the initiating control, including OS-window portals.
+- Native tools, CLI, HTTP/UDS attachment routes/DTOs, configuration, extensions/hooks and
+  the assistant-ui attachment runtime are unchanged. Existing workspace/session-scoped
+  URLs remain authoritative; no new cache, persistence or cross-workspace read is added.
+- SD-013 regime: internal Web composition only, with no persisted shape change, migration,
+  public compatibility shim or removal window. Official skills/compozy/ and packages/site
+  contracts need no update. QA owner: ET-session-attachment-paste-reload; the existing
+  SessionThread suite owns preview behavior. Heavy delivery gates run only in CI by
+  maintainer instruction; rendered evidence uses isolated Storybook, not a daemon lab.
+
+
+Issue #738 follow-up: non-image attachment cards request a filename-preserving download,
+with a separate browsing context as a fallback. The Electron navigation-policy owner now
+rejects same-origin `/api` documents (including scoped attachment bytes and encoded paths)
+while retaining SPA routes and the existing external-link policy. This is an internal
+renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
+change. The existing desktop navigation-policy suite owns the additional guard; the
+browser walk verifies TXT/PDF downloads without unloading the session.
+
 ## Issue #739 — Loop action claim ownership and recovery
 
 The daemon retries SQLite claim persistence before executing an action. The task store applies
