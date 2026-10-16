@@ -2747,7 +2747,8 @@ Windows evidence and packaged desktop evidence must be recorded before delivery.
 The daemon retries SQLite claim persistence before executing an action. The task store applies
 its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
 bound worker from clearing the claim while its provider continues. Force failure commits the
-Loop node failure with the task run and publishes the terminal hook that wakes its coordinator.
+Loop node failure and canonical failure event with the task run, then publishes the terminal hook
+that wakes its coordinator.
 Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
 runs have no terminal-session resource to release.
 

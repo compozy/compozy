@@ -20,8 +20,9 @@ Confirmed from source and deterministic regressions:
   attempt could leave queued work without another dispatch. The existing SQLite retry helper now
   surrounds only claim persistence; provider execution is outside the retry callback.
 - Forced task failure did not publish the corresponding Loop node failure or terminal hook.
-  The existing terminal-output transaction and post-commit hook now carry that recovery into the
-  coordinator. Run recovery remains needs-attention-only; node requeue remains quarantine-only.
+  The terminal-output transaction now persists the canonical task failure event; its post-commit
+  hook carries recovery into the coordinator. Run recovery remains needs-attention-only; node
+  requeue remains quarantine-only.
 - Transactional run reads omit profile identity; the owning task supplies it to terminal hooks.
   Mechanical/coordinator task runs without sessions have no session resource to release and are
   skipped by the terminal-session observer. Session-backed incomplete identities still fail.
@@ -39,8 +40,8 @@ state, database, daemon, desktop or provider configuration was changed during th
   times out, no action executes without a persisted claim, retry executes once, and node success
   commits. The provider boundary is an injected action executor; no full daemon lab is started.
 - Service: `TestManagerForceRunOperations/Should_publish_Loop_worker_failure` observes the failed
-  run from inside the post-commit terminal hook; `TestTaskRunHookContextCarriesLoopFilterKeys`
-  checks the owning profile.
+  run and canonical failure event from inside the post-commit terminal hook.
+  `TestTaskRunHookContextCarriesLoopFilterKeys` checks the owning profile.
 - Terminal adapter: `TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration`
   checks current generation release and legitimate sessionless terminal events.
 
@@ -85,3 +86,9 @@ chain and two formatting findings; the chain was converted to a switch and the o
 was applied only to the changed Go files. `golangci-lint fmt --diff` passes for the adjusted tests.
 The authoritative final lint, complete CI and bot-review receipts are the current-head checks and
 resolved review threads on PR #748; this report does not claim unobserved CI or review success.
+
+CI exposed an incomplete quarantine fixture: its manually created worker lacked lifecycle metadata
+and a generation output. The existing `TestGlobalDBQuarantineSnapshotShouldParkCellTasks` fixture
+now seeds both, preserving its assertions; the complete owning test passes with race enabled
+(4.099s). The service force-operation suite also passes (1.902s), and scoped task lint reports
+`0 issues` after the canonical failure event was added.

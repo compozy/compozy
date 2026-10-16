@@ -8883,7 +8883,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		t.Parallel()
 		store := newInMemoryManagerStore()
 		var observed Run
-		var calls int
+		var calls, eventCount int
 		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
 			failed: func(ctx context.Context, payload hookspkg.TaskRunFailedPayload) (hookspkg.TaskRunFailedPayload, error) {
 				calls++
@@ -8892,6 +8892,14 @@ func TestManagerForceRunOperations(t *testing.T) {
 				if err != nil {
 					return payload, err
 				}
+				events, err := store.ListTaskEvents(
+					ctx,
+					EventQuery{TaskID: payload.TaskID, RunID: payload.RunID, EventType: taskWatchEventRunFailed},
+				)
+				if err != nil {
+					return payload, err
+				}
+				eventCount = len(events)
 				return payload, nil
 			},
 		}))
@@ -8916,8 +8924,13 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if calls != 1 || observed.ID != failed.ID || observed.Status != TaskRunStatusFailed {
-			t.Fatalf("failure hook calls/run = %d/%#v, want one committed failed worker", calls, observed)
+		if calls != 1 || eventCount != 1 || observed.ID != failed.ID || observed.Status != TaskRunStatusFailed {
+			t.Fatalf(
+				"failure hook calls/events/run = %d/%d/%#v, want one committed failed worker and event",
+				calls,
+				eventCount,
+				observed,
+			)
 		}
 	})
 
