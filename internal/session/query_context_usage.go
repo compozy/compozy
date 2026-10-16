@@ -98,8 +98,8 @@ func (m *Manager) Deliveries(ctx context.Context, id string) ([]DeliveryEventEnv
 }
 
 func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvelope, error) {
-	rows, err := m.Events(ctx, id, store.EventQuery{})
-	if err != nil {
+	rows, err := m.compactionEventRows(ctx, id)
+	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
 	boundaries, err := firstCompactionBoundaries(rows)
@@ -150,6 +150,34 @@ func (m *Manager) Compactions(ctx context.Context, id string) ([]CompactionEnvel
 		result = append(result, marker)
 	}
 	slices.SortFunc(result, func(a, b CompactionEnvelope) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return result, nil
+}
+
+// compactionEventRows reads only the event types compaction markers derive from, in sequence order.
+// Sessions without an ACP compaction marker skip the usage history entirely.
+func (m *Manager) compactionEventRows(ctx context.Context, id string) ([]store.SessionEvent, error) {
+	rows, err := m.eventRowsByType(ctx, id, acp.EventTypeCompaction)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	others, err := m.eventRowsByType(ctx, id, events.SessionCompactionFired, acp.EventTypeUsage, acp.EventTypeDone)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, others...)
+	slices.SortFunc(rows, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return rows, nil
+}
+
+func (m *Manager) eventRowsByType(ctx context.Context, id string, kinds ...string) ([]store.SessionEvent, error) {
+	result := make([]store.SessionEvent, 0)
+	for _, kind := range kinds {
+		rows, err := m.Events(ctx, id, store.EventQuery{Type: kind})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rows...)
+	}
 	return result, nil
 }
 
