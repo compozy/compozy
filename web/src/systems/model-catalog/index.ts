@@ -70,4 +70,4 @@ export {
   type RuntimeModelCatalog,
 } from "./hooks/use-runtime-model-catalog";
 
-export { modelSourceFailureMessage } from "./lib/model-source-failure";
+export { modelSourceFailureMessage, modelRefreshErrorMessage } from "./lib/model-source-failure";

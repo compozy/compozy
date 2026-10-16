@@ -24,6 +24,7 @@ import { SettingsSourceBadge } from "./settings-source-badge";
 import {
   modelRefreshStateTone,
   modelSourceFailureMessage,
+  modelRefreshErrorMessage,
   type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
@@ -333,10 +334,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
   }
 
   const sources = statusQuery.data?.sources ?? [];
-  const refreshError =
-    refreshMutation.error && !sources.some(source => source.refresh_state === "failed")
-      ? "Could not refresh the model list. Try again."
-      : null;
+  const refreshError = modelRefreshErrorMessage(refreshMutation.error, sources);
   const queryError = errorMessage(statusQuery.error);
   const refreshing = refreshMutation.isPending || statusQuery.isFetching;
 

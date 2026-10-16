@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ModelCatalogApiError } from "@/systems/model-catalog";
 import { ProviderModelCatalogStatus } from "../provider-model-catalog-status";
 
 const { mockRefreshMutation, mockStatusQuery } = vi.hoisted(() => ({
@@ -93,6 +94,17 @@ describe("ProviderModelCatalogStatus", () => {
     expect(screen.getByTestId("provider-catalog-source-models.dev")).toHaveTextContent(
       "Sign in to update the model list."
     );
+  });
+
+  it("Should keep a new request error visible alongside an older source failure", () => {
+    mockStatusQuery.data.sources[0].refresh_state = "failed";
+    mockStatusQuery.data.sources[0].failure_reason = "auth_required";
+    mockRefreshMutation.error = new ModelCatalogApiError("storage failure", 500);
+    renderStatus();
+    expect(screen.getByTestId("provider-catalog-refresh-error")).toHaveTextContent(
+      "Could not refresh the model list. Try again."
+    );
+    expect(screen.getByText("Sign in to update the model list.")).toBeInTheDocument();
   });
 
   it("Should request a forced refresh for the current provider", async () => {

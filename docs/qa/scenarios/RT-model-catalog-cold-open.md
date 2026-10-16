@@ -90,3 +90,5 @@ healthy providers and cached/curated models remain selectable. Compare
 Repeat with stale cached rows, a timeout, and a successful recovery. Rendered
 Storybook and targeted Go/Web checks verify presentation/classification; no live
 provider login or full-daemon lab is implied by that evidence.
+
+Issue #740 evidence: [targeted verification and rendered before/after report](../reports/2026-10-16-issue-740.md). Live vendor login/recovery remains outside the authorized local validation scope.

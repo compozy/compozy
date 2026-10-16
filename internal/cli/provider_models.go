@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -356,15 +357,21 @@ func providerModelSourceStatusRow(source ProviderModelSourceStatusRecord) []stri
 }
 
 func providerModelSourceStatusHumanRow(source ProviderModelSourceStatusRecord) []string {
+	return providerModelSourceStatusRow(providerModelSourceStatusHumanSource(source))
+}
+
+func providerModelSourceStatusHumanSource(source ProviderModelSourceStatusRecord) ProviderModelSourceStatusRecord {
 	switch source.FailureReason {
 	case "auth_required":
 		source.LastError = "Sign in to update the model list."
 	case "timeout":
 		source.LastError = "The model list took too long to update. Try refreshing again."
-	case "refresh_failed":
-		source.LastError = "Could not update the model list. Try refreshing again."
+	default:
+		if source.RefreshState == string(modelcatalog.RefreshStateFailed) {
+			source.LastError = "Could not update the model list. Try refreshing again."
+		}
 	}
-	return providerModelSourceStatusRow(source)
+	return source
 }
 
 func optionalProviderArg() cobra.PositionalArgs {

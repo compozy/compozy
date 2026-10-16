@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { ModelCatalogApiError } from "../adapters/model-catalog-api";
-import { modelSourceFailureMessage } from "../lib/model-source-failure";
-import { allModelsListOptions } from "../lib/query-options";
+import { modelSourceFailureMessage, modelRefreshErrorMessage } from "../lib/model-source-failure";
+import { allModelsListOptions, modelSourceStatusOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
@@ -60,6 +60,7 @@ export function useRuntimeModelCatalog(
   const { enabled = true, includeStale = true } = options;
   const query = useQuery(allModelsListOptions({ view: "all", includeStale, enabled }));
   const refreshMutation = useRefreshAllModels();
+  const sourceStatus = useQuery(modelSourceStatusOptions(enabled));
 
   // Ordered allow-list: preserves the surface's provider order and carries each
   // provider's auth state so rows for a signed-out provider render disabled.
@@ -101,14 +102,18 @@ export function useRuntimeModelCatalog(
   // while the daemon's cached source status (even a failed one) is within its TTL.
   const refresh = () => refreshMutation.mutate({ force: true });
 
-  const refreshFailure = refreshMutation.isIdle ? initialRefresh.error : refreshMutation.error;
-  const refreshResponse = refreshMutation.isIdle ? initialRefresh.data : refreshMutation.data;
+  const refreshFailure = refreshMutation.isIdle
+    ? missingAllowedProvider
+      ? initialRefresh.error
+      : null
+    : refreshMutation.error;
   const sources =
-    refreshResponse?.sources ??
+    sourceStatus.data?.sources ??
+    refreshMutation.data?.sources ??
     (refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : []);
   const providerIssues: Record<string, string> = {};
-  for (const source of sources) {
-    if (!allowed.has(source.provider_id)) continue;
+  const displayedSources = sources.filter(source => allowed.has(source.provider_id));
+  for (const source of displayedSources) {
     const message = modelSourceFailureMessage(source);
     if (
       message &&
@@ -128,9 +133,6 @@ export function useRuntimeModelCatalog(
     refresh,
     refreshing: refreshMutation.isPending || initialRefresh.isFetching,
     providerIssues,
-    refreshError:
-      refreshFailure && sources.length === 0
-        ? "Could not refresh the model list. Try again."
-        : null,
+    refreshError: modelRefreshErrorMessage(refreshFailure, displayedSources),
   };
 }

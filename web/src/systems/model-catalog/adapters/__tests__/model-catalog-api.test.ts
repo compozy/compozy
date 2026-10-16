@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import { listAllModels, ModelCatalogApiError, refreshAllModels } from "../model-catalog-api";
+import {
+  getModelSourceStatus,
+  listAllModels,
+  ModelCatalogApiError,
+  refreshAllModels,
+} from "../model-catalog-api";
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
@@ -116,5 +121,17 @@ describe("refreshAllModels (aggregate catalog refresh)", () => {
     const error = await refreshAllModels({}).catch(caught => caught);
     expect(error).toBeInstanceOf(ModelCatalogApiError);
     expect((error as ModelCatalogApiError).status).toBe(500);
+  });
+});
+
+describe("aggregate source status", () => {
+  it("Should read shared source health and forward cancellation", async () => {
+    const payload = { sources: [] };
+    mockJsonResponse(payload);
+    const controller = new AbortController();
+    expect(await getModelSourceStatus(controller.signal)).toEqual(payload);
+    expect(new URL(fetchRequest().url).pathname).toBe("/api/model-catalog/sources/status");
+    controller.abort();
+    expect(fetchRequest().signal.aborted).toBe(true);
   });
 });

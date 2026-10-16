@@ -91,6 +91,18 @@ export async function refreshAllModels(
   return requireResponseData(data, response, "Failed to refresh the model catalog");
 }
 
+export async function getModelSourceStatus(
+  signal?: AbortSignal
+): Promise<ProviderModelStatusResponse> {
+  const { data, error, response } = await apiClient.GET("/api/model-catalog/sources/status", {
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new ModelCatalogApiError("Could not load model list status. Try again.", response.status);
+  }
+  return requireResponseData(data, response, "Could not load model list status. Try again.");
+}
+
 export async function getProviderModelStatus(
   providerId: string,
   signal?: AbortSignal

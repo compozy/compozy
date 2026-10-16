@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +33,37 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 			ProviderModelRefreshRequest{},
 		); err != nil {
 			t.Fatalf("RefreshProviderModels(blank provider) error = %v", err)
+		}
+	})
+
+	t.Run("Should preserve classified refresh failure diagnostics", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(
+					http.StatusServiceUnavailable,
+					`{"error":"discovery command failed: exit status 1","sources":[{"source_id":"provider_live:cursor","source_kind":"provider_live","provider_id":"cursor","refresh_state":"failed","failure_reason":"auth_required","last_error":"Authentication required api_key=sk-cursor-secret"}]}`,
+				), nil
+			})},
+		}
+		_, err := client.RefreshProviderModels(t.Context(), "cursor", ProviderModelRefreshRequest{})
+		failure, ok := errors.AsType[*providerModelRefreshAPIError](err)
+		if !ok || !strings.Contains(err.Error(), "cursor (auth_required): Sign in") ||
+			strings.Contains(err.Error(), "exit status") {
+			t.Fatalf("refresh error = %v, want classified human guidance", err)
+		}
+		if failure.cliExitCode() != apiStatusExitCode(http.StatusServiceUnavailable) {
+			t.Fatal("refresh failure changed exit code")
+		}
+		encoded, ok := marshalStructuredExecutionError(
+			[]string{"provider", "models", "refresh", "cursor", "-o", "json"},
+			err,
+		)
+		if !ok || !strings.Contains(string(encoded), "auth_required") ||
+			!strings.Contains(string(encoded), "exit status 1") ||
+			strings.Contains(string(encoded), "sk-cursor-secret") {
+			t.Fatalf("structured error = %s, want classified redacted diagnostics", encoded)
 		}
 	})
 

@@ -5,16 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/model-catalog-api", async importActual => {
   const actual = await importActual<typeof import("../../adapters/model-catalog-api")>();
-  return { ...actual, listAllModels: vi.fn(), refreshAllModels: vi.fn() };
+  return {
+    ...actual,
+    listAllModels: vi.fn(),
+    refreshAllModels: vi.fn(),
+    getModelSourceStatus: vi.fn(),
+    refreshProviderModels: vi.fn(),
+  };
 });
 
 import type { RuntimeCatalogProvider } from "../use-runtime-model-catalog";
 import {
   listAllModels,
+  getModelSourceStatus,
+  refreshProviderModels,
   ModelCatalogApiError,
   refreshAllModels,
 } from "../../adapters/model-catalog-api";
 import type { ProviderModelPayload } from "../../types";
+import { useRefreshProviderModels } from "../use-refresh-provider-models";
 import { useRuntimeModelCatalog } from "../use-runtime-model-catalog";
 
 function payload(
@@ -52,7 +61,10 @@ function mockModels(models: ProviderModelPayload[]) {
 const codexClaude: RuntimeCatalogProvider[] = [{ id: "codex" }, { id: "claude" }];
 
 describe("useRuntimeModelCatalog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [] });
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it("Should issue one aggregate query and restrict rows to the allow-list in provider order", async () => {
@@ -163,7 +175,7 @@ describe("useRuntimeModelCatalog", () => {
 
   it("Should surface a live source that failed inside a successful forced refresh", async () => {
     mockModels([payload("claude", "claude-opus-5")]);
-    vi.mocked(refreshAllModels).mockResolvedValue({
+    const response = {
       sources: [
         {
           source_id: "builtin",
@@ -195,7 +207,9 @@ describe("useRuntimeModelCatalog", () => {
           last_error: "missing key",
         },
       ],
-    } as Awaited<ReturnType<typeof refreshAllModels>>);
+    } as Awaited<ReturnType<typeof refreshAllModels>>;
+    vi.mocked(refreshAllModels).mockResolvedValue(response);
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: response.sources });
 
     const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
       wrapper: createWrapper(),
@@ -215,21 +229,21 @@ describe("useRuntimeModelCatalog", () => {
 
   it("Should attribute authentication failures from an HTTP error and preserve healthy and fallback models", async () => {
     mockModels([payload("codex", "gpt-test"), payload("cursor", "cursor-test", { stale: true })]);
-    vi.mocked(refreshAllModels).mockRejectedValue(
-      new ModelCatalogApiError("Could not refresh the model list. Try again.", 500, [
-        {
-          source_id: "provider_live:cursor",
-          source_kind: "provider_live",
-          provider_id: "cursor",
-          priority: 110,
-          refresh_state: "failed",
-          row_count: 1,
-          stale: true,
-          failure_reason: "auth_required",
-          last_error: "discovery command failed: Authentication required",
-        },
-      ])
-    );
+    const failure = new ModelCatalogApiError("Could not refresh the model list. Try again.", 500, [
+      {
+        source_id: "provider_live:cursor",
+        source_kind: "provider_live",
+        provider_id: "cursor",
+        priority: 110,
+        refresh_state: "failed",
+        row_count: 1,
+        stale: true,
+        failure_reason: "auth_required",
+        last_error: "discovery command failed: Authentication required",
+      },
+    ]);
+    vi.mocked(refreshAllModels).mockRejectedValue(failure);
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: failure.sources });
     const { result } = renderHook(
       () => useRuntimeModelCatalog([{ id: "codex" }, { id: "cursor" }]),
       { wrapper: createWrapper() }
@@ -241,6 +255,73 @@ describe("useRuntimeModelCatalog", () => {
     );
     expect(result.current.refreshError).toBeNull();
     expect(result.current.models.every(model => !model.disabled)).toBe(true);
+  });
+
+  it.each(["successful", "disallowed"])(
+    "Should preserve a request error for %s source rows",
+    async kind => {
+      mockModels([payload("codex", "gpt-test")]);
+      const source = {
+        source_id: "builtin",
+        source_kind: "builtin",
+        provider_id: kind === "successful" ? "codex" : "openrouter",
+        priority: 10,
+        refresh_state: kind === "successful" ? "succeeded" : "failed",
+        row_count: 1,
+        stale: false,
+      };
+      vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [source] });
+      vi.mocked(refreshAllModels).mockRejectedValue(
+        new ModelCatalogApiError("storage failed", 500, [source])
+      );
+      const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "codex" }]), {
+        wrapper: createWrapper(),
+      });
+      await waitFor(() => expect(result.current.models).toHaveLength(1));
+      act(() => result.current.refresh());
+      await waitFor(() =>
+        expect(result.current.refreshError).toBe("Could not refresh the model list. Try again.")
+      );
+      expect(result.current.providerIssues).toEqual({});
+    }
+  );
+
+  it("Should clear shared provider guidance after a successful refresh from Settings", async () => {
+    mockModels([payload("cursor", "cursor-test", { stale: true })]);
+    const failed = {
+      source_id: "provider_live:cursor",
+      source_kind: "provider_live",
+      provider_id: "cursor",
+      priority: 110,
+      refresh_state: "failed",
+      row_count: 1,
+      stale: true,
+      failure_reason: "auth_required",
+    };
+    vi.mocked(getModelSourceStatus).mockResolvedValue({ sources: [failed] });
+    vi.mocked(refreshProviderModels).mockResolvedValue({
+      sources: [{ ...failed, refresh_state: "succeeded", failure_reason: undefined }],
+    });
+    const wrapper = createWrapper();
+    const { result } = renderHook(
+      () => ({
+        catalog: useRuntimeModelCatalog([{ id: "cursor" }]),
+        settingsRefresh: useRefreshProviderModels(),
+      }),
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(result.current.catalog.providerIssues.cursor).toBe("Sign in to update the model list.")
+    );
+    vi.mocked(getModelSourceStatus).mockResolvedValue({
+      sources: [{ ...failed, refresh_state: "succeeded", failure_reason: undefined }],
+    });
+    act(() => result.current.settingsRefresh.mutate({ providerId: "cursor", force: true }));
+    await waitFor(() => expect(result.current.catalog.providerIssues).toEqual({}));
+    expect(result.current.catalog.refreshError).toBeNull();
+    expect(result.current.catalog.models[0]?.disabled).toBe(false);
+    const reopened = renderHook(() => useRuntimeModelCatalog([{ id: "cursor" }]), { wrapper });
+    await waitFor(() => expect(reopened.result.current.providerIssues).toEqual({}));
   });
 
   it("Should disable every row of a needs-auth provider", async () => {

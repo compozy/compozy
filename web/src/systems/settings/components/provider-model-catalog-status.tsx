@@ -16,6 +16,7 @@ import {
 import {
   modelRefreshStateTone,
   modelSourceFailureMessage,
+  modelRefreshErrorMessage,
   type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
@@ -58,10 +59,7 @@ export function ProviderModelCatalogStatus({
   }
 
   const sources = statusQuery.data?.sources ?? [];
-  const refreshError =
-    refreshMutation.error && !sources.some(source => source.refresh_state === "failed")
-      ? "Could not refresh the model list. Try again."
-      : null;
+  const refreshError = modelRefreshErrorMessage(refreshMutation.error, sources);
   const queryError = errorMessage(statusQuery.error);
 
   const handleRefresh = () => {

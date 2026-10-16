@@ -1,21 +1,5 @@
 # Compozy Change Impact
 
-## Provider catalog refresh failures — issue #740
-
-The shared source-status projection adds optional `failure_reason` (`auth_required`,
-`timeout`, or `refresh_failed`) for failed sources. CLI JSON/JSONL/TOON, HTTP/UDS,
-native `compozy__provider_models_status`/`refresh`, and extension Host API reuse
-this projection; generated OpenAPI and Go/TypeScript/Web contracts co-ship.
-Existing `last_error` diagnostics and HTTP statuses remain compatible (SD-013
-regime 2, additive). Human CLI and Web use calm guidance instead of subprocess
-text. The session selector attributes discovery failures to their provider while
-keeping other providers and cached/curated models usable. Settings reports the
-same reason. No SQLite/config migration, hook, extension permission, or cache-scope
-change; existing profile/workspace execution boundaries remain authoritative.
-Official runtime skill references and the site model-catalog guide explain status
-classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
-targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
-
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible
@@ -2757,3 +2741,19 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Provider catalog refresh failures — issue #740
+
+The shared source-status projection adds optional `failure_reason` (`auth_required`,
+`timeout`, or `refresh_failed`) for failed sources. CLI JSON/JSONL/TOON, HTTP/UDS,
+native `compozy__provider_models_status`/`refresh`, and extension Host API reuse
+this projection; generated OpenAPI and Go/TypeScript/Web contracts co-ship.
+Existing `last_error` diagnostics and HTTP statuses remain compatible (SD-013
+regime 2, additive). Human CLI and Web use calm guidance instead of subprocess
+text. The session selector attributes discovery failures to their provider while
+keeping other providers and cached/curated models usable. Settings reports the
+same reason. No SQLite/config migration, hook, extension permission, or cache-scope
+change; existing profile/workspace execution boundaries remain authoritative.
+Official runtime skill references and the site model-catalog guide explain status
+classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
+targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
