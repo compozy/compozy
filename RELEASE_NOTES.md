@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-12
+## 0.3.0 - 2026-10-16
 
 ### ♻️ Refactoring
 
@@ -91,6 +91,8 @@
 - Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
 - Render session tool calls as verb + object rows on a work rail (#716)
 - Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
+- One-click CompozyOS update from the menubar (#733)
+- Show the runtime provider mark on session rows (#758)
 
 ### 🐛 Bug Fixes
 
@@ -298,6 +300,21 @@
 - Resolve Windows runtime failures and desktop context menus (#725)
 - Reduce session startup and attention overhead (#731)
 - Bound scheduled claim attempts before contention backoff
+- Allocate run-agent binding epochs for reviewed actions (#735)
+- Keep session image previews dismissible (#744)
+- Preserve goal origin identity across provider changes (#749)
+- Preserve HTTPS origins through the Tailscale gateway (#743)
+- Make bundled spec-cycle workflows self-contained (#741)
+- Preserve daemon-owned Loop action claims (#748)
+- Keep session lists stable with created and name sorts (#752)
+- Attribute model catalog refresh failures to providers (#745)
+- Drain queued inputs before Goal continuation (#755)
+- Render session message cards for Claude and Codex sends (#757)
+- Hide daemon-owned verification sessions (#759)
+- Keep runtime models clickable during provider failures (#768)
+- Tolerate transient session stream reconnects (#769)
+- Stop false Goal attention and cut daemon idle cost (#770)
+- Keep background subagents running and show them in the composer (#771)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -328,6 +345,7 @@
 - Refresh credential assertions context after migration
 - Cover inactive loop routes with automatic approval (#703)
 - Cut duplicated and misplaced tests across the pyramid (#707)
+- Wait for subagent card navigation readiness (#753)
 
 ### Release Notes
 
