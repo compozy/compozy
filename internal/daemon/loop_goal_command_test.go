@@ -485,10 +485,13 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	t.Run("Should return a stable runtime-invalid result for an unknown provider", func(t *testing.T) {
+	t.Run("Should reject an unknown Goal provider after cross-provider binding", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newGoalCommandHandlerFixture(t)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "codex", "gpt-6.1-sol", "gpt-6.1-sol")
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.info.Provider = "claude"
+		status.info.Model = "claude-opus-5-5"
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
@@ -501,6 +504,10 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(unknown provider) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonRuntimeInvalid)
+		_, err = fixture.db.GetLoopRun(t.Context(), looppkg.WorkspaceID(fixture.workspaceID), "run-goal-command-1")
+		if !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("rejected runtime created a Run: %v", err)
+		}
 	})
 
 	t.Run("Should start and replace an agent-created Goal after a cross-provider runtime bind", func(t *testing.T) {

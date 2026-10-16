@@ -2765,6 +2765,10 @@ immutable creation identity and per-run runtime selection; no skill or site API
 reference update is needed. QA owner: `docs/qa/scenarios/GL-001.md`.
 
 Validation uses the existing daemon Goal command lifecycle suite with real SQLite,
-including cross-provider set/replace and immutable identity readback. Existing
+including cross-provider set/replace, invalid-provider rejection without Run
+creation and immutable identity readback. The existing Session Manager lifecycle
+suite also verifies logical creation with the agent default, initial binding to
+another provider, process replacement, persisted witness retention and rejection
+of an unresolved provider without changing the accepted process. Existing
 managed-runtime borrowed-origin integration coverage, full gates and broad
 end-to-end runs are delegated to PR CI per maintainer instruction.

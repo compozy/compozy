@@ -133,6 +133,69 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain the creation witness across initial binding and provider replacement", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := t.Context()
+		workspace, err := h.resolver.Resolve(ctx, h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range workspace.Agents {
+			workspace.Agents[index].Provider = "codex"
+			workspace.Agents[index].Model = "gpt-6.1-sol"
+		}
+		h.resolver.upsert(&workspace)
+		created, err := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		active, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatal("logical session is unavailable")
+		}
+		meta := active.Meta()
+		before := creationIdentityFromMeta(&meta)
+		if before == nil || meta.CreationProfile == nil || meta.CreationProfile.Provider != "codex" ||
+			active.Info().RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("logical creation = %#v, want unbound Codex creation witness", meta)
+		}
+		for _, test := range []struct {
+			runtime  RuntimeSelection
+			strategy RuntimeTransitionStrategy
+		}{
+			{RuntimeSelection{Provider: "claude", Model: "claude-opus-5-5", ReasoningEffort: "xhigh"}, RuntimeTransitionInitialBind},
+			{RuntimeSelection{Provider: "codex", Model: "gpt-6.1-sol", ReasoningEffort: "medium"}, RuntimeTransitionProcessReplacement},
+		} {
+			previous := active.runtimeBindingSnapshot()
+			process, err := h.manager.ensurePromptRuntime(ctx, active, &test.runtime, previous.process)
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := active.runtimeBindingSnapshot()
+			persisted := readMeta(t, active.MetaPath())
+			after := creationIdentityFromMeta(&persisted)
+			if current.transition != test.strategy || process == previous.process ||
+				persisted.Provider != test.runtime.Provider || after == nil || *after != *before {
+				t.Fatalf("runtime transition = %#v, creation identity = %#v; want %s and %#v",
+					current, after, test.strategy, before)
+			}
+		}
+		previous := active.runtimeBindingSnapshot()
+		invalid := RuntimeSelection{Provider: "missing-provider", Model: "missing-model"}
+		_, err = h.manager.ensurePromptRuntime(ctx, active, &invalid, previous.process)
+		if !errors.Is(err, compozyconfig.ErrProviderUnavailable) {
+			t.Fatalf("invalid provider error = %v, want ErrProviderUnavailable", err)
+		}
+		if current := active.runtimeBindingSnapshot(); current.process != previous.process ||
+			current.selection.Provider != previous.selection.Provider {
+			t.Fatal("rejected provider replaced the accepted runtime")
+		}
+	})
+
 	t.Run("Should pass prompt ACP options through live runtime configuration", func(t *testing.T) {
 		t.Parallel()
 
