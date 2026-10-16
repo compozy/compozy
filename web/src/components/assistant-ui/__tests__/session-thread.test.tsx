@@ -6494,7 +6494,10 @@ describe("SessionThread session messages", () => {
             toolCallId: "call-send",
             state: settled ? "output-available" : "input-available",
             turnId: "turn-send",
-            input: { session_id: targetId, message: "Is the retry budget per request or per job?" },
+            // The continuation may hold the result without the arguments the first message carried.
+            input: settled
+              ? {}
+              : { session_id: targetId, message: "Is the retry budget per request or per job?" },
             ...(settled ? { output: { status: "accepted" } } : {}),
           },
           {
@@ -6520,9 +6523,10 @@ describe("SessionThread session messages", () => {
       },
       clientWithPeers()
     );
-    expect(
-      await screen.findByRole("article", { name: "Sent to Billing reviewer, waiting for reply" })
-    ).toBeInTheDocument();
+    const card = await screen.findByRole("article", {
+      name: "Sent to Billing reviewer, waiting for reply",
+    });
+    expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
     expect(screen.getAllByTestId("session-sent-message-row")).toHaveLength(1);
   });
 });

@@ -70,9 +70,9 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
   if (!part) return null;
   // One card per call: a later message that also holds its part draws it (#742).
   const owner = sessionSentCardOwners(messages).get(part.toolCallId);
-  if (owner !== undefined && owner !== messageId) return null;
+  if (owner !== undefined && owner.messageId !== messageId) return null;
   const tool = row.toolPart;
-  const message = sessionPromptMessageText(tool?.args);
+  const message = sessionPromptMessageText(tool?.args) || (owner?.text ?? "");
   const outcome = part.replyWatchId
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;
