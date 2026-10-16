@@ -399,7 +399,14 @@ export const test = base.extend<DesktopFixtures>({
           const pid = launchedProcess.pid;
           if (!pid) throw new Error("The desktop E2E app has no process id.");
           launchedProcess.kill("SIGTERM");
-          await waitForProcessExit(pid);
+          try {
+            await waitForProcessExit(pid);
+          } catch (error) {
+            throw new Error(
+              `${error instanceof Error ? error.message : String(error)}\nProcess output:\n${processOutput.join("").trim() || "(empty)"}\nDesktop log:\n${await readDiagnosticFile(join(home, "logs", "desktop.log"))}\nBootstrap log:\n${await readDiagnosticFile(join(home, "logs", "desktop-bootstrap.jsonl"))}`,
+              { cause: error }
+            );
+          }
           closed = true;
         },
         async spawnSecondary(arguments_) {

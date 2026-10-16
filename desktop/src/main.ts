@@ -136,6 +136,7 @@ async function cleanup(): Promise<void> {
   if (cleanupPromise) return await cleanupPromise;
   cleanupPromise = (async () => {
     bootstrapAbort.abort();
+    logger.info("desktop cleanup started");
     const errors: Error[] = [];
     const attempt = async (step: () => void | Promise<void>): Promise<void> => {
       try {
@@ -147,8 +148,10 @@ async function cleanup(): Promise<void> {
     try {
       await attempt(async () => {
         await bootstrapFlow;
+        logger.info("desktop bootstrap drained");
       });
       await attempt(async () => await product?.flushState());
+      logger.info("desktop window state flushed");
       await attempt(() => productBridge?.unregister());
       await attempt(() => operationWatcher?.stop());
       await attempt(() => updateConsumer?.stop());
@@ -156,8 +159,10 @@ async function cleanup(): Promise<void> {
       await attempt(async () => {
         if (controlServer) await controlServer.close();
       });
+      logger.info("desktop control closed");
       await attempt(async () => await deleteControlToken(paths.appToken));
       await attempt(async () => await publisher?.markCleanShutdown());
+      logger.info("desktop cleanup drained");
       await attempt(async () => await logger.flush());
       if (errors.length === 1) throw errors[0];
       if (errors.length > 1) throw new AggregateError(errors, "Desktop cleanup failed.");
