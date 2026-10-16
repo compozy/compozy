@@ -53,7 +53,7 @@ export function SessionAttachmentImagePreview({
         }}
         className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-5xl"
       >
-        <DialogTitle className="truncate pr-8">{filename}</DialogTitle>
+        <DialogTitle className="shrink-0 truncate pr-8">{filename}</DialogTitle>
         <PreviewImage source={source} filename={filename} />
       </DialogContent>
     </Dialog>

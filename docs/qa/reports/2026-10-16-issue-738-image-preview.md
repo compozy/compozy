@@ -24,6 +24,7 @@ Images use a button and a session-specific composition of `@compozy/ui` Dialog. 
 viewer keeps a visible Close control, Escape/backdrop dismissal and explicit focus
 return. The finalFocus callback restores the trigger even where Base UI intentionally
 skips its automatic return on browsers without preventScroll feature detection.
+The filename does not shrink when the image needs to fit a bounded window.
 Composer preview object URLs are allocated on mount and revoked on close. Attachment
 upload/remove/retry and content ownership remain in the existing assistant-ui runtime.
 
@@ -39,7 +40,9 @@ Owner: Web session attachment interaction. Canonical suite:
 - `bunx --no-install turbo run typecheck --only --filter=./web`: passed.
 - Scoped Oxlint on changed TS/TSX files: passed, zero diagnostics.
 - Initial `bunx --no-install react-doctor --verbose --diff main`: no issues; scoring API
-  unavailable in the restricted shell. The final tracked-source scan and PR check own final evidence.
+  unavailable in the restricted shell. A network-enabled scan of all seven changed source files
+  subsequently returned **100/100, no issues**. The PR React Doctor check also passed at
+  `321d359d21dedfa53c72ca80b1cc2fcfd4bc2b6f`; final-head status remains PR-owned.
 
 `--only` intentionally avoids the Turbo codegen dependency for this scoped iteration.
 The first two non-`--only` attempts reached codegen and were stopped after verifying their
