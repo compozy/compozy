@@ -82,3 +82,10 @@ Re-walk round 3 2026-10-09 (stock 1d7f690e5): with the prompt sent from the open
 QA impact 2026-10-09 (agent-collaboration task 08): isolated subagents add the branch, PR link,
 hover worktree facts and roster branch line, and the card's open control became a stretched button
 beside the PR link. Stale verdict reset to untested; historical evidence preserved; no QA session ran.
+
+Automation follow-up 2026-10-16 (#751): E2E-004 waits for the card's accessible
+`Open <title>` button before both drill-in clicks. A queued placeholder can be
+visible before the UI roster confirms its child, even when the API already
+returns the child session ID. All navigation assertions in step 5 remain;
+verification runs in PR CI. This synchronization change does not change the
+scenario's real-provider or visual-parity verdict.
