@@ -2743,6 +2743,33 @@ RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
 
 
+
+## Session attachment image previews — issue #738 (2026-10-16)
+
+- Web composer and transcript images open an accessible, dismissible preview inside the
+  session using the existing @compozy/ui Dialog. The transcript trigger no longer links
+  the Electron/browser app window to the attachment bytes route. Close, Escape and
+  backdrop dismissal return focus to the initiating control, including OS-window portals.
+- Native tools, CLI, HTTP/UDS attachment routes/DTOs, configuration, extensions/hooks and
+  the assistant-ui attachment runtime are unchanged. Existing workspace/session-scoped
+  URLs remain authoritative; no new cache, persistence or cross-workspace read is added.
+- SD-013 regime: internal Web composition only, with no persisted shape change, migration,
+  public compatibility shim or removal window. Official skills/compozy/ and packages/site
+  contracts need no update. QA owner: ET-session-attachment-paste-reload; the existing
+  SessionThread suite owns preview behavior. Heavy delivery gates run only in CI by
+  maintainer instruction; rendered evidence uses isolated Storybook, not a daemon lab.
+
+
+Issue #738 follow-up: non-image attachment cards request a filename-preserving download,
+with a separate browsing context as a fallback. The Electron navigation-policy owner now
+rejects same-origin `/api` documents (including scoped attachment bytes and encoded paths)
+while retaining SPA routes and the existing external-link policy. This is an internal
+renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
+change. The existing desktop navigation-policy suite owns the additional guard; the
+browser walk verifies TXT/PDF downloads without unloading the session.
+
+
+
 ## Issue #756 — daemon-owned verification session visibility
 
 - Native tools, CLI, HTTP/UDS: public session catalogs omit `type=system` when no type is selected; existing explicit `type=system` / `--type system` retains audit access. The filter applies to active overlays, durable pages, totals and facets before pagination. Direct ID/history reads remain available.
@@ -2751,3 +2778,4 @@ Windows evidence and packaged desktop evidence must be recorded before delivery.
 - Shutdown: completed/owner-released idle sessions ask the driver to close the process directly and verify exit; active turns and failed termination retain cancellation/escalation behavior.
 - SD-013: no persisted shape change or destructive migration. Historical system rows are filtered at read time. Public flags, routes, DTO shapes, hooks and tool IDs remain compatible; the intentional default population correction has an existing explicit audit selector. No config, extension SDK, permission or provider routing change. Profile/workspace predicates remain server-owned.
 - Web/docs/official skill: Goal audit UI, Goal/session-list QA scenarios, site Goal guide and `skills/compozy/` runtime/Loop guidance co-ship. Heavy validation is delegated to exact-head PR CI per maintainer instruction; targeted local suites and rendered evidence are recorded in the PR.
+
