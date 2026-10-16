@@ -1187,6 +1187,32 @@ func TestNativeSubagentEventFromStored(t *testing.T) {
 			}
 		}
 	})
+	// Issue #766: either the background input flag or the persisted async receipt marks a launch.
+	t.Run("Should mark background launches from the input flag or the persisted receipt", func(t *testing.T) {
+		t.Parallel()
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "pending").
+			WithTool("Agent", json.RawMessage(`{"description":"S1","run_in_background":true}`), false)
+		receipt := acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "completed").
+			WithProviderToolAsync()
+		receipt.Raw = json.RawMessage(`{"status":"completed","rawOutput":"Async agent launched successfully."}`)
+		foreground := acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_agent"}.
+			WithProviderToolMetadata("", "Agent", "completed")
+		for _, tc := range []struct {
+			event      acp.AgentEvent
+			background bool
+		}{{call, true}, {receipt, true}, {foreground, false}} {
+			content, err := transcript.MarshalAgentEvent(tc.event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := NativeSubagentEventFromStored("workspace", store.SessionEvent{Content: content})
+			if err != nil || !ok || got.Background != tc.background {
+				t.Fatalf("convert %s = %#v, %v, %v", tc.event.Type, got, ok, err)
+			}
+		}
+	})
 	// UT-037: inner events with an unknown parent cannot be mistaken for Agent calls.
 	t.Run("Should ignore inner and legacy tool calls without native tool metadata", func(t *testing.T) {
 		t.Parallel()

@@ -16,6 +16,7 @@ func (m *Manager) finishPromptTurnIfNeeded(
 	if !isPromptTerminalEvent(normalized.Type) {
 		return false
 	}
+	m.settleNativeTurnDone(ctx, turnState, normalized)
 	m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
 	return loop.turnEndedShouldReturn()
 }

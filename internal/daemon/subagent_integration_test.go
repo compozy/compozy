@@ -480,6 +480,11 @@ func newSubagentDaemonWithSetup(
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
 		acpmock.TurnFixture{Name: "native", Match: acpmock.TurnMatch{UserText: "native work"}, Steps: nativeSteps},
+		acpmock.TurnFixture{
+			Name:  "native-background",
+			Match: acpmock.TurnMatch{UserText: "native background work"},
+			Steps: nativeBackgroundSteps(t),
+		},
 	)
 	// Attributed provider prompts retain the origin header; match the authored suffix explicitly.
 	for _, turn := range fixture.Agents[0].Turns {
@@ -599,8 +604,70 @@ func newSubagentDaemonWithSetup(
 	return d, manager, workspace.ID
 }
 
+// nativeBackgroundSteps replays a background Agent launch, then holds the turn the
+// way claude-agent-acp does until its background subagent settles.
+func nativeBackgroundSteps(t *testing.T) []acpmock.Step {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "acp", "testdata", "claude_agent_background_subagent.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := []acpmock.Step{}
+	for frame := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		steps = append(steps, acpmock.Step{
+			Kind: acpmock.StepKindDriverControl,
+			DriverControl: &acpmock.DriverControlStep{
+				Action:     acpmock.DriverControlWriteRawJSONRPC,
+				RawJSONRPC: strings.ReplaceAll(frame, "session-native", "subagent-test-session-1"),
+			},
+		})
+	}
+	return append(steps,
+		acpmock.Step{
+			Kind:          acpmock.StepKindDriverControl,
+			DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDelay, DelayMS: 1500},
+		},
+		acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "S1 finished in the background."},
+	)
+}
+
 // IT-020: committed ACP Agent/Task traffic creates readable native rows without creating child sessions or wakes.
 func TestSubagentNativeDaemonIntegration(t *testing.T) {
+	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
+	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := manager.SendPrompt(
+			t.Context(),
+			parent.ID,
+			session.SendPromptOpts{Message: "native background work"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range response.Events {
+			continue
+		}
+		var row store.SessionSubagent
+		waitForRuntimeCondition(t, "background native row settled", 10*time.Second, func() bool {
+			page, err := d.SubagentService().
+				List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
+			if err != nil || len(page.Items) != 1 {
+				return false
+			}
+			row = page.Items[0]
+			return store.IsSubagentStatusTerminal(row.Status)
+		})
+		// The fixture holds the turn 1.5 s after the receipt; settling on the receipt would not.
+		if row.Status != "completed" || row.ProviderToolCallID != "toolu_background" || row.Result != nil ||
+			row.Title != "S1 queue core implementation" || row.StartedAt == nil || row.SettledAt == nil ||
+			row.SettledAt.Sub(*row.StartedAt) < time.Second {
+			t.Fatal(row)
+		}
+	})
 	t.Run("Should persist native work without child sessions", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})

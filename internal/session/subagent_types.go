@@ -157,9 +157,12 @@ type NativeSubagentEvent struct {
 	Title              string
 	Model              string
 	Status             string // ACP tool-call status: pending|in_progress|completed|failed
-	Result             string
-	Error              string
-	At                 time.Time
+	// Background reports a call the provider runs in the background: its
+	// completed tool result is a launch receipt, not the subagent's outcome.
+	Background bool
+	Result     string
+	Error      string
+	At         time.Time
 }
 
 // SubagentService owns subagent records, delivery, and lifecycle. Transition
@@ -185,6 +188,7 @@ type SubagentService interface {
 	OnParentStopped(ctx context.Context, parentID string) error
 	UpgradeWakePolicy(ctx context.Context, id string) error
 	OnNativeToolEvent(ctx context.Context, parentID string, ev NativeSubagentEvent) error
+	OnNativeTurnDone(ctx context.Context, parentID, turnID string, at time.Time) error
 	Recover(ctx context.Context) error
 }
 

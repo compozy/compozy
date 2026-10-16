@@ -36,6 +36,20 @@ func (e AgentEvent) ToolStatus() string {
 	return e.payload.toolStatus
 }
 
+// WithProviderToolAsync marks a tool result as the provider's receipt for work
+// it launched in the background, not that work's outcome.
+func (e AgentEvent) WithProviderToolAsync() AgentEvent {
+	payload := e.clonePayload()
+	payload.providerToolAsync = true
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// ProviderToolAsync reports whether the provider launched the tool's work in the background.
+func (e AgentEvent) ProviderToolAsync() bool {
+	return e.payload != nil && e.payload.providerToolAsync
+}
+
 // WithSubagentCard carries the subagent card (`data-compozy-subagent` payload)
 // the transcript projection derives from this event's persisted form, for live
 // surfaces that only see the decoded event (the prompt stream).

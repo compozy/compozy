@@ -12,6 +12,7 @@ type agentEventPayload struct {
 	parentToolCallID   string
 	providerToolName   string
 	toolStatus         string
+	providerToolAsync  bool
 	subagentCard       json.RawMessage
 	sessionMessageCard json.RawMessage
 	origin             *PromptOriginMeta
@@ -68,8 +69,8 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
-		payload.resolvedBy == "" && payload.parentToolCallID == "" &&
-		payload.providerToolName == "" && payload.toolStatus == "" && len(payload.subagentCard) == 0 &&
+		payload.resolvedBy == "" && !payload.hasProviderToolFacts() &&
+		len(payload.subagentCard) == 0 &&
 		len(payload.sessionMessageCard) == 0 &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
 		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil && payload.origin == nil &&
@@ -77,6 +78,11 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 		return nil
 	}
 	return payload
+}
+
+func (payload *agentEventPayload) hasProviderToolFacts() bool {
+	return payload.parentToolCallID != "" || payload.providerToolName != "" || payload.toolStatus != "" ||
+		payload.providerToolAsync
 }
 
 // WithAvailableCommands returns an event carrying an isolated replacement command set.

@@ -3,7 +3,9 @@ package session
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -16,7 +18,7 @@ func (s *subagentService) OnNativeToolEvent(ctx context.Context, parent string, 
 	}
 	if ev.ToolName != nativeSubagentAgentTool && ev.ToolName != nativeSubagentTaskTool {
 		s.mu.Lock()
-		known := s.nativeKnown[parent][ev.ProviderToolCallID]
+		_, known := s.nativeKnown[parent][ev.ProviderToolCallID]
 		s.mu.Unlock()
 		if !known {
 			s.nativeStitchMiss(ctx, parent, ev.ProviderToolCallID)
@@ -54,17 +56,14 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err != nil {
 		return false, err
 	}
-	s.mu.Lock()
-	if s.nativeKnown == nil {
-		s.nativeKnown = make(map[string]map[string]bool)
-	}
-	if s.nativeKnown[parent] == nil {
-		s.nativeKnown[parent] = make(map[string]bool)
-	}
-	s.nativeKnown[parent][ev.ProviderToolCallID] = true
-	s.mu.Unlock()
+	call := s.rememberNativeCall(parent, ev)
 	terminal := ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed
 	if !terminal || store.IsSubagentStatusTerminal(row.Status) {
+		return created, nil
+	}
+	// A background launch completes with the provider's receipt, not the
+	// subagent's outcome; the row runs until the launching turn ends.
+	if call.background && ev.Status == store.SubagentStatusCompleted {
 		return created, nil
 	}
 	limit, err := s.resultLimit(ctx, row.WorkspaceID)
@@ -92,6 +91,80 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 		return created, err
 	}
 	s.publishTerminal(ctx, row)
+	return true, s.settleParent(ctx, parent)
+}
+
+// nativeCall is what the parent's stream has shown about one native Agent/Task call.
+type nativeCall struct {
+	background bool
+}
+
+func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEvent) nativeCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.nativeKnown == nil {
+		s.nativeKnown = make(map[string]map[string]nativeCall)
+	}
+	if s.nativeKnown[parent] == nil {
+		s.nativeKnown[parent] = make(map[string]nativeCall)
+	}
+	call := s.nativeKnown[parent][ev.ProviderToolCallID]
+	call.background = call.background || ev.Background
+	s.nativeKnown[parent][ev.ProviderToolCallID] = call
+	return call
+}
+
+// OnNativeTurnDone settles the background native subagents of a turn the
+// provider ended. claude-agent-acp holds a prompt's response until every
+// background subagent that turn spawned has settled, and reports each outcome
+// only to the model, so the rows complete without a result.
+func (s *subagentService) OnNativeTurnDone(ctx context.Context, parent, turn string, at time.Time) error {
+	unlock := s.lock(parent)
+	changed, err := s.settleBackgroundNative(ctx, parent, turn, at)
+	unlock()
+	if err != nil || !changed {
+		return err
+	}
+	return s.OnChildSettled(ctx, parent)
+}
+
+func (s *subagentService) settleBackgroundNative(
+	ctx context.Context, parent, turn string, at time.Time,
+) (bool, error) {
+	s.mu.Lock()
+	calls := maps.Clone(s.nativeKnown[parent])
+	s.mu.Unlock()
+	if len(calls) == 0 {
+		return false, nil
+	}
+	rows, err := s.parentRows(ctx, parent)
+	if err != nil {
+		return false, err
+	}
+	if at.IsZero() {
+		at = s.now().UTC()
+	}
+	changed := false
+	for _, row := range rows {
+		if row.Origin != store.SubagentOriginProviderNative || store.IsSubagentStatusTerminal(row.Status) ||
+			row.ParentTurnID != turn || !calls[row.ProviderToolCallID].background {
+			continue
+		}
+		updated, finalized, err := s.store.FinalizeSubagent(ctx, store.SubagentFinalize{
+			ID: row.ID, Status: store.SubagentStatusCompleted, WorkState: store.SubagentWorkStateResultAvailable,
+			SettledAt: at,
+		})
+		if err != nil {
+			return changed, err
+		}
+		if finalized {
+			s.publishTerminal(ctx, updated)
+			changed = true
+		}
+	}
+	if !changed {
+		return false, nil
+	}
 	return true, s.settleParent(ctx, parent)
 }
 
@@ -258,5 +331,23 @@ func (m *Manager) publishNativeSubagentEvent(
 	if err != nil {
 		m.sessionLogger(child).
 			ErrorContext(ctx, "session: native subagent ingest failed", "sequence", persisted.Sequence, "error", err)
+	}
+}
+
+// settleNativeTurnDone runs on the persistence path when the provider answers a
+// prompt, before turn settlement interrupts every live native row. A canceled
+// turn may leave background work running, so settlement interrupts those rows.
+func (m *Manager) settleNativeTurnDone(ctx context.Context, turnState *promptTurnDispatchState, event acp.AgentEvent) {
+	if event.Type != acp.EventTypeDone || event.PromptStopReason == acp.PromptStopReasonCancelled ||
+		turnState == nil || turnState.session == nil {
+		return
+	}
+	service := m.subagentService()
+	if service == nil {
+		return
+	}
+	if err := service.OnNativeTurnDone(ctx, turnState.session.ID, turnState.turnID, event.Timestamp); err != nil {
+		m.sessionLogger(turnState.session).
+			ErrorContext(ctx, "session: native background subagent settlement failed", "turn_id", turnState.turnID, "error", err)
 	}
 }
