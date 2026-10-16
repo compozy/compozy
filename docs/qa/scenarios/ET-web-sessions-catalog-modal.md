@@ -82,3 +82,12 @@ and reconnect transitions without multiplying healthy facet requests.
 
 qa-impact: 2026-10-06 (BUG-20261006-derived-child-nested-under-source) — the 2026-09-28 walk's "Children nest under their source" no
 longer holds for Continue/Fork: those children are top-level rows in the catalog. Flag only.
+
+Issue #767 regression (2026-10-16): opening the catalog, changing focused worktree, and a desktop
+stream handshake must not label loading/disabled/connecting as disconnected. Interrupt the catalog
+transport briefly, then for more than 10 seconds: the modal stays quiet during reconnect grace,
+warns only after sustained loss, and clears on open or a valid live event. Repeated errors must
+not restart grace. Closing/replacing the stream cancels its timer and fences late status changes.
+The timer performs no reads; existing catalog reconciliation/backoff remains the only read owner.
+Targeted hook tests exercise these boundaries; rendered before/after capture uses the local Vite
+frontend against the existing daemon with browser-only offline fault injection. Full E2E remains CI-owned.

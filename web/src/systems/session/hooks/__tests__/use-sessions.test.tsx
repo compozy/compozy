@@ -703,7 +703,18 @@ describe("bounded session catalog", () => {
       sessions: [makeSession({ id: "sess-original" })],
       page: { has_more: true, next_cursor: "old-cursor", limit: 100 },
     });
-    vi.mocked(fetchSessionCatalogPage).mockImplementation(() => new Promise(() => {}));
+    // Invariant: a superseded catalog read is cancellation, never failed UI state.
+    // Owner: TanStack catalog hook; canonical suite: this existing search/scope test.
+    const cancelled = vi.fn();
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(
+      (_filters, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            cancelled();
+            reject(new DOMException("Superseded", "AbortError"));
+          });
+        })
+    );
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
     const { result, rerender, unmount } = renderHook(
@@ -722,6 +733,8 @@ describe("bounded session catalog", () => {
     rerender({ workspace: "ws_beta", search: "changed" });
     expect(result.current.sessions).toEqual([]);
     expect(result.current.loading).toBe(true);
+    expect(result.current.failed).toBe(false);
+    expect(cancelled).toHaveBeenCalledTimes(1);
     expect(fetchSessionFacets).not.toHaveBeenCalled();
     unmount();
     client.clear();

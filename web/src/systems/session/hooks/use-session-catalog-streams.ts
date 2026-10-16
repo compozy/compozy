@@ -21,6 +21,9 @@ import {
   type SessionCatalogStreamStatus,
 } from "./session-catalog-streams-store";
 
+// Covers multiple transport backoff attempts without introducing another read.
+const SESSION_CATALOG_DISCONNECT_GRACE_MS = 10_000;
+
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
 /** Transition edges — ephemeral delivery signals, never a state patch. */
 const SESSION_ATTENTION_CHANGED_EVENT = "session_attention_changed";
@@ -250,14 +253,30 @@ function openSessionCatalogStream(
 ): () => void {
   const reconciler = createCatalogReconciler(queryClient);
   const subagentLists = createSubagentListReconciler(queryClient);
-  const reconcileWorkspaces: EventListener = () => {
+  let staleTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearStaleTimer = () => {
+    if (staleTimer !== undefined) clearTimeout(staleTimer);
+    staleTimer = undefined;
+  };
+  const markLive = () => {
+    clearStaleTimer();
     onStatusChange("live");
+  };
+  const handleStreamError = () => {
+    if (staleTimer !== undefined) return;
+    staleTimer = setTimeout(() => {
+      staleTimer = undefined;
+      onStatusChange("stale");
+    }, SESSION_CATALOG_DISCONNECT_GRACE_MS);
+  };
+  const reconcileWorkspaces: EventListener = () => {
+    markLive();
     reconciler.wake();
   };
-  const handleStreamError: EventListener = () => onStatusChange("stale");
   const handleCatalogChange: EventListener = event => {
     const payload = parseSessionCatalogEvent(event);
     if (!payload) return;
+    markLive();
     reconciler.wake(payload.workspace_id);
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
@@ -274,6 +293,7 @@ function openSessionCatalogStream(
       "at",
     ]);
     if (!payload) return;
+    markLive();
     reconciler.wake(payload.workspace_id);
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
     handlers.onAttentionEdge?.(payload);
@@ -287,6 +307,7 @@ function openSessionCatalogStream(
       "at",
     ]);
     if (!payload) return;
+    markLive();
     handlers.onOperatorNotification?.(payload);
   };
   const listeners: Array<[string, EventListener]> = [
@@ -298,10 +319,12 @@ function openSessionCatalogStream(
   ];
   const source = eventSourceFactory(url);
   const detach = () => {
+    clearStaleTimer();
     reconciler.close();
     subagentLists.close();
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
+  handleStreamError();
   try {
     for (const [type, listener] of listeners) source.addEventListener(type, listener);
   } catch (error) {

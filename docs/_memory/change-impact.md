@@ -3028,3 +3028,20 @@ compatibility adapter is needed. Workspace/profile isolation is unaffected (the 
 renders its own payload). No site documentation changes are needed. QA owner:
 `ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
 suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.
+
+## Session-list connection warnings — issue #767 — 2026-10-16
+
+Owner: branch `fix/issue-767-false-disconnected-banner`; issue #767.
+The window sidebar used the composer transport guard, which immediately reports reconnecting
+(`waiting-reconnect`, or `connecting` with a retained live timestamp) as disconnected. It now
+reuses the existing 2-second transport-feedback grace. The sessions modal's catalog owner waits
+10 seconds across reconnect attempts before reporting stale, clears on open/valid events, and
+cancels its timer on teardown. Disabled/connecting/loading states are not connection failures.
+Superseded catalog reads keep TanStack cancellation semantics; actual query failures stay visible.
+
+- Web: sidebar and sessions modal only; no new polling, query, dependency, or retry path.
+- Native tools, CLI, HTTP/UDS DTOs, hooks, extensions, config and official `skills/compozy/`: unchanged.
+- Workspace/profile isolation: existing scoped keys, stream URLs and generation fences remain authoritative.
+- User state/migrations: none. Public compatibility: unchanged. Site docs: no public contract change.
+- QA: `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal`; targeted hook regressions,
+  real local frontend walkthrough and rendered browser fault-injection evidence. Heavy gates run only in CI.
