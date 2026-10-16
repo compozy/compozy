@@ -44,7 +44,7 @@ func restoreCompactionTranscriptProjectionTx(ctx context.Context, tx *store.Writ
 		return fmt.Errorf("store: read restored projection state: %w", err)
 	}
 	if state.ProjectionVersion != transcript.ProjectionVersion &&
-		state.ProjectionVersion != whitespaceProjectionVersion {
+		!upgradableProjectionVersion(state.ProjectionVersion) {
 		return fmt.Errorf("%w: stored version %d", transcript.ErrProjectionIncompatible, state.ProjectionVersion)
 	}
 	restored, err := rebuildCompactionEntryIdentities(ctx, tx, sessionID, keys)

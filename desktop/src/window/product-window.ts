@@ -14,6 +14,9 @@ import { productContextMenu, type SpellcheckSettings } from "./context-menu";
 
 const REVEAL_DEADLINE_MS = 10_000;
 const SAVE_DEBOUNCE_MS = 250;
+// The runtime serves the shell. A cached copy from before a runtime update would boot the
+// previous release's bundle, so every shell load skips the HTTP cache (#742).
+const SHELL_LOAD_OPTIONS = { extraHeaders: "pragma: no-cache\n" };
 
 async function showCrashLoopDialog(window: BrowserWindow): Promise<void> {
   const observer = Reflect.get(globalThis, "__compozyCrashDialogObserver");
@@ -120,7 +123,7 @@ export class ProductWindow {
     }, REVEAL_DEADLINE_MS);
     deadline.unref();
     window.webContents.once("did-finish-load", () => clearTimeout(deadline));
-    await window.loadURL(initialURL);
+    await window.loadURL(initialURL, SHELL_LOAD_OPTIONS);
     return window;
   }
 
@@ -267,7 +270,7 @@ export class ProductWindow {
     if (window.webContents.getURL() === target) return;
     this.#navigating = true;
     void window
-      .loadURL(target)
+      .loadURL(target, SHELL_LOAD_OPTIONS)
       .catch(this.#onError)
       .finally(() => {
         this.#navigating = false;

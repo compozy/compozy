@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +34,151 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	t.Run("Should drain messages and reply wakes before a prepared Goal at the turn boundary", func(t *testing.T) {
+		driver := newHarnessIntegrationDriver()
+		received := make(chan acp.PromptRequest, 4)
+		release := make(chan struct{})
+		var prompts atomic.Int64
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		driver.promptHook = func(ctx context.Context, proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			first := prompts.Add(1) == 1
+			received <- req
+			out := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(out)
+				if first {
+					select {
+					case <-release:
+					case <-ctx.Done():
+						return
+					}
+				}
+				out <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.SessionID, TurnID: req.TurnID, PromptStopReason: acp.PromptStopReasonEndTurn}
+			}()
+			return out, nil
+		}
+		fixture := newLoopGoalManagedRuntimeFixture(t, "queue-fairness", driver)
+		t.Cleanup(releaseOnce)
+		watchStore := fixture.daemonInstance.registry.(store.ReplyWatchStore)
+		replies, err := session.NewReplyWatchService(watchStore, fixture.manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.manager.SetReplyWatchService(replies)
+		active, err := fixture.manager.Prompt(ctx, fixture.binding.SessionID, "active operator turn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-received
+		ticket, err := fixture.preparePrompt(t, "goal-prompt-queue-fairness", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		queued, err := fixture.manager.SendPrompt(ctx, fixture.binding.SessionID, session.SendPromptOpts{
+			Message: "queued operator input", Mode: session.BusyInputModeQueue,
+			MessageID: "queued-operator", IdempotencyKey: "queued-operator",
+			Caller: session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+		})
+		if err != nil || queued.Status != store.SessionPromptResultStatusQueued || queued.QueuePosition != 1 {
+			t.Fatalf("queue admission = %#v, %v", queued, err)
+		}
+		target, err := fixture.manager.Create(ctx, session.CreateOpts{
+			Workspace: string(fixture.run.WorkspaceID), AgentName: fixture.agentName,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentInput, err := fixture.manager.SendPrompt(ctx, fixture.binding.SessionID, session.SendPromptOpts{
+			Message: "queued session message", Mode: session.BusyInputModeQueue,
+			MessageID: "queued-agent", IdempotencyKey: "queued-agent",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: target.ID,
+				WorkspaceID: string(fixture.run.WorkspaceID), Hop: 1},
+		})
+		if err != nil || agentInput.Status != store.SessionPromptResultStatusQueued || agentInput.QueuePosition != 2 {
+			t.Fatalf("agent admission = %#v, %v", agentInput, err)
+		}
+		question := session.SendPromptOpts{
+			Message: "reply to the Goal session", MessageID: "goal-question", IdempotencyKey: "goal-question",
+			NotifyOnComplete: true,
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: fixture.binding.SessionID,
+				WorkspaceID: string(fixture.run.WorkspaceID), Hop: 1},
+		}
+		answer, err := fixture.manager.SendPrompt(ctx, target.ID, question)
+		if err != nil || answer.ReplyWatch == nil {
+			t.Fatalf("watched send = %#v, %v", answer, err)
+		}
+		drainHarnessIntegrationEvents(answer.Events)
+		<-received
+		if err := replies.Reconcile(ctx, answer.ReplyWatch.ID); err != nil {
+			t.Fatal(err)
+		}
+		watch, err := watchStore.GetReplyWatch(ctx, answer.ReplyWatch.ID)
+		if err != nil || watch.State != store.ReplyWatchDelivered {
+			t.Fatalf("reply handoff = %#v, %v", watch, err)
+		}
+		wake, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, watch.DeliveredInputID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentEntry, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, agentInput.QueueEntryID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkpoint, err := fixture.goalStore.LoadCheckpoint(ctx, fixture.key)
+		if err != nil || checkpoint.TurnsUsed != 0 || checkpoint.Phase != "queued" {
+			t.Fatalf("parked Goal = %#v, %v", checkpoint, err)
+		}
+		entry, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, queued.QueueEntryID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		releaseOnce()
+		drainHarnessIntegrationEvents(active)
+		for _, want := range []string{wake.TurnID, entry.TurnID, agentEntry.TurnID, ticket.PromptID} {
+			select {
+			case got := <-received:
+				if got.TurnID != want {
+					t.Fatalf("next turn = %q, want %q", got.TurnID, want)
+				}
+				if got.TurnID == agentEntry.TurnID &&
+					(got.Meta.Origin == nil || got.Meta.Origin.SessionID != target.ID || got.Meta.Origin.Hop != 1) {
+					t.Fatalf("queued agent origin = %#v", got.Meta.Origin)
+				}
+				if got.TurnID == entry.TurnID && got.Meta.Origin != nil {
+					t.Fatalf("operator origin = %#v", got.Meta.Origin)
+				}
+				if got.TurnID == wake.TurnID &&
+					(got.Meta.Synthetic == nil || got.Meta.Synthetic.Kind != acp.PromptSyntheticKindSessionReply || got.Meta.Synthetic.WakeEventID != watch.ID) {
+					t.Fatalf("reply metadata = %#v", got.Meta.Synthetic)
+				}
+			case <-ctx.Done():
+				t.Fatalf("waiting for %q: %v", want, ctx.Err())
+			}
+		}
+		if _, err := fixture.runtime.AwaitActionPrompt(ctx, ticket); err != nil {
+			t.Fatal(err)
+		}
+		checkpoint, err = fixture.goalStore.LoadCheckpoint(ctx, fixture.key)
+		if err != nil || checkpoint.TurnsUsed != 1 || checkpoint.BindingEpoch != fixture.binding.BindingEpoch ||
+			checkpoint.ControlEpoch != 1 || checkpoint.TaskRunID != fixture.taskRunID {
+			t.Fatalf("resumed Goal = %#v, %v", checkpoint, err)
+		}
+		if err := replies.Deliver(ctx, watch.ID); err != nil {
+			t.Fatal(err)
+		}
+		replayed, err := fixture.manager.SendPrompt(ctx, target.ID, question)
+		if err != nil || !replayed.Replayed {
+			t.Fatalf("watched replay = %#v, %v", replayed, err)
+		}
+		if err := fixture.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if prompts.Load() != 6 {
+			t.Fatalf("prompt count = %d, want original, answer, three queued inputs and Goal", prompts.Load())
+		}
+	})
 	for _, test := range []struct {
 		command, first, correction string
 	}{

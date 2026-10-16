@@ -23,3 +23,10 @@ until the operator deleted `~/.compozy`. This scenario owns the narrower launch-
 contract; the broader consent-driven update flow remains owned by `APP-runtime-update-app-owned`.
 
 Issue 559 re-walk: `docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md`.
+
+QA impact 2026-10-16 (#742): after a one-click update the reopened app kept rendering the previous
+release's Web bundle. The runtime served `index.html` without `Cache-Control`, and Chromium reused
+the cached shell heuristically, so the new runtime's cards never loaded. The runtime now marks the
+shell and unversioned public files `no-cache`, and the product window loads the shell with
+`pragma: no-cache` so a shell cached by an older runtime is also skipped. Re-walk an N → N+1 update
+and confirm the reopened app requests the new `assets/index-*.js`.

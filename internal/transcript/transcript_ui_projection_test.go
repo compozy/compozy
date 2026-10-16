@@ -3,6 +3,8 @@ package transcript
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -1122,7 +1124,12 @@ func TestSessionMessageUIProjection(t *testing.T) {
 	})
 	t.Run("Should expose failure state without inventing a reply watch UT-014", func(t *testing.T) {
 		t.Parallel()
-		event := acp.AgentEvent{
+		call := acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "send", TurnID: "turn"}.WithTool(
+			"mcp__compozy-hosted-tools__compozy__session_prompt",
+			json.RawMessage(`{"session_id":"target","message_id":"message"}`),
+			false,
+		)
+		failure := acp.AgentEvent{
 			Type:       acp.EventTypeToolResult,
 			ToolCallID: "send",
 			TurnID:     "turn",
@@ -1131,14 +1138,19 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			nil,
 			true,
 		)
-		content, err := MarshalAgentEvent(event)
-		if err != nil {
-			t.Fatal(err)
+		var cards SessionMessageCards
+		var p UISessionMessagePayload
+		var ok bool
+		for i, event := range []acp.AgentEvent{call, failure} {
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, ok = cards.Card(
+				store.SessionEvent{Type: event.Type, TurnID: "turn", Sequence: int64(i + 1), Content: content},
+			)
 		}
-		p, ok := SessionMessagePartForStoredEvent(
-			store.SessionEvent{Type: event.Type, TurnID: "turn", Content: content},
-		)
-		if !ok || p.State != "error" || p.ReplyWatchID != "" {
+		if !ok || p.State != "error" || p.ReplyWatchID != "" || p.TargetSessionID != "target" {
 			t.Fatalf("failure card = %+v, %v", p, ok)
 		}
 	})
@@ -1191,6 +1203,123 @@ func TestSessionMessageUIProjection(t *testing.T) {
 			t.Fatalf("metadata = %+v", meta.Synthetic)
 		}
 	})
+
+	// Recorded provider shapes (#742), captured from real Claude and Codex sessions and sanitized:
+	// the card must not depend on one provider's wire form.
+	t.Run("Should name a Claude send once its streamed arguments do and read its string result", func(t *testing.T) {
+		t.Parallel()
+		rows := recordedSessionPromptRows(t, "claude.jsonl")
+		if cards := sessionMessageCardsOf(t, rows[:1]); len(cards) != 0 {
+			t.Fatalf("argument-less call projected cards %+v; want the tool row alone", cards)
+		}
+		assertSessionMessageCards(t, rows, UISessionMessagePayload{
+			ToolCallID: "toolu_01L3DE1yXY8CcKF8hkd3k8Z5", TargetSessionID: "sess-844b851f052bd406",
+			TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "issue742-goal-unavailable-v1", Mode: "queue",
+			Delivery: "direct", ReplyWatchID: "rw-f9a45066bce98c57", State: "done",
+		})
+	})
+
+	t.Run("Should project Codex sends reported as an MCP call envelope with a nameless result", func(t *testing.T) {
+		t.Parallel()
+		assertSessionMessageCards(t, recordedSessionPromptRows(t, "codex.jsonl"),
+			UISessionMessagePayload{
+				ToolCallID: "exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-review-remediation-1", Mode: "queue",
+				Delivery: "after_turn", State: "done",
+			},
+			UISessionMessagePayload{
+				ToolCallID: "exec-5f2789fa-43ce-4158-a1b6-190745d05f03", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-fixture-remediation-1518", Mode: "steer",
+				Delivery: "interrupt_then_prompt", SteerDelivery: "injected", State: "done",
+			},
+		)
+	})
+}
+
+// recordedSessionPromptRows loads a recorded provider stream from
+// testdata/session-prompt/<name>: one {"type", "content"} event per line, in sequence order.
+func recordedSessionPromptRows(t *testing.T, name string) []store.SessionEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "session-prompt", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.SessionEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var recorded struct {
+			Type    string          `json:"type"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(line), &recorded); err != nil {
+			t.Fatal(err)
+		}
+		var turn struct {
+			TurnID string `json:"turn_id"`
+		}
+		if err := json.Unmarshal(recorded.Content, &turn); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, store.SessionEvent{
+			ID:        fmt.Sprintf("event-%d", len(rows)),
+			SessionID: "sender",
+			TurnID:    turn.TurnID,
+			Sequence:  int64(len(rows) + 1),
+			Type:      recorded.Type,
+			Content:   string(recorded.Content),
+		})
+	}
+	return rows
+}
+
+func sessionMessageCardsOf(t *testing.T, rows []store.SessionEvent) []UISessionMessagePayload {
+	t.Helper()
+	messages, err := ToUIMessages(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cards []UISessionMessagePayload
+	for _, message := range messages {
+		for _, part := range message.Parts {
+			if part.Type != "data-compozy-session-message" {
+				continue
+			}
+			var card UISessionMessagePayload
+			if err := json.Unmarshal(part.Data, &card); err != nil {
+				t.Fatal(err)
+			}
+			cards = append(cards, card)
+		}
+	}
+	return cards
+}
+
+// assertSessionMessageCards checks the transcript's cards and the live stream's (the prompt
+// delivery folds the same events through SessionMessageCards) against want, in call order.
+func assertSessionMessageCards(t *testing.T, rows []store.SessionEvent, want ...UISessionMessagePayload) {
+	t.Helper()
+	if cards := sessionMessageCardsOf(t, rows); !slices.Equal(cards, want) {
+		t.Fatalf("transcript cards = %+v, want %+v", cards, want)
+	}
+	var live SessionMessageCards
+	latest := make(map[string]UISessionMessagePayload)
+	var order []string
+	for _, row := range rows {
+		card, ok := live.Card(row)
+		if !ok {
+			continue
+		}
+		if _, seen := latest[card.ToolCallID]; !seen {
+			order = append(order, card.ToolCallID)
+		}
+		latest[card.ToolCallID] = card
+	}
+	got := make([]UISessionMessagePayload, 0, len(order))
+	for _, id := range order {
+		got = append(got, latest[id])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("live cards = %+v, want %+v", got, want)
+	}
 }
 
 // UT-013: operator inputs remain unattributed while session origins reach the UI.

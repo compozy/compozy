@@ -7,10 +7,10 @@ journey: J-13-follow-a-live-run
 expected: A message one agent session sends another with compozy__session_prompt renders in the receiver's transcript as a left-aligned framed card (the sender's provider mark with no status dot, "From {current title}" as a link, a Steered / Interrupted / Superseded chip only when it arrived that way, "Reply requested" when notify_on_complete was set, the time, and the body with the operator bubble's 176px clamp and Show more), never as a right-aligned operator bubble; a deleted sender reads "From a deleted session" with no link, a renamed one shows its current title, and one in another workspace adds its folder and workspace name; while queued it shows in the queue strip as "From {title}" with the provider mark and Remove only (no Steer or edit); in the sender's transcript the call renders as a "Sent to {title}" card outside the work group (Sending… → Waiting for reply with a pulsing success dot → Replied / Failed / Canceled / Dropped / Unknown, or no reply state when none was requested, or "Could not send to {title}" with the error) and the reply lands as a left-aligned "Reply from {title}" card with the target's mark, an outcome dot and word, and the answer, a fixed sentence for dropped / unknown, "No reply text." when the turn left none, and "Reply truncated · Read the full turn" when cut at 12,000 characters; every surface matches its VC in docs/design/opendesign/agent-collaboration/.
 entry_points: web session window transcript (SessionMessageCard, SessionReplyCard, SessionSentCard); composer queue strip (SessionQueueEntryRow); docs/design/opendesign/agent-collaboration/agent-collaboration-transcript.html (VC-01…VC-04) and agent-collaboration-composer.html (VC-05)
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
+bug_ids: compozy/compozy#742
+fix_status: fixed
+retest_status: pending
+fix_commits: branch fix/issue-742-session-message-cards
 evidence:
 last_report:
 overlaps: RT-session-message-origin; RT-session-message-reply; ET-web-session-transcript-calm-grammar; ET-web-subagent-card
@@ -49,5 +49,25 @@ is the real-provider walk with visual parity against the boards.
    words, never colour alone.
 6. **Visual parity.** Capture each state with `eng-ui-screenshot` and compare with the cited VC ids;
    record differences in the QA report.
+7. **Provider matrix and reload.** Repeat steps 1, 3, and 4 with a Claude session and a Codex
+   session as both sender and receiver: direct and queued, with and without `notify_on_complete`.
+   Each transcript shows the cards above, live and after a cold reload, never a `Used session
+   prompt` tool row or a `Data event data-compozy-session-message` row. A Claude send may show
+   its tool row only until its streamed arguments name the target. A send that a queued prompt
+   splits across two assistant messages still shows one card.
+8. **After an update.** Update the runtime and app, reopen the app, and repeat step 1: the
+   transcript renders with the new release's Web bundle, not a cached shell of the previous one.
+
+QA impact 2026-10-16 (#742): the public walk found every session message rendered as an operator
+bubble or a tool row plus a raw data row. Two causes: the desktop renderer reused a cached
+`index.html` from before the update (served without `Cache-Control`), booting the pre-#722
+bundle; and the daemon's `data-compozy-session-message` part read only the synthetic test shapes,
+so Codex sends (MCP `{server, tool, arguments}` envelope, a result naming no tool, an MCP
+CallToolResult) never named a target and Claude sends (string `raw_output`) never carried their
+delivery or reply watch. The shell is now revalidated and the projection reads both providers;
+existing transcripts are reprojected on open (projection version 3). Automated owners added:
+`TestSessionMessageUIProjection` (recorded Claude and Codex shapes, live tracker parity),
+`TestTranscriptProjectionUpgrade` (version 2 → 3), `TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks`,
+and the Web timeline and thread suites. The real-provider walk in steps 7–8 remains to be run.
 
 QA impact 2026-10-09 (agent-collaboration tasks 03/05): new in this change; no prior verdict.

@@ -9,63 +9,74 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
-	t.Setenv(webDistDirEnvVar, "")
+	t.Run("Should serve the revalidated SPA shell for the root and deep links", func(t *testing.T) {
+		t.Setenv(webDistDirEnvVar, "")
 
-	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		homePaths := newTestHomePaths(t)
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
-	if rootResp.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
-	}
-	if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
-	}
-	const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
-		"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
-		"connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; " +
-		"object-src 'none'; base-uri 'self'; form-action 'self'"
-	if got := rootResp.Header().Get("Content-Security-Policy"); got != expectedContentSecurityPolicy {
-		t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
-	}
-	for _, forbidden := range []string{"script-src 'self' 'unsafe-inline'", "'unsafe-eval'"} {
-		if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), forbidden) {
-			t.Fatalf("GET / Content-Security-Policy contains forbidden source %q", forbidden)
+		rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
+		if rootResp.Code != http.StatusOK {
+			t.Fatalf("GET / status = %d, want %d; body=%s", rootResp.Code, http.StatusOK, rootResp.Body.String())
 		}
-	}
+		if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
+		}
+		const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
+			"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
+			"connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; " +
+			"object-src 'none'; base-uri 'self'; form-action 'self'"
+		if got := rootResp.Header().Get("Content-Security-Policy"); got != expectedContentSecurityPolicy {
+			t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
+		}
+		for _, forbidden := range []string{"script-src 'self' 'unsafe-inline'", "'unsafe-eval'"} {
+			if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), forbidden) {
+				t.Fatalf("GET / Content-Security-Policy contains forbidden source %q", forbidden)
+			}
+		}
+		// A cached shell must be revalidated, or an updated runtime boots the previous bundle (#742).
+		if got := rootResp.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("GET / Cache-Control = %q, want no-cache", got)
+		}
 
-	deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
-	if deepLinkResp.Code != http.StatusOK {
-		t.Fatalf(
-			"GET /session/sess-001 status = %d, want %d; body=%s",
-			deepLinkResp.Code,
-			http.StatusOK,
-			deepLinkResp.Body.String(),
-		)
-	}
-	if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
-	}
+		deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
+		if deepLinkResp.Code != http.StatusOK {
+			t.Fatalf(
+				"GET /session/sess-001 status = %d, want %d; body=%s",
+				deepLinkResp.Code,
+				http.StatusOK,
+				deepLinkResp.Body.String(),
+			)
+		}
+		if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
+		}
+		if got := deepLinkResp.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("GET /session/sess-001 Cache-Control = %q, want no-cache", got)
+		}
 
-	loopTaskPath := "/tasks/loop.looprun-001.g1.node.review.0"
-	loopTaskResp := performRequestWithHeaders(t, engine, http.MethodGet, loopTaskPath, nil, map[string]string{
-		"Accept": "text/html,application/xhtml+xml",
+		loopTaskPath := "/tasks/loop.looprun-001.g1.node.review.0"
+		loopTaskResp := performRequestWithHeaders(t, engine, http.MethodGet, loopTaskPath, nil, map[string]string{
+			"Accept": "text/html,application/xhtml+xml",
+		})
+		if loopTaskResp.Code != http.StatusOK {
+			t.Fatalf(
+				"GET %s status = %d, want %d; body=%s",
+				loopTaskPath,
+				loopTaskResp.Code,
+				http.StatusOK,
+				loopTaskResp.Body.String(),
+			)
+		}
+		if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
+			t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
+		}
 	})
-	if loopTaskResp.Code != http.StatusOK {
-		t.Fatalf(
-			"GET %s status = %d, want %d; body=%s",
-			loopTaskPath,
-			loopTaskResp.Code,
-			http.StatusOK,
-			loopTaskResp.Body.String(),
-		)
-	}
-	if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
-		t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
-	}
 }
 
 func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
@@ -85,6 +96,55 @@ func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
 	if strings.Contains(resp.Body.String(), "<!doctype html>") {
 		t.Fatalf("GET %s returned SPA HTML instead of asset payload", requestPath)
 	}
+}
+
+// Invariant: every listener revalidates the shell and unversioned files, so an updated runtime
+// never boots the previous release's bundle from a cache (#742); fingerprinted build output stays
+// cacheable for good. Owner: the shared static route behind every surface's NoRoute fallback.
+func TestStaticRoutesCachePolicy(t *testing.T) {
+	// not parallel: t.Setenv selects the process-wide local Web bundle.
+	t.Run("Should revalidate the shell on every listener surface and keep fingerprinted assets", func(t *testing.T) {
+		const fingerprinted = "assets/session-thread-Bg_R4-Fj.js"
+		distDir := writeLocalStaticDist(t, "cache policy shell", map[string]string{
+			fingerprinted:                   "console.log('chunk');",
+			"assets/emojibase/en/data.json": "[]",
+			"theme-boot.js":                 "void 0;",
+		})
+		t.Setenv(webDistDirEnvVar, distDir)
+		homePaths := newTestHomePaths(t)
+		want := map[string]string{
+			"/":                              "no-cache",
+			"/session/sess-001":              "no-cache",
+			"/theme-boot.js":                 "no-cache",
+			"/assets/emojibase/en/data.json": "no-cache",
+			"/" + fingerprinted:              "public, max-age=31536000, immutable",
+		}
+		// Every surface that serves the Web; public ingress carries webhooks only.
+		for _, surfaceSet := range []SurfaceSet{
+			SurfaceSetLocal,
+			SurfaceSetPrivate,
+			SurfaceSetPublicOperator,
+			SurfaceSetPublicCombined,
+		} {
+			router := gin.New()
+			RegisterSurfaceRoutes(
+				router,
+				newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths),
+				surfaceSet,
+			)
+			for requestPath, cacheControl := range want {
+				resp := performRequestWithHeaders(t, router, http.MethodGet, requestPath, nil, map[string]string{
+					"Accept": "text/html,application/xhtml+xml",
+				})
+				if resp.Code != http.StatusOK {
+					t.Fatalf("%s GET %s status = %d; body=%s", surfaceSet, requestPath, resp.Code, resp.Body.String())
+				}
+				if got := resp.Header().Get("Cache-Control"); got != cacheControl {
+					t.Fatalf("%s GET %s Cache-Control = %q, want %q", surfaceSet, requestPath, got, cacheControl)
+				}
+			}
+		}
+	})
 }
 
 func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {

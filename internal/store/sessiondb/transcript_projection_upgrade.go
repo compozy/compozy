@@ -9,16 +9,29 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const whitespaceProjectionVersion = 1
-const whitespaceUpgradeBatchSize = 512
+// Each older projection version names the entries whose projection the next version changed.
+const (
+	// whitespaceProjectionVersion lost text whitespace; version 2 preserves it (#670).
+	whitespaceProjectionVersion = 1
+	// sessionMessageProjectionVersion dropped real-provider session-message cards; version 3 projects them (#742).
+	sessionMessageProjectionVersion = 2
+)
 
-// upgradeTranscriptWhitespaceProjection replays entries whose text whitespace changed in version 1.
-func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sessionID string) error {
+const projectionUpgradeBatchSize = 512
+
+// upgradableProjectionVersion reports a stored projection this build can repair in place.
+func upgradableProjectionVersion(version int64) bool {
+	return version >= whitespaceProjectionVersion && version < transcript.ProjectionVersion
+}
+
+// upgradeTranscriptProjection replays the entries each version after the stored one changed.
+func upgradeTranscriptProjection(ctx context.Context, db *sql.DB, sessionID string) error {
 	row, err := sqlcgen.New(db).GetTranscriptProjectionState(ctx)
 	if err != nil {
 		return fmt.Errorf("store: read transcript projection version: %w", err)
@@ -27,11 +40,11 @@ func upgradeTranscriptWhitespaceProjection(ctx context.Context, db *sql.DB, sess
 		return nil
 	}
 	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
-		return upgradeTranscriptWhitespaceProjectionTx(ctx, tx, sessionID)
+		return upgradeTranscriptProjectionTx(ctx, tx, sessionID)
 	})
 }
 
-func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.WriteTx, sessionID string) error {
+func upgradeTranscriptProjectionTx(ctx context.Context, tx *store.WriteTx, sessionID string) error {
 	queries := sqlcgen.New(tx)
 	row, err := queries.GetTranscriptProjectionState(ctx)
 	if err != nil {
@@ -40,15 +53,24 @@ func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.Writ
 	if row.ProjectionVersion == transcript.ProjectionVersion {
 		return nil
 	}
-	if row.ProjectionVersion != whitespaceProjectionVersion {
+	if !upgradableProjectionVersion(row.ProjectionVersion) {
 		return fmt.Errorf("%w: stored version %d, supported version %d",
 			transcript.ErrProjectionIncompatible, row.ProjectionVersion, transcript.ProjectionVersion)
 	}
 
-	orderedKeys, err := whitespaceProjectionEntryKeys(ctx, queries)
-	if err != nil {
-		return err
+	keys := make(map[string]struct{})
+	if row.ProjectionVersion <= whitespaceProjectionVersion {
+		if err := collectWhitespaceProjectionEntryKeys(ctx, queries, keys); err != nil {
+			return err
+		}
 	}
+	if row.ProjectionVersion <= sessionMessageProjectionVersion {
+		if err := collectSessionMessageProjectionEntryKeys(ctx, queries, keys); err != nil {
+			return err
+		}
+	}
+	orderedKeys := slices.AppendSeq(make([]string, 0, len(keys)), maps.Keys(keys))
+	slices.Sort(orderedKeys)
 
 	resolver := projectionSQLResolver{db: tx}
 	for _, key := range orderedKeys {
@@ -57,7 +79,7 @@ func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.Writ
 			return resolveErr
 		}
 		if !found || identity.Kind != transcript.EntryKindAssistant {
-			return fmt.Errorf("%w: whitespace event references missing assistant entry %q",
+			return fmt.Errorf("%w: upgraded event references missing assistant entry %q",
 				transcript.ErrProjectionCorrupt, key)
 		}
 		events, loadErr := loadAssignedEvents(ctx, tx, sessionID, key)
@@ -66,7 +88,7 @@ func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.Writ
 		}
 		entry, projectErr := transcript.ProjectAssignedEntry(events, identity)
 		if projectErr != nil {
-			return fmt.Errorf("store: reproject whitespace entry %q: %w", key, projectErr)
+			return fmt.Errorf("store: reproject upgraded entry %q: %w", key, projectErr)
 		}
 		if err := persistProjectionEntry(ctx, tx, identity, entry); err != nil {
 			return err
@@ -78,24 +100,27 @@ func upgradeTranscriptWhitespaceProjectionTx(ctx context.Context, tx *store.Writ
 		Generation:        row.Generation,
 		ActiveEntryKey:    row.ActiveEntryKey,
 	}); err != nil {
-		return fmt.Errorf("store: finish transcript whitespace upgrade: %w", err)
+		return fmt.Errorf("store: finish transcript projection upgrade: %w", err)
 	}
 	return nil
 }
 
-func whitespaceProjectionEntryKeys(ctx context.Context, queries *sqlcgen.Queries) ([]string, error) {
-	keys := make(map[string]struct{})
+func collectWhitespaceProjectionEntryKeys(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	keys map[string]struct{},
+) error {
 	var afterSequence int64
 	for {
 		textEvents, err := queries.ListTranscriptTextEventsForUpgrade(
 			ctx,
 			sqlcgen.ListTranscriptTextEventsForUpgradeParams{
 				AfterSequence: afterSequence,
-				RowLimit:      whitespaceUpgradeBatchSize,
+				RowLimit:      projectionUpgradeBatchSize,
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("store: read transcript text events for upgrade: %w", err)
+			return fmt.Errorf("store: read transcript text events for upgrade: %w", err)
 		}
 		for _, event := range textEvents {
 			if needsWhitespaceProjectionRepair(event.Content) {
@@ -103,13 +128,45 @@ func whitespaceProjectionEntryKeys(ctx context.Context, queries *sqlcgen.Queries
 			}
 			afterSequence = event.Sequence
 		}
-		if len(textEvents) < whitespaceUpgradeBatchSize {
-			break
+		if len(textEvents) < projectionUpgradeBatchSize {
+			return nil
 		}
 	}
-	orderedKeys := slices.AppendSeq(make([]string, 0, len(keys)), maps.Keys(keys))
-	slices.Sort(orderedKeys)
-	return orderedKeys, nil
+}
+
+// collectSessionMessageProjectionEntryKeys names the entries holding a session-prompt call. A
+// call's result is routed to the entry of its last tool_call, so these entries hold every card.
+// The text match only narrows the scan; a call that merely mentions the tool (a shell command)
+// does not make its entry eligible.
+func collectSessionMessageProjectionEntryKeys(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	keys map[string]struct{},
+) error {
+	var afterSequence int64
+	for {
+		calls, err := queries.ListTranscriptSessionPromptEventsForUpgrade(
+			ctx,
+			sqlcgen.ListTranscriptSessionPromptEventsForUpgradeParams{
+				AfterSequence: afterSequence,
+				RowLimit:      projectionUpgradeBatchSize,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("store: read transcript session-prompt calls for upgrade: %w", err)
+		}
+		for _, call := range calls {
+			afterSequence = call.Sequence
+			if transcript.IsSessionPromptCall(store.SessionEvent{
+				Sequence: call.Sequence, Type: acp.EventTypeToolCall, Content: call.Content,
+			}) {
+				keys[call.TranscriptEntryKey] = struct{}{}
+			}
+		}
+		if len(calls) < projectionUpgradeBatchSize {
+			return nil
+		}
+	}
 }
 
 func needsWhitespaceProjectionRepair(content string) bool {
@@ -157,7 +214,7 @@ func OpenSessionDBReadOnlyWithProjectionUpgrade(
 	if row.ProjectionVersion == transcript.ProjectionVersion && len(missing) == 0 {
 		return reader, nil
 	}
-	if row.ProjectionVersion != whitespaceProjectionVersion && row.ProjectionVersion != transcript.ProjectionVersion {
+	if !upgradableProjectionVersion(row.ProjectionVersion) && row.ProjectionVersion != transcript.ProjectionVersion {
 		return nil, closeReadOnlySessionDBAfterOpenError(reader.db,
 			fmt.Errorf("%w: stored version %d, supported version %d",
 				transcript.ErrProjectionIncompatible, row.ProjectionVersion, transcript.ProjectionVersion))

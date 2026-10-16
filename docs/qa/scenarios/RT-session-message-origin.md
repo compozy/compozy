@@ -43,3 +43,20 @@ blocked, send from the receiving turn. The outgoing message has hop 8 for the ho
 hop-8 input refuses the ninth hop. A failed injection must not lower the current-turn hop floor.
 Automated owner: `TestSessionMessageOriginResponseBeforeReceiptIntegration` (IT-029) and
 `TestManagerPromptOriginHopFence` (UT-016).
+
+
+Queue fairness regression (#750)
+
+Queue an agent message and an operator prompt while a Goal prompt is already prepared behind
+an active turn. At that turn's boundary, both public inputs run before the Goal; the agent input
+retains its sender origin and header, and the operator input has no origin. Queue positions exclude
+internal Goal prompts. Repeat with a prepared continuation and after restart. Queue mode waits for
+the active turn; fenced steer and interrupt retain their existing delivery behavior.
+
+Automated owner: `TestLoopGoalManagedRuntimeIntegration/Should_drain_messages_and_reply_wakes_before_a_prepared_Goal_at_the_turn_boundary`
+(real SQLite, admission, reply-watch service and managed session selector). Full public UI and
+real-provider walks remain delegated to CI/integrated QA per maintainer instruction.
+
+The first public claim freezes a finite admission batch before the Goal. Add more messages during
+that batch and reopen the store: the Goal runs after the original batch, before later arrivals.
+Store owner: `TestGlobalDBSessionInputQueueGeneration/Should_preserve_a_bounded_Goal_input_batch_across_new_arrivals_and_reopen`.

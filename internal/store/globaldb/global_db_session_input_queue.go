@@ -152,6 +152,11 @@ func (g *SessionRepo) ClaimNextSessionInput(
 
 	err = g.withImmediateTransaction(ctx, "claim session input", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
+		if err := queries.FreezePreparedGoalInputBatch(ctx, sqlcgen.FreezePreparedGoalInputBatchParams{
+			SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
+		}); err != nil {
+			return fmt.Errorf("store: freeze prepared Goal input batch: %w", err)
+		}
 		row, scanErr := queries.GetNextDispatchableSessionInput(
 			ctx,
 			sqlcgen.GetNextDispatchableSessionInputParams{

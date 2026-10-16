@@ -262,9 +262,22 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
   };
 }
 
+/**
+ * The message a `compozy__session_prompt` call sent, from its tool arguments: the arguments
+ * themselves, or the MCP call envelope `{ server, tool, arguments }` Codex reports.
+ */
+export function sessionPromptMessageText(args: unknown): string {
+  if (!isRecord(args)) return "";
+  const direct = stringField(args, "message");
+  if (direct !== undefined) return direct;
+  return isRecord(args.arguments) ? (stringField(args.arguments, "message") ?? "") : "";
+}
+
 interface ThreadMessageShape {
+  id?: string;
   role?: string;
   metadata?: unknown;
+  content?: unknown;
 }
 
 const repliesByMessages = new WeakMap<object, ReadonlyMap<string, SessionReplyOutcome>>();
@@ -286,4 +299,51 @@ export function sessionReplyOutcomes(
   }
   repliesByMessages.set(messages, outcomes);
   return outcomes;
+}
+
+/** Which message draws a call's "Sent to" card, and the message the call sent. */
+export interface SessionSentCardOwner {
+  messageId: string;
+  /** The sent message from the call's arguments in any message that holds them; `""` when none does. */
+  text: string;
+}
+
+const sentCardOwnersByMessages = new WeakMap<object, ReadonlyMap<string, SessionSentCardOwner>>();
+
+/**
+ * Each call's "Sent to" card owner, by tool call id. A call whose events straddle a transcript
+ * split (a queued prompt recorded mid-call) leaves a part in both messages; the later one
+ * carries the result, so it alone draws the card, reading the arguments from whichever message
+ * holds them. Cached per message list identity.
+ */
+export function sessionSentCardOwners(
+  messages: readonly ThreadMessageShape[]
+): ReadonlyMap<string, SessionSentCardOwner> {
+  const cached = sentCardOwnersByMessages.get(messages);
+  if (cached) return cached;
+  const owners = new Map<string, SessionSentCardOwner>();
+  const texts = new Map<string, string>();
+  for (const message of messages) {
+    if (typeof message.id !== "string" || !Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (!isRecord(part) || typeof part.type !== "string") continue;
+      if (part.type === "tool-call") {
+        const toolCallId = stringField(part, "toolCallId");
+        const text = sessionPromptMessageText(part.args);
+        if (toolCallId && text !== "") texts.set(toolCallId, text);
+        continue;
+      }
+      // The thread carries a data part as `{ type: "data", name }` without the `data-` prefix.
+      const name = part.type === "data" ? `data-${stringField(part, "name") ?? ""}` : part.type;
+      const sent = sessionSentMessagePart(name, part.data);
+      if (sent && sent.toolCallId !== "") {
+        owners.set(sent.toolCallId, { messageId: message.id, text: "" });
+      }
+    }
+  }
+  for (const [toolCallId, owner] of owners) {
+    owners.set(toolCallId, { ...owner, text: texts.get(toolCallId) ?? "" });
+  }
+  sentCardOwnersByMessages.set(messages, owners);
+  return owners;
 }

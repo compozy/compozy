@@ -2932,6 +2932,69 @@ change; existing profile/workspace execution boundaries remain authoritative.
 Official runtime skill references and the site model-catalog guide explain status
 classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
 targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
+## Issue #750 — Queued inputs before prepared Goal prompts
+
+- **Owner:** issue #750, branch `fix/issue-750-goal-queue-starvation`.
+- **Cause and policy:** a Goal can prepare a durable prompt during an existing turn. Its older
+  enqueue time allowed it to win FIFO over later admitted input at that turn's boundary. The unified
+  selector now drains eligible public inputs before a prepared Goal, preserving interrupt,
+  priority and FIFO ordering within a finite public batch. The first claim durably freezes its
+  maximum admitted rowid; later arrivals follow one Goal prompt, preventing livelock. Queue mode
+  never interrupts a long active turn; urgent guidance uses fenced steer or interrupt.
+- **Native tools / CLI / HTTP / UDS:** queued `compozy__session_prompt` inputs, operator prompts and
+  `prompt-reply:` wakes receive the same ordering. Existing queue/status positions and counts remain
+  public-only. No IDs, routes, DTOs, command grammar, error codes or configuration keys change.
+- **Goal / reply ownership:** the existing managed claim, budget checks, binding/control fences,
+  work-turn accounting, reply-watch admission and atomic wake handoff remain authoritative. Public
+  input turns do not consume Goal work turns. The selector reads persisted queue state on resume;
+  the nullable batch boundary survives restart without an in-memory fairness cursor.
+- **Extensibility / hooks / config:** existing synthetic wakes share the ordering; no extension SDK,
+  hook payload, permission, provider or configuration changes.
+- **Isolation / compatibility:** selection stays scoped to the exact session and current input
+  generation. Profile/workspace admission and origin authority are unchanged. SD-013 public behavior
+  bug fix with unchanged public shapes. Append-only migration 00137 adds one nullable integer
+  boundary without backfill; Atlas/sqlc own the generated artifacts. Existing queue rows and user
+  data survive migration and reopen; no public compatibility shim is needed.
+- **Official skill / Web / site docs:** document ordering in `skills/compozy/references/loops.md`
+  and the session messaging reference, plus the site's Goal guide. Web observes the corrected queue
+  dispatch through existing session events; no React changes or visual evidence required.
+- **QA / validation:** update RT-session-message-origin, RT-session-message-reply and GL-015.
+  The existing managed-runtime integration suite owns deterministic real-SQLite admission, reply
+  wake priority/deduplication and Goal state/accounting coverage. Heavy gates, full E2E and labs are
+  CI-owned by explicit maintainer instruction; targeted race checks run locally. The existing
+  global queue suite covers finite batches with concurrent admissions/reopen; the global migration
+  suite covers retained queue state. The reported Needs-you badge comes from loop_run quarantine
+  supervision, not queue backlog, and remains outside this scheduling fix.
+
+## Issue 742 — Session message cards for real providers — 2026-10-16
+
+Owner: branch `fix/issue-742-session-message-cards`; issue #742 (regression of #722).
+`compozy__session_prompt` input, output, and errors are unchanged. Its transcript card part
+(`data-compozy-session-message`, `transcript.UISessionMessagePayload`) keeps its shape and now
+reads the recorded provider forms: Claude's streamed arguments and string `raw_output`, and
+Codex's MCP `{server, tool, arguments}` envelope with a result that names no tool. A part is
+projected only once the call names its target, so no part without `target_session_id` reaches
+clients. The composer prompt stream folds each turn's events through
+`transcript.SessionMessageCards`, matching the transcript entry.
+
+User state (SD-013): the materialized transcript projection moves from version 2 to 3. Opening a
+session database reprojects only the assistant entries that hold a `compozy__session_prompt` call,
+following the #670 whitespace upgrade; the event ledger is unchanged and remains authoritative. The
+upgrade runs once per session database, in one write transaction that records the version last, so
+a rerun or an interrupted run reprojects the same entries from the ledger without duplicating or
+dropping a card. As with #670, an older runtime treats a version 3 projection as incompatible
+(ahead failure, explicit).
+
+HTTP: every listener that serves the Web (local, private tier, public operator) sends
+`Cache-Control: no-cache` for the SPA shell and unversioned public files, and
+`public, max-age=31536000, immutable` for Vite-fingerprinted `assets/` files. Routes, DTOs, OpenAPI, CLI, config, hooks,
+extension contracts, and native tool descriptors are unchanged, so the official
+`skills/compozy/` and `packages/site` docs need no update. Desktop loads the shell with
+`pragma: no-cache`, so a shell cached by an older runtime is skipped after an update. Web never
+draws a raw data row for a session-message part it cannot name, and a call split across two
+assistant messages by a queued prompt draws one card. Workspace isolation is unchanged: the
+upgrade runs per session database. QA owners: ET-web-session-message-card and
+APP-desktop-runtime-bundle-coherence.
 
 ## Issue #756 — daemon-owned verification session visibility
 
