@@ -30,16 +30,26 @@ const FINISHED: OsSessionAttentionRow = {
   reason: "finished while you were away",
 };
 
-type BellState = "needs-you" | "finished" | "quiet" | "disconnected" | "muted";
+type BellState = "gate-before" | "needs-you" | "finished" | "quiet" | "disconnected" | "muted";
 
 function AttentionBellContract({ state }: { state: BellState }) {
   const sections: OsAttentionSections = {
     needsYou:
-      state === "needs-you" || state === "disconnected"
-        ? [NEEDS_YOU]
-        : state === "muted"
-          ? [{ ...NEEDS_YOU, muted: true }]
-          : [],
+      state === "gate-before"
+        ? [
+            {
+              ...NEEDS_YOU,
+              id: "sess-judge-one",
+              title: "loop gate general objective_satisfied",
+              badge: "needs-attention",
+              reason: "Stopped after 12s · the agent did not answer the stop",
+            },
+          ]
+        : state === "needs-you" || state === "disconnected"
+          ? [NEEDS_YOU]
+          : state === "muted"
+            ? [{ ...NEEDS_YOU, muted: true }]
+            : [],
     finished: state === "finished" ? [FINISHED] : [],
   };
   return (
@@ -77,3 +87,6 @@ export const FinishedOnly: Story = { args: { state: "finished" } };
 export const Quiet: Story = { args: { state: "quiet" } };
 export const Disconnected: Story = { args: { state: "disconnected" } };
 export const MutedWorkspace: Story = { args: { state: "muted" } };
+
+export const BeforeGateFiltering: Story = { args: { state: "gate-before" } };
+export const GateSessionsHidden: Story = { args: { state: "quiet" } };

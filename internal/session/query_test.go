@@ -169,6 +169,39 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should hide system sessions before counting and preserve explicit audit reads", func(t *testing.T) {
+		t.Parallel()
+		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		for _, kind := range []Type{SessionTypeUser, SessionTypeSystem} {
+			created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: kind})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		}
+		stored := store.SessionInfo{ID: "persisted-judge", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+			SessionType: "system", State: "stopped", StopEscalated: true,
+			CreatedAt: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)}
+		catalog.durable = []store.SessionInfo{stored}
+		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, Limit: 1}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.HasMore || page.Sessions[0].Type != SessionTypeUser {
+			t.Fatalf("default catalog = %#v, %v", page, err)
+		}
+		summary, err := h.manager.AttentionSummary(ctx, query.ReadScope)
+		if err != nil || summary.NeedsYou != 0 || summary.Finished != 0 {
+			t.Fatalf("attention = %#v, %v", summary, err)
+		}
+		query.SessionType = SessionTypeSystem
+		query.Limit = MaxListLimit
+		page, err = h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 2 || len(page.Sessions) != 2 {
+			t.Fatalf("audit catalog = %#v, %v", page, err)
+		}
+	})
+
 	t.Run("Should accept pre-upgrade public cursors and fence visible search mode", func(t *testing.T) {
 		t.Parallel()
 		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
@@ -1139,6 +1172,10 @@ func (c *multiPagedRecordingSessionCatalog) SessionCatalogFacets(
 		if query.WorkspaceID != "" && info.WorkspaceID != query.WorkspaceID {
 			continue
 		}
+		if slices.Contains(query.ExcludeSessionTypes, info.SessionType) ||
+			(query.SessionType != "" && info.SessionType != query.SessionType) {
+			continue
+		}
 		badge := BadgeForInfo(sessionInfoFromCatalog(info))
 		addSessionFacet(&result.Facets, badge)
 		counts := workspaces[info.WorkspaceID]
@@ -1172,6 +1209,10 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 		archived := info.ArchivedAt != nil
 		if query.Archive == store.SessionArchiveExclude && archived ||
 			query.Archive == store.SessionArchiveOnly && !archived {
+			continue
+		}
+		if slices.Contains(query.ExcludeSessionTypes, info.SessionType) ||
+			(query.SessionType != "" && info.SessionType != query.SessionType) {
 			continue
 		}
 		badge := BadgeForInfo(sessionInfoFromCatalog(info))

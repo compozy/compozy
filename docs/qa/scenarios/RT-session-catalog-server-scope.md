@@ -33,3 +33,5 @@ SQLite audit 2026-10-09: While another connection owns the SQLite writer, list s
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+Issue #756 acceptance: with both active and persisted `system` judges, the default CLI/HTTP/UDS catalog, sidebar, sessions modal, facets and attention summary exclude them before pagination. `--type system` / `type=system` returns them under the same profile/workspace scope. Direct session reads remain available; no archive/delete/migration is required. Verify a user session whose name resembles a gate stays visible.

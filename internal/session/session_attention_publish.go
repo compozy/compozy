@@ -52,7 +52,9 @@ func (m *Manager) publishAttentionCommit(
 		At:          at,
 	}
 	m.publishWaitBadgeEdge(&after, to)
-	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	if normalizeSessionType(after.Type) != SessionTypeSystem {
+		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	}
 	m.dispatchSessionAttentionChanged(ctx, &after, event)
 	m.dispatchSpawnWake(ctx, &after, to)
 }

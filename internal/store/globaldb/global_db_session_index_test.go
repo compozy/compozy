@@ -83,6 +83,37 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should exclude persisted system sessions before the page cut and facet count", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "system-audit", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		for _, kind := range []string{"user", "system"} {
+			info := sessionInfoForWorkspaceStateIndexTest(kind, workspace, globalDBSessionStateStopped, base)
+			info.SessionType = kind
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspace, Sort: sessionCatalogSortRecent, Limit: 1, ExcludeSessionTypes: []string{"system"}}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "user" {
+			t.Fatalf("page = %#v, %v", page, err)
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.All != 1 {
+			t.Fatalf("facets = %#v, %v", facets, err)
+		}
+		query.ExcludeSessionTypes = nil
+		query.SessionType = "system"
+		page, err = db.PageSessions(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "system" {
+			t.Fatalf("audit = %#v, %v", page, err)
+		}
+	})
+
 	t.Run("Should count all scoped terminal approvals without excluding live durable records", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

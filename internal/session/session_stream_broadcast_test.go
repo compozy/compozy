@@ -174,6 +174,39 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain system lifecycle audit without publishing operator attention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		sess, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		if err := h.manager.StopWithCause(ctx, sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		after := sess.Info()
+		h.manager.publishLifecycleAttentionTransition(ctx, before, after)
+		for {
+			select {
+			case event := <-events:
+				if event.Name == CatalogEventNameAttention {
+					t.Fatalf("internal attention = %#v", event)
+				}
+			default:
+				return
+			}
+		}
+	})
+
 	t.Run("Should keep daemon-owned sessions out of the public catalog stream", func(t *testing.T) {
 		t.Parallel()
 

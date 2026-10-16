@@ -171,7 +171,7 @@ func sessionCatalogPageQuery(
 	after *store.SessionCatalogPosition,
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
-	return store.SessionCatalogPageQuery{
+	query := store.SessionCatalogPageQuery{
 		Subagents:         normalized.Subagents,
 		SkipTotal:         normalized.SkipTotal,
 		ReadScope:         normalized.ReadScope,
@@ -194,6 +194,10 @@ func sessionCatalogPageQuery(
 		ExcludeIDs:        activeIDs,
 		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
 	}
+	if normalized.SessionType == "" {
+		query.ExcludeSessionTypes = []string{string(SessionTypeSystem)}
+	}
+	return query
 }
 
 func (m *Manager) activeSessionCatalogRows(
@@ -330,7 +334,8 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 }
 
 func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
-	if !isPublicSessionCatalogInfo(info) {
+	if !isPublicSessionCatalogInfo(info) ||
+		(query.SessionType == "" && normalizeSessionType(info.Type) == SessionTypeSystem) {
 		return false
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&

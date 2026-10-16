@@ -88,6 +88,28 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		)
 		assertGoalJudgeOutcomes(t, rejectionTurns, []string{"rejected", "rejected", "approved"})
 		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-rejections", 3)
+		audit, err := listGoalRuntimeSessions(ctx, harness)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, judge := range audit.Sessions {
+			if judge.AgentName != "goal-rejections" {
+				continue
+			}
+			if judge.Lineage == nil || judge.Lineage.ParentSessionID != rejectionSession.ID || judge.StopReason != store.StopCompleted || (judge.Escalated != nil && *judge.Escalated) {
+				t.Fatalf("judge ownership/completion = %#v", judge)
+			}
+		}
+		var defaultPage compozycontract.SessionCatalogResponse
+		if err := harness.UDSJSON(ctx, http.MethodGet, "/api/sessions?workspace_id="+url.QueryEscape(harness.WorkspaceID), nil, &defaultPage); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range defaultPage.Sessions {
+			if item.Type == session.SessionTypeSystem {
+				t.Fatalf("system session in default catalog: %#v", item)
+			}
+		}
+
 	})
 
 	t.Run("Should pause and resume at a durable boundary", func(t *testing.T) {
@@ -631,7 +653,7 @@ func listGoalRuntimeSessions(
 	harness *e2etest.RuntimeHarness,
 ) (compozycontract.SessionCatalogResponse, error) {
 	var response compozycontract.SessionCatalogResponse
-	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
+	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100&type=system"
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
 	return response, err
 }

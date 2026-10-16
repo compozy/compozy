@@ -32,3 +32,5 @@ stopped cleanly. The missing-origin creation path remains covered by the owning 
 HTTP, remained usable after that origin was removed, and safely spawned a child whose governance
 root rebased to the live Goal. The structured projections matched and cleanup left no active
 sessions. Verdict: pass.
+
+Issue #756 update: system workers and judges are omitted from default catalogs; inspect them with explicit `--type system` / `type=system` when walking the historical lineage assertions above. New judges use their bound Goal session as informational parent/root provenance. They grant no spawn governance, remain auditable after completion, and are not deleted or archived by this change. Local real-ACP and SQLite owning suites verify shutdown/filtering; full live-provider lab walks remain CI-owned for this assignment.

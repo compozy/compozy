@@ -2741,3 +2741,13 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+
+## Issue #756 — daemon-owned verification session visibility
+
+- Native tools, CLI, HTTP/UDS: public session catalogs omit `type=system` when no type is selected; existing explicit `type=system` / `--type system` retains audit access. The filter applies to active overlays, durable pages, totals and facets before pagination. Direct ID/history reads remain available.
+- Goals: judge creation carries the bound Goal session as informational provenance; ordinary Loop gates use their origin. No spawn governance is granted. The Goal disclosure provides an explicit, paginated verification-session audit with transcript links.
+- Attention: system sessions do not emit operator attention catalog events or contribute to default attention counts/bell candidates. Durable lifecycle events, hooks and owning work outcomes remain authoritative.
+- Shutdown: completed/owner-released idle sessions ask the driver to close the process directly and verify exit; active turns and failed termination retain cancellation/escalation behavior.
+- SD-013: no persisted shape change or destructive migration. Historical system rows are filtered at read time. Public flags, routes, DTO shapes, hooks and tool IDs remain compatible; the intentional default population correction has an existing explicit audit selector. No config, extension SDK, permission or provider routing change. Profile/workspace predicates remain server-owned.
+- Web/docs/official skill: Goal audit UI, Goal/session-list QA scenarios, site Goal guide and `skills/compozy/` runtime/Loop guidance co-ship. Heavy validation is delegated to exact-head PR CI per maintainer instruction; targeted local suites and rendered evidence are recorded in the PR.

@@ -149,6 +149,28 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 
 func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retire an idle completed ACP process with verified exit and no escalation", func(t *testing.T) {
+		t.Parallel()
+		pidFile := filepath.Join(t.TempDir(), "judge.pid")
+		h := newRealACPIntegrationHarness(t, sessionStopWrapperCommand(t, pidFile))
+		sess := createSession(t, h)
+		childPID := waitForSessionStopWrapperChildPID(t, pidFile)
+		events, err := h.manager.Prompt(testutil.Context(t), sess.ID, "Verify the completed work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range events {
+		}
+		if err := h.manager.StopWithCause(testutil.Context(t), sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		waitForSessionStopProcessExit(t, childPID, time.Second)
+		meta := readMeta(t, sess.MetaPath())
+		if meta.StopEscalated || meta.StopVerificationFailed || meta.StopReason == nil || *meta.StopReason != store.StopCompleted {
+			t.Fatalf("completed judge = %#v", meta)
+		}
+	})
 	t.Run("Should recover owned work only after the frozen process tree exits", func(t *testing.T) {
 		t.Parallel()
 		base := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)

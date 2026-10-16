@@ -108,6 +108,7 @@ func (e *Executor) executeJudgeAttempt(
 		return nil, fmt.Errorf("resolve Goal judge environment: %w", err)
 	}
 	judgeResult, evaluateErr := e.judge.EvaluateGoal(ctx, JudgeRequest{
+		SessionID:   segment.checkpoint.SessionID,
 		Environment: environment,
 		AttemptID:   attempt.AttemptID,
 		Key:         segment.key,

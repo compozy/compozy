@@ -303,6 +303,7 @@ cannot be validated fail closed.
     compozy session prompt <session-id> "Inspect the failing build." --provider cursor --model grok-4.6 --reasoning-effort high --speed fast
     compozy session attachments upload <session-id> ./diagram.png -o json
     compozy session list --all -o json
+    compozy session list --all --type system -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
     compozy session list --attention -o json
@@ -1264,3 +1265,5 @@ the eligible population; the bounded guarantee applies to rich row hydration and
 Desktop catalog wakes coalesce over five seconds, pause while hidden/unfocused, and defer failed
 reads for thirty seconds. Request logs include a validated opaque `client_id` from
 `X-Compozy-Client-ID` so request rates can be grouped by browser instance without inspecting payloads.
+
+Daemon-owned `system` sessions are omitted from default public catalogs and operator attention. Use explicit `type=system` / `session list --type system` for audit; add `parent` / `--parent` to inspect the bound Goal session's judges. Existing parentless judges remain discoverable by type. Direct session history reads are unchanged.

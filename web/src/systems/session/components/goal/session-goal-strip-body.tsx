@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@compozy/ui";
 
+import { GoalVerificationSessions } from "./goal-verification-sessions";
+
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 
 function clampRatio(value: number): number {
@@ -154,6 +156,9 @@ export function SessionGoalStripBody({
       </StripRow>
       <ContextRow context={snapshot.context} />
       {snapshot.last_verdict ? <LastVerdictRow verdict={snapshot.last_verdict} /> : null}
+      <StripRow label="Audit">
+        <GoalVerificationSessions sessionId={snapshot.bound_session_id} />
+      </StripRow>
       {moved ? <MovedSessionRow sessionId={snapshot.bound_session_id} /> : null}
       {composerAffordance !== undefined && onPrefillComposer !== undefined ? (
         <PrefillActionRow affordance={composerAffordance} onPrefillComposer={onPrefillComposer} />
