@@ -64,7 +64,17 @@ const many = (count: number, status: SubagentStatus) =>
     })
   );
 
-const renderUI = (ui: React.ReactNode) => render(<UIProvider>{ui}</UIProvider>);
+// Popovers and hover cards animate their opacity; instant animations keep visibility assertions
+// independent of how busy the test worker is.
+function TestUI({ children }: { children: React.ReactNode }) {
+  return (
+    <UIProvider reducedMotion="never" skipAnimations>
+      {children}
+    </UIProvider>
+  );
+}
+
+const renderUI = (ui: React.ReactNode) => render(<TestUI>{ui}</TestUI>);
 
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
@@ -153,9 +163,9 @@ describe("SubagentCard", () => {
     const { rerender } = renderUI(<SubagentCard subagent={unconfirmed} onOpen={vi.fn()} />);
     // The roster confirms the child: the static row becomes the drill-in button.
     rerender(
-      <UIProvider>
+      <TestUI>
         <SubagentCard subagent={subagent()} onOpen={vi.fn()} />
-      </UIProvider>
+      </TestUI>
     );
     await user.hover(
       screen.getByRole("button", { name: "Open Audit payment webhooks for retry safety" })
@@ -259,15 +269,15 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
     // A subagent that starts mid-Stop does not end the pending state of the ones stopped.
     const late = subagent({ id: "sub-late", title: "late subagent", status: "running" });
     rerender(
-      <UIProvider>
+      <TestUI>
         <SubagentWaitingBanner subagents={[...live, late]} onStop={onStop} />
-      </UIProvider>
+      </TestUI>
     );
     expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
     rerender(
-      <UIProvider>
+      <TestUI>
         <SubagentWaitingBanner subagents={[late]} onStop={onStop} />
-      </UIProvider>
+      </TestUI>
     );
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
   });
@@ -344,9 +354,9 @@ describe("SubagentComposerControl (issue #766)", () => {
       "accent"
     );
     rerender(
-      <UIProvider>
+      <TestUI>
         <SubagentComposerControl subagents={rows} counts={counts(2, 6)} />
-      </UIProvider>
+      </TestUI>
     );
     const running = screen.getByRole("button", { name: "Subagents, 2 running" });
     expect(running).toHaveAttribute("data-state", "running");
@@ -400,13 +410,13 @@ describe("SubagentComposerControl (issue #766)", () => {
     const popover = await screen.findByRole("dialog");
     expect(popover.querySelector('[data-slot="skeleton-rows"]')).not.toBeNull();
     rerender(
-      <UIProvider>
+      <TestUI>
         <SubagentComposerControl
           subagents={many(2, "completed")}
           counts={counts(0, 2)}
           onOpen={vi.fn()}
         />
-      </UIProvider>
+      </TestUI>
     );
     expect(await screen.findByRole("button", { name: "Previous subagents (2)" })).toHaveAttribute(
       "aria-expanded",
