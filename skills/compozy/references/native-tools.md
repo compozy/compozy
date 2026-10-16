@@ -134,8 +134,8 @@ Agent-authored queue entries cannot be edited. The operator may promote one to s
 queue row) or cancel it; replace still returns `input_agent_authored`. Self-targeting returns
 `invalid_request`. To continue work in the same session, end the turn; to schedule work, use a
 subagent or `compozy__session_prompt` to another session. Do not use the CLI for agent-to-agent
-messages: `compozy session prompt` stamps origin only from inside a managed session, and the native
-tool is the supported path (it carries the origin, `in_reply_to` and `supersede`).
+messages: `compozy session prompt` sends operator input unless `--from-session auto` (or an id) opts
+in, and the native tool is the supported path (it carries the origin, `in_reply_to` and `supersede`).
 
 #### Choose queue or steer
 
@@ -148,8 +148,9 @@ tool is the supported path (it carries the origin, `in_reply_to` and `supersede`
   queued when it has attachments. Agent steer never takes the interrupt fallback: when injection is
   unavailable it degrades to a queued message. Read `disposition` and the reported mode.
 - Use `notify_on_complete: true` only when you need the receiver's final answer as a reply wake. To
-  answer a message you received, pass its `message_id` as `in_reply_to`; it does not add a hop and
-  releases the sender's reply watch, so the sender is woken once. Without either, nobody is woken.
+  answer a message you received, pass its `message_id` as `in_reply_to`; it does not add a hop. It
+  never releases the sender's reply watch, so a sender that set `notify_on_complete` still gets your
+  final answer when the turn ends. Without either, nobody is woken.
 - Send at milestones, never streaming status. For a status that supersedes the last one, set
   `supersede: true`: it cancels your own older queued messages to the same target (steer supersede is
   per sender) and `canceled_queued_entries` reports how many.
@@ -162,7 +163,8 @@ Operator input sorts before agent messages, which sort before synthetic wakes. T
 (`session.busy_input.queue_cap`) counts operator and agent/wake entries separately, so agents cannot
 fill the operator's slots, and `queue_position` is the real dispatch rank. A hop counts forwarding
 depth: answering the session driving your current turn, or sending with `in_reply_to`, keeps the
-hop; forwarding to another session adds one. The ninth hop returns `message_hop_limit`; ask the
+hop; a reply wake restores the hop you sent with, so dispatching the next child after each completion
+never accumulates; forwarding to another session adds one. The ninth hop returns `message_hop_limit`; ask the
 operator to continue. Each sender to target pair also has a budget of
 `session.messaging.rate_limit_messages` (default 30) per `session.messaging.rate_limit_window` (default
 10m); `-1` disables it. A send past it returns `message_rate_limited` on that send only: batch

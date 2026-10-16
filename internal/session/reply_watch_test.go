@@ -424,7 +424,7 @@ func TestReplyWatchQueueRetry(t *testing.T) {
 		if err := json.Unmarshal(wake.SyntheticPrompt.Metadata, &meta); err != nil {
 			t.Fatal(err)
 		}
-		if meta.Kind != acp.PromptSyntheticKindSessionReply || !meta.ReplyTruncated || meta.Hop != 1 ||
+		if meta.Kind != acp.PromptSyntheticKindSessionReply || !meta.ReplyTruncated || meta.Hop != 0 ||
 			meta.WakeEventID != w.ID {
 			t.Fatalf("metadata = %+v", meta)
 		}
@@ -1128,6 +1128,157 @@ func TestReplyWatchBatchedDispatch(t *testing.T) {
 			t.Fatalf("turn inputs = %v, want one attributed input per batched message", inputs)
 		}
 	})
+	t.Run("Should dispatch a released follower on its own after the batched head fails to start", func(t *testing.T) {
+		t.Parallel()
+		h, db, _, sender, target, _ := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		release := make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		dispatched := make(chan acp.PromptRequest, 4)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			if strings.Contains(req.Message, "question head") {
+				return nil, errors.New("provider start fault")
+			}
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				if req.Message == "hold" {
+					<-release
+				} else {
+					dispatched <- req
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		held, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{Message: "hold"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries := map[string]string{}
+		for _, id := range []string{"head", "follower"} {
+			result, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+				Message: "question " + id, MessageID: id, IdempotencyKey: id + "-key", Mode: BusyInputModeQueue,
+				Origin: &acp.PromptOriginMeta{
+					Kind: "session", SessionID: sender.ID, WorkspaceID: h.workspaceID, Hop: 1,
+				},
+			})
+			if err != nil || result.QueueEntryID == "" {
+				t.Fatalf("SendPrompt(%s) = %#v, %v", id, result, err)
+			}
+			entries[id] = result.QueueEntryID
+		}
+		once.Do(func() { close(release) })
+		for range held.Events {
+			continue
+		}
+		var req acp.PromptRequest
+		select {
+		case req = <-dispatched:
+		case <-time.After(5 * time.Second):
+			t.Fatal("released follower did not dispatch on its own")
+		}
+		if !strings.Contains(req.Message, "question follower") || strings.Contains(req.Message, "question head") {
+			t.Fatalf("follower prompt = %q, want the follower alone", req.Message)
+		}
+		waitForCondition(t, "follower sent in its own turn", func() bool {
+			entry, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entries["follower"])
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID == req.TurnID
+		})
+		stored, err := h.manager.Events(t.Context(), target.ID, store.EventQuery{
+			Type: acp.EventTypeUserMessage, Limit: 20,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range stored {
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decoded.MessageIDValue() == "follower" && event.TurnID != req.TurnID {
+				t.Fatalf("follower input event in turn %q, want only its own turn %q", event.TurnID, req.TurnID)
+			}
+		}
+	})
+	t.Run("Should dispatch the head without a follower whose input hook fails", func(t *testing.T) {
+		t.Parallel()
+		h, db, _, sender, target, _ := replyWatchFixture(t)
+		if err := h.manager.Stop(t.Context(), sender.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.hooks = fullHookSet(&spyHookDispatcher{
+			dispatchInputPreSubmitFn: func(
+				_ context.Context, p hookspkg.InputPreSubmitPayload,
+			) (hookspkg.InputPreSubmitPayload, error) {
+				if strings.Contains(p.Message, "question bad") {
+					return p, errors.New("follower hook fault")
+				}
+				return p, nil
+			},
+		})
+		release := make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		dispatched := make(chan acp.PromptRequest, 4)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				if req.Message == "hold" {
+					<-release
+				} else {
+					dispatched <- req
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		held, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{Message: "hold"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries := map[string]string{}
+		for _, id := range []string{"head", "bad", "tail"} {
+			result, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+				Message: "question " + id, MessageID: id, IdempotencyKey: id + "-key", Mode: BusyInputModeQueue,
+				Origin: &acp.PromptOriginMeta{
+					Kind: "session", SessionID: sender.ID, WorkspaceID: h.workspaceID, Hop: 1,
+				},
+			})
+			if err != nil || result.QueueEntryID == "" {
+				t.Fatalf("SendPrompt(%s) = %#v, %v", id, result, err)
+			}
+			entries[id] = result.QueueEntryID
+		}
+		once.Do(func() { close(release) })
+		for range held.Events {
+			continue
+		}
+		var req acp.PromptRequest
+		select {
+		case req = <-dispatched:
+		case <-time.After(5 * time.Second):
+			t.Fatal("head turn did not dispatch")
+		}
+		if !strings.Contains(req.Message, "question head") || !strings.Contains(req.Message, "question tail") ||
+			strings.Contains(req.Message, "question bad") {
+			t.Fatalf("batched prompt = %q, want head and tail without the failing follower", req.Message)
+		}
+		waitForCondition(t, "the failing follower settled as its own head", func() bool {
+			entry, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entries["bad"])
+			return err == nil && entry.Status == store.SessionInputQueueStatusFailed
+		})
+		for _, id := range []string{"head", "tail"} {
+			entry, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entries[id])
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent || entry.TurnID != req.TurnID {
+				t.Fatalf("%s entry = %q/%q, %v; want sent in %s", id, entry.Status, entry.TurnID, err, req.TurnID)
+			}
+		}
+	})
 }
 
 // Invariant: reconciliation reads only the admitted input and its consuming turn (M-2).
@@ -1785,43 +1936,48 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 	})
 }
 
-// Invariant: an explicit in_reply_to answer from the watched target releases the matching watch, so the
-// original sender is woken by that message only; unrelated replies leave the watch armed.
-// Owner: session reply-watch suite (#760).
-func TestReplyWatchAnsweredByExplicitReply(t *testing.T) {
+// Invariant: an explicit in_reply_to answer from the watched target never releases the watch, so an early
+// "ack, starting" cannot cancel the sender's completion wake; the watch still fires from the turn that
+// consumed the message. Owner: session reply-watch suite (#760).
+func TestReplyWatchExplicitReplyKeepsCompletionWake(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name      string
-		inReplyTo string
-		toSender  bool
-		want      string
-	}{
-		{name: "Should abandon the watch answered with in_reply_to", inReplyTo: "reply-message", toSender: true,
-			want: store.ReplyWatchAbandoned},
-		{name: "Should keep the watch for a reply to another message", inReplyTo: "other-message", toSender: true,
-			want: store.ReplyWatchArmed},
-		{name: "Should keep the watch for a reply sent to another session", inReplyTo: "reply-message",
-			want: store.ReplyWatchArmed},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			h, db, service, sender, target, w := replyWatchFixture(t)
-			h.manager.SetReplyWatchService(service)
-			recipient := createSession(t, h).ID
-			if tc.toSender {
-				recipient = sender.ID
-			}
-			h.manager.AcknowledgeSessionReply(t.Context(), &acp.PromptOriginMeta{
+	t.Run("Should keep the watch armed after an early in_reply_to and fire on completion", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		ack, err := h.manager.SendPrompt(t.Context(), sender.ID, SendPromptOpts{
+			Message: "ack, starting", MessageID: "early-ack", IdempotencyKey: "early-ack-key",
+			Origin: &acp.PromptOriginMeta{
 				Kind: acp.PromptOriginKindSession, SessionID: target.ID, WorkspaceID: h.workspaceID, Hop: 1,
-				InReplyTo: tc.inReplyTo,
-			}, recipient)
-			got, err := db.GetReplyWatch(t.Context(), w.ID)
-			if err != nil || got.State != tc.want {
-				t.Fatalf("watch = %+v, %v; want %s", got, err, tc.want)
-			}
-			if tc.want == store.ReplyWatchAbandoned && got.AbandonReason != store.ReplyAbandonAnswered {
-				t.Fatalf("abandon reason = %q, want answered", got.AbandonReason)
-			}
+				InReplyTo: w.MessageID,
+			},
 		})
-	}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ack.Events != nil {
+			for range ack.Events {
+				continue
+			}
+		}
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchArmed {
+			t.Fatalf("watch after early ack = %+v, %v; want armed", got, err)
+		}
+		recordReplyEvent(
+			t, h, target,
+			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "watched"}.WithMessageID(w.MessageID),
+		)
+		recordReplyEvent(t, h, target, acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "watched", Text: "final result",
+		})
+		recordReplyEvent(t, h, target, acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "watched"})
+		if err := service.Reconcile(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.Outcome != store.ReplyOutcomeCompleted || got.ReplyText != "final result" ||
+			got.State == store.ReplyWatchAbandoned {
+			t.Fatalf("watch after completion = %+v, %v; want the completion wake", got, err)
+		}
+	})
 }

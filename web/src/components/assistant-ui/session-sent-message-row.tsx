@@ -78,14 +78,12 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
   const outcome = part.replyWatchId
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;
-  // An explicit answer (`in_reply_to`) releases the watch without a wake: it reads Replied.
+  // An explicit answer (`in_reply_to`) reads Replied while the watch is still armed; the watch keeps
+  // running, so its outcome wins once the target's turn settles.
   const answered =
     part.messageId !== null && sessionMessageReplyIndex(messages).answered.has(part.messageId);
-  const reply: SessionSentReplyState = answered
-    ? "completed"
-    : part.replyWatchId
-      ? (outcome ?? "waiting")
-      : "none";
+  const reply: SessionSentReplyState =
+    outcome ?? (answered ? "completed" : part.replyWatchId ? "waiting" : "none");
   const timestamp = row.timestamp ? Date.parse(row.timestamp) : Number.NaN;
   return (
     <div data-testid="session-sent-message-row" className="flex min-w-0 flex-col py-1">

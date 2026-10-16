@@ -74,16 +74,19 @@ func (m *Manager) promoteQueuedInput(
 	if !promoted {
 		return "", false
 	}
-	if err := m.activateSteeringInput(ctx, session, &staged); err != nil {
-		// Never drop or cancel the message: it goes back to waiting for the turn to end.
-		reverted, revertErr := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
-		m.sessionLogger(session).Warn(
-			"session: deliver promoted queued input failed; deferring to after the turn",
-			"entry_id", entryID, "error", err, "reverted", reverted, "revert_error", revertErr,
-		)
-		return "", true
+	err = m.activateSteeringInput(ctx, session, &staged)
+	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {
+		return staged.SteerDelivery, true
 	}
-	return staged.SteerDelivery, true
+	// Never drop, cancel, or interrupt with the message: a failed or fallen-back injection returns it to
+	// plain after-turn delivery, releasing the sender's queued-steer slot.
+	reverted, revertErr := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
+	m.sessionLogger(session).Warn(
+		"session: promoted queued input not injected; deferring to after the turn",
+		"entry_id", entryID, "error", err, "steer_delivery", staged.SteerDelivery,
+		"reverted", reverted, "revert_error", revertErr,
+	)
+	return "", true
 }
 
 // schedulePromoteLongTurnQueuedInputs runs one promotion pass outside the caller's lock order.

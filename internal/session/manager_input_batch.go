@@ -101,32 +101,60 @@ type batchedPromptInput struct {
 }
 
 // prepareBatchedPromptInputs builds the request of every batched message in the head's turn and
-// passes each through input.pre_submit, exactly as it would have been reviewed on its own.
+// passes each through input.pre_submit, exactly as it would have been reviewed on its own. A follower
+// whose origin, request, or hook fails leaves the batch: it returns to the queue to dispatch (and settle
+// any failure) as its own head later, and the head's turn proceeds without it. A follower never fails the
+// head.
 func (m *Manager) prepareBatchedPromptInputs(
 	ctx context.Context,
 	session *Session,
 	req *promptRequest,
-) ([]batchedPromptInput, error) {
+) []batchedPromptInput {
 	if len(req.batch) == 0 {
-		return nil, nil
+		return nil
 	}
 	inputs := make([]batchedPromptInput, 0, len(req.batch))
 	for _, entry := range req.batch {
-		follower, err := m.newQueuedInputPromptRequest(req.target, entry)
+		input, err := m.prepareBatchedPromptInput(ctx, session, req, entry)
 		if err != nil {
-			return nil, err
+			m.dropBatchedPromptInput(session, req, entry, err)
+			continue
 		}
-		follower.turnID = req.turnID
-		message, err := m.dispatchInputPreSubmit(
-			ctx, session, req.turnID, follower.turnSource, follower.message, nil,
-		)
-		if err != nil {
-			return nil, err
-		}
-		follower.message = message
-		inputs = append(inputs, batchedPromptInput{request: follower, message: message})
+		inputs = append(inputs, input)
 	}
-	return inputs, nil
+	return inputs
+}
+
+func (m *Manager) prepareBatchedPromptInput(
+	ctx context.Context,
+	session *Session,
+	req *promptRequest,
+	entry queuedInput,
+) (batchedPromptInput, error) {
+	follower, err := m.newQueuedInputPromptRequest(req.target, entry)
+	if err != nil {
+		return batchedPromptInput{}, err
+	}
+	follower.turnID = req.turnID
+	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, follower.turnSource, follower.message, nil)
+	if err != nil {
+		return batchedPromptInput{}, err
+	}
+	follower.message = message
+	return batchedPromptInput{request: follower, message: message}, nil
+}
+
+// dropBatchedPromptInput returns a follower that cannot join the head's turn to the queue and tells the
+// dispatcher, so the head neither marks it sent nor releases it a second time.
+func (m *Manager) dropBatchedPromptInput(session *Session, req *promptRequest, entry queuedInput, cause error) {
+	logger := m.sessionLogger(session)
+	logger.Warn("session: batched queued input left the batch", "entry_id", entry.id, "error", cause)
+	if err := m.inputQueue.Release(m.fallbackLifecycleContext(), req.target, entry.id); err != nil {
+		logger.Warn("session: release dropped batched input failed", "entry_id", entry.id, "error", err)
+	}
+	if req.batchDropped != nil {
+		req.batchDropped(entry.id)
+	}
 }
 
 // batchedPromptMessage appends every batched message, each under its own sender header, to the
@@ -144,22 +172,29 @@ func batchedPromptMessage(message string, inputs []batchedPromptInput) string {
 	return digest.String()
 }
 
-// recordBatchedPromptInputs persists one input event per batched message in the shared turn, with
-// that message's own origin, message id, and event id, so the transcript keeps each sender and every
-// reply watch binds to the turn that consumed its message.
-func (m *Manager) recordBatchedPromptInputs(
-	ctx context.Context,
-	session *Session,
-	inputs []batchedPromptInput,
-) error {
+// raiseBatchedPromptHops folds every batched message's hop into the shared turn before the provider runs.
+func raiseBatchedPromptHops(session *Session, inputs []batchedPromptInput) {
 	for index := range inputs {
 		follower := inputs[index].request
 		session.raiseTurnHop(follower.turnID, promptMetaHop(follower.meta))
+	}
+}
+
+// recordBatchedPromptInputs persists one input event per batched message in the shared turn, with
+// that message's own origin, message id, and event id, so the transcript keeps each sender and every
+// reply watch binds to the turn that consumed its message. It runs only once the turn durably started:
+// a head that fails earlier releases its followers, and an event recorded under the failed turn would
+// collide with the follower's own dispatch later (event ids are deterministic per admission). The turn
+// already carries these messages, so a failed record is logged rather than failing the started turn.
+func (m *Manager) recordBatchedPromptInputs(ctx context.Context, session *Session, inputs []batchedPromptInput) {
+	for index := range inputs {
+		follower := inputs[index].request
 		if err := m.recordPromptInputEvent(ctx, session, &follower); err != nil {
-			return err
+			m.sessionLogger(session).Error(
+				"session: record batched input event failed", "message_id", follower.messageID, "error", err,
+			)
 		}
 	}
-	return nil
 }
 
 // requestDispatchMessage builds the provider prompt of req's turn: its own attributed input followed by
@@ -170,10 +205,7 @@ func (m *Manager) requestDispatchMessage(
 	req *promptRequest,
 	message string,
 ) (preparedPromptInput, error) {
-	batched, err := m.prepareBatchedPromptInputs(ctx, session, req)
-	if err != nil {
-		return preparedPromptInput{}, err
-	}
+	batched := m.prepareBatchedPromptInputs(ctx, session, req)
 	prepared, err := m.promptDispatchMessage(ctx, session, message, req.delivery)
 	if err != nil {
 		return preparedPromptInput{}, err

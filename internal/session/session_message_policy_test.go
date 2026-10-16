@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -58,6 +59,25 @@ func (f sessionMessageFixture) driveTurn(t *testing.T, meta acp.PromptMeta) {
 	})
 }
 
+// runTurn runs fn inside one sender turn started from meta and settles the turn afterwards, so a test can
+// chain several turns of the same session.
+func (f sessionMessageFixture) runTurn(t *testing.T, turnID string, meta acp.PromptMeta, fn func()) {
+	t.Helper()
+	_, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	if _, err := f.sender.beginExclusivePromptSetupForRequest(
+		promptRequest{turnID: turnID, turnSource: TurnSourceUser, meta: meta},
+		cancel,
+	); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		f.sender.finishPromptSetup()
+		clearPromptState(f.sender, turnID)
+	}()
+	fn()
+}
+
 // admit records one durable admission into target, optionally stamped with a session origin.
 func (f sessionMessageFixture) admit(
 	t *testing.T,
@@ -104,8 +124,9 @@ func (f sessionMessageFixture) send(
 }
 
 // Invariant: hop measures forwarding depth, so answering the session that drives the current turn (by its
-// message, its reply wake, or an explicit in_reply_to) keeps the hop, while forwarding to a third session
-// adds one and stays bounded by MaxSessionMessageHops. Owner: session message policy (issue #760 item 4).
+// message, its reply wake, or an explicit in_reply_to) keeps the hop, a reply wake restores the sender's own
+// hop so sequential orchestration never accumulates, while forwarding to a third session adds one and stays
+// bounded by MaxSessionMessageHops. Owner: session message policy (issue #760 item 4).
 func TestSessionMessageOriginHop(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep the hop when answering the session that started the turn", func(t *testing.T) {
@@ -131,6 +152,55 @@ func TestSessionMessageOriginHop(t *testing.T) {
 		next, err := f.send(t, f.peer, "")
 		if err != nil || next.Hop != 2 {
 			t.Fatalf("follow-up origin = %+v, %v; want the wake's hop 2", next, err)
+		}
+	})
+	t.Run("Should never accumulate hops across sequential wake and dispatch stages", func(t *testing.T) {
+		t.Parallel()
+		f := newSessionMessageFixture(t)
+		var wake *acp.PromptSyntheticMeta
+		for stage := range 20 {
+			child := []*Session{f.peer, f.cc}[stage%2]
+			meta := acp.PromptMeta{Synthetic: wake}
+			var dispatched *acp.PromptOriginMeta
+			f.runTurn(t, fmt.Sprintf("stage-%d", stage), meta, func() {
+				origin, err := f.send(t, child, "")
+				if err != nil {
+					t.Fatalf("stage %d dispatch error = %v, want no hop limit", stage, err)
+				}
+				dispatched = origin
+			})
+			if dispatched.Hop != 1 {
+				t.Fatalf("stage %d dispatch hop = %d, want 1", stage, dispatched.Hop)
+			}
+			wake = &acp.PromptSyntheticMeta{
+				Kind: acp.PromptSyntheticKindSessionReply, Reason: store.ReplyOutcomeCompleted,
+				ChildSessionID: child.ID, Hop: replyWakeHop(store.ReplyWatch{Hop: dispatched.Hop}),
+			}
+		}
+	})
+	t.Run("Should still bound a genuine forwarding chain", func(t *testing.T) {
+		t.Parallel()
+		f := newSessionMessageFixture(t)
+		var inbound *acp.PromptOriginMeta
+		for hop := 1; ; hop++ {
+			var (
+				forwarded *acp.PromptOriginMeta
+				err       error
+			)
+			f.runTurn(t, fmt.Sprintf("forward-%d", hop), acp.PromptMeta{Origin: inbound}, func() {
+				forwarded, err = f.send(t, f.cc, "")
+			})
+			if hop > acp.MaxSessionMessageHops {
+				if !errors.Is(err, ErrSessionMessageHopLimit) {
+					t.Fatalf("forward %d error = %v, want ErrSessionMessageHopLimit", hop, err)
+				}
+				return
+			}
+			if err != nil || forwarded.Hop != hop {
+				t.Fatalf("forward %d origin = %+v, %v; want hop %d", hop, forwarded, err, hop)
+			}
+			// The next turn is driven by another session forwarding the same chain onward.
+			inbound = f.origin(f.peer, hop)
 		}
 	})
 	t.Run("Should keep the hop for an explicit in_reply_to answer", func(t *testing.T) {

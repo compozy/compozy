@@ -1353,7 +1353,10 @@ SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, dispatchable
     status = 'queued', dispatch_started_at = NULL, updated_at = ?1
 WHERE session_id = ?2 AND id = ?3
   AND origin_class = 'agent' AND owner_kind IS NULL AND mode = 'steer'
-  AND status IN ('queued', 'dispatching') AND steer_delivery IS NULL
+  AND (
+    (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
+    OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')
+  )
 `
 
 type RevertPromotedAgentSessionInputParams struct {
@@ -1362,8 +1365,8 @@ type RevertPromotedAgentSessionInputParams struct {
 	ID        string `json:"id"`
 }
 
-// A promotion whose live delivery could not start returns the message to after-turn delivery instead of
-// canceling it.
+// A promotion whose live delivery could not start, or whose injection fell back, returns the message to
+// plain after-turn delivery instead of canceling it, so it never holds the sender's queued-steer slot.
 func (q *Queries) RevertPromotedAgentSessionInput(ctx context.Context, arg RevertPromotedAgentSessionInputParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, revertPromotedAgentSessionInput, arg.Now, arg.SessionID, arg.ID)
 	if err != nil {

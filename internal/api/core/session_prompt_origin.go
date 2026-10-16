@@ -21,10 +21,6 @@ type sessionPromptReplayReader interface {
 	PromptAdmissionReplayOrigin(context.Context, string, string, string, string) (bool, *acp.PromptOriginMeta, error)
 }
 
-type sessionReplyAcknowledger interface {
-	AcknowledgeSessionReply(context.Context, *acp.PromptOriginMeta, string)
-}
-
 var errPromptReplyRequiresAgentSession = errors.New("in_reply_to requires a calling agent session")
 
 // sessionPromptOrigin stamps a session origin for prompts sent from inside a managed agent session.
@@ -93,12 +89,6 @@ func (h *BaseHandlers) sessionPromptReplayOrigin(
 		return nil, refusal
 	}
 	return origin, nil
-}
-
-func (h *BaseHandlers) acknowledgeSessionReply(ctx context.Context, origin *acp.PromptOriginMeta, target string) {
-	if acknowledger, ok := h.Sessions.(sessionReplyAcknowledger); ok {
-		acknowledger.AcknowledgeSessionReply(context.WithoutCancel(ctx), origin, target)
-	}
 }
 
 func (h *BaseHandlers) respondPromptOriginError(c *gin.Context, err error) {

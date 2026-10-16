@@ -48,20 +48,3 @@ func (s *replyWatchService) expire(ctx context.Context, w store.ReplyWatch) erro
 	s.manager.logger.InfoContext(ctx, "reply_watch.expired", "id", w.ID, "created_at", w.CreatedAt)
 	return s.fire(ctx, w, store.ReplyOutcomeExpired, text)
 }
-
-// answer abandons the watch the target armed on messageID when the watched session replies to it
-// explicitly, so the explicit message is the only reply the original sender receives.
-func (s *replyWatchService) answer(ctx context.Context, replier, originalSender, messageID string) {
-	w, found, err := s.store.ReplyWatchByMessage(ctx, replier, messageID)
-	if err != nil {
-		s.logError(ctx, err)
-		return
-	}
-	if !found || w.SenderSessionID != originalSender {
-		return
-	}
-	if w.State != store.ReplyWatchArmed && w.State != store.ReplyWatchFired {
-		return
-	}
-	s.logError(ctx, s.abandon(ctx, w.ID, store.ReplyAbandonAnswered))
-}

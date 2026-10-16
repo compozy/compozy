@@ -231,7 +231,6 @@ func (n *daemonNativeTools) sessionPrompt(
 		return toolspkg.ToolResult{}, err
 	}
 	logSessionMessageSent(ctx, origin, sessionID, messageID, mode)
-	n.acknowledgeSessionReply(ctx, origin, sessionID)
 	if input.Wait && result.Events != nil {
 		if err := drainNativeSessionPromptEvents(result.Events); err != nil {
 			return toolspkg.ToolResult{}, err

@@ -143,14 +143,3 @@ func (n *daemonNativeTools) sessionPromptReplayOrigin(
 	}
 	return origin, nil
 }
-
-type nativeSessionReplyAcknowledger interface {
-	AcknowledgeSessionReply(context.Context, *acp.PromptOriginMeta, string)
-}
-
-// acknowledgeSessionReply releases the reply watch an explicit in_reply_to answer satisfies.
-func (n *daemonNativeTools) acknowledgeSessionReply(ctx context.Context, origin *acp.PromptOriginMeta, target string) {
-	if acknowledger, ok := n.deps.Sessions.(nativeSessionReplyAcknowledger); ok {
-		acknowledger.AcknowledgeSessionReply(context.WithoutCancel(ctx), origin, target)
-	}
-}

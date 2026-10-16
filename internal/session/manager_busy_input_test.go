@@ -268,10 +268,58 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			t.Fatalf("prompt dispatch count = %d, want one", len(calls))
 		}
 	})
-	t.Run("Should bound retries and re-kick once when peek and claim keep disagreeing", func(t *testing.T) {
+	t.Run("Should retry a failed sent receipt in the background while the turn runs", func(t *testing.T) {
 		t.Parallel()
 		database := openManagerInputQueueStore(t)
-		queueStore := &queuePeekDisagreementStore{GlobalDB: database}
+		// The synchronous attempts and two background retries fail; the next background retry lands.
+		queueStore := &queueSentFailureStore{GlobalDB: database, failures: queuedInputSentAttempts + 2}
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				<-release
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		entry, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "sent-receipt-retry", SessionID: sess.ID, Text: "dispatch once", QueueCap: 3,
+			Now: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.startNextQueuedInputPrompt(sess.ID)
+		waitForCondition(t, "sent receipt landed while the turn runs", func() bool {
+			stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+			return err == nil && stored.Status == store.SessionInputQueueStatusSent && stored.TurnID != ""
+		})
+		turnID := sess.CurrentTurnID()
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || turnID == "" || stored.TurnID != turnID {
+			t.Fatalf("entry = %#v, %v; want sent in the live turn %q", stored, err, turnID)
+		}
+		unblock()
+		if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 1 {
+			t.Fatalf("prompt dispatch count = %d, want one", len(calls))
+		}
+	})
+	t.Run("Should bound retries and keep re-kicking until a disagreeing queue settles", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		// Two bounded passes disagree (the first call and the first deferred re-kick); the next agrees.
+		queueStore := &queuePeekDisagreementStore{GlobalDB: database, disagreements: 2 * maxQueuedInputSelectAttempts}
 		h := newHarness(t, WithSessionInputQueueStore(queueStore))
 		registerManagerInputQueueWorkspace(t, database, h)
 		sess := createSession(t, h)
@@ -296,12 +344,16 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		if calls := managerPromptCalls(h); len(calls) != 0 {
 			t.Fatalf("prompt dispatch count = %d, want none", len(calls))
 		}
-		// The bound paces selection without stalling the queue: one deferred pass selects again.
+		// The bound paces selection without stalling the queue: deferred passes keep selecting with backoff
+		// even after a deferred pass hits the bound again, until the entry dispatches.
+		waitForCondition(t, "queued input dispatched after repeated bounded passes", func() bool {
+			return len(managerPromptCalls(h)) == 1
+		})
 		if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if got := queueStore.peeks.Load() - before; got != 2*maxQueuedInputSelectAttempts {
-			t.Fatalf("peeks after deferred retry = %d, want %d", got, 2*maxQueuedInputSelectAttempts)
+		if got := queueStore.peeks.Load() - before; got <= 2*maxQueuedInputSelectAttempts {
+			t.Fatalf("peeks = %d, want a third pass after two bounded passes", got)
 		}
 	})
 	t.Run("Should surface queue entry entropy failure before persistence", func(t *testing.T) {
@@ -3585,8 +3637,11 @@ func equalIntPointers(left *int, right *int) bool {
 	return *left == *right
 }
 
+// queueSentFailureStore fails every sent receipt, or only the first failures receipts when set.
 type queueSentFailureStore struct {
 	*globaldb.GlobalDB
+	failures int32
+	attempts atomic.Int32
 }
 
 var _ store.SessionInputQueueStore = (*queueSentFailureStore)(nil)
@@ -3596,22 +3651,28 @@ func (s *queueSentFailureStore) MarkSessionInputSent(context.Context, string, st
 }
 
 func (s *queueSentFailureStore) MarkSessionInputSentInTurn(
-	context.Context, string, string, string, time.Time,
+	ctx context.Context, sessionID, entryID, turnID string, now time.Time,
 ) error {
-	return errors.New("sent receipt unavailable")
+	if attempt := s.attempts.Add(1); s.failures == 0 || attempt <= s.failures {
+		return errors.New("sent receipt unavailable")
+	}
+	return s.GlobalDB.MarkSessionInputSentInTurn(ctx, sessionID, entryID, turnID, now)
 }
 
-// queuePeekDisagreementStore peeks an entry that claim never returns.
+// queuePeekDisagreementStore peeks an entry that claim never returns for its first disagreements peeks.
 type queuePeekDisagreementStore struct {
 	*globaldb.GlobalDB
-	peeks atomic.Int32
+	disagreements int32
+	peeks         atomic.Int32
 }
 
 func (s *queuePeekDisagreementStore) PeekNextSessionInput(
-	_ context.Context,
+	ctx context.Context,
 	sessionID string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	s.peeks.Add(1)
+	if s.peeks.Add(1) > s.disagreements {
+		return s.GlobalDB.PeekNextSessionInput(ctx, sessionID)
+	}
 	return store.SessionInputQueueEntry{ID: "ghost", SessionID: sessionID}, true, nil
 }
 
@@ -4704,7 +4765,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		steered chan string
 		advance func(time.Duration)
 	}
-	newFixture := func(t *testing.T, cfg compozyconfig.SessionMessagingConfig) fixture {
+	newFixture := func(t *testing.T, cfg compozyconfig.SessionMessagingConfig, steerErr ...error) fixture {
 		t.Helper()
 		var nowMu sync.Mutex
 		now := time.Date(2026, 10, 16, 14, 0, 0, 0, time.UTC)
@@ -4720,6 +4781,9 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		h.manager.driver = &steeringTestDriver{fakeDriver: h.driver,
 			steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
 				steered <- text
+				if len(steerErr) > 0 {
+					return "", steerErr[0]
+				}
 				return acp.SteerAttemptInjected, nil
 			},
 		}
@@ -4831,6 +4895,40 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Fatal("promoted message has no input event in the live turn")
 		}
 		drain(t, f)
+	})
+
+	t.Run("Should return a fallen-back promoted message to plain after-turn delivery", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(
+			t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, errors.New("injection refused"),
+		)
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not offered for injection")
+		}
+		waitForCondition(t, "fallen-back promotion reverted", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue
+		})
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+			entry.Delivery != store.SessionInputDeliveryAfterTurn || entry.SteerDelivery != "" ||
+			!entry.Dispatchable || f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("reverted entry = %#v, %v; want plain queued after-turn delivery without interrupting %s",
+				entry, err, turnID)
+		}
+		drain(t, f)
+		waitForCondition(t, "reverted message dispatched after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
 	})
 
 	t.Run("Should never promote an agent message while operator input waits", func(t *testing.T) {

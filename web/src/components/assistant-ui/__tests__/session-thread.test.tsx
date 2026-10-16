@@ -6645,7 +6645,7 @@ describe("SessionThread session messages", () => {
       clientWithPeers()
     );
 
-    // The explicit answer released the watch without a wake: the send reads replied.
+    // The explicit answer reads replied while the armed watch keeps waiting for the turn to settle.
     expect(
       await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
     ).toBeInTheDocument();

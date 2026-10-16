@@ -4802,12 +4802,13 @@ func TestSessionCompactIntegration(t *testing.T) {
 	}
 }
 
-// Invariant: `compozy session prompt` run inside a managed session stamps that session as the daemon-validated
-// message origin (so the receiver gets a From card and can reply); --from-session none and callers outside a
-// session stay operator input, and --in-reply-to requires a calling session. Owner: CLI integration (#760).
+// Invariant: session origin stamping from the CLI is opt-in this release: only --from-session auto (or an id)
+// stamps the daemon-validated sender origin; inside a managed session without the flag the prompt stays
+// operator input and stderr hints at --from-session auto; --from-session auto outside a session and
+// --in-reply-to without a calling session are refused. Owner: CLI integration (#760).
 func TestSessionPromptOriginIntegration(t *testing.T) {
 	t.Parallel()
-	t.Run("Should stamp the calling session origin only from inside a managed session", func(t *testing.T) {
+	t.Run("Should stamp the calling session origin only when --from-session opts in", func(t *testing.T) {
 		t.Parallel()
 
 		h := newIntegrationHarness(t)
@@ -4834,20 +4835,45 @@ func TestSessionPromptOriginIntegration(t *testing.T) {
 				return ""
 			}
 		}
-		prompt := func(deps commandDeps, message string, extra ...string) {
+		prompt := func(deps commandDeps, message string, extra ...string) string {
 			t.Helper()
 			args := append([]string{"session", "prompt", target.ID, message, "-o", "json"}, extra...)
-			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+			_, stderr, err := executeRootCommand(t, deps, args...)
+			if err != nil {
 				t.Fatalf("session prompt %q error = %v", message, err)
 			}
+			return stderr
 		}
-		prompt(inside, "from inside the sender", "--in-reply-to", "msg-question")
-		prompt(inside, "explicit operator input", "--from-session", "none")
-		prompt(h.deps, "plain operator input")
-		if _, _, err := executeRootCommand(
-			t, h.deps, "session", "prompt", target.ID, "orphan reply", "--in-reply-to", "msg-question",
-		); err == nil || !strings.Contains(err.Error(), "--in-reply-to requires a calling agent session") {
-			t.Fatalf("in-reply-to outside a session error = %v", err)
+		optIn := []string{"--from-session", "auto", "--in-reply-to", "msg-question"}
+		if hint := prompt(inside, "from inside the sender", optIn...); strings.Contains(hint, "--from-session auto") {
+			t.Fatalf("opted-in prompt stderr = %q, want no hint", hint)
+		}
+		if hint := prompt(inside, "explicit operator input"); !strings.Contains(hint, "--from-session auto") ||
+			!strings.Contains(hint, sender.ID) {
+			t.Fatalf("inside default stderr = %q, want the --from-session auto hint naming %s", hint, sender.ID)
+		}
+		if hint := prompt(h.deps, "plain operator input"); hint != "" {
+			t.Fatalf("outside stderr = %q, want no hint", hint)
+		}
+		for _, refused := range []struct {
+			deps commandDeps
+			args []string
+			want string
+		}{
+			{
+				deps: inside, args: []string{"--in-reply-to", "msg-question"},
+				want: "--in-reply-to requires a calling agent session",
+			},
+			{
+				deps: h.deps, args: []string{"--from-session", "auto"},
+				want: "--from-session auto requires a managed session",
+			},
+		} {
+			args := append([]string{"session", "prompt", target.ID, "refused"}, refused.args...)
+			if _, _, err := executeRootCommand(t, refused.deps, args...); err == nil ||
+				!strings.Contains(err.Error(), refused.want) {
+				t.Fatalf("session prompt %v error = %v, want %q", refused.args, err, refused.want)
+			}
 		}
 
 		eventsOut := mustExecuteRoot(t, h.deps, "session", "events", target.ID, "--type", "user_message", "-o", "json")
