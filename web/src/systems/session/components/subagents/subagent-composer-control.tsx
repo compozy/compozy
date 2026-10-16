@@ -1,8 +1,9 @@
-import { Network } from "lucide-react";
+import { Bot } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
 
 import {
   Button,
+  InputGroupButton,
   Popover,
   PopoverContent,
   PopoverTitle,
@@ -51,7 +52,7 @@ function SubagentComposerGlyph({
   const dot = signal.dot;
   return (
     <span className="relative inline-flex">
-      <Network aria-hidden="true" />
+      <Bot aria-hidden="true" className="size-4" />
       {dot ? (
         <StatusDot
           tone={dot.tone ?? "faint"}
@@ -161,17 +162,13 @@ export function SubagentComposerControl({
     <Popover onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
         render={
-          <Button
+          <InputGroupButton
             type="button"
-            variant="quiet"
-            size="icon"
+            size="tool"
             aria-label={signal.ariaLabel}
             data-testid="composer-subagents-button"
             data-state={signal.state}
-            className={cn(
-              "shrink-0 text-fg-2 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
-              live && "w-auto gap-1.5 px-2"
-            )}
+            className="shrink-0 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg"
           />
         }
       >
