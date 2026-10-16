@@ -11,6 +11,7 @@ export interface SessionAttachmentGalleryProps extends ComponentProps<"div"> {
   items: readonly SessionAttachmentItem[];
 }
 
+/** Describes a transcript image using its filename and any known dimensions. */
 function imageTitle(item: Extract<SessionAttachmentItem, { kind: "image" }>): string {
   if (item.width && item.height) {
     return `${item.filename} · ${item.width}×${item.height}`;
@@ -18,6 +19,7 @@ function imageTitle(item: Extract<SessionAttachmentItem, { kind: "image" }>): st
   return item.filename;
 }
 
+/** Shares the gallery rail element with a caller-provided callback or object ref. */
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (typeof ref === "function") {
     ref(value);
@@ -26,6 +28,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (ref) ref.current = value;
 }
 
+/** Arranges scoped transcript attachments in a rail with image previews and file links. */
 export function SessionAttachmentGallery({
   items,
   className,
@@ -83,7 +86,6 @@ export function SessionAttachmentGallery({
           <li key={`${item.id}:${occurrence}`} data-attachment-rail-item className="shrink-0">
             {item.kind === "image" ? (
               <SessionAttachmentFrame
-                href={item.href}
                 src={item.src}
                 filename={item.filename}
                 title={imageTitle(item)}
