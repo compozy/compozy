@@ -2741,3 +2741,20 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+## Issue #751 — subagent drill-in E2E readiness (2026-10-16)
+
+Owner: `fix/issue-751-e2e-004-main`. Main CI run `38359736994` clicked the visible
+queued card container before its roster supplied the child session to the UI;
+the Playwright trace shows a static `role="group"` at `call@6196`, not an open
+button. E2E-004 now targets the accessible `Open <title>` button for ordinary
+and modifier clicks, waiting for the rendered navigation affordance. The
+child-window, origin-divider, composer, return-to-parent and second-window
+assertions remain intact. Owning suite: `web/e2e/__tests__/subagents.spec.ts`;
+QA scenario: `ET-web-subagent-card` drill-in (E2E-004).
+
+This changes test synchronization only. Native tools, CLI, HTTP/UDS, config,
+extensions/hooks, workspace/profile isolation, persisted user state, Web
+behavior, official `skills/compozy/` and site docs are unchanged. SD-013:
+internal test code; no compatibility shim or migration. Heavy validation is
+delegated to PR CI per maintainer instruction; no local daemon lab is started.
