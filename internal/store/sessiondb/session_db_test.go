@@ -315,7 +315,12 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			t.Fatalf("Stat(wal) error = %v", err)
 		}
 		if peak < limit || info.Size() >= limit {
-			t.Fatalf("WAL peak/final = %d/%d bytes, want truncation below %d after exceeding it", peak, info.Size(), limit)
+			t.Fatalf(
+				"WAL peak/final = %d/%d bytes, want truncation below %d after exceeding it",
+				peak,
+				info.Size(),
+				limit,
+			)
 		}
 	})
 

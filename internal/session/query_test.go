@@ -2260,7 +2260,10 @@ func TestCompactionMarkersAcrossConcurrentAppends(t *testing.T) {
 		}
 		for _, marker := range markers {
 			if marker.Payload.CompactionID == "a" && marker.ContextAfter != nil {
-				t.Fatalf("compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b", marker.ContextAfter)
+				t.Fatalf(
+					"compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b",
+					marker.ContextAfter,
+				)
 			}
 		}
 	})
