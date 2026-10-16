@@ -445,6 +445,14 @@ describe("SubagentComposerControl (issue #766)", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
+  it("Should not call an unread roster empty when its read failed", () => {
+    renderUI(<SubagentComposerControl subagents={[]} counts={counts(0, 0)} failed />);
+    expect(screen.getByRole("button", { name: "Subagents, couldn't load" })).toHaveAttribute(
+      "data-state",
+      "idle"
+    );
+  });
+
   it("Should keep the rows that loaded and still offer Try again when a later page fails", async () => {
     const user = userEvent.setup();
     renderUI(

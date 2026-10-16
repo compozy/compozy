@@ -425,14 +425,19 @@ export interface SubagentComposerSignal {
  * dot (running pulses; one that needs you takes the accent) and the live count.
  * Failures stay in the popover: the control reports activity, not history.
  */
-export function subagentComposerSignal(counts: SubagentCounts): SubagentComposerSignal {
+export function subagentComposerSignal(
+  counts: SubagentCounts,
+  failed = false
+): SubagentComposerSignal {
   const { live, total, attention } = counts;
   if (live === 0) {
+    // A failed read leaves the roster unknown, not empty.
+    const idle = total === 0 ? "Subagents, none yet" : "Subagents, none running";
     return {
       state: "idle",
       dot: null,
       count: null,
-      ariaLabel: total === 0 ? "Subagents, none yet" : "Subagents, none running",
+      ariaLabel: failed ? "Subagents, couldn't load" : idle,
     };
   }
   const needsYou = attention > 0 ? `, ${attention} needs you` : "";

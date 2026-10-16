@@ -155,7 +155,7 @@ export function SubagentComposerControl({
   stale = false,
   ...panel
 }: SubagentComposerControlProps) {
-  const signal = subagentComposerSignal(panel.counts);
+  const signal = subagentComposerSignal(panel.counts, panel.failed);
   const live = signal.count !== null;
 
   return (
