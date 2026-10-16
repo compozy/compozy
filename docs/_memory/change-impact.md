@@ -2789,3 +2789,34 @@ extensions/hooks, workspace/profile isolation, persisted user state, Web
 behavior, official `skills/compozy/` and site docs are unchanged. SD-013:
 internal test code; no compatibility shim or migration. Heavy validation is
 delegated to PR CI per maintainer instruction; no local daemon lab is started.
+
+## Issue #747 — Goal origin identity after runtime binding — 2026-10-16
+
+Owner: `fix/issue-747-goal-origin-profile`.
+
+Goal admission now validates the immutable creation witness independently of the
+session's mutable runtime provider. Logical creation records the configured
+provider; the first prompt may bind another provider, and later prompts may replace
+it. Those supported transitions must not invalidate the unchanged creation witness.
+Creation-profile reference, policy digest, workspace, agent, active-session state,
+caller lineage and store-transaction creation-digest checks remain enforced.
+
+CLI `session goal`, HTTP/UDS Goal commands and native `compozy__goal_control` share
+this correction. Their schemas, status codes and existing
+`goal_origin_profile_unavailable` reason remain compatible. Failure logs add a
+fixed `check` label plus workspace/session correlation IDs; they contain no profile
+payload, provider command, prompt overlay, credentials or secrets. No SQLite shape,
+config, user data, extension/hook contract or workspace ownership changes. No
+migration or compatibility shim is needed under SD-013. Web benefits through the
+same service without renderer changes. Official `skills/compozy/` already documents
+immutable creation identity and per-run runtime selection; no skill or site API
+reference update is needed. QA owner: `docs/qa/scenarios/GL-001.md`.
+
+Validation uses the existing daemon Goal command lifecycle suite with real SQLite,
+including cross-provider set/replace, invalid-provider rejection without Run
+creation and immutable identity readback. The existing Session Manager lifecycle
+suite also verifies logical creation with the agent default, initial binding to
+another provider, process replacement, persisted witness retention and rejection
+of an unresolved provider without changing the accepted process. Existing
+managed-runtime borrowed-origin integration coverage, full gates and broad
+end-to-end runs are delegated to PR CI per maintainer instruction.
