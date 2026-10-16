@@ -174,6 +174,75 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve operator attention for actionable system sessions", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		before := &Info{
+			ID:          "system-automation",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: h.workspaceID,
+			Type:        SessionTypeSystem,
+			State:       StateActive,
+		}
+		after := *before
+		after.PendingClarifyCount = 1
+		h.manager.publishLifecycleAttentionTransition(ctx, before, &after)
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		edge := assertCatalogEventName(t, events, CatalogEventNameAttention)
+		if edge.Attention == nil || edge.Attention.To != BadgeWaitingForInput {
+			t.Fatalf("actionable system attention = %#v", edge)
+		}
+	})
+
+	t.Run("Should retain system lifecycle audit without publishing operator attention", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		sess, err := h.manager.Create(
+			ctx,
+			CreateOpts{
+				AgentName:   "coder",
+				Workspace:   h.workspaceID,
+				Type:        SessionTypeSystem,
+				RuntimeMode: RuntimeModeVerdictOnly,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := sess.Info()
+		if err := h.manager.StopWithCause(ctx, sess.ID, CauseCompleted, "judge completed"); err != nil {
+			t.Fatal(err)
+		}
+		after := sess.Info()
+		h.manager.publishLifecycleAttentionTransition(ctx, before, after)
+		for {
+			select {
+			case event := <-events:
+				if event.Name == CatalogEventNameAttention {
+					t.Fatalf("internal attention = %#v", event)
+				}
+			default:
+				return
+			}
+		}
+	})
+
 	t.Run("Should keep daemon-owned sessions out of the public catalog stream", func(t *testing.T) {
 		t.Parallel()
 

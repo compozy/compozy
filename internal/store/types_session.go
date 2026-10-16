@@ -63,6 +63,7 @@ type SessionAttachState struct {
 }
 
 type SessionInfo struct {
+	VerdictOnly     bool `json:"-"`
 	ID              string
 	ProfileID       string
 	Name            string

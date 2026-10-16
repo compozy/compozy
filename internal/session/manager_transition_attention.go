@@ -70,7 +70,9 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 		At:          at,
 	}
 	m.publishWaitBadgeEdge(after, to)
-	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	if !isInternalVerificationSession(after) {
+		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
+	}
 	m.dispatchSessionAttentionChanged(ctx, after, event)
 	if !deliverCompletedWake && to == BadgeDone {
 		return

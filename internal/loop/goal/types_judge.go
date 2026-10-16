@@ -67,6 +67,7 @@ type MarkJudgeAmbiguousRequest struct {
 
 // JudgeRequest carries the pinned criteria for one evaluator operation.
 type JudgeRequest struct {
+	SessionID   string
 	Environment dsl.EnvironmentSpec
 	AttemptID   string
 	Key         TurnKey

@@ -52,6 +52,24 @@ status, cause, turn counts, contract summary, latest nullable verdict, and conte
 terminal newest Goal remains visible after restart until it is explicitly cleared. Clear returns
 the session projection to `{ "goal": null }`; it does not delete the Run or expose an older Goal.
 
+## Audit verification sessions
+
+Daemon-owned verdict-only `system` sessions, including agent judges, stay out of the default session list,
+attention badges and notifications. Expand the Goal header and choose **Verification sessions** to
+open a judge transcript. This audit lists system sessions attributed to the bound Goal session;
+the Run history retains the per-turn verdicts and evidence.
+
+For CLI or HTTP/UDS audits, explicitly select the system type:
+
+```bash
+compozy session list --all --type system --parent <bound-session-id> -o json
+```
+
+The equivalent catalog filter is `type=system&parent=<bound-session-id>`. Older judges without
+parent lineage remain available with `--type system` alone. Existing transcripts and verdicts are
+preserved; no archive, deletion or data migration is needed. Other system sessions, including automation and task workers that may need operator action, remain visible. Completed idle judges close their
+provider process with verified exit rather than raising a false cancellation-timeout warning.
+
 ## Queued messages during a Goal
 
 At an idle turn boundary, CompozyOS drains a finite batch of eligible queued operator prompts,

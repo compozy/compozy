@@ -20,6 +20,11 @@ const (
 	sessionCatalogSortAttention     = "attention"
 )
 
+const sessionCatalogVerdictOnlyExpression = `(session_type = 'system' AND EXISTS (
+ SELECT 1 FROM session_creation_profiles AS policy
+ WHERE policy.profile_ref = sessions.creation_profile_ref
+ AND json_extract(policy.profile_json, '$.runtime_mode') = 'verdict-only'))`
+
 const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
@@ -36,7 +41,7 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	pending_permission_count, pending_clarify_count, attention_revision,
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
-	created_at, updated_at
+	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`
 
 // PageSessions returns one bounded durable-catalog page and a filter-scoped total.
@@ -137,6 +142,13 @@ func querySessionCatalogRows(
 	return sessions, nil
 }
 
+func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCatalogPageQuery) []string {
+	if query.ExcludeVerdictOnly {
+		where = append(where, "NOT "+sessionCatalogVerdictOnlyExpression)
+	}
+	return appendSubagentSessionFilter(where, query.Subagents)
+}
+
 func sessionCatalogPageFilters(
 	query store.SessionCatalogPageQuery,
 	now string,
@@ -185,7 +197,7 @@ func sessionCatalogPageFilters(
 		}
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
-	where = appendSubagentSessionFilter(where, query.Subagents)
+	where = appendSessionCatalogVisibilityFilters(where, query)
 	if query.Resumable {
 		where = append(where, sessionListResumableWhere)
 		args = append(args, now)

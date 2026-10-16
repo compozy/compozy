@@ -95,6 +95,7 @@ func GateFromGoalJudge(nodeID string, criteria []dsl.GateCriterion) Gate {
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.
 type GateInput struct {
+	JudgeParentSessionID     string
 	LoopRunID                string
 	Placement                Placement
 	Contract                 *dsl.Contract
@@ -276,17 +277,18 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	LoopRunID     string
-	GateID        string
-	CriterionID   string
-	Attempt       int
-	CorrelationID string
-	ProfileID     string
-	WorkspaceID   string
-	Agent         string
-	Runtime       dsl.RuntimeSpec
-	Rubric        string
-	Contract      dsl.Contract
+	ParentSessionID string
+	LoopRunID       string
+	GateID          string
+	CriterionID     string
+	Attempt         int
+	CorrelationID   string
+	ProfileID       string
+	WorkspaceID     string
+	Agent           string
+	Runtime         dsl.RuntimeSpec
+	Rubric          string
+	Contract        dsl.Contract
 }
 
 // JudgeResponse is the raw judge response payload.
