@@ -84665,6 +84665,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -84878,73 +84881,141 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
+                  "anyOf": [
+                    {
                       "properties": {
-                        "category": {
+                        "error": {
                           "type": "string"
                         },
+                        "sources": {
+                          "items": {
+                            "properties": {
+                              "failure_reason": {
+                                "type": "string"
+                              },
+                              "last_error": {
+                                "type": "string"
+                              },
+                              "last_refresh": {
+                                "type": "string"
+                              },
+                              "last_success": {
+                                "type": "string"
+                              },
+                              "next_refresh": {
+                                "type": "string"
+                              },
+                              "priority": {
+                                "type": "integer"
+                              },
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "refresh_state": {
+                                "type": "string"
+                              },
+                              "row_count": {
+                                "type": "integer"
+                              },
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "source_kind": {
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "priority",
+                              "provider_id",
+                              "refresh_state",
+                              "row_count",
+                              "source_id",
+                              "source_kind",
+                              "stale"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
                         "code": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "current_turn_id": {
                           "type": "string"
                         },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "type": "object"
                         },
-                        "id": {
-                          "type": "string"
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "error": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "error"
                       ],
                       "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -84954,65 +85025,141 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "sources": {
-                      "items": {
-                        "properties": {
-                          "last_error": {
-                            "type": "string"
-                          },
-                          "last_refresh": {
-                            "type": "string"
-                          },
-                          "last_success": {
-                            "type": "string"
-                          },
-                          "next_refresh": {
-                            "type": "string"
-                          },
-                          "priority": {
-                            "type": "integer"
-                          },
-                          "provider_id": {
-                            "type": "string"
-                          },
-                          "refresh_state": {
-                            "type": "string"
-                          },
-                          "row_count": {
-                            "type": "integer"
-                          },
-                          "source_id": {
-                            "type": "string"
-                          },
-                          "source_kind": {
-                            "type": "string"
-                          },
-                          "stale": {
-                            "type": "boolean"
-                          }
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string"
                         },
-                        "required": [
-                          "priority",
-                          "provider_id",
-                          "refresh_state",
-                          "row_count",
-                          "source_id",
-                          "source_kind",
-                          "stale"
-                        ],
-                        "type": "object"
+                        "sources": {
+                          "items": {
+                            "properties": {
+                              "failure_reason": {
+                                "type": "string"
+                              },
+                              "last_error": {
+                                "type": "string"
+                              },
+                              "last_refresh": {
+                                "type": "string"
+                              },
+                              "last_success": {
+                                "type": "string"
+                              },
+                              "next_refresh": {
+                                "type": "string"
+                              },
+                              "priority": {
+                                "type": "integer"
+                              },
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "refresh_state": {
+                                "type": "string"
+                              },
+                              "row_count": {
+                                "type": "integer"
+                              },
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "source_kind": {
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "priority",
+                              "provider_id",
+                              "refresh_state",
+                              "row_count",
+                              "source_id",
+                              "source_kind",
+                              "stale"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
                       },
-                      "type": "array"
+                      "required": [
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "current_turn_id": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "error"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "sources"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -86522,6 +86669,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -86735,73 +86885,141 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "current_turn_id": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
+                  "anyOf": [
+                    {
                       "properties": {
-                        "category": {
+                        "error": {
                           "type": "string"
                         },
+                        "sources": {
+                          "items": {
+                            "properties": {
+                              "failure_reason": {
+                                "type": "string"
+                              },
+                              "last_error": {
+                                "type": "string"
+                              },
+                              "last_refresh": {
+                                "type": "string"
+                              },
+                              "last_success": {
+                                "type": "string"
+                              },
+                              "next_refresh": {
+                                "type": "string"
+                              },
+                              "priority": {
+                                "type": "integer"
+                              },
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "refresh_state": {
+                                "type": "string"
+                              },
+                              "row_count": {
+                                "type": "integer"
+                              },
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "source_kind": {
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "priority",
+                              "provider_id",
+                              "refresh_state",
+                              "row_count",
+                              "source_id",
+                              "source_kind",
+                              "stale"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
                         "code": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "current_turn_id": {
                           "type": "string"
                         },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "type": "object"
                         },
-                        "id": {
-                          "type": "string"
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "error": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "error"
                       ],
                       "type": "object"
-                    },
-                    "error": {
-                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -86811,65 +87029,141 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "sources": {
-                      "items": {
-                        "properties": {
-                          "last_error": {
-                            "type": "string"
-                          },
-                          "last_refresh": {
-                            "type": "string"
-                          },
-                          "last_success": {
-                            "type": "string"
-                          },
-                          "next_refresh": {
-                            "type": "string"
-                          },
-                          "priority": {
-                            "type": "integer"
-                          },
-                          "provider_id": {
-                            "type": "string"
-                          },
-                          "refresh_state": {
-                            "type": "string"
-                          },
-                          "row_count": {
-                            "type": "integer"
-                          },
-                          "source_id": {
-                            "type": "string"
-                          },
-                          "source_kind": {
-                            "type": "string"
-                          },
-                          "stale": {
-                            "type": "boolean"
-                          }
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string"
                         },
-                        "required": [
-                          "priority",
-                          "provider_id",
-                          "refresh_state",
-                          "row_count",
-                          "source_id",
-                          "source_kind",
-                          "stale"
-                        ],
-                        "type": "object"
+                        "sources": {
+                          "items": {
+                            "properties": {
+                              "failure_reason": {
+                                "type": "string"
+                              },
+                              "last_error": {
+                                "type": "string"
+                              },
+                              "last_refresh": {
+                                "type": "string"
+                              },
+                              "last_success": {
+                                "type": "string"
+                              },
+                              "next_refresh": {
+                                "type": "string"
+                              },
+                              "priority": {
+                                "type": "integer"
+                              },
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "refresh_state": {
+                                "type": "string"
+                              },
+                              "row_count": {
+                                "type": "integer"
+                              },
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "source_kind": {
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "priority",
+                              "provider_id",
+                              "refresh_state",
+                              "row_count",
+                              "source_id",
+                              "source_kind",
+                              "stale"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
                       },
-                      "type": "array"
+                      "required": [
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "current_turn_id": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "error"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "sources"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -86909,6 +87203,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -87293,6 +87590,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -109730,6 +110030,7 @@
               "enum": [
                 "recent",
                 "created",
+                "name",
                 "last_activity",
                 "attention",
                 "navigator"
@@ -140610,6 +140911,8 @@
                             },
                             "sort": {
                               "enum": [
+                                "created",
+                                "name",
                                 "last_activity",
                                 "attention"
                               ],
@@ -140773,6 +141076,8 @@
                           },
                           "sort": {
                             "enum": [
+                              "created",
+                              "name",
                               "last_activity",
                               "attention"
                             ],
@@ -257696,6 +258001,7 @@
               "enum": [
                 "recent",
                 "created",
+                "name",
                 "last_activity",
                 "attention",
                 "navigator"

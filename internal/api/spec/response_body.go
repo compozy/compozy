@@ -7,6 +7,7 @@ import (
 
 type responseBodies struct {
 	schemaTypes []reflect.Type
+	overlapping bool
 }
 
 type responseBodyType struct {
@@ -26,10 +27,17 @@ func responseBodiesOf(bodyTypes ...responseBodyType) responseBodies {
 	return responseBodies{schemaTypes: schemaTypes}
 }
 
+// overlappingResponseBodiesOf permits payloads that satisfy multiple alternatives.
+func overlappingResponseBodiesOf(bodyTypes ...responseBodyType) responseBodies {
+	bodies := responseBodiesOf(bodyTypes...)
+	bodies.overlapping = true
+	return bodies
+}
+
 func (bodies responseBodies) empty() bool {
 	return len(bodies.schemaTypes) == 0
 }
 
 func (bodies responseBodies) clone() responseBodies {
-	return responseBodies{schemaTypes: slices.Clone(bodies.schemaTypes)}
+	return responseBodies{schemaTypes: slices.Clone(bodies.schemaTypes), overlapping: bodies.overlapping}
 }

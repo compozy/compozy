@@ -275,3 +275,41 @@ export const RevealedSubagent: Story = {
     revealedSession: VIEWED_SUBAGENT,
   },
 };
+
+const STABLE_FAMILY = [
+  sidebarSession("stable-parent", "Parent", "general", "running"),
+  sidebarSession("stable-beta", "Beta", "codex", "running", "stable-parent"),
+  sidebarSession("stable-alpha", "Alpha", "claude", "waiting-for-input", "stable-parent"),
+  sidebarSession("stable-older", "Earlier", "general", "running"),
+].map((session, index) => ({ ...session, created_at: `2026-10-16T12:0${4 - index}:00Z` }));
+
+export const CreatedOrder: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    view: { ...ProvenanceThreads.args!.view!, sort: "created" },
+    sessions: STABLE_FAMILY,
+    currentSessionId: "stable-parent",
+  },
+};
+
+export const NameOrder: Story = {
+  args: {
+    ...CreatedOrder.args,
+    view: { ...CreatedOrder.args!.view!, sort: "name" },
+    sessions: [STABLE_FAMILY[2]!, STABLE_FAMILY[1]!, STABLE_FAMILY[3]!, STABLE_FAMILY[0]!],
+  },
+};
+
+export const StableSortMenu: Story = {
+  tags: ["play-fn"],
+  args: CreatedOrder.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Sort sessions" }));
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", {
+        name: "Created",
+      })
+    ).toHaveAttribute("aria-checked", "true");
+  },
+};

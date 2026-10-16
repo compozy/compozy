@@ -658,7 +658,10 @@ Inspect the redacted effective state with `compozy config show` after a live app
 `compozy__provider_models_status` is read-only. `compozy__provider_models_refresh` accepts optional
 provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure
 and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
-`compozy provider models refresh`.
+`compozy provider models refresh`. Failed sources include optional `failure_reason`:
+`auth_required` (sign in to the provider), `timeout` (retry discovery), or `refresh_failed`.
+Use that classification for guidance; `last_error` is redacted diagnostic detail. One
+provider's failed discovery does not invalidate other providers or cached/curated rows.
 
 Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, curated views, and
 OpenClaw's provider-managed limits are defined once in
@@ -1250,7 +1253,12 @@ canonical badge authority as session rows, excluding the selected badge and text
 remain population counts. Durable counts aggregate metadata; active sessions replace their durable
 rows before merging. Attention summaries reuse that aggregation without hydrating historical rows.
 `sort=created` orders by creation time descending, then ID descending; it selects the latest-created
-session even after older sessions receive activity. `sort=navigator` preserves desktop ordering:
+session even after older sessions receive activity. `sort=name` orders the visible title using
+Unicode lowercase ascending, then creation time and ID descending; unnamed rows use `New session`.
+The shell defaults an unset `shell.sessions.sort` to `created`; explicit saved `last_activity` and
+`attention` preferences remain unchanged. Nested rows retain the selected catalog order. Name may
+reposition a row when its first automatic title arrives after the first turn or when it is renamed;
+Created ignores title changes. `sort=navigator` preserves desktop ordering:
 needs-you, finished, working, then the remaining population; within each band, attention change
 time (or update time) descends and ID ascends. Existing `recent`, `last_activity`, and `attention`
 ordering remain unchanged.

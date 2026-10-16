@@ -30,6 +30,23 @@ import (
 func TestProviderModelPayloadConversion(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should classify provider authentication failures and retain structured diagnostics", func(t *testing.T) {
+		t.Parallel()
+		statuses := SourceStatusPayloadsFromStatuses([]modelcatalog.SourceStatus{
+			{
+				SourceID:     "provider_live:cursor",
+				SourceKind:   modelcatalog.SourceKindProviderLive,
+				ProviderID:   "cursor",
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastError:    "model catalog: discovery command failed: exit status 1: Error: Authentication required. Run 'agent login'.",
+			},
+		})
+		if len(statuses) != 1 || statuses[0].FailureReason != "auth_required" ||
+			statuses[0].ProviderID != "cursor" || !strings.Contains(statuses[0].LastError, "agent login") {
+			t.Fatalf("statuses = %#v, want attributed authentication reason with diagnostics", statuses)
+		}
+	})
+
 	t.Run("Should preserve nullable availability and source stale fields", func(t *testing.T) {
 		t.Parallel()
 

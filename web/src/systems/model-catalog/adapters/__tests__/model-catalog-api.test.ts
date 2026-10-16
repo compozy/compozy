@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import { listAllModels, ModelCatalogApiError, refreshAllModels } from "../model-catalog-api";
+import {
+  getModelSourceStatus,
+  listAllModels,
+  ModelCatalogApiError,
+  refreshAllModels,
+} from "../model-catalog-api";
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
@@ -88,6 +93,20 @@ describe("refreshAllModels (aggregate catalog refresh)", () => {
     expect(await request.clone().json()).toEqual({ force: true, request_id: "req-1" });
   });
 
+  it("Should retain attributed source failures from a non-success refresh without exposing stderr", async () => {
+    const sources = [
+      { provider_id: "cursor", refresh_state: "failed", failure_reason: "auth_required" },
+    ];
+    mockJsonResponse(
+      { sources, error: "discovery command failed: exit status 1" },
+      { status: 500 }
+    );
+    const error = await refreshAllModels({}).catch(caught => caught);
+    expect(error).toBeInstanceOf(ModelCatalogApiError);
+    expect(error.sources).toEqual(sources);
+    expect(error.message).toBe("Could not refresh the model list. Try again.");
+  });
+
   it("Should POST an empty body when no refresh input is supplied", async () => {
     mockJsonResponse({ models: [] });
 
@@ -102,5 +121,17 @@ describe("refreshAllModels (aggregate catalog refresh)", () => {
     const error = await refreshAllModels({}).catch(caught => caught);
     expect(error).toBeInstanceOf(ModelCatalogApiError);
     expect((error as ModelCatalogApiError).status).toBe(500);
+  });
+});
+
+describe("aggregate source status", () => {
+  it("Should read shared source health and forward cancellation", async () => {
+    const payload = { sources: [] };
+    mockJsonResponse(payload);
+    const controller = new AbortController();
+    expect(await getModelSourceStatus(controller.signal)).toEqual(payload);
+    expect(new URL(fetchRequest().url).pathname).toBe("/api/model-catalog/sources/status");
+    controller.abort();
+    expect(fetchRequest().signal.aborted).toBe(true);
   });
 });

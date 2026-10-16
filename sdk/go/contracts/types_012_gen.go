@@ -123,17 +123,18 @@ type ModelCatalogSourceRefPayload struct {
 }
 
 type ModelCatalogSourceStatusPayload struct {
-	SourceID     string `json:"source_id"`
-	SourceKind   string `json:"source_kind"`
-	ProviderID   string `json:"provider_id"`
-	Priority     int    `json:"priority"`
-	LastRefresh  string `json:"last_refresh,omitempty"`
-	NextRefresh  string `json:"next_refresh,omitempty"`
-	LastSuccess  string `json:"last_success,omitempty"`
-	LastError    string `json:"last_error,omitempty"`
-	RefreshState string `json:"refresh_state"`
-	RowCount     int    `json:"row_count"`
-	Stale        bool   `json:"stale"`
+	FailureReason string `json:"failure_reason,omitempty"`
+	SourceID      string `json:"source_id"`
+	SourceKind    string `json:"source_kind"`
+	ProviderID    string `json:"provider_id"`
+	Priority      int    `json:"priority"`
+	LastRefresh   string `json:"last_refresh,omitempty"`
+	NextRefresh   string `json:"next_refresh,omitempty"`
+	LastSuccess   string `json:"last_success,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	RefreshState  string `json:"refresh_state"`
+	RowCount      int    `json:"row_count"`
+	Stale         bool   `json:"stale"`
 }
 
 type ModelSourceListParams struct {

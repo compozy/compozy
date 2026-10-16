@@ -15,6 +15,8 @@ import { SESSION_LIST_SORTS, type SessionListSort } from "../../lib/session-list
 import { SessionArchivedToggle, SessionScopeToggle } from "./session-toolbar-toggles";
 
 const SORT_LABELS: Record<SessionListSort, string> = {
+  created: "Created",
+  name: "Name",
   last_activity: "Last activity",
   attention: "Attention first",
 };
@@ -38,9 +40,8 @@ export interface SessionListToolbarProps {
  * here is the same choice the CLI reports; the archive is a way of looking right
  * now, so it resets when the list is reopened.
  *
- * Attention-first is an option, not a takeover: last activity stays the default
- * because a list that reorders itself around urgency is harder to navigate when
- * nothing is urgent.
+ * Creation order keeps rows still while agents work; activity and attention
+ * remain explicit choices.
  */
 export function SessionListToolbar({
   allWorkspaces,

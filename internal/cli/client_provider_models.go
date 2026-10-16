@@ -2,12 +2,14 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 // ProviderModelListQuery captures provider model catalog list filters.
@@ -158,4 +160,43 @@ func providerModelsPath(providerID string, action string) string {
 		path += "/" + url.PathEscape(trimmedAction)
 	}
 	return path
+}
+
+type providerModelRefreshAPIError struct {
+	statusCode int
+	payload    ProviderModelRefreshRecord
+}
+
+func (e *providerModelRefreshAPIError) Error() string {
+	details := []string{"Could not refresh the model list."}
+	for _, source := range e.payload.Sources {
+		if source.RefreshState != string(modelcatalog.RefreshStateFailed) {
+			continue
+		}
+		if source.FailureReason == "" {
+			source.FailureReason = "refresh_failed"
+		}
+		source = providerModelSourceStatusHumanSource(source)
+		details = append(details, source.ProviderID+" ("+source.FailureReason+"): "+source.LastError)
+	}
+	return strings.Join(details, " ")
+}
+
+func (e *providerModelRefreshAPIError) cliExitCode() int {
+	return apiStatusExitCode(e.statusCode)
+}
+
+func parseProviderModelRefreshAPIError(statusCode int, _ string, body []byte) (bool, error) {
+	var payload ProviderModelRefreshRecord
+	if json.Unmarshal(body, &payload) != nil || len(payload.Sources) == 0 || payload.Error == "" {
+		return false, nil
+	}
+	for index, source := range payload.Sources {
+		if source.SourceID == "" || source.ProviderID == "" || source.SourceKind == "" || source.RefreshState == "" {
+			return false, nil
+		}
+		payload.Sources[index].LastError = redactToolDiagnostic(source.LastError)
+	}
+	payload.Error = redactToolDiagnostic(payload.Error)
+	return true, &providerModelRefreshAPIError{statusCode: statusCode, payload: payload}
 }

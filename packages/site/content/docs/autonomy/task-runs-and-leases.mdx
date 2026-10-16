@@ -222,6 +222,10 @@ Tool path:
 compozy__task_run_release  { "run_id": "run-123", "reason": "handoff" }
 ```
 
+A Loop-owned worker may heartbeat its run, but cannot release or block-and-release the daemon's
+claim. Return the action result to the Loop executor, which owns settlement. These requests return
+a permission error and preserve the active claim.
+
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
 parent stops, CompozyOS releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
@@ -238,6 +242,11 @@ preconditions before committing.
 | Force release | `compozy task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
 | Force fail    | `compozy task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
 | Retry         | `compozy task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
+
+Force-failing a queued or claimed Loop worker also records its node failure and wakes the Loop
+coordinator. The existing retry and generation policy then applies, preserving successful upstream
+nodes under `failed_only`. `task run recover` remains specific to `needs_attention` runs, and Loop
+node requeue remains specific to quarantined nodes.
 
 Bulk force release and force fail use bounded batches of run IDs:
 

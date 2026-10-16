@@ -2743,6 +2743,32 @@ RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
 
 
+## Bundled spec-cycle portability — issue #736 (2026-10-16)
+
+Owner: `fix/issue-736-spec-cycle-skills`. The spec-cycle 0.5.1 instruction payload
+replaces missing preflight/review dependencies with a language-neutral inline
+self-check and optional available reviewer. Templates use the target project's
+compatibility, design, vocabulary, and component authorities. Delivery/review
+instructions and rebase helpers no longer require repository-only skills or paths.
+All shipped skills, references, agents and loops in spec-cycle and open-design
+were audited; connectivity/tailscale and forge/github ship no such resources.
+
+Native tool IDs and schemas, CLI/HTTP/UDS, hooks, config, Web, workspace/profile
+isolation and persisted user data are unchanged. SD-013: this repairs extension
+instruction content without removing a public skill or changing authored task
+shapes; no migration or compatibility shim. The nine-skill catalog stays stable.
+The internal create-spec/create-tasks/final-verify variants remain separate under
+`scripts/postinstall.sh`; the shared execute-task copy inherits the portable edit.
+Official `skills/compozy/` and site API contracts stay accurate. The site review-and-fix example mirrors the corrected shipped Loop definition.
+
+Owning checks: embedded spec-cycle product-contract suite, real materialization
+and managed-install update, dependency closure, and installed shell helper
+execution in a foreign Git repository. QA owner: `ET-spec-cycle-skill-bundle`.
+Heavy daemon/provider-driven walks and full gates are CI-owned by maintainer
+instruction; targeted checks do not establish provider-authored spec quality.
+
+
+
 ## Session attachment image previews — issue #738 (2026-10-16)
 
 - Web composer and transcript images open an accessible, dismissible preview inside the
@@ -2766,6 +2792,141 @@ while retaining SPA routes and the existing external-link policy. This is an int
 renderer/shell fix; native tool/HTTP/UDS/config/hook/skill contracts and user state do not
 change. The existing desktop navigation-policy suite owns the additional guard; the
 browser walk verifies TXT/PDF downloads without unloading the session.
+
+## Issue #751 — subagent drill-in E2E readiness (2026-10-16)
+
+Owner: `fix/issue-751-e2e-004-main`. Main CI run `38359736994` clicked the visible
+queued card container before its roster supplied the child session to the UI;
+the Playwright trace shows a static `role="group"` at `call@6196`, not an open
+button. E2E-004 now targets the accessible `Open <title>` button for ordinary
+and modifier clicks, waiting for the rendered navigation affordance. The
+child-window, origin-divider, composer, return-to-parent and second-window
+assertions remain intact. Owning suite: `web/e2e/__tests__/subagents.spec.ts`;
+QA scenario: `ET-web-subagent-card` drill-in (E2E-004).
+
+Product rule: a card without a confirmed child session does not navigate. The
+existing UT-W16 wiring case now starts with a queued delegated card without a
+child, confirms that clicking cannot navigate, then updates the live roster
+cache and verifies ordinary/modifier navigation without reload or remount.
+The existing live-tail suite owns `subagent_updated` delivery into that cache.
+
+This changes test synchronization only. Native tools, CLI, HTTP/UDS, config,
+extensions/hooks, workspace/profile isolation, persisted user state, Web
+behavior, official `skills/compozy/` and site docs are unchanged. SD-013:
+internal test code; no compatibility shim or migration. Heavy validation is
+delegated to PR CI per maintainer instruction; no local daemon lab is started.
+
+## Issue #747 — Goal origin identity after runtime binding — 2026-10-16
+
+Owner: `fix/issue-747-goal-origin-profile`.
+
+Goal admission now validates the immutable creation witness independently of the
+session's mutable runtime provider. Logical creation records the configured
+provider; the first prompt may bind another provider, and later prompts may replace
+it. Those supported transitions must not invalidate the unchanged creation witness.
+Creation-profile reference, policy digest, workspace, agent, active-session state,
+caller lineage and store-transaction creation-digest checks remain enforced.
+
+CLI `session goal`, HTTP/UDS Goal commands and native `compozy__goal_control` share
+this correction. Their schemas, status codes and existing
+`goal_origin_profile_unavailable` reason remain compatible. Failure logs add a
+fixed `check` label plus workspace/session correlation IDs; they contain no profile
+payload, provider command, prompt overlay, credentials or secrets. No SQLite shape,
+config, user data, extension/hook contract or workspace ownership changes. No
+migration or compatibility shim is needed under SD-013. Web benefits through the
+same service without renderer changes. Official `skills/compozy/` already documents
+immutable creation identity and per-run runtime selection; no skill or site API
+reference update is needed. QA owner: `docs/qa/scenarios/GL-001.md`.
+
+Validation uses the existing daemon Goal command lifecycle suite with real SQLite,
+including cross-provider set/replace, invalid-provider rejection without Run
+creation and immutable identity readback. The existing Session Manager lifecycle
+suite also verifies logical creation with the agent default, initial binding to
+another provider, process replacement, persisted witness retention and rejection
+of an unresolved provider without changing the accepted process. Existing
+managed-runtime borrowed-origin integration coverage, full gates and broad
+end-to-end runs are delegated to PR CI per maintainer instruction.
+
+## Issue #737 — Tailscale HTTPS browser origin forwarding (2026-10-16)
+
+Owner: `fix/issue-737-tailscale-origin`, PR #743. The bundled provider uses an HTTP reverse
+proxy after TLS termination, replaces client forwarding headers with its HTTPS scheme and
+original Host, and rejects authorities other than its advertised endpoint. The private
+verification relay remains TCP with the existing end-to-end TLS/challenge proof. Forwarded
+schemes are trusted only by gateway-tier HTTP listeners from actual IP loopback peers;
+foreign origins and mismatched ports remain forbidden. Device pairing/authentication remains
+mandatory. No CLI verb/output, HTTP/UDS route/DTO, native tool ID, SDK/provider wire shape,
+hook or config key changes. Workspace/profile ownership, stored data and credentials retain
+their existing boundaries; no migration, compatibility alias or deprecation is required.
+
+The existing Web pairing and module requests now pass same-origin checks; no React or visual
+surface changes. Official `skills/compozy/` commands and gateway guidance remain accurate.
+Site Tailscale docs explain the advertised URL and pairing response. QA owner:
+`RT-connectivity-provider-route`, with focused socket/TLS/SQLite evidence and external-tailnet
+limits in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`.
+
+Provider health degrades only for listener/upstream dial failures; individual request errors
+and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
+settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
+WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.
+
+## Issue #739 — Loop action claim ownership and recovery
+
+The daemon retries SQLite claim persistence before executing an action. The task store applies
+its existing daemon-owner settlement guard to lease release and block-and-release, preventing a
+bound worker from clearing the claim while its provider continues. Force failure commits the
+Loop node failure and canonical failure event with the task run, then publishes the terminal hook
+that wakes its coordinator.
+Terminal hooks recover profile identity from the owning task; sessionless mechanical/coordinator
+runs have no terminal-session resource to release.
+
+CLI and HTTP/UDS keep their verbs, routes and DTOs. Native `compozy__task_run_release` and the
+session-bound block path now enforce the existing Loop ownership contract; ordinary agent-owned
+leases still release normally. Extension terminal hooks retain their shapes and now receive the
+owning profile. No config, schema, migration, generated contract, workspace boundary or Web
+renderer changes. SD-013: lossless user state, stable public shapes and an authorization bug fix;
+no compatibility shim or removal release is needed. Official skill:
+`skills/compozy/references/loops.md`; public docs:
+`packages/site/content/docs/autonomy/task-runs-and-leases.mdx`. QA owner:
+`TA-loop-worker-exclusive-dispatch`; targeted real-SQLite evidence is recorded in the issue report.
+
+## Issue #746 — Stable session-list sorting
+
+- Owner: `fix/issue-746-session-sort-stable`. Shell sort adds `created` and `name`, defaulting only
+  unset preferences to `created`. Explicit persisted activity/attention choices are retained; no
+  state shape changes, migration, deletion, or compatibility shim. SD-013 regimes 1/2 preserved.
+- HTTP/UDS `/api/sessions`, CLI `session list --sort`, and native `compozy__session_list` add `name`;
+  existing `created` and all existing public defaults/orders remain unchanged. Name is visible-title
+  Unicode lowercase ascending, creation time descending, ID descending. Opaque cursors retain version
+  2 for existing sorts and add an optional name anchor bound to the query fingerprint.
+- Settings shell DTO/OpenAPI/generated clients add both values; config validation/defaults and
+  global-only persistence remain daemon-owned. No extensions, hooks, credentials, or isolation rules
+  change. Filtering/profile/workspace scope still precedes ordering and the page cut.
+- Web menu exposes four choices. The hierarchy preserves catalog order for nested children; no
+  client sorting or activity-based fallback is added. All-workspace groups request the same sort.
+- Official `skills/compozy/references/runtime-operations.md`, site config/CLI docs, and
+  `RT-web-session-attention-sort` QA scenario co-ship. Targeted tests cover config overlays, real
+  SQLite + active overlay pagination, Unicode/ties/search, menu selection and nested row stability.
+- The first automatic title after a session's first turn is a rename boundary: Name may reposition
+  the row once, whereas Created ignores title changes. Pointer overlays distinguish an absent sort
+  from an explicit persisted value; serialized old defaults are preserved as explicit values.
+- Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.
+
+## Provider catalog refresh failures — issue #740
+
+The shared source-status projection adds optional `failure_reason` (`auth_required`,
+`timeout`, or `refresh_failed`) for failed sources. CLI JSON/JSONL/TOON, HTTP/UDS,
+native `compozy__provider_models_status`/`refresh`, and extension Host API reuse
+this projection; generated OpenAPI and Go/TypeScript/Web contracts co-ship.
+Existing `last_error` diagnostics and HTTP statuses remain compatible (SD-013
+regime 2, additive). Human CLI and Web use calm guidance instead of subprocess
+text. The session selector attributes discovery failures to their provider while
+keeping other providers and cached/curated models usable. Settings reports the
+same reason. No SQLite/config migration, hook, extension permission, or cache-scope
+change; existing profile/workspace execution boundaries remain authoritative.
+Official runtime skill references and the site model-catalog guide explain status
+classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
+targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
 
 ## Issue 742 — Session message cards for real providers — 2026-10-16
 
