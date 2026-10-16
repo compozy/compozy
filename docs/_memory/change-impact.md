@@ -2821,6 +2821,28 @@ of an unresolved provider without changing the accepted process. Existing
 managed-runtime borrowed-origin integration coverage, full gates and broad
 end-to-end runs are delegated to PR CI per maintainer instruction.
 
+## Issue #737 — Tailscale HTTPS browser origin forwarding (2026-10-16)
+
+Owner: `fix/issue-737-tailscale-origin`, PR #743. The bundled provider uses an HTTP reverse
+proxy after TLS termination, replaces client forwarding headers with its HTTPS scheme and
+original Host, and rejects authorities other than its advertised endpoint. The private
+verification relay remains TCP with the existing end-to-end TLS/challenge proof. Forwarded
+schemes are trusted only by gateway-tier HTTP listeners from actual IP loopback peers;
+foreign origins and mismatched ports remain forbidden. Device pairing/authentication remains
+mandatory. No CLI verb/output, HTTP/UDS route/DTO, native tool ID, SDK/provider wire shape,
+hook or config key changes. Workspace/profile ownership, stored data and credentials retain
+their existing boundaries; no migration, compatibility alias or deprecation is required.
+
+The existing Web pairing and module requests now pass same-origin checks; no React or visual
+surface changes. Official `skills/compozy/` commands and gateway guidance remain accurate.
+Site Tailscale docs explain the advertised URL and pairing response. QA owner:
+`RT-connectivity-provider-route`, with focused socket/TLS/SQLite evidence and external-tailnet
+limits in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`.
+
+Provider health degrades only for listener/upstream dial failures; individual request errors
+and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
+settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
+WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.
 
 ## Issue #750 — Queued inputs before prepared Goal prompts
 

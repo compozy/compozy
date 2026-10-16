@@ -192,6 +192,55 @@ func TestGatewayForwardedOriginProtection(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
 		}
 	})
+	for _, tt := range []struct {
+		name   string
+		peer   string
+		tier   bool
+		origin string
+		proto  string
+		want   int
+	}{
+		{"Should accept advertised HTTPS origin from the loopback tier proxy", "127.0.0.1:1234", true, "https://gateway.example.ts.net:8443", "https", http.StatusNoContent},
+		{"Should accept an IPv6 loopback tier proxy", "[::1]:1234", true, "https://gateway.example.ts.net:8443", "https", http.StatusNoContent},
+		{"Should reject cross-origin despite spoofed forwarded host", "127.0.0.1:1234", true, "https://evil.example", "https", http.StatusForbidden},
+		{"Should reject a different HTTPS port", "127.0.0.1:1234", true, "https://gateway.example.ts.net", "https", http.StatusForbidden},
+		{"Should ignore forwarded scheme from a remote peer", "203.0.113.5:1234", true, "https://gateway.example.ts.net:8443", "https", http.StatusForbidden},
+		{"Should ignore forwarded scheme on the local tier", "127.0.0.1:1234", false, "https://gateway.example.ts.net:8443", "https", http.StatusForbidden},
+		{"Should reject missing HTTPS forwarding metadata", "127.0.0.1:1234", true, "https://gateway.example.ts.net:8443", "", http.StatusForbidden},
+		{"Should reject ambiguous forwarded protocols", "127.0.0.1:1234", true, "https://gateway.example.ts.net:8443", "https, http", http.StatusForbidden},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			engine := gin.New()
+			engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", tt.tier))
+			engine.Use(browserRequestProtectionMiddlewareWithForwardedTarget("127.0.0.1:43123", tt.tier))
+			engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"http://127.0.0.1:43123/api/action",
+				http.NoBody,
+			)
+			request.Host = "gateway.example.ts.net:8443"
+			request.RemoteAddr = tt.peer
+			request.Header.Set("Origin", tt.origin)
+			request.Header.Set("Sec-Fetch-Site", "same-origin")
+			request.Header.Set("X-Forwarded-Proto", tt.proto)
+			request.Header.Set("X-Forwarded-Host", "evil.example")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			if recorder.Code != tt.want {
+				t.Fatalf("status=%d want=%d body=%s", recorder.Code, tt.want, recorder.Body.String())
+			}
+			if tt.want == http.StatusNoContent {
+				if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != tt.origin {
+					t.Fatalf("allowed origin=%q", got)
+				}
+			} else if !strings.Contains(recorder.Body.String(), "origin not allowed") {
+				t.Fatalf("error body=%s", recorder.Body.String())
+			}
+		})
+	}
 }
 
 func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
