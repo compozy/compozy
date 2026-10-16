@@ -45,6 +45,9 @@ type toolCallProjection struct {
 	inputDigest      [sha256.Size]byte
 	hasInput         bool
 	prechecked       bool
+	// async records the provider's background-launch marker. It does not make an
+	// update visible on its own: it stamps the call's result (see sendEventLocked).
+	async bool
 }
 
 const maxPendingToolResults = 128
@@ -265,6 +268,7 @@ func newToolCallProjection(event AgentEvent) toolCallProjection {
 		name:             strings.TrimSpace(event.ToolName()),
 		kind:             strings.TrimSpace(event.ToolKind()),
 		prechecked:       event.ToolPrechecked(),
+		async:            event.ProviderToolAsync(),
 	}
 	input := event.ToolInput()
 	if len(input) > 0 {
@@ -309,6 +313,7 @@ func (p toolCallProjection) merge(next toolCallProjection) (toolCallProjection, 
 		p.prechecked = true
 		changed = true
 	}
+	p.async = p.async || next.async
 	return p, changed
 }
 
@@ -354,6 +359,7 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	if a == nil {
 		return
 	}
+	event = a.stampAsyncToolResultLocked(event)
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
 		return
@@ -362,6 +368,20 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+}
+
+// stampAsyncToolResultLocked carries a background-launch marker that arrived on
+// an earlier update of the call (claude-agent-acp sends it from PostToolUse,
+// before the result) onto the result, so the persisted result says it is a
+// launch receipt rather than the work's outcome.
+func (a *activePromptState) stampAsyncToolResultLocked(event AgentEvent) AgentEvent {
+	if event.Type != EventTypeToolResult || event.ProviderToolAsync() {
+		return event
+	}
+	if projection, ok := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]; ok && projection.async {
+		return event.WithProviderToolAsync()
+	}
+	return event
 }
 
 func (p *AgentProcess) invalidatePromptOccupancy() {

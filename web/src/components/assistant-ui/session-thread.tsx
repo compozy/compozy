@@ -142,6 +142,7 @@ export function SessionThread({
   runtimeControl,
   environmentControl,
   contextControl,
+  subagentControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
@@ -259,6 +260,7 @@ export function SessionThread({
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
                       contextControl={contextControl}
+                      subagentControl={subagentControl}
                       commandCatalog={commandCatalog}
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}

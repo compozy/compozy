@@ -33,11 +33,11 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 		return NativeSubagentEvent{}, false, fmt.Errorf("session: decode native tool result: %w", err)
 	}
 	var input struct {
-		Model string `json:"model"`
+		Model           string `json:"model"`
+		RunInBackground bool   `json:"run_in_background"`
 	}
-	model := ""
-	if json.Unmarshal(event.ToolInput(), &input) == nil {
-		model = input.Model
+	if json.Unmarshal(event.ToolInput(), &input) != nil {
+		input.Model, input.RunInBackground = "", false
 	}
 	status := event.ToolStatus()
 	if status == "" {
@@ -66,10 +66,11 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 		Title: transcript.NativeSubagentTitle(
 			event,
 		),
-		Model:  model,
-		Status: status,
-		Result: result,
-		Error:  detail,
-		At:     at,
+		Model:      input.Model,
+		Status:     status,
+		Background: input.RunInBackground || event.ProviderToolAsync(),
+		Result:     result,
+		Error:      detail,
+		At:         at,
 	}, true, nil
 }

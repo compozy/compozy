@@ -410,6 +410,45 @@ export function subagentChipState(
   };
 }
 
+export interface SubagentComposerSignal {
+  /** `idle` while nothing runs; `attention` when a live subagent needs you. */
+  state: "idle" | "running" | "attention";
+  /** The live dot on the subagents icon, as on a subagent's avatar; `null` while nothing runs. */
+  dot: SubagentDotSignal | null;
+  /** Live subagents beside the icon; `null` while nothing runs. */
+  count: number | null;
+  ariaLabel: string;
+}
+
+/**
+ * Composer control: a quiet icon until a subagent runs, then the avatar's live
+ * dot (running pulses; one that needs you takes the accent) and the live count.
+ * Failures stay in the popover: the control reports activity, not history.
+ */
+export function subagentComposerSignal(
+  counts: SubagentCounts,
+  failed = false
+): SubagentComposerSignal {
+  const { live, total, attention } = counts;
+  if (live === 0) {
+    // A failed read leaves the roster unknown, not empty.
+    const idle = total === 0 ? "Subagents, none yet" : "Subagents, none running";
+    return {
+      state: "idle",
+      dot: null,
+      count: null,
+      ariaLabel: failed ? "Subagents, couldn't load" : idle,
+    };
+  }
+  const needsYou = attention > 0 ? `, ${attention} needs you` : "";
+  return {
+    state: attention > 0 ? "attention" : "running",
+    dot: subagentDot(attention > 0 ? "waiting" : "running"),
+    count: live,
+    ariaLabel: `Subagents, ${live} running${needsYou}`,
+  };
+}
+
 export const SUBAGENT_CHIP_PREVIEW_LIMIT = 5;
 
 /** Chip hover list: up to 5 most urgent, then `+N more` for the rest of the total. */

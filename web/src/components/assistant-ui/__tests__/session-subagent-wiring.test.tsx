@@ -8,6 +8,7 @@ import { UIProvider } from "@compozy/ui";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/systems/session/adapters/subagent-api", () => ({
   cancelSubagent: vi.fn(),
+  fetchSessionSubagents: vi.fn(),
 }));
 vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session/adapters/session-api")>()),
@@ -15,12 +16,17 @@ vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
 }));
 
 import { fetchSession } from "@/systems/session/adapters/session-api";
-import { cancelSubagent } from "@/systems/session/adapters/subagent-api";
+import {
+  cancelSubagent,
+  fetchSessionSubagents,
+  type SubagentPayload,
+} from "@/systems/session/adapters/subagent-api";
 import type { SubagentView } from "@/systems/session/components/subagents/types";
 import {
   SubagentNavigationContext,
   type SubagentNavigation,
 } from "@/systems/session/contexts/session-subagents-context-value";
+import { SessionComposerSubagents } from "@/systems/session/components/session-composer-subagents";
 import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
@@ -35,10 +41,11 @@ import { SessionSubagentBanner } from "../session-subagent-banner";
 import { SessionSubagentRowView } from "../session-subagent-row";
 import { deriveSessionRows, type SessionTimelinePart } from "../session-timeline.logic";
 
-// Suite: subagent wiring between the parent roster, the transcript card, the composer banner,
-// the session window's navigation and the child's "Subagent of" origin.
-// Invariant: cards and banner read state from the roster by id and act through the host's
-// navigation and the cancel route; the origin names the parent only for delegated subagents.
+// Suite: subagent wiring between the parent roster, the transcript card, the composer banner and
+// subagents control, the session window's navigation and the child's "Subagent of" origin.
+// Invariant: cards, banner and composer control read state from the roster by id and act through
+// the host's navigation and the cancel route; the origin names the parent only for delegated
+// subagents.
 // Owning layer: session view wiring (roster context → connected views). Boundary OUT: the
 // cancel and session-detail adapters. Canonical suite: this file (no existing suite owns it).
 const WORKSPACE_ID = "ws-01";
@@ -63,6 +70,36 @@ function view(id: string, overrides: Partial<SubagentView> = {}): SubagentView {
     updated_at: T0,
     delivery: "none",
     ...overrides,
+  };
+}
+
+function subagentPayload(id: string): SubagentPayload {
+  return {
+    subagent_id: id,
+    workspace_id: WORKSPACE_ID,
+    parent_session_id: SESSION_ID,
+    parent_turn_id: "turn-1",
+    child_session_id: `sess-${id}`,
+    origin: "delegated",
+    provider_tool_call_id: null,
+    title: `Task ${id}`,
+    role: "general",
+    status: "running",
+    work_state: "working",
+    runtime: { agent: "codex", provider: "codex", model: "", reasoning_effort: "", speed: "" },
+    depth: 1,
+    progress: "",
+    result: null,
+    result_preview: "",
+    result_truncated: false,
+    error: null,
+    wait_timed_out: false,
+    delivery: "none",
+    isolation: "shared",
+    created_at: T0,
+    started_at: T0,
+    settled_at: null,
+    updated_at: T0,
   };
 }
 
@@ -266,6 +303,67 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
       wrapper: harness([native]),
     });
     expect(nativeOnly.querySelector("[data-slot=subagent-waiting-banner]")).toBeNull();
+  });
+});
+
+describe("composer subagents control (issue #766 wiring)", () => {
+  const parent = (summary: SessionPayload["subagent_summary"] = null): SessionPayload => ({
+    ...primarySessionFixture,
+    id: SESSION_ID,
+    workspace_id: WORKSPACE_ID,
+    subagent_summary: summary,
+  });
+  // The banner observes the roster as the open thread does, so the control reads it live.
+  const host = (session: SessionPayload) => (
+    <>
+      <SessionSubagentBanner parentTurnRunning />
+      <SessionComposerSubagents session={session} />
+    </>
+  );
+
+  it("Should count the parent's live roster and let a loaded empty roster beat a stale summary", () => {
+    render(host(parent()), {
+      wrapper: harness([
+        view("sub-a"),
+        view("sub-native", { origin: "provider_native", child_session_id: null }),
+        view("sub-done", { status: "completed", settled_at: T0 }),
+      ]),
+    });
+    expect(screen.getByRole("button", { name: "Subagents, 2 running" })).toBeInTheDocument();
+    const stale = { live: 1, total: 3, failed: 0, attention: 0, most_urgent: "running" as const };
+    render(host(parent(stale)), { wrapper: harness([]) });
+    expect(screen.getByRole("button", { name: "Subagents, none yet" })).toBeInTheDocument();
+  });
+
+  it("Should hold the session summary until every page of a cold read is in", async () => {
+    // The next page never answers: the first page alone must not stand in for the total.
+    vi.mocked(fetchSessionSubagents).mockReturnValue(new Promise(() => undefined));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [
+        {
+          subagents: [subagentPayload("sub-a"), subagentPayload("sub-b")],
+          next_cursor: "page-2",
+        },
+      ],
+      pageParams: [""],
+    });
+    const summary = {
+      live: 3,
+      total: 250,
+      failed: 0,
+      attention: 0,
+      most_urgent: "running" as const,
+    };
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider>
+          <SessionComposerSubagents session={parent(summary)} />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Subagents, 3 running" })).toBeInTheDocument();
   });
 });
 

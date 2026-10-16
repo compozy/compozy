@@ -480,6 +480,7 @@ export * from "./hooks";
 
 export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-context";
 export { SessionContextControl } from "./components/session-context-control";
+export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export type { SessionContextView } from "./lib/session-context";
 export type { SessionActivityView } from "./components/session-activity-section";
 

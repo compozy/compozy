@@ -210,9 +210,6 @@ func (m *Manager) deliverPersistedPromptEvent(
 		}
 	}
 	m.publishSubagentActivity(ctx, session, event)
-	// Keep native terminal ingestion inline before turn settlement: interruptNative
-	// treats any remaining live row as interrupted and cannot accept a late terminal update.
-	m.publishNativeSubagentEvent(ctx, session, persisted, event)
 	if event.Usage != nil {
 		event.Usage.Sequence = persisted.Sequence
 	}

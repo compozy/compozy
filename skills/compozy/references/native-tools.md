@@ -237,7 +237,8 @@ settles a running subagent `failed`. A waiting subagent does not wake you: the o
 call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
 for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
-(`origin: "provider_native"`) return `subagent_not_cancelable`. For another review round, delegate again
+(`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
+its turn ends, then reads `completed` with `result: null`. For another review round, delegate again
 with the original brief, prior findings, and open objections instead of prompting the old child. A
 subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
 concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live

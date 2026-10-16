@@ -33,6 +33,7 @@ type canonicalEventPayload struct {
 	ToolInput          json.RawMessage                  `json:"tool_input,omitempty"`
 	ToolResult         *ToolResult                      `json:"tool_result,omitzero"`
 	ToolError          bool                             `json:"tool_error,omitzero"`
+	ProviderToolAsync  bool                             `json:"provider_tool_async,omitzero"`
 	StopReason         string                           `json:"stop_reason,omitempty"`
 	PromptStopReason   acp.PromptStopReason             `json:"prompt_stop_reason,omitempty"`
 	Action             string                           `json:"action,omitempty"`

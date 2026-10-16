@@ -10,6 +10,15 @@ import type { SubagentRoster } from "../lib/subagent-roster";
 
 export interface SessionSubagentsModel {
   subagents: readonly SubagentView[];
+  /**
+   * The rows are the whole answer, even when empty: the stream roster, or a list
+   * read with every page in.
+   */
+  complete: boolean;
+  /** The list read failed and no stream roster stands in. */
+  failed: boolean;
+  /** Re-reads the list after a failure. */
+  retry: () => void;
   /** Cancels one delegated subagent; rejects so the row raises its stop-failed toast. */
   stop: (subagent: SubagentView) => Promise<unknown>;
 }
@@ -22,6 +31,12 @@ export interface SessionSubagentsOptions {
    * set; a five-row preview reads one page.
    */
   allPages?: boolean;
+  /**
+   * Fall back to the paged list route while the stream roster is not live.
+   * False reads only the stream roster: a host that is always mounted reads
+   * the list once the session reports subagents or the operator asks.
+   */
+  coldRead?: boolean;
 }
 
 /**
@@ -65,17 +80,17 @@ function useLiveSubagentRoster(
 export function useSessionSubagents(
   workspaceId: string,
   sessionId: string,
-  { enabled = true, allPages = true }: SessionSubagentsOptions = {}
+  { enabled = true, allPages = true, coldRead = true }: SessionSubagentsOptions = {}
 ): SessionSubagentsModel {
   const queryClient = useQueryClient();
   const scoped = enabled && workspaceId !== "" && sessionId !== "";
   const live = useLiveSubagentRoster(workspaceId, sessionId, scoped);
   const query = useInfiniteQuery({
     ...sessionSubagentsOptions(workspaceId, sessionId),
-    enabled: scoped && live === null,
+    enabled: scoped && coldRead && live === null,
   });
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
-  const walk = allPages && live === null;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = query;
+  const walk = allPages && coldRead && live === null;
   useEffect(() => {
     if (walk && hasNextPage && !isFetchingNextPage) void fetchNextPage().catch(() => undefined);
   }, [walk, hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -85,6 +100,9 @@ export function useSessionSubagents(
       live?.rows ??
       query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
       [],
+    complete: live !== null || (query.isSuccess && !hasNextPage),
+    failed: live === null && query.isError,
+    retry: () => void refetch(),
     stop: async subagent => {
       await cancelSubagent(workspaceId, subagent.id);
       // A live roster settles through the stream; a cold read re-reads the list.

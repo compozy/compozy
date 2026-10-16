@@ -3600,6 +3600,96 @@ func TestRequestCompaction(t *testing.T) {
 	})
 }
 
+// nativeOrderRecorder records the subagent transitions the prompt path drives, in order.
+type nativeOrderRecorder struct {
+	SubagentService
+	mu    sync.Mutex
+	calls []string
+}
+
+func (r *nativeOrderRecorder) record(call string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, call)
+}
+
+func (r *nativeOrderRecorder) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.calls...)
+}
+
+func (r *nativeOrderRecorder) OnNativeToolEvent(_ context.Context, _ string, ev NativeSubagentEvent) error {
+	r.record(fmt.Sprintf("native:%s:%s:%t", ev.ProviderToolCallID, ev.Status, ev.Background))
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnNativeTurnDone(_ context.Context, _, turn string, _ time.Time) error {
+	r.record("done:" + turn)
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnParentTurnSettled(_ context.Context, _, turn string) error {
+	r.record("settled:" + turn)
+	return nil
+}
+
+func (r *nativeOrderRecorder) OnChildSettled(context.Context, string) error { return nil }
+
+func (r *nativeOrderRecorder) OnParentStopped(context.Context, string) error { return nil }
+
+func (r *nativeOrderRecorder) Summaries(context.Context, []string) (map[string]store.SubagentSummary, error) {
+	return map[string]store.SubagentSummary{}, nil
+}
+
+// Invariant: native Agent/Task events and the provider's answer reach the subagent service on the
+// persistence path, in ledger order and before turn settlement, even while nobody reads the prompt
+// stream (issue #766); owner: Manager prompt persistence.
+func TestNativeSubagentPersistenceOrder(t *testing.T) {
+	t.Parallel()
+	t.Run("Should ingest a background launch and the turn's answer before settling it", func(t *testing.T) {
+		t.Parallel()
+		// A one-event prompt buffer stalls the unread delivery pump after the first event.
+		h := newHarness(t, WithPromptBufferSize(1))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		recorder := &nativeOrderRecorder{}
+		h.manager.SetSubagentService(recorder)
+		source := make(chan acp.AgentEvent, 4)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return source, nil
+		}
+		output, err := h.manager.Prompt(t.Context(), active.ID, "background work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn := active.CurrentTurnID()
+		source <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Starting S1.", TurnID: turn}
+		source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "toolu_bg", TurnID: turn}.
+			WithProviderToolMetadata("", "Agent", "pending").
+			WithTool("Agent", json.RawMessage(`{"description":"S1","run_in_background":true}`), false)
+		source <- acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_bg", TurnID: turn}.
+			WithProviderToolMetadata("", "Agent", "completed").
+			WithProviderToolAsync()
+		source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, PromptStopReason: acp.PromptStopReasonEndTurn}
+		close(source)
+		// The prompt stream stays unread until the turn has settled.
+		waitForCondition(t, "turn settled", func() bool {
+			return slices.Contains(recorder.snapshot(), "settled:"+turn)
+		})
+		want := []string{
+			"native:toolu_bg:pending:true",
+			"native:toolu_bg:completed:true",
+			"done:" + turn,
+			"settled:" + turn,
+		}
+		if got := recorder.snapshot(); !slices.Equal(got, want) {
+			t.Fatalf("calls = %q, want %q", got, want)
+		}
+		collectEvents(t, output)
+	})
+}
+
 // Invariant: only user/agent cancellation disposes delegated-turn delivery; owner: Manager cancellation (UT-061).
 func TestSubagentPromptCancel(t *testing.T) {
 	t.Parallel()
