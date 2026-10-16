@@ -2,30 +2,56 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPassiveCheckpointEvery = 128
+const (
+	sessionPassiveCheckpointEvery = 128
+	// sessionWALTruncateBytes bounds a live session WAL. PASSIVE checkpoints never shrink the
+	// file, and frequent readers keep SQLite from restarting it, so it otherwise grows for the
+	// whole session.
+	sessionWALTruncateBytes = 16 << 20
+	// sessionWALTruncateWait caps how long readers may delay the writer during a truncation.
+	sessionWALTruncateWait = 200 * time.Millisecond
+	// sessionWALMaintenanceDelay is the idle time after writes before the writer checkpoints and
+	// truncates an oversized WAL, and the first retry delay for a deferred truncation.
+	sessionWALMaintenanceDelay = time.Second
+	// sessionWALMaintenanceMaxDelay caps the backoff while readers keep deferring truncation.
+	sessionWALMaintenanceMaxDelay = 30 * time.Second
+)
 
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	var pending *sessionWriteRequest
+	// Truncation can wait on readers while it holds the SQLite writer lock, so it runs only
+	// after the writer has been idle; every write pushes the maintenance timer back.
+	maintenance := time.NewTimer(time.Hour)
+	maintenance.Stop()
+	defer maintenance.Stop()
+	var retryDelay time.Duration
+	idleDelay := func() time.Duration { return max(retryDelay, s.walMaintenanceDelay()) }
 	for {
 		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
+			writesSinceCheckpoint = 0
 			if err := s.passiveCheckpoint(s.writerCtx); err != nil {
 				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
 			}
-			writesSinceCheckpoint = 0
 		}
 		if pending != nil {
 			request := *pending
 			var weight int
 			pending, weight = s.writePendingChunks(request)
 			writesSinceCheckpoint += weight
+			if weight > 0 {
+				maintenance.Reset(idleDelay())
+			}
 			continue
 		}
 		select {
@@ -33,6 +59,17 @@ func (s *SessionDB) writerLoop() {
 			var weight int
 			pending, weight = s.writePendingChunks(req)
 			writesSinceCheckpoint += weight
+			if weight > 0 {
+				maintenance.Reset(idleDelay())
+			}
+		case <-maintenance.C:
+			writesSinceCheckpoint = 0
+			if !s.checkpointWAL() {
+				retryDelay = 0
+				continue
+			}
+			retryDelay = min(max(2*retryDelay, s.walMaintenanceDelay()), sessionWALMaintenanceMaxDelay)
+			maintenance.Reset(retryDelay)
 		case shutdown := <-s.shutdownCh:
 			shutdown.result <- s.drainWrites(shutdown.ctx)
 			return
@@ -119,7 +156,56 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 	}
 }
 
-func (s *SessionDB) passiveCheckpoint(ctx context.Context) (err error) {
+func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
+	return s.checkpointWithLease(ctx, store.CheckpointPassiveConnection)
+}
+
+// checkpointWAL backfills the WAL and truncates it once it outgrows the live-session bound. The
+// writer calls it only when idle. It reports whether the WAL is still oversized because readers
+// outlasted the bounded wait.
+func (s *SessionDB) checkpointWAL() bool {
+	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
+		slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+		return false
+	}
+	info, err := os.Stat(s.path + "-wal")
+	if err != nil || info.Size() < s.walTruncateLimit() {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALTruncateWait)
+	defer cancel()
+	err = s.checkpointWithLease(ctx, store.CheckpointTruncateConnection)
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, context.DeadlineExceeded):
+		slog.Default().DebugContext(s.writerCtx, "store: session wal truncation deferred by readers",
+			"wal_bytes", info.Size())
+		return true
+	default:
+		slog.Default().WarnContext(s.writerCtx, "store: truncate session wal failed", "error", err)
+		return false
+	}
+}
+
+func (s *SessionDB) walMaintenanceDelay() time.Duration {
+	if delay := s.walMaintenanceDelayOverride.Load(); delay > 0 {
+		return time.Duration(delay)
+	}
+	return sessionWALMaintenanceDelay
+}
+
+func (s *SessionDB) walTruncateLimit() int64 {
+	if limit := s.walTruncateBytes.Load(); limit > 0 {
+		return limit
+	}
+	return sessionWALTruncateBytes
+}
+
+func (s *SessionDB) checkpointWithLease(
+	ctx context.Context,
+	checkpoint func(context.Context, *sql.Conn) error,
+) (err error) {
 	// Acquire the connection before the family lease: opening a pool connection
 	// itself takes that lease to verify the immutable database identity.
 	connection, err := s.db.Conn(ctx)
@@ -136,5 +222,5 @@ func (s *SessionDB) passiveCheckpoint(ctx context.Context) (err error) {
 		return err
 	}
 	defer lease.Release()
-	return store.CheckpointPassiveConnection(ctx, connection)
+	return checkpoint(ctx, connection)
 }

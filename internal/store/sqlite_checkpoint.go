@@ -23,6 +23,15 @@ func Checkpoint(ctx context.Context, db *sql.DB) (retErr error) {
 			retErr = errors.Join(retErr, fmt.Errorf("store: close sqlite checkpoint connection: %w", err))
 		}
 	}()
+	return CheckpointTruncateConnection(ctx, conn)
+}
+
+// CheckpointTruncateConnection truncates the WAL on an already acquired connection, waiting for
+// readers until ctx ends. A deadline bounds how long a live owner lets readers delay it.
+func CheckpointTruncateConnection(ctx context.Context, conn *sql.Conn) error {
+	if conn == nil {
+		return nil
+	}
 	if err := executeSQLiteWithBusyWait(ctx, conn, func() error {
 		var busy, frames, checkpointed int
 		if err := conn.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").

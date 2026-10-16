@@ -10,10 +10,14 @@ import (
 const hostedProjectionGenerationRetries = 3
 
 type hostedProjectionCache struct {
-	mu      sync.Mutex
-	entries map[string]hostedProjectionCacheEntry
-	flights map[hostedProjectionFlightKey]*hostedProjectionFlight
+	mu          sync.Mutex
+	entries     map[string]hostedProjectionCacheEntry
+	flights     map[hostedProjectionFlightKey]*hostedProjectionFlight
+	unversioned map[string]hostedUnversionedProjection
 }
+
+// hostedProjectionBuilder produces a projection when no authoritative generation can key the cache.
+type hostedProjectionBuilder func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error)
 
 type hostedProjectionCacheEntry struct {
 	generation string
@@ -34,8 +38,9 @@ type hostedProjectionFlight struct {
 
 func newHostedProjectionCache() hostedProjectionCache {
 	return hostedProjectionCache{
-		entries: make(map[string]hostedProjectionCacheEntry),
-		flights: make(map[hostedProjectionFlightKey]*hostedProjectionFlight),
+		entries:     make(map[string]hostedProjectionCacheEntry),
+		flights:     make(map[hostedProjectionFlightKey]*hostedProjectionFlight),
+		unversioned: make(map[string]hostedUnversionedProjection),
 	}
 }
 
@@ -44,16 +49,17 @@ func (s *HostedService) projectionForGeneration(
 	ctx context.Context,
 	record *hostedBindRecord,
 	registry tools.Registry,
+	unversioned hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
-		return buildHostedProjection(ctx, registry, record)
+		return unversioned(ctx, registry, record)
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return buildHostedProjection(ctx, registry, record)
+			return unversioned(ctx, registry, record)
 		}
 		if cached, ok := s.projectionCache.load(record.bindID, generation); ok {
 			return cached, nil
@@ -98,9 +104,7 @@ func (s *HostedService) finishProjectionGeneration(
 		return false
 	}
 	s.mu.Lock()
-	active := s.binds[key.bindID]
-	owned := active != nil && record != nil && active.sessionID == record.sessionID &&
-		active.peer.PID == record.peer.PID && active.peer.UID == record.peer.UID
+	owned := record != nil && s.ownsBindRecord(record)
 	s.projectionCache.finish(key, response, nil, false, owned)
 	s.mu.Unlock()
 	return owned
@@ -174,6 +178,7 @@ func (c *hostedProjectionCache) remove(bindID string) {
 	}
 	c.mu.Lock()
 	delete(c.entries, bindID)
+	delete(c.unversioned, bindID)
 	c.mu.Unlock()
 }
 
@@ -183,7 +188,7 @@ func (c *hostedProjectionCache) size() int {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.entries)
+	return len(c.entries) + len(c.unversioned)
 }
 
 func waitHostedProjectionFlight(

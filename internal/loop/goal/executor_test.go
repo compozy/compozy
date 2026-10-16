@@ -415,6 +415,25 @@ func TestExecutorShouldConvergeOnThirdTurnWithDurableAudit(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name the bound session as liveness evidence for the action runtime", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("done", 10, 10))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		reporter := &livenessSessionRecorder{}
+		ctx := loop.ContextWithActionUsageReporter(t.Context(), reporter)
+
+		if _, err := executor.Execute(ctx, testGoalNode(3), testGoalInput(t)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		checkpoint, _, _ := store.snapshot()
+		if got := reporter.sessions(); !slices.Equal(got, []string{checkpoint.SessionID}) || got[0] == "" {
+			t.Fatalf("liveness sessions = %v, want bound session %q", got, checkpoint.SessionID)
+		}
+	})
+
 	t.Run("Should reject a Goal action without a Run-pinned context policy", func(t *testing.T) {
 		t.Parallel()
 
