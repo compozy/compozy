@@ -11,7 +11,11 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 )
+
+// Session waits allow thirty minutes; stalled headers get one extra minute to settle.
+const forwardResponseHeaderTimeout = 31 * time.Minute
 
 type httpTierForwarder struct {
 	listener    net.Listener
@@ -65,7 +69,7 @@ func newHTTPTierForwarder(
 			return connection, err
 		},
 		MaxConnsPerHost: maxForwardConnections, MaxIdleConnsPerHost: maxForwardConnections,
-		IdleConnTimeout: forwardIdleTimeout,
+		IdleConnTimeout: forwardIdleTimeout, ResponseHeaderTimeout: forwardResponseHeaderTimeout,
 	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {

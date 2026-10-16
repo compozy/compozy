@@ -2761,6 +2761,6 @@ Site Tailscale docs explain the advertised URL and pairing response. QA owner:
 limits in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`.
 
 Provider health degrades only for listener/upstream dial failures; individual request errors
-and client cancellation do not withdraw the route. Long-poll responses have no fixed proxy
-header deadline, while client writes retain renewed inactivity deadlines, including hijacked
+and client cancellation do not withdraw the route. Long-poll responses allow the 30-minute SessionWait maximum plus a one-minute header
+settlement margin, while client writes retain renewed inactivity deadlines, including hijacked
 WebSockets. Existing provider and HTTP middleware/pairing suites own these invariants.

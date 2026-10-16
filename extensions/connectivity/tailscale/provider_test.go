@@ -996,6 +996,17 @@ func TestHTTPTierForwarder(t *testing.T) {
 	t.Run("Should keep the provider healthy after an individual request timeout", func(t *testing.T) {
 		t.Parallel()
 		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/disconnect" {
+				connection, _, err := http.NewResponseController(w).Hijack()
+				if err != nil {
+					t.Errorf("hijack backend: %v", err)
+					return
+				}
+				if err := connection.Close(); err != nil {
+					t.Errorf("close backend before headers: %v", err)
+				}
+				return
+			}
 			if r.URL.Path == "/wait" {
 				<-r.Context().Done()
 				return
@@ -1024,44 +1035,49 @@ func TestHTTPTierForwarder(t *testing.T) {
 				t.Errorf("close forwarder: %v", err)
 			}
 		})
+		// Consecutive cases share the provider to prove recovery after request failures.
 		for _, test := range []struct {
+			name       string
 			path       string
 			wantStatus int
 			wantBody   string
 		}{
-			{"/wait", http.StatusBadGateway, "gateway forward target unavailable\n"},
-			{"/ready", http.StatusOK, "ready"},
+			{"Should isolate a response-header timeout", "/wait", http.StatusBadGateway, "gateway forward target unavailable\n"},
+			{"Should isolate a backend response failure", "/disconnect", http.StatusBadGateway, "gateway forward target unavailable\n"},
+			{"Should serve another request after both failures", "/ready", http.StatusOK, "ready"},
 		} {
-			request, err := http.NewRequestWithContext(
-				t.Context(),
-				http.MethodGet,
-				"http://"+listener.Addr().String()+test.path,
-				http.NoBody,
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			request.Host = "gateway.example.ts.net:8443"
-			response, err := (&http.Client{Timeout: time.Second}).Do(request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, readErr := io.ReadAll(response.Body)
-			closeErr := response.Body.Close()
-			if readErr != nil || closeErr != nil || response.StatusCode != test.wantStatus ||
-				string(body) != test.wantBody {
-				t.Fatalf(
-					"%s: status=%d body=%q read=%v close=%v",
-					test.path,
-					response.StatusCode,
-					body,
-					readErr,
-					closeErr,
+			t.Run(test.name, func(t *testing.T) {
+				request, err := http.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"http://"+listener.Addr().String()+test.path,
+					http.NoBody,
 				)
-			}
-			if health, reason := forwarder.Health(); health != providerHealthHealthy || reason != "" {
-				t.Fatalf("Health()=(%q,%q) after %s", health, reason, test.path)
-			}
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Host = "gateway.example.ts.net:8443"
+				response, err := (&http.Client{Timeout: time.Second}).Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, readErr := io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil || closeErr != nil || response.StatusCode != test.wantStatus ||
+					string(body) != test.wantBody {
+					t.Fatalf(
+						"%s: status=%d body=%q read=%v close=%v",
+						test.path,
+						response.StatusCode,
+						body,
+						readErr,
+						closeErr,
+					)
+				}
+				if health, reason := forwarder.Health(); health != providerHealthHealthy || reason != "" {
+					t.Fatalf("Health()=(%q,%q) after %s", health, reason, test.path)
+				}
+			})
 		}
 	})
 	t.Run("Should bound stalled writes and refresh the deadline after progress", func(t *testing.T) {

@@ -51,8 +51,8 @@ the user's running daemon, desktop, credentials and tailnet were not restarted o
 
 Greptile identified two valid transport-lifetime regressions in the first head. Provider degradation
 now belongs only to a failed upstream dial or listener failure, preserving the previous health
-boundary. Request/response errors remain local to their request. The proxy no longer imposes a
-fixed response-header deadline on supported long-polling operations. Client writes reuse the existing
+boundary. Request/response errors remain local to their request. The response-header deadline is 31 minutes, allowing the 30-minute `SessionWait` maximum
+plus a one-minute settlement margin. Client writes reuse the existing
 per-write inactivity-deadline wrapper, including hijacked WebSockets, without setting a fixed lifetime
 for healthy streams. The provider suite exercises request timeout followed by healthy traffic and
 real net.Pipe writes with a shortened deadline at the I/O boundary.
@@ -61,3 +61,9 @@ The initial CI head failed an unrelated session-stop recovery case in race shard
 `TestSharedSessionStopOperation/Should_recover_active_stop_after_manager_restart_at_event_persistence`
 reported `pinned database identity mutated`. No session/store code was changed by this PR. The final
 head CI receipt in the PR records whether that failure reproduced; a green rerun is not causal proof.
+
+CodeRabbit's follow-up requested a finite production header bound and named timeout subcases;
+both are applied. Its proposal to mark the whole provider unhealthy on a prematurely closed HTTP
+response is declined: the original TCP forwarder records only upstream dial failures, while copy/
+response failures affect their own connection. A real backend-close-before-headers case now verifies
+502, healthy provider state and success of the following request, without a sticky global outage.
