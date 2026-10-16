@@ -2305,3 +2305,26 @@ describe("RuntimeSelector composer variant", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-b" }));
   });
 });
+
+// Invariant: a provider discovery failure remains attributed while healthy models stay selectable.
+// Owner: RuntimeSelector presentation; canonical suite: runtime-selector.test.tsx.
+describe("provider catalog failures", () => {
+  it("Should show calm provider guidance and keep other provider models selectable", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "gpt-test", reasoning_effort: "" },
+      providers: [codexProvider, { id: "cursor", name: "Cursor" }],
+      models: [model("gpt-test"), model("cursor-test", { provider: "cursor" })],
+      props: { providerCatalogIssues: { cursor: "Sign in to update the model list." } },
+    });
+    await openSelector(user);
+    expect(
+      screen.getByText("Sign in to update the model list.", { exact: false })
+    ).toHaveTextContent("Cursor");
+    expect(screen.queryByTestId("runtime-selector-status")).not.toBeInTheDocument();
+    await user.click(row("gpt-test"));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "codex", model: "gpt-test" })
+    );
+  });
+});

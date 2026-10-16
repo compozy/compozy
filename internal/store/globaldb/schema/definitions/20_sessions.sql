@@ -72,6 +72,7 @@ CREATE TABLE session_health (
 	);
 
 	CREATE TABLE session_input_queue (
+			goal_input_batch_max_rowid INTEGER CHECK (goal_input_batch_max_rowid IS NULL OR goal_input_batch_max_rowid >= 0),
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			prompt_admission_id TEXT REFERENCES session_prompt_admissions(id) ON DELETE SET NULL,

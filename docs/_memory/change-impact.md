@@ -2912,6 +2912,56 @@ no compatibility shim or removal release is needed. Official skill:
   from an explicit persisted value; serialized old defaults are preserved as explicit values.
 - Heavy gates/whole-app QA are CI-owned by explicit maintainer instruction for this assignment.
 
+## Provider catalog refresh failures — issue #740
+
+The shared source-status projection adds optional `failure_reason` (`auth_required`,
+`timeout`, or `refresh_failed`) for failed sources. CLI JSON/JSONL/TOON, HTTP/UDS,
+native `compozy__provider_models_status`/`refresh`, and extension Host API reuse
+this projection; generated OpenAPI and Go/TypeScript/Web contracts co-ship.
+Existing `last_error` diagnostics and HTTP statuses remain compatible (SD-013
+regime 2, additive). Human CLI and Web use calm guidance instead of subprocess
+text. The session selector attributes discovery failures to their provider while
+keeping other providers and cached/curated models usable. Settings reports the
+same reason. No SQLite/config migration, hook, extension permission, or cache-scope
+change; existing profile/workspace execution boundaries remain authoritative.
+Official runtime skill references and the site model-catalog guide explain status
+classification. QA: `RT-model-catalog-cold-open`; rendered Storybook evidence and
+targeted suites are recorded in the issue PR. Heavy gates are CI-owned.
+
+## Issue #750 — Queued inputs before prepared Goal prompts
+
+- **Owner:** issue #750, branch `fix/issue-750-goal-queue-starvation`.
+- **Cause and policy:** a Goal can prepare a durable prompt during an existing turn. Its older
+  enqueue time allowed it to win FIFO over later admitted input at that turn's boundary. The unified
+  selector now drains eligible public inputs before a prepared Goal, preserving interrupt,
+  priority and FIFO ordering within a finite public batch. The first claim durably freezes its
+  maximum admitted rowid; later arrivals follow one Goal prompt, preventing livelock. Queue mode
+  never interrupts a long active turn; urgent guidance uses fenced steer or interrupt.
+- **Native tools / CLI / HTTP / UDS:** queued `compozy__session_prompt` inputs, operator prompts and
+  `prompt-reply:` wakes receive the same ordering. Existing queue/status positions and counts remain
+  public-only. No IDs, routes, DTOs, command grammar, error codes or configuration keys change.
+- **Goal / reply ownership:** the existing managed claim, budget checks, binding/control fences,
+  work-turn accounting, reply-watch admission and atomic wake handoff remain authoritative. Public
+  input turns do not consume Goal work turns. The selector reads persisted queue state on resume;
+  the nullable batch boundary survives restart without an in-memory fairness cursor.
+- **Extensibility / hooks / config:** existing synthetic wakes share the ordering; no extension SDK,
+  hook payload, permission, provider or configuration changes.
+- **Isolation / compatibility:** selection stays scoped to the exact session and current input
+  generation. Profile/workspace admission and origin authority are unchanged. SD-013 public behavior
+  bug fix with unchanged public shapes. Append-only migration 00137 adds one nullable integer
+  boundary without backfill; Atlas/sqlc own the generated artifacts. Existing queue rows and user
+  data survive migration and reopen; no public compatibility shim is needed.
+- **Official skill / Web / site docs:** document ordering in `skills/compozy/references/loops.md`
+  and the session messaging reference, plus the site's Goal guide. Web observes the corrected queue
+  dispatch through existing session events; no React changes or visual evidence required.
+- **QA / validation:** update RT-session-message-origin, RT-session-message-reply and GL-015.
+  The existing managed-runtime integration suite owns deterministic real-SQLite admission, reply
+  wake priority/deduplication and Goal state/accounting coverage. Heavy gates, full E2E and labs are
+  CI-owned by explicit maintainer instruction; targeted race checks run locally. The existing
+  global queue suite covers finite batches with concurrent admissions/reopen; the global migration
+  suite covers retained queue state. The reported Needs-you badge comes from loop_run quarantine
+  supervision, not queue backlog, and remains outside this scheduling fix.
+
 ## Session row provider mark — 2026-10-16
 
 Owner: branch `feat/issue-754-session-provider-logo`; issue #754.

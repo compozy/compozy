@@ -3184,6 +3184,7 @@ export interface ProviderModelListResponse {
 }
 
 export interface ModelCatalogSourceStatusPayload {
+  failure_reason?: string;
   source_id: string;
   source_kind: string;
   provider_id: string;

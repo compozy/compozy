@@ -830,6 +830,34 @@ opencode/provider-managed
 		}
 	})
 
+	t.Run("Should classify Cursor auth without invalidating healthy models", func(t *testing.T) {
+		t.Parallel()
+		executor := &fakeDiscoveryExecutor{
+			result: DiscoveryCommandResult{ExitCode: 1, Stderr: "Error: Authentication required. Run 'agent login'."},
+			err:    errors.New("discovery command failed: exit status 1"),
+		}
+		source := newLiveSourceForTest(t, "cursor", compozyconfig.BuiltinProviders()["cursor"],
+			&LiveProviderSourcesConfig{CommandExecutor: executor})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source, NewBuiltinSource()})
+		statuses, err := service.Refresh(t.Context(), RefreshOptions{Force: true, Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("Refresh() error = %v, want healthy sources to succeed", err)
+		}
+		status := requireStatus(t, statuses, "provider_live:cursor")
+		if status.FailureReason() != "auth_required" || status.ProviderID != "cursor" {
+			t.Fatalf("status = %#v, reason = %q", status, status.FailureReason())
+		}
+		stored, err := service.ListSourceStatus(t.Context(), StatusOptions{ProviderID: "cursor"})
+		if err != nil || requireStatus(t, stored, source.ID()).FailureReason() != "auth_required" {
+			t.Fatalf("persisted status = %#v, error = %v", stored, err)
+		}
+		models, err := service.ListModels(t.Context(), ListOptions{IncludeStale: true, Now: testTime(0)})
+		if err != nil || len(models) == 0 {
+			t.Fatalf("models = %#v, error = %v, want preserved builtin models", models, err)
+		}
+	})
+
 	t.Run("Should record unavailable OpenCode command status", func(t *testing.T) {
 		t.Parallel()
 

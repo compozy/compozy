@@ -3,6 +3,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import {
   ModelCatalogApiError,
   getProviderModelStatus,
+  getModelSourceStatus,
   listAllModels,
   listProviderModels,
   refreshAllModels,
@@ -54,8 +55,11 @@ export function initialModelCatalogReadinessOptions(queryClient: QueryClient, en
   return queryOptions({
     queryKey: modelCatalogKeys.initialReadiness,
     queryFn: async ({ signal }) => {
-      await refreshAllModels({}, signal);
-      await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
+      try {
+        await refreshAllModels({}, signal);
+      } finally {
+        await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
+      }
       return true;
     },
     enabled,
@@ -100,6 +104,17 @@ export function providerModelStatusOptions(args: ProviderModelStatusOptionsArgs)
     queryKey: modelCatalogKeys.providerStatus(providerId),
     queryFn: ({ signal }) => getProviderModelStatus(providerId, signal),
     enabled: providerId.length > 0 && (args.enabled ?? true),
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+    retry: shouldRetry,
+  });
+}
+
+export function modelSourceStatusOptions(enabled = true) {
+  return queryOptions({
+    queryKey: modelCatalogKeys.sourceStatus,
+    queryFn: ({ signal }) => getModelSourceStatus(signal),
+    enabled,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
     retry: shouldRetry,

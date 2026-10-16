@@ -231,6 +231,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       providers,
       refresh: catalog.refresh,
       refreshError: catalog.refreshError,
+      providerIssues: catalog.providerIssues,
       refreshing: catalog.refreshing,
       stale: catalog.stale,
     },
