@@ -94,7 +94,11 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 		headers.Set("Vary", "Origin")
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOriginForTarget(
-				origin, requestScheme(c.Request), c.Request.Host, boundHost, allowForwardedTarget,
+				origin,
+				requestSchemeForTarget(c.Request, allowForwardedTarget),
+				c.Request.Host,
+				boundHost,
+				allowForwardedTarget,
 			)
 			if !ok {
 				abortForbiddenRequest(c, errOriginNotAllowed)
@@ -189,7 +193,7 @@ func requestTargetAllowedForMode(request *http.Request, boundHost string, allowF
 	if request == nil {
 		return false
 	}
-	requestSpec, ok := canonicalOriginFromHost(request.Host, requestScheme(request), "")
+	requestSpec, ok := canonicalOriginFromHost(request.Host, requestSchemeForTarget(request, allowForwardedTarget), "")
 	if !ok {
 		return false
 	}
@@ -232,17 +236,24 @@ type canonicalOrigin struct {
 	wildcard  bool
 }
 
-const defaultRequestScheme = "http"
+const (
+	defaultRequestScheme = "http"
+	secureRequestScheme  = "https"
+)
 
-func requestScheme(r *http.Request) string {
+func requestSchemeForTarget(r *http.Request, allowForwardedTarget bool) string {
 	if r == nil {
 		return defaultRequestScheme
 	}
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
-		return strings.ToLower(forwarded)
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if allowForwardedTarget && err == nil && net.ParseIP(peer).IsLoopback() {
+		forwarded := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+		if forwarded == secureRequestScheme || forwarded == defaultRequestScheme {
+			return forwarded
+		}
 	}
 	if r.TLS != nil {
-		return "https"
+		return secureRequestScheme
 	}
 	if scheme := strings.TrimSpace(r.URL.Scheme); scheme != "" {
 		return strings.ToLower(scheme)
