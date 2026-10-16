@@ -17,6 +17,11 @@ import {
   sessionSentMessagePart,
 } from "@/systems/session/lib/session-message-payload";
 import type { QueuedPrompt } from "@/systems/session/lib/queued-prompt";
+import { sessionInboundGroups } from "@/systems/session/lib/session-message-groups";
+import {
+  sessionMessageReplyIndex,
+  sessionReplyTargetMessageId,
+} from "@/systems/session/lib/session-message-replies";
 
 import { SessionQueueEntryRow } from "../../session-queue-strip-row";
 import { SessionMessageCard } from "../session-message-card";
@@ -31,8 +36,9 @@ import { useSessionMessageOpen } from "../use-session-message-open";
 // Invariant: the daemon's typed origin / synthetic / part facts map to one view model, and the
 // cards render the sender or target, its link, the mode and reply chips, the outcome and the
 // reply state from it; a deleted session reads "a deleted session" with no link; a session
-// message queued for this session keeps Remove only. Owning layer: session-messages components
-// and their adapter (props in, callbacks out). Canonical suite: this file (`_tests.md`).
+// message queued for this session offers Steer and Remove, never Edit; `in_reply_to` resolves to
+// the loaded original and consecutive inbound messages group per sender (#760).
+// Owning layer: session-messages components and their adapter (props in, callbacks out). Canonical suite: this file (`_tests.md`).
 // Boundary IN: session detail / workspace detail reads (fetch). Boundary OUT: openSession.
 
 const WS = "ws_alpha";
@@ -112,6 +118,10 @@ describe("session message payload adapter", () => {
       notifyOnComplete: true,
       replyWatchId: "rw-6e2d81a0",
     });
+    expect(
+      sessionMessageOrigin({ custom: { origin: { ...origin, in_reply_to: " msg-ask-1 " } } })
+        ?.inReplyTo
+    ).toBe("msg-ask-1");
     expect(sessionMessageOrigin({ custom: { origin: { ...origin, kind: "goal" } } })).toBeNull();
     expect(sessionMessageOrigin({ custom: { turn_id: "turn-1" } })).toBeNull();
     expect(sessionMessageOriginFromPayload(origin)?.sessionId).toBe(SENDER_ID);
@@ -142,6 +152,10 @@ describe("session message payload adapter", () => {
     expect(
       sessionReplyMeta({ custom: { synthetic: { ...synthetic, reason: "exploded" } } })?.outcome
     ).toBe("unknown");
+    // A watch its TTL released before the target answered (#760).
+    expect(
+      sessionReplyMeta({ custom: { synthetic: { ...synthetic, reason: "expired" } } })?.outcome
+    ).toBe("expired");
     expect(
       sessionReplyMeta({ custom: { synthetic: { ...synthetic, kind: "subagent_wake" } } })
     ).toBeNull();
@@ -160,6 +174,15 @@ describe("session message payload adapter", () => {
       state: "error",
     });
     expect(part).toMatchObject({ toolCallId: "call-1", mode: "steer", state: "failed" });
+    expect(part?.inReplyTo).toBeUndefined();
+    expect(
+      sessionSentMessagePart("data-compozy-session-message", {
+        tool_call_id: "call-2",
+        target_session_id: target.sessionId,
+        in_reply_to: "msg-ask-1",
+        state: "done",
+      })?.inReplyTo
+    ).toBe("msg-ask-1");
     const state = (raw: string) =>
       sessionSentMessagePart("data-compozy-session-message", {
         tool_call_id: "call-1",
@@ -213,6 +236,81 @@ describe("session message payload adapter", () => {
     expect(outcomes.get("rw-a")).toBe("completed");
     expect(outcomes.get("rw-b")).toBe("dropped");
     expect(outcomes.get("rw-c")).toBeUndefined();
+  });
+});
+
+describe("session message replies (#760)", () => {
+  const inbound = (id: string, inReplyTo?: string) => ({
+    id,
+    role: "user",
+    metadata: {
+      custom: {
+        origin: {
+          kind: "session",
+          session_id: SENDER_ID,
+          workspace_id: WS,
+          hop: 1,
+          ...(inReplyTo ? { in_reply_to: inReplyTo } : {}),
+        },
+      },
+    },
+  });
+  const sent = (id: string, messageId: string) => ({
+    id,
+    role: "assistant",
+    content: [
+      {
+        type: "data",
+        name: "compozy-session-message",
+        data: { tool_call_id: "call-1", target_session_id: SENDER_ID, message_id: messageId },
+      },
+    ],
+  });
+
+  it("Should resolve in_reply_to to this session's Sent card or the received prompt", () => {
+    const index = sessionMessageReplyIndex([
+      sent("turn-ask", "msg-ask-1"),
+      inbound("msg-answer", "msg-ask-1"),
+      inbound("msg-from-peer"),
+    ]);
+    // The sender's side: the answer points at the turn holding the "Sent to" card.
+    expect(sessionReplyTargetMessageId(index, "msg-ask-1")).toBe("turn-ask");
+    // The target's side: the received prompt's thread id is its message id.
+    expect(sessionReplyTargetMessageId(index, "msg-from-peer")).toBe("msg-from-peer");
+    expect(sessionReplyTargetMessageId(index, "msg-not-loaded")).toBeNull();
+    expect(index.answered.has("msg-ask-1")).toBe(true);
+    expect(index.answered.has("msg-from-peer")).toBe(false);
+  });
+
+  it("Should group consecutive inbound messages per sender across silent rows only", () => {
+    const other = {
+      ...inbound("x"),
+      metadata: {
+        custom: { origin: { kind: "session", session_id: "sess-other", workspace_id: WS, hop: 1 } },
+      },
+    };
+    const messages = [
+      inbound("a1"),
+      { id: "silent-1", role: "assistant" },
+      inbound("a2"),
+      inbound("a3"),
+      { id: "visible", role: "assistant" },
+      inbound("a4"),
+      { ...other, id: "b1" },
+      inbound("a5"),
+      inbound("a6"),
+      { id: "operator", role: "user", metadata: {} },
+      inbound("a7"),
+    ];
+    const groups = sessionInboundGroups(messages, message => message.id.startsWith("silent"));
+    expect(groups.get("a1")?.group.memberIds).toEqual(["a1", "a2", "a3"]);
+    expect([groups.get("a1")?.latest, groups.get("a3")?.latest]).toEqual([false, true]);
+    expect(groups.get("a3")?.group.sender.sessionId).toBe(SENDER_ID);
+    // A visible row, another sender, and the operator's own prompt each end a run.
+    expect(groups.has("a4")).toBe(false);
+    expect(groups.has("b1")).toBe(false);
+    expect(groups.get("a5")?.group.memberIds).toEqual(["a5", "a6"]);
+    expect(groups.has("a7")).toBe(false);
   });
 });
 
@@ -438,6 +536,24 @@ describe("SessionReplyCard", () => {
     expect(within(card).getByRole("button", { name: "Read the full turn" })).toBeInTheDocument();
   });
 
+  it("Should read an expired watch as No reply with its fixed body (#760)", () => {
+    render(
+      <SessionReplyCard
+        target={target}
+        outcome="expired"
+        text="No reply arrived within 1h0m0s, so the reply watch expired."
+        truncated={false}
+        timestampMs={AT}
+      />,
+      { wrapper }
+    );
+    const card = screen.getByRole("article", { name: "Reply from Billing reviewer, no reply" });
+    expect(within(card).getByTestId("session-reply-outcome")).toHaveTextContent("No reply");
+    expect(card).toHaveTextContent(
+      "No reply arrived in time. The message may still be pending; check the target session."
+    );
+  });
+
   it("Should keep a pending target busy and unnamed instead of guessing a title (m-13)", () => {
     render(
       <SessionReplyCard
@@ -540,6 +656,7 @@ describe("SessionSentCard", () => {
     ["failed", "Failed", "Sent to Billing reviewer, failed"],
     ["canceled", "Canceled", "Sent to Billing reviewer, canceled"],
     ["dropped", "Dropped", "Sent to Billing reviewer, dropped"],
+    ["expired", "No reply", "Sent to Billing reviewer, no reply"],
   ] as const)("Should read the %s reply state as words (UT-067)", (reply, word, name) => {
     render(<SessionSentCard {...base} reply={reply} />, { wrapper });
     const card = screen.getByRole("article", { name });
@@ -588,15 +705,16 @@ describe("SessionQueueEntryRow session message", () => {
     },
   };
 
-  it("Should show the sender and keep Remove only (UT-064)", async () => {
+  it("Should show the sender and offer Steer and Remove, never Edit (UT-064, #760)", async () => {
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Refactor billing") });
     const onRemove = vi.fn();
+    const onSteer = vi.fn();
     render(
       <SessionQueueEntryRow
         prompt={prompt}
         disabled={false}
         actionsHidden={false}
-        onSteer={vi.fn()}
+        onSteer={onSteer}
         onEdit={vi.fn()}
         onRemove={onRemove}
       />,
@@ -604,15 +722,34 @@ describe("SessionQueueEntryRow session message", () => {
     );
     const row = screen.getByTestId("composer-queued-prompt-row");
     expect(row).toHaveAttribute("data-origin", "session");
-    expect(within(row).getByTestId("composer-queued-sender")).toHaveTextContent(
-      /From\s*Refactor billing$/
-    );
+    const senderLabel = within(row).getByTestId("composer-queued-sender");
+    expect(senderLabel).toHaveTextContent(/From\s*Refactor billing$/);
+    // The full sender rides on hover so truncated rows from different senders stay apart.
+    expect(senderLabel).toHaveAttribute("title", "From Refactor billing");
     expect(within(row).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
-    expect(within(row).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    await userEvent.click(
+      within(row).getByRole("button", { name: "Steer message from Refactor billing" })
+    );
+    expect(onSteer).toHaveBeenCalledWith(prompt);
     await userEvent.click(
       within(row).getByRole("button", { name: "Remove message from Refactor billing" })
     );
     expect(onRemove).toHaveBeenCalledWith("inp-41aa");
+  });
+
+  it("Should hold Steer on a session message that carries files (#760)", () => {
+    stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Refactor billing") });
+    render(
+      <SessionQueueEntryRow
+        prompt={{ ...prompt, attachments: { fileCount: 1, imageCount: 0 } }}
+        disabled={false}
+        actionsHidden={false}
+        onSteer={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+      { wrapper }
+    );
+    expect(screen.getByTestId("composer-queued-steer")).toBeDisabled();
   });
 
   it("Should name a sender's workspace when it is not the viewing session's (n-10)", async () => {

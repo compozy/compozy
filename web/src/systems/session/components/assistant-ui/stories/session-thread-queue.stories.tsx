@@ -159,7 +159,7 @@ export const OtherActor: Story = {
 /**
  * Agent collaboration VC-05 — a mixed queue: the operator's row keeps every
  * verb; a message another session sent shows its sender ("From {title}", or "a
- * deleted session") and keeps Remove only; another actor's row keeps none.
+ * deleted session") and offers Steer and Remove, never Edit; another actor's row keeps none.
  */
 export const SessionMessages: Story = {
   parameters: scene({ entries: QUEUE_STORY_SESSION_MESSAGE_ENTRIES }),

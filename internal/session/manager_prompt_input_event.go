@@ -34,6 +34,10 @@ type promptRequest struct {
 	skillInvocations       []commandpkg.Invocation
 	attachments            []AttachmentMeta
 	notifyOnComplete       bool
+	// supersede replaces the same sender's older undispatched message to this target.
+	supersede bool
+	// batch carries the queued entries dispatched in the same turn after this request's own input.
+	batch []queuedInput
 }
 
 func (m *Manager) recordPromptInputEvent(

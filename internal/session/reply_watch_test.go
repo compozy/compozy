@@ -16,6 +16,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // Invariant: only the turn that consumed the message settles its watch; owner: session reply service.
@@ -1015,6 +1016,120 @@ func TestReplyWatchSteerSupersession(t *testing.T) {
 	}
 }
 
+// Invariant: consecutive queued messages from other sessions dispatch as one attributed turn; each entry is
+// marked sent with that turn, keeps its own input event and origin, and its reply watch binds to that turn.
+// Owner: session reply-watch suite (#760).
+func TestReplyWatchBatchedDispatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should answer three queued agent messages in one turn and fire every watch from it", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, _ := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		other := createSession(t, h)
+		for _, id := range []string{sender.ID, other.ID} {
+			if err := h.manager.Stop(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		release := make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		dispatched := make(chan acp.PromptRequest, 4)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			go func() {
+				defer close(events)
+				if req.Message == "hold" {
+					<-release
+				} else {
+					dispatched <- req
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "batch answer"}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		held, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{Message: "hold"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		senders := map[string]string{"batch-1": sender.ID, "batch-2": sender.ID, "batch-3": other.ID}
+		watches := map[string]string{}
+		entries := map[string]string{}
+		for _, id := range []string{"batch-1", "batch-2", "batch-3"} {
+			result, err := h.manager.SendPrompt(t.Context(), target.ID, SendPromptOpts{
+				Message: "question " + id, MessageID: id, IdempotencyKey: id + "-key",
+				Mode: BusyInputModeQueue, NotifyOnComplete: true,
+				Origin: &acp.PromptOriginMeta{
+					Kind: "session", SessionID: senders[id], WorkspaceID: h.workspaceID, Hop: 1,
+				},
+			})
+			if err != nil || result.ReplyWatch == nil || result.QueueEntryID == "" {
+				t.Fatalf("SendPrompt(%s) = %#v, %v", id, result, err)
+			}
+			watches[id], entries[id] = result.ReplyWatch.ID, result.QueueEntryID
+		}
+		once.Do(func() { close(release) })
+		for range held.Events {
+			continue
+		}
+		var req acp.PromptRequest
+		select {
+		case req = <-dispatched:
+		case <-time.After(5 * time.Second):
+			t.Fatal("batched turn did not dispatch")
+		}
+		for id, from := range senders {
+			if !strings.Contains(req.Message, "question "+id) || !strings.Contains(req.Message, from) {
+				t.Fatalf("batched prompt lacks attributed %s from %s:\n%s", id, from, req.Message)
+			}
+		}
+		waitForCondition(t, "every batched watch fired", func() bool {
+			for _, watchID := range watches {
+				w, err := db.GetReplyWatch(t.Context(), watchID)
+				if err != nil || w.Outcome == "" {
+					return false
+				}
+			}
+			return true
+		})
+		for id, watchID := range watches {
+			w, err := db.GetReplyWatch(t.Context(), watchID)
+			if err != nil || w.Outcome != store.ReplyOutcomeCompleted || w.TurnID != req.TurnID ||
+				w.ReplyText != "batch answer" {
+				t.Fatalf("%s watch = %+v, %v; want completed from turn %s", id, w, err, req.TurnID)
+			}
+			entry, err := db.GetSessionInputQueueEntry(t.Context(), target.ID, entries[id])
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent || entry.TurnID != req.TurnID {
+				t.Fatalf("%s entry = %q/%q, %v; want sent in %s", id, entry.Status, entry.TurnID, err, req.TurnID)
+			}
+		}
+		select {
+		case extra := <-dispatched:
+			t.Fatalf("batched messages produced another turn: %#v", extra)
+		default:
+		}
+		inputs := map[string]string{}
+		stored, err := h.manager.Events(t.Context(), target.ID, store.EventQuery{
+			TurnID: req.TurnID, Type: acp.EventTypeUserMessage, Limit: 10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range stored {
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil || decoded.PromptOrigin() == nil {
+				t.Fatalf("batched input event = %#v, %v; want an attributed message", decoded, err)
+			}
+			inputs[decoded.MessageIDValue()] = decoded.PromptOrigin().SessionID
+		}
+		if len(inputs) != 3 || inputs["batch-1"] != sender.ID || inputs["batch-2"] != sender.ID ||
+			inputs["batch-3"] != other.ID {
+			t.Fatalf("turn inputs = %v, want one attributed input per batched message", inputs)
+		}
+	})
+}
+
 // Invariant: reconciliation reads only the admitted input and its consuming turn (M-2).
 func TestReplyWatchScopedEvidence(t *testing.T) {
 	t.Run("Should ignore undecodable events outside the consuming turn", func(t *testing.T) {
@@ -1599,8 +1714,8 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 	}
 }
 
-// Invariant: an armed watch past session.messaging.reply_watch_ttl fires once with the expired outcome and
-// stops counting as awaited work; a younger watch is untouched. Owner: session reply-watch suite (#760).
+// Invariant: an armed watch past an opt-in session.messaging.reply_watch_ttl fires once with the expired
+// outcome and stops counting as awaited work; a younger watch, or any watch under the default (0), is untouched. Owner: session reply-watch suite (#760).
 func TestReplyWatchTTLExpiry(t *testing.T) {
 	t.Parallel()
 	t.Run("Should expire a stale armed watch and wake the sender once", func(t *testing.T) {
@@ -1646,6 +1761,27 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 		); err != nil ||
 			again.DeliveredInputID != got.DeliveredInputID {
 			t.Fatalf("second sweep = %+v, %v; want the single delivered wake", again, err)
+		}
+	})
+	t.Run("Should never expire an armed watch under the default config", func(t *testing.T) {
+		t.Parallel()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		h, db, service, sender, _, w := replyWatchFixtureWith(
+			t,
+			[]Option{WithNow(clock), WithSessionMessagingConfig(compozyconfig.DefaultSessionMessagingConfig())},
+		)
+		h.manager.SetReplyWatchService(service)
+		nowMu.Lock()
+		now = now.Add(60 * 24 * time.Hour)
+		nowMu.Unlock()
+		service.(*replyWatchService).expireStale(t.Context())
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchArmed {
+			t.Fatalf("watch after 60 days = %+v, %v; want armed", got, err)
+		}
+		if signals := mustAwaitingReplySignals(t, service, sender.ID, clock()); len(signals) == 0 {
+			t.Fatal("default-config watch stopped keeping its sender awake")
 		}
 	})
 }

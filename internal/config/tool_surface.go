@@ -89,6 +89,7 @@ var (
 		"session.messaging.rate_limit_messages":                    ConfigValueInt,
 		"session.messaging.rate_limit_window":                      ConfigValueDuration,
 		"session.messaging.reply_watch_ttl":                        ConfigValueDuration,
+		"session.messaging.queue_promote_after":                    ConfigValueDuration,
 		toolSurfaceDaemonSubprocessHealthEscalationThresholdPath:   ConfigValueInt,
 		"redact.enabled":                                           ConfigValueBool,
 		"marketplace.catalog.ttl":                                  ConfigValueDuration,

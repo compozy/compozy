@@ -117,23 +117,8 @@ func (m *Manager) currentTurnMessageContext(ctx context.Context, sessionID strin
 		}
 		turn := turnMessageContext{hop: hop, senders: map[string]struct{}{}}
 		turn.addPromptMeta(meta)
-		query := store.EventQuery{TurnID: turnID, Type: acp.EventTypeUserMessage, Limit: 200}
-		for {
-			page, err := m.Events(ctx, sessionID, query)
-			if err != nil {
-				return turnMessageContext{}, err
-			}
-			for _, stored := range page {
-				event, err := transcript.UnmarshalAgentEvent(stored.Content)
-				if err != nil {
-					return turnMessageContext{}, err
-				}
-				turn.addOrigin(event.PromptOrigin())
-			}
-			if len(page) < query.Limit {
-				break
-			}
-			query.BeforeSequence = page[0].Sequence
+		if err := m.addTurnInputEvents(ctx, sessionID, turnID, &turn); err != nil {
+			return turnMessageContext{}, err
 		}
 		s.mu.RLock()
 		sameTurn := s.currentTurnID == turnID
@@ -148,6 +133,32 @@ func (m *Manager) currentTurnMessageContext(ctx context.Context, sessionID strin
 	}
 }
 
+// addTurnInputEvents folds in every durable input of the turn: operator and agent messages, and the
+// reply wakes a batched dispatch carried after the turn's own input.
+func (m *Manager) addTurnInputEvents(ctx context.Context, sessionID, turnID string, turn *turnMessageContext) error {
+	for _, eventType := range []string{acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry} {
+		query := store.EventQuery{TurnID: turnID, Type: eventType, Limit: 200}
+		for {
+			page, err := m.Events(ctx, sessionID, query)
+			if err != nil {
+				return err
+			}
+			for _, stored := range page {
+				event, err := transcript.UnmarshalAgentEvent(stored.Content)
+				if err != nil {
+					return err
+				}
+				turn.addPromptMeta(acp.PromptMeta{Origin: event.PromptOrigin(), Synthetic: event.Synthetic})
+			}
+			if len(page) < query.Limit {
+				break
+			}
+			query.BeforeSequence = page[0].Sequence
+		}
+	}
+	return nil
+}
+
 func (c *turnMessageContext) addOrigin(origin *acp.PromptOriginMeta) {
 	if origin == nil {
 		return
@@ -160,6 +171,7 @@ func (c *turnMessageContext) addOrigin(origin *acp.PromptOriginMeta) {
 
 func (c *turnMessageContext) addPromptMeta(meta acp.PromptMeta) {
 	c.addOrigin(meta.Origin)
+	c.hop = max(c.hop, promptMetaHop(meta))
 	if meta.Synthetic != nil && meta.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {
 		if id := strings.TrimSpace(meta.Synthetic.ChildSessionID); id != "" {
 			c.senders[id] = struct{}{}

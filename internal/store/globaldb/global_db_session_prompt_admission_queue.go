@@ -84,15 +84,23 @@ func enqueueAdmittedSessionInputInTransaction(
 			return err
 		}
 	}
+	bound := bindQueueAdmission(queueReq, claimed).Normalize()
+	var superseded []string
 	if queueReq.Mode == store.SessionInputQueueModeQueue {
-		if err := checkSessionInputQueueCap(ctx, exec, queueReq); err != nil {
+		superseded, err = cancelSupersededAgentSessionInputs(ctx, exec, bound, admissionReq.Now)
+		if err != nil {
+			return err
+		}
+		result.canceled = len(superseded)
+		if err := checkSessionInputQueueCap(ctx, exec, bound); err != nil {
 			return err
 		}
 	}
-	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
+	inserted, err := insertSessionInputQueueEntry(ctx, exec, bound)
 	if err != nil {
 		return err
 	}
+	inserted.SupersededIDs = superseded
 	result.position, err = sessionInputQueuePosition(ctx, exec, inserted.SessionID, inserted.ID)
 	if err != nil {
 		return err
@@ -281,6 +289,33 @@ func cancelPriorAdmittedSessionSteers(
 	return ids, nil
 }
 
+// cancelSupersededAgentSessionInputs runs only for an agent send that asked to supersede. It frees the
+// sender's older undispatched entries before the cap check so the replacement always fits.
+func cancelSupersededAgentSessionInputs(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	queueReq store.SessionInputQueueInsert,
+	now time.Time,
+) ([]string, error) {
+	normalized := queueReq.Normalize()
+	if !normalized.Supersede || normalized.OriginClass != store.SessionInputOriginClassAgent ||
+		normalized.OriginSessionID == "" {
+		return nil, nil
+	}
+	ids, err := sqlcgen.New(exec).CancelSupersededAgentSessionInputs(
+		ctx,
+		sqlcgen.CancelSupersededAgentSessionInputsParams{
+			Now:             nullableSessionTime(now),
+			SessionID:       normalized.SessionID,
+			OriginSessionID: normalized.OriginSessionID,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: cancel superseded session input: %w", err)
+	}
+	return ids, nil
+}
+
 func queuedPromptAdmissionResult(
 	entry *store.SessionInputQueueEntry,
 	position int,
@@ -352,6 +387,8 @@ func bindQueueAdmission(
 	req.Runtime = admission.Runtime
 	req.SkillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	req.Origin = append(req.Origin[:0:0], admission.Origin...)
+	// The bound admission origin decides the dispatch class and sender.
+	req.OriginClass, req.OriginSessionID = "", ""
 	req.Attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	return req
 }

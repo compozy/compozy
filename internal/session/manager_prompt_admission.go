@@ -218,7 +218,7 @@ func (m *Manager) submitAdmittedBusyPrompt(
 ) (SendPromptResult, error) {
 	switch mode {
 	case BusyInputModeQueue:
-		return m.enqueueAdmittedBusyPrompt(ctx, session, admissionReq)
+		return m.enqueueAdmittedBusyPrompt(ctx, session, req.supersede, admissionReq)
 	case BusyInputModeSteer:
 		result, err := m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
 		// The completed turn can disappear between the busy snapshot and staging.
@@ -238,6 +238,7 @@ func (m *Manager) submitAdmittedBusyPrompt(
 func (m *Manager) enqueueAdmittedBusyPrompt(
 	ctx context.Context,
 	session *Session,
+	supersede bool,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
 	if m.inputQueue == nil {
@@ -248,7 +249,7 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 		return SendPromptResult{}, err
 	}
 	admission, entry, position, created, err := m.inputQueue.EnqueueAdmitted(
-		ctx, admissionReq, generation, session.CurrentTurnID(),
+		ctx, admissionReq, generation, session.CurrentTurnID(), supersede,
 	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -261,6 +262,7 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 		return SendPromptResult{}, err
 	}
 	if created {
+		m.settleSupersededQueuedInputs(ctx, session, &entry)
 		m.emitTranscriptMarker(
 			ctx, session, session.CurrentTurnID(), transcript.MarkerPromptQueued,
 			"Input queued while the session is busy.",
@@ -274,6 +276,9 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 	// Pair the durable enqueue with the turn-end selector kick. Whichever side
 	// observes the session idle after the enqueue owns dispatch.
 	m.startNextQueuedInputPrompt(session.ID)
+	if created && entry.OriginClass == store.SessionInputOriginClassAgent {
+		m.schedulePromoteLongTurnQueuedInputs(session)
+	}
 	result.Replayed = !created
 	m.replyWatchSendResult(ctx, admission, nil)
 	return result, nil

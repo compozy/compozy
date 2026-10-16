@@ -132,15 +132,15 @@ func (m *Manager) messagingConfig() compozyconfig.SessionMessagingConfig {
 
 // checkSessionMessageBudget refuses a send once the sender spent its budget for this target.
 func (m *Manager) checkSessionMessageBudget(ctx context.Context, sender, target string) error {
+	cfg := m.messagingConfig()
 	ledger, ok := m.promptAdmissionStore.(store.SessionMessageLedger)
-	if !ok {
+	if !ok || cfg.RateLimitMessages == compozyconfig.SessionMessagingRateLimitDisabled {
 		return nil
 	}
 	targetInfo, err := m.Status(ctx, target)
 	if err != nil {
 		return err
 	}
-	cfg := m.messagingConfig()
 	now := m.now()
 	window, err := ledger.SessionMessageWindow(
 		ctx, targetInfo.WorkspaceID, target, sender, now.Add(-cfg.RateLimitWindow),

@@ -8,18 +8,23 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// replyWatchTTL is how long an armed watch may wait for the target before it expires.
+// replyWatchTTL is how long an armed watch may wait for the target before it expires. Zero, the
+// default, never expires a watch: a sender waiting on a long-running target stays awake.
 func (s *replyWatchService) replyWatchTTL() time.Duration {
 	return s.manager.messagingConfig().ReplyWatchTTL
 }
 
 func (s *replyWatchService) replyWatchExpired(w store.ReplyWatch, now time.Time) bool {
-	return w.State == store.ReplyWatchArmed && !w.CreatedAt.IsZero() && now.Sub(w.CreatedAt) >= s.replyWatchTTL()
+	ttl := s.replyWatchTTL()
+	return ttl > 0 && w.State == store.ReplyWatchArmed && !w.CreatedAt.IsZero() && now.Sub(w.CreatedAt) >= ttl
 }
 
 // expireStale fires every armed watch past its TTL with the expired outcome, which wakes the sender
 // once and stops the watch from keeping the sender awake.
 func (s *replyWatchService) expireStale(ctx context.Context) {
+	if s.replyWatchTTL() <= 0 {
+		return
+	}
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{State: store.ReplyWatchArmed})
 	if err != nil {
 		s.logError(ctx, err)

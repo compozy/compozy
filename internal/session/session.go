@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -240,6 +241,8 @@ type Session struct {
 	turnStopPending         bool
 	currentPromptDone       chan struct{}
 	providerRedactions      []func()
+	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
+	inputPromotionActive atomic.Bool
 }
 
 func (s *Session) processHandle() *AgentProcess {

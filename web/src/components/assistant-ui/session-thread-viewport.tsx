@@ -4,6 +4,7 @@ import { type ComponentPropsWithoutRef, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 import { SessionNavigationTargetContext } from "./hooks/session-navigation-target-context";
+import { NAVIGATION_LANDING_OFFSET_PX } from "./hooks/use-session-navigation-host";
 import { useThreadViewport } from "./hooks/use-thread-viewport";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
@@ -105,6 +106,9 @@ export function ThreadViewport({
                 sessionState={sessionState}
                 failure={failure}
                 startupFailed={startupFailed}
+                onJumpToMessage={threadMessageId => {
+                  void scroll.scrollToMessage(threadMessageId, NAVIGATION_LANDING_OFFSET_PX);
+                }}
               />
             </SessionNavigationTargetContext.Provider>
           </ThreadContentRail>

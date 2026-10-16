@@ -157,12 +157,15 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 	return insert, err
 }
 
-// EnqueueAdmitted atomically persists one external command receipt and its queue entry.
+// EnqueueAdmitted atomically persists one external command receipt and its queue entry. With
+// supersede, an agent-authored entry cancels its sender's older undispatched entries in the same
+// transaction; the store ignores it for operator input.
 func (s *Service) EnqueueAdmitted(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 	targetTurnID string,
+	supersede bool,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
 		mode:         store.SessionInputQueueModeQueue,
@@ -173,6 +176,7 @@ func (s *Service) EnqueueAdmitted(
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
 	}
+	insert.Supersede = supersede
 	receipt, entry, position, created, err := admissionStore.EnqueueAdmittedSessionInput(
 		ctx,
 		admission,

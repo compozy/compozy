@@ -4063,3 +4063,50 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		})
 	})
 }
+
+// Invariant: a queue lease a previous daemon process left in dispatching settles as failed with the
+// unknown-outcome summary on boot, so it stops holding capacity, while queued input is untouched and
+// boot proceeds. Owner: daemon boot repair integration (#760).
+func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
+	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		target, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		queue, ok := d.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", d.registry)
+		}
+		now := time.Now().UTC()
+		for index, id := range []string{"inq-stranded", "inq-waiting"} {
+			if _, _, err := queue.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+				ID: id, SessionID: target.ID, Text: id, QueueCap: 10, Now: now.Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		claimed, ok, err := queue.ClaimNextSessionInput(t.Context(), target.ID, now)
+		if err != nil || !ok || claimed.ID != "inq-stranded" {
+			t.Fatalf("claim = %q/%v/%v, want the stranded lease", claimed.ID, ok, err)
+		}
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		reopened, ok := restarted.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", restarted.registry)
+		}
+		stranded, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-stranded")
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed ||
+			stranded.FailureSummary != store.SessionInputStaleDispatchSummary {
+			t.Fatalf("stranded = %q/%q, %v; want failed by boot recovery", stranded.Status, stranded.FailureSummary, err)
+		}
+		waiting, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-waiting")
+		if err != nil || waiting.Status == store.SessionInputQueueStatusFailed {
+			t.Fatalf("waiting = %q, %v; want queued input untouched by the sweep", waiting.Status, err)
+		}
+	})
+}
