@@ -45291,7 +45291,7 @@ export interface operations {
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "created" | "last_activity" | "attention" | "navigator";
+        sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -56952,7 +56952,7 @@ export interface operations {
                 /** @enum {string} */
                 scope: "workspace" | "all-workspaces";
                 /** @enum {string} */
-                sort: "last_activity" | "attention";
+                sort: "created" | "name" | "last_activity" | "attention";
               };
             };
             /** @enum {string} */
@@ -57022,7 +57022,7 @@ export interface operations {
               /** @enum {string} */
               scope: "workspace" | "all-workspaces";
               /** @enum {string} */
-              sort: "last_activity" | "attention";
+              sort: "created" | "name" | "last_activity" | "attention";
             };
           };
         };
@@ -102984,7 +102984,7 @@ export interface operations {
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "created" | "last_activity" | "attention" | "navigator";
+        sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */

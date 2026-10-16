@@ -1250,7 +1250,10 @@ canonical badge authority as session rows, excluding the selected badge and text
 remain population counts. Durable counts aggregate metadata; active sessions replace their durable
 rows before merging. Attention summaries reuse that aggregation without hydrating historical rows.
 `sort=created` orders by creation time descending, then ID descending; it selects the latest-created
-session even after older sessions receive activity. `sort=navigator` preserves desktop ordering:
+session even after older sessions receive activity. `sort=name` orders the visible title using
+Unicode lowercase ascending, then creation time and ID descending; unnamed rows use `New session`.
+The shell defaults an unset `shell.sessions.sort` to `created`; explicit saved `last_activity` and
+`attention` preferences remain unchanged. Nested rows retain the selected catalog order. `sort=navigator` preserves desktop ordering:
 needs-you, finished, working, then the remaining population; within each band, attention change
 time (or update time) descends and ID ascends. Existing `recent`, `last_activity`, and `attention`
 ordering remain unchanged.

@@ -998,9 +998,9 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config set shell.sessions.scope error = %v", err)
 	}
-	if captured.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
+	if captured.Config.Sessions.Sort != contract.SettingsShellSessionSortCreated ||
 		captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
-		t.Fatalf("daemon shell payload = %#v, want last_activity/all-workspaces", captured.Config)
+		t.Fatalf("daemon shell payload = %#v, want created/all-workspaces", captured.Config)
 	}
 
 	homePaths, err := deps.resolveHome()

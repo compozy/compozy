@@ -13,6 +13,10 @@ func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.Sessi
 		CreatedAt:   info.CreatedAt.UTC(),
 		ID:          strings.TrimSpace(info.ID),
 	}
+	if sortKey == ListSortName {
+		position.Name = new(store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(sessionInfoFromCatalog(info))))
+		position.PrimaryAt = info.CreatedAt.UTC()
+	}
 	if sortKey == ListSortCreated {
 		position.PrimaryAt = info.CreatedAt.UTC()
 	}
@@ -64,6 +68,11 @@ func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAt
 }
 
 func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
+	if left.Name != nil && right.Name != nil {
+		if order := strings.Compare(*left.Name, *right.Name); order != 0 {
+			return order
+		}
+	}
 	if left.NavigatorBand != nil && right.NavigatorBand != nil {
 		if *left.NavigatorBand != *right.NavigatorBand {
 			return *left.NavigatorBand - *right.NavigatorBand

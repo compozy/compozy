@@ -273,7 +273,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Shell == nil {
 					t.Fatal("Shell section = nil")
 				}
-				if got, want := envelope.Shell.Config.Sessions.Sort, compozyconfig.ShellSessionSortLastActivity; got != want {
+				if got, want := envelope.Shell.Config.Sessions.Sort, compozyconfig.ShellSessionSortCreated; got != want {
 					t.Fatalf("Shell session sort = %q, want %q", got, want)
 				}
 				if got, want := envelope.Shell.Config.Sessions.Scope, compozyconfig.ShellSessionScopeWorkspace; got != want {
