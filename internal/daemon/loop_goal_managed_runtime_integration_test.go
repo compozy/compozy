@@ -612,6 +612,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		},
 	)
+	t.Run("Should wait for a durable claim through SQLite contention before executing once", func(t *testing.T) {
+		t.Parallel()
+		testLoopActionClaimContention(t)
+	})
+
 	// Invariant: SQLite contention retries terminal persistence without repeating the action; the real runtime suite owns it.
 	for _, oversized := range []bool{false, true} {
 		t.Run(

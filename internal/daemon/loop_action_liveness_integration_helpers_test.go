@@ -87,6 +87,24 @@ func testLoopActionSettlementIntegration(
 	}
 
 	resolved := compileManagedGoalDefinition(t, suffix, "worker", "main")
+	if suffix == "claim-contention" {
+		definition := resolved.Definition
+		definition.Graph.Nodes[0].Kind = string(loopdsl.ActionRunAgent)
+		definition.Graph.Nodes[0].Session = &loopdsl.SessionSpec{Isolated: true}
+		definition.Graph.Nodes[0].Params = loopdsl.NodeParams{
+			"agent":  "worker",
+			"prompt": "Complete the claimed task",
+			"output_schema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"status": map[string]any{"type": "string"}},
+			},
+		}
+		var err error
+		resolved, err = looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	run := looppkg.Run{
 		ID:                looppkg.RunID("looprun-" + suffix),
 		WorkspaceID:       looppkg.WorkspaceID(workspaceID),
@@ -111,6 +129,7 @@ func testLoopActionSettlementIntegration(
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
 		looppkg.WithActionGoalExecutor(executor),
+		looppkg.WithActionRunAgentExecutor(executor),
 		looppkg.WithActionDefaultMaxResultBytes(actionResultMaxBytes),
 	)
 	if err != nil {
@@ -773,4 +792,95 @@ func (*contendedLoopActionExecutor) Harvest(
 	_ loopdsl.Node,
 ) (looppkg.ActionOutput, error) {
 	return looppkg.ActionOutput{Value: raw.Value}, nil
+}
+
+func testLoopActionClaimContention(t *testing.T) {
+	t.Helper()
+	executor := &claimCheckingLoopActionExecutor{}
+	var observed *contendedLoopClaimManager
+	testLoopActionSettlementIntegration(t, "claim-contention", executor, taskpkg.MaxResultBytes, false,
+		func(db *globaldb.GlobalDB, runtime *loopActionRuntime) {
+			executor.db = db
+			observed = &contendedLoopClaimManager{loopActionTaskManager: runtime.manager, db: db, ctx: t.Context()}
+			runtime.manager = observed
+			runtime.persistenceAttemptTimeout = 100 * time.Millisecond
+		})
+	if observed.calls.Load() < 2 || executor.calls.Load() != 1 {
+		t.Fatalf(
+			"claim/action calls = %d/%d, want retried claim and one action",
+			observed.calls.Load(),
+			executor.calls.Load(),
+		)
+	}
+}
+
+type contendedLoopClaimManager struct {
+	loopActionTaskManager
+	db    *globaldb.GlobalDB
+	ctx   context.Context
+	calls atomic.Int32
+}
+
+func (m *contendedLoopClaimManager) ClaimNextRun(
+	ctx context.Context,
+	criteria taskpkg.ClaimCriteria,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	if m.calls.Add(1) != 1 {
+		return m.loopActionTaskManager.ClaimNextRun(ctx, criteria, actor)
+	}
+	locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		done <- store.ExecuteWriteOperation(m.ctx, m.db.DB(), "hold action claim writer", func(writerCtx context.Context, _ *store.WriteTx) error {
+			close(locked)
+			select {
+			case <-release:
+				return nil
+			case <-writerCtx.Done():
+				return writerCtx.Err()
+			}
+		})
+	}()
+	select {
+	case <-locked:
+	case err := <-done:
+		return nil, err
+	case <-m.ctx.Done():
+		close(release)
+		return nil, m.ctx.Err()
+	}
+	attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+	defer cancel()
+	claim, err := m.loopActionTaskManager.ClaimNextRun(attemptCtx, criteria, actor)
+	close(release)
+	writerErr := <-done
+	return claim, errors.Join(err, writerErr)
+}
+
+type claimCheckingLoopActionExecutor struct {
+	quietLoopActionExecutor
+	db    *globaldb.GlobalDB
+	calls atomic.Int32
+}
+
+func (e *claimCheckingLoopActionExecutor) Execute(
+	ctx context.Context,
+	node loopdsl.Node,
+	in looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
+	e.calls.Add(1)
+	runs, err := e.db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusClaimed})
+	if err != nil {
+		return looppkg.ActionRawResult{}, err
+	}
+	found := false
+	for _, run := range runs {
+		if run.IsLoopWorker() && run.LoopRunID == string(in.LoopRunID) {
+			found = run.ClaimTokenHash != "" && !run.ClaimedAt.IsZero()
+		}
+	}
+	if !found {
+		return looppkg.ActionRawResult{}, errors.New("action has no durably claimed worker")
+	}
+	return e.quietLoopActionExecutor.Execute(ctx, node, in)
 }

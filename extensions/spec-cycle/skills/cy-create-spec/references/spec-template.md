@@ -111,7 +111,7 @@ Main components, their responsibilities, and relationships:
 
 ## Architectural Boundaries
 
-Which packages can and cannot import which. Name new internal packages explicitly. Reference the `daemon/` composition root.
+Which packages can and cannot import which. Name new internal packages explicitly. Reference the target project's actual composition or application entry points.
 
 ## Implementation Design
 
@@ -123,8 +123,8 @@ Critical interfaces pasted as code blocks in the project's primary language — 
 
 Core domain entities and their relationships:
 
-- Every new SQLite column, frontmatter field, or config key listed with purpose and shape (`field TYPE — purpose` or a column table)
-- Side-table-vs-JSON decision stated for every new domain entity: side-tables for matchable state, JSON for opaque metadata only, with the reason
+- Every new storage field, frontmatter field, or config key listed with purpose and shape (`field TYPE — purpose` or a column table)
+- Storage representation and query/index requirements stated for every new persistent domain entity, with the reason
 - Request and response types for APIs
 
 ### API Endpoints
@@ -141,7 +141,7 @@ External services and system boundaries. Include only when the design integrates
 | ----------- | ------------------------- | ----------------------------- | --------------- |
 | [component] | [new/modified/deprecated] | [what changes and risk level] | [action needed] |
 
-Breaking changes list their **delete targets** — code, storage, APIs, CLI, extensions, specs, and `.compozy/tasks/*` artifacts that disappear — each tagged with its SD-013 regime and ladder outcome: user state migrates losslessly in the same change; public surfaces auto-migrate or keep the old shape one release behind the new one (shim at the boundary, removal release named); internal code hard-cuts in the same change. Include "no fallback / no compat shim / no placeholder" clauses for internal targets where drift is likely.
+Breaking changes list their **delete targets** — code, storage, APIs, CLI, extensions, specs, and task artifacts that disappear. Classify each as persisted user state, public surface, or internal code and apply the target project's compatibility policy. Specify lossless migration for affected user state, boundary translation or a deprecation/removal window for public surfaces, and coordinated consumer updates for internal code. Name the removal release for any temporary shim. Record unresolved compatibility decisions rather than assuming a repository-specific policy.
 
 ## Extensibility Integration Plan
 
