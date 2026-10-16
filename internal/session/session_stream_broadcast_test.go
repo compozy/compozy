@@ -185,7 +185,13 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer cancel()
-		before := &Info{ID: "system-automation", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, Type: SessionTypeSystem, State: StateActive}
+		before := &Info{
+			ID:          "system-automation",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: h.workspaceID,
+			Type:        SessionTypeSystem,
+			State:       StateActive,
+		}
 		after := *before
 		after.PendingClarifyCount = 1
 		h.manager.publishLifecycleAttentionTransition(ctx, before, &after)
@@ -207,7 +213,15 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer cancel()
-		sess, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem, RuntimeMode: RuntimeModeVerdictOnly})
+		sess, err := h.manager.Create(
+			ctx,
+			CreateOpts{
+				AgentName:   "coder",
+				Workspace:   h.workspaceID,
+				Type:        SessionTypeSystem,
+				RuntimeMode: RuntimeModeVerdictOnly,
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

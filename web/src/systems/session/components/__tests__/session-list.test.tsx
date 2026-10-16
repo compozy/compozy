@@ -59,6 +59,7 @@ function renderList(
   overrides: {
     sessions?: SessionPayload[];
     revealedSession?: SessionPayload | null;
+    currentSessionId?: string;
     collapsedThreadIds?: string[];
     view?: SessionListViewModel;
   } = {}
@@ -81,6 +82,7 @@ function renderList(
     open: true,
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
+    currentSessionId: overrides.currentSessionId,
     disconnected: false,
     collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view: overrides.view ?? view,
@@ -238,7 +240,7 @@ describe("SessionList selection", () => {
 // children keep nesting, and a subagent session has no standalone archive verb.
 // Owner: SessionList through its sidebar host (same suite as the selection invariants).
 describe("SessionList subagents", () => {
-  const lineage = (parent: string, spawnRole?: string): SessionPayload["lineage"] => ({
+  const lineage = (parent: string, spawnRole?: string): NonNullable<SessionPayload["lineage"]> => ({
     parent_session_id: parent,
     root_session_id: parent,
     kind: "spawn",

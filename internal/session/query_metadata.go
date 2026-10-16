@@ -157,7 +157,8 @@ func sessionInfoFromMeta(meta *store.SessionMeta) *Info {
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	return &Info{
-		VerdictOnly:              meta.CreationProfile != nil && meta.CreationProfile.RuntimeMode == RuntimeModeVerdictOnly,
+		VerdictOnly: meta.CreationProfile != nil &&
+			meta.CreationProfile.RuntimeMode == RuntimeModeVerdictOnly,
 		ID:                       meta.ID,
 		ProfileID:                strings.TrimSpace(meta.ProfileID),
 		Name:                     meta.Name,

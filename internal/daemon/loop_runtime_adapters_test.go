@@ -227,9 +227,6 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("binding.SessionID = %q, want %q", got, want)
 		}
 		createCall := sessions.singleCreateCall(t)
-		if createCall.ProvenanceParentSessionID != "sess-goal-owner" || createCall.Type != session.SessionTypeSystem {
-			t.Fatalf("judge ownership = %#v", createCall)
-		}
 
 		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
@@ -772,6 +769,9 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("Judge() error = %v", err)
 		}
 		createCall := sessions.singleCreateCall(t)
+		if createCall.ProvenanceParentSessionID != "sess-goal-owner" || createCall.Type != session.SessionTypeSystem {
+			t.Fatalf("judge ownership = %#v", createCall)
+		}
 
 		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)

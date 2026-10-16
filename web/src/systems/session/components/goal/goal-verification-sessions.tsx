@@ -1,30 +1,24 @@
 import { useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@compozy/ui";
 
-import { sessionsListOptions } from "../../lib/query-options";
-import { flattenSessionPages } from "../../lib/session-list-query";
+import { useGoalVerificationSessions } from "../../hooks/use-goal-verification-sessions";
 
 function VerificationSessionList({ sessionId }: { sessionId: string }) {
-  const query = useInfiniteQuery({
-    ...sessionsListOptions({ parent: sessionId, type: "system", all_profiles: true }),
-    refetchInterval: 5_000,
-  });
-  const sessions = flattenSessionPages(query.data) ?? [];
+  const query = useGoalVerificationSessions(sessionId);
   return (
-    <div className="flex flex-col gap-1">
+    <span className="flex flex-col gap-1">
       {query.isPending ? <span>Loading verification sessions…</span> : null}
       {query.isError ? (
         <Button variant="ghost" size="xs" onClick={() => void query.refetch()}>
           Retry verification sessions
         </Button>
       ) : null}
-      {query.isSuccess && sessions.length === 0 ? (
+      {query.isSuccess && query.sessions.length === 0 ? (
         <span>No verification sessions recorded.</span>
       ) : null}
-      {sessions.map(session => (
+      {query.sessions.map(session => (
         <Link
           key={session.id}
           to="/session/$id"
@@ -44,14 +38,14 @@ function VerificationSessionList({ sessionId }: { sessionId: string }) {
           Load more verification sessions
         </Button>
       ) : null}
-    </div>
+    </span>
   );
 }
 
 export function GoalVerificationSessions({ sessionId }: { sessionId: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex flex-col gap-1">
+    <span className="flex flex-col gap-1">
       <Button
         variant="ghost"
         size="xs"
@@ -61,6 +55,6 @@ export function GoalVerificationSessions({ sessionId }: { sessionId: string }) {
         Verification sessions
       </Button>
       {open ? <VerificationSessionList sessionId={sessionId} /> : null}
-    </div>
+    </span>
   );
 }

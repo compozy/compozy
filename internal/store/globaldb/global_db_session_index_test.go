@@ -101,8 +101,15 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				}
 				continue
 			}
-			profile := store.SessionCreationProfile{Version: store.SessionCreationProfileVersion, AgentName: "judge", Provider: "mock",
-				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, CWD: t.TempDir(), RuntimeMode: "verdict-only"}
+			profile := store.SessionCreationProfile{
+				Version:     store.SessionCreationProfileVersion,
+				AgentName:   "judge",
+				Provider:    "mock",
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: workspace,
+				CWD:         t.TempDir(),
+				RuntimeMode: "verdict-only",
+			}
 			ref, err := db.PutSessionCreationProfile(ctx, profile)
 			if err != nil {
 				t.Fatal(err)
@@ -111,7 +118,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			digest, err := profile.CreationDigest(store.SessionCreationOptions{SessionID: id, SessionType: info.SessionType})
+			digest, err := profile.CreationDigest(
+				store.SessionCreationOptions{SessionID: id, SessionType: info.SessionType},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +147,10 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil || page.Total != 2 || len(page.Sessions) != 2 {
 			t.Fatalf("audit = %#v, %v", page, err)
 		}
-		if !slices.ContainsFunc(page.Sessions, func(info store.SessionInfo) bool { return info.ID == "judge" && info.VerdictOnly }) {
+		if !slices.ContainsFunc(
+			page.Sessions,
+			func(info store.SessionInfo) bool { return info.ID == "judge" && info.VerdictOnly },
+		) {
 			t.Fatalf("missing typed judge = %#v", page)
 		}
 	})

@@ -198,7 +198,7 @@ func runtimeGateInput(
 		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
-		JudgeParentSessionID: strings.TrimSpace(run.Origin.SessionID),
+		JudgeParentSessionID: provenanceSessionID(run),
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
 		Contract:             &contract,

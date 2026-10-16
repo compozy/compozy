@@ -141,6 +141,13 @@ func querySessionCatalogRows(
 	return sessions, nil
 }
 
+func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCatalogPageQuery) []string {
+	if query.ExcludeVerdictOnly {
+		where = append(where, "NOT "+sessionCatalogVerdictOnlyExpression)
+	}
+	return appendSubagentSessionFilter(where, query.Subagents)
+}
+
 func sessionCatalogPageFilters(
 	query store.SessionCatalogPageQuery,
 	now string,
@@ -156,9 +163,6 @@ func sessionCatalogPageFilters(
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
-	if query.ExcludeVerdictOnly {
-		where = append(where, "NOT "+sessionCatalogVerdictOnlyExpression)
-	}
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		if query.SearchFields == "title_agent" {
 			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
@@ -192,7 +196,7 @@ func sessionCatalogPageFilters(
 		}
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
-	where = appendSubagentSessionFilter(where, query.Subagents)
+	where = appendSessionCatalogVisibilityFilters(where, query)
 	if query.Resumable {
 		where = append(where, sessionListResumableWhere)
 		args = append(args, now)
