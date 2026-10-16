@@ -498,14 +498,11 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 
 		manager, taskRecord, run := newLoopActionLivenessTestFixture()
 		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
-		activityAt := time.Now().UTC()
 		runtime, err := newLoopActionRuntime(
 			manager,
 			actionStore,
 			&loopActionLivenessTestRunner{livenessSessionID: "sess-goal-bound", completeAfter: 40 * time.Millisecond},
-			loopActionSessionStatusStub{info: &session.Info{
-				Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{LastActivityAt: &activityAt}},
-			}},
+			&advancingActivitySessionStatus{base: time.Now().UTC()},
 			discardLogger(),
 			nil,
 		)
@@ -531,6 +528,45 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 		if got := manager.bindCalls.Load(); got != 0 {
 			t.Fatalf("BindLeasedRunSession() calls = %d, want no run-session ownership transfer", got)
+		}
+	})
+
+	t.Run("Should not renew liveness from activity that stopped advancing", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		activityAt := base.Add(time.Minute)
+		info := &session.Info{Liveness: &store.SessionLivenessMeta{
+			Activity: &store.SessionActivityMeta{LastActivityAt: &activityAt},
+		}}
+		usage := newLoopActionUsageState(func() time.Time { return base }, nil)
+		usage.ReportActionLivenessSession("sess-goal-stuck")
+		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: info}}
+		refresh := func(label string) bool {
+			t.Helper()
+			evidence, err := runtime.refreshActionProgress(t.Context(), usage)
+			if err != nil {
+				t.Fatalf("refreshActionProgress(%s) error = %v", label, err)
+			}
+			return evidence
+		}
+
+		if !refresh("first observation") {
+			t.Fatal("first observation of new activity = no evidence, want evidence")
+		}
+		if refresh("unchanged activity") {
+			t.Fatal("unchanged activity = evidence, want silence to keep accruing")
+		}
+		info.Liveness.Activity.CurrentTool = "Bash"
+		if !refresh("in-flight tool") {
+			t.Fatal("in-flight tool = no evidence, want evidence")
+		}
+		info.Liveness.Activity.CurrentTool = ""
+		advanced := activityAt.Add(time.Second)
+		info.Liveness.Activity.LastActivityAt = &advanced
+		info.Liveness.StallState = store.SessionStallStateDetected
+		if refresh("stalled with new activity") {
+			t.Fatal("detected stall = evidence, want no evidence")
 		}
 	})
 
@@ -1025,6 +1061,27 @@ func (s loopActionSessionStatusStub) Events(
 	store.EventQuery,
 ) ([]store.SessionEvent, error) {
 	return append([]store.SessionEvent(nil), s.events...), s.err
+}
+
+// advancingActivitySessionStatus reports a session whose activity advances on every read.
+type advancingActivitySessionStatus struct {
+	base  time.Time
+	reads atomic.Int64
+}
+
+func (s *advancingActivitySessionStatus) Status(context.Context, string) (*session.Info, error) {
+	at := s.base.Add(time.Duration(s.reads.Add(1)) * time.Second)
+	return &session.Info{Liveness: &store.SessionLivenessMeta{
+		Activity: &store.SessionActivityMeta{LastActivityAt: &at},
+	}}, nil
+}
+
+func (s *advancingActivitySessionStatus) Events(
+	context.Context,
+	string,
+	store.EventQuery,
+) ([]store.SessionEvent, error) {
+	return nil, nil
 }
 
 func claimRunForDaemonTest(

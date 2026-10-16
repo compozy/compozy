@@ -2203,6 +2203,69 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	}
 }
 
+func TestCompactionMarkersAcrossConcurrentAppends(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not lend a later compaction's usage to an earlier one appended between reads", func(t *testing.T) {
+		t.Parallel()
+
+		row := func(t *testing.T, sequence int64, event acp.AgentEvent) store.SessionEvent {
+			t.Helper()
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatalf("MarshalAgentEvent(%d) error = %v", sequence, err)
+			}
+			return store.SessionEvent{Sequence: sequence, Type: event.Type, TurnID: event.TurnID, Content: content}
+		}
+		fired := func(t *testing.T, sequence int64, id string) store.SessionEvent {
+			t.Helper()
+			raw, err := json.Marshal(CompactionFiredPayload{CompactionID: id, Trigger: "agent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return row(t, sequence, acp.AgentEvent{Type: events.SessionCompactionFired, TurnID: id, Raw: raw})
+		}
+		terminal := func(t *testing.T, sequence int64, id string) store.SessionEvent {
+			t.Helper()
+			return row(t, sequence, acp.AgentEvent{Type: acp.EventTypeCompaction, TurnID: id,
+				Compaction: &acp.CompactionObservation{CompactionID: id, Status: "completed", Terminal: true}})
+		}
+		// Compaction A completed with no later usage yet; B completes after the first reads.
+		history := []store.SessionEvent{fired(t, 1, "a"), terminal(t, 2, "a")}
+		later := []store.SessionEvent{
+			fired(t, 3, "b"),
+			terminal(t, 4, "b"),
+			row(t, 5, acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: "b",
+				Usage: &acp.TokenUsage{ContextUsed: new(int64(7)), ContextSize: new(int64(100))}}),
+		}
+		reads := 0
+		read := func(_ context.Context, kind string) ([]store.SessionEvent, error) {
+			reads++
+			// B lands after the probe and the fired read, before usage is read.
+			if reads == 3 {
+				history = append(history, later...)
+			}
+			result := make([]store.SessionEvent, 0)
+			for _, event := range history {
+				if event.Type == kind {
+					result = append(result, event)
+				}
+			}
+			return result, nil
+		}
+
+		markers, err := compactionMarkers(t.Context(), read)
+		if err != nil {
+			t.Fatalf("compactionMarkers() error = %v", err)
+		}
+		for _, marker := range markers {
+			if marker.Payload.CompactionID == "a" && marker.ContextAfter != nil {
+				t.Fatalf("compaction a ContextAfter = %#v, want none: usage at 5 follows compaction b", marker.ContextAfter)
+			}
+		}
+	})
+}
+
 func TestManagerLatestSessionEventByType(t *testing.T) {
 	t.Parallel()
 

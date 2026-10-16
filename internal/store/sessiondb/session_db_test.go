@@ -318,6 +318,83 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			t.Fatalf("WAL peak/final = %d/%d bytes, want truncation below %d after exceeding it", peak, info.Size(), limit)
 		}
 	})
+
+	// Invariant: an oversized WAL shrinks once writes stop, and a truncation deferred by a reader
+	// is retried after the reader leaves, without waiting for another checkpoint interval.
+	t.Run("Should truncate after writes stop and retry once a blocking reader leaves", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sessionDB, err := OpenSessionDB(ctx, testSessionDBOwner("sess-wal-idle"), path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sessionDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		const limit = 256 << 10
+		sessionDB.walTruncateBytes.Store(limit)
+		sessionDB.walMaintenanceDelayOverride.Store(int64(20 * time.Millisecond))
+		walSize := func() int64 {
+			info, err := os.Stat(path + "-wal")
+			if err != nil {
+				return 0
+			}
+			return info.Size()
+		}
+		waitForWAL := func(label string, done func(int64) bool) {
+			t.Helper()
+			deadline := time.Now().Add(5 * time.Second)
+			for !done(walSize()) {
+				if time.Now().After(deadline) {
+					t.Fatalf("%s: WAL = %d bytes after 5s", label, walSize())
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+		payload := strings.Repeat("x", 2048)
+		record := func(count int) {
+			t.Helper()
+			for idx := range count {
+				if err := sessionDB.Record(ctx, SessionEvent{
+					TurnID:    fmt.Sprintf("turn-%d-%d", count, idx),
+					Type:      "agent_message",
+					AgentName: "coder",
+					Content:   fmt.Sprintf(`{"text":%q}`, payload),
+				}); err != nil {
+					t.Fatalf("Record(%d) error = %v", idx, err)
+				}
+			}
+		}
+
+		record(sessionPassiveCheckpointEvery / 2)
+		waitForWAL("idle after writes", func(size int64) bool { return size < limit })
+
+		reader, err := sessionDB.db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("Conn(reader) error = %v", err)
+		}
+		t.Cleanup(func() { _ = reader.Close() })
+		if _, err := reader.ExecContext(ctx, "BEGIN"); err != nil {
+			t.Fatalf("BEGIN(reader) error = %v", err)
+		}
+		var events int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM events").Scan(&events); err != nil {
+			t.Fatalf("SELECT(reader) error = %v", err)
+		}
+		record(sessionPassiveCheckpointEvery / 2)
+		time.Sleep(sessionWALTruncateWait + 100*time.Millisecond)
+		if size := walSize(); size < limit {
+			t.Fatalf("WAL = %d bytes while a reader holds its snapshot, want truncation deferred", size)
+		}
+		if _, err := reader.ExecContext(ctx, "COMMIT"); err != nil {
+			t.Fatalf("COMMIT(reader) error = %v", err)
+		}
+		waitForWAL("retry after reader left", func(size int64) bool { return size < limit })
+	})
 }
 
 func TestSessionDBAppendEventIfAbsent(t *testing.T) {
@@ -810,7 +887,10 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if _, err := holder.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 			t.Fatal(err)
 		}
-		bounded, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		// The holder keeps the write lock for the whole call, so a lock-waiting read blocks until
+		// this bound. It stays below the 5s busy timeout while leaving room for the guarded
+		// connection open, which takes ~300ms under a parallel -race package run.
+		bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		initializeErr := initializeTranscriptProjectionState(bounded, db.db)
 		if _, err := holder.ExecContext(ctx, "ROLLBACK"); err != nil {

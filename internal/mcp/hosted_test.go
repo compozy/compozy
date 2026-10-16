@@ -921,11 +921,15 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 
 		executable := hostedTestExecutable(t, "compozy")
 		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		var generationLookups atomic.Int64
 		service := newHostedTestServiceWithProjectionGeneration(
 			t,
 			executable,
 			registry,
-			func(context.Context, tools.Scope) (string, bool) { return "", false },
+			func(context.Context, tools.Scope) (string, bool) {
+				generationLookups.Add(1)
+				return "", false
+			},
 		)
 		peer := hostedTestPeer(executable)
 		bind := hostedTestBind(t, service, "sess-unversioned-stream", peer)
@@ -935,6 +939,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		service.now = func() time.Time { return current }
 		service.projectionEpoch = epoch.Load
 		baselineCalls := registry.listCallCount()
+		baselineLookups := generationLookups.Load()
 		stream := func(label string) HostedProjectionResponse {
 			t.Helper()
 			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
@@ -950,6 +955,9 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
 			t.Fatalf("registry List calls = %d, want %d within one refresh interval", got, want)
+		}
+		if got, want := generationLookups.Load(), baselineLookups+1; got != want {
+			t.Fatalf("generation lookups = %d, want %d within one refresh interval", got, want)
 		}
 
 		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})

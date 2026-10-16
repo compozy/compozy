@@ -3068,7 +3068,10 @@ Owner: branch `daemon-cpu-attention`.
   action port (`loop.ReportActionLivenessSession`). The action heartbeat uses that session's activity
   as evidence, so a working Goal no longer raises `silence` or a false session `needs-attention`. It
   binds no `task_runs.session_id` and adds no confirmed-death resume for Goal segments. Persisted
-  false `silence` flags clear on the next evidence through the existing path.
+  false `silence` flags clear on the next evidence through the existing path. For every action
+  node, evidence now requires session activity newer than the last observation or an in-flight
+  tool, and a detected stall removes it. A session that stays alive without new activity therefore
+  still reaches its silence window instead of renewing liveness from a stale timestamp.
 - #762 hosted MCP: the projection stream (`/internal/hosted-mcp/projection/stream`, UDS) calls
   `HostedService.StreamProjection`. Without an authoritative generation (always today, because native
   availability carries none), it reuses the bind's last projection for at most 1s unless the daemon
@@ -3077,10 +3080,13 @@ Owner: branch `daemon-cpu-attention`.
   within about 1s instead of 100ms.
 - #764 usage reads: `session.Manager.Compactions` reads only compaction, compaction-fired, usage and
   done rows instead of the whole history, and returns early when a session has no compaction marker.
-  This lowers the cost of `/usage` and `/usage/turns` for large sessions. The attention bell's
+  This lowers the cost of `/usage` and `/usage/turns` for large sessions. Markers are read after the
+  usage rows, so a compaction appended between reads cannot lend its usage to an earlier one. The attention bell's
   per-workspace inbox fan-out is unchanged and stays open on #764.
 - #765 session WAL: after each passive checkpoint, the session writer truncates a WAL above 16MB,
-  letting readers delay it by at most 200ms before it retries next cycle.
+  letting readers delay it by at most 200ms. The writer goroutine also checkpoints after 1s idle
+  following writes and retries a deferred truncation with 1s–30s backoff, so the WAL shrinks
+  without waiting for another 128 writes.
   `store.CheckpointTruncateConnection` exposes the existing busy-aware TRUNCATE on an acquired
   connection.
 - SD-013: no persisted shape, migration, config key, CLI, HTTP/UDS DTO, hook, extension SDK or

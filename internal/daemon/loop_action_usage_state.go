@@ -16,8 +16,10 @@ type loopActionUsageState struct {
 	// livenessSessionID names a session whose activity proves progress without owning the run's session link.
 	livenessSessionID string
 	progressAt        time.Time
-	now               func() time.Time
-	onSessionBound    func(sessionID string) bool
+	// observedActivityAt is the newest session activity already counted as liveness evidence.
+	observedActivityAt time.Time
+	now                func() time.Time
+	onSessionBound     func(sessionID string) bool
 }
 
 type loopActionProgressSnapshot struct {
@@ -118,6 +120,21 @@ func (s *loopActionUsageState) retryPendingSessionBinding() {
 			return
 		}
 	}
+}
+
+// observeActivity reports whether at is newer than every activity already observed.
+func (s *loopActionUsageState) observeActivity(at time.Time) bool {
+	at = at.UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !at.After(s.observedActivityAt) {
+		return false
+	}
+	s.observedActivityAt = at
+	if at.After(s.progressAt) {
+		s.progressAt = at
+	}
+	return true
 }
 
 func (s *loopActionUsageState) recordProgress() {

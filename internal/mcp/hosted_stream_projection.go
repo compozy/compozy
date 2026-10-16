@@ -19,8 +19,8 @@ type hostedUnversionedProjection struct {
 }
 
 // StreamProjection serves projection-stream polls. Authoritative generations reuse the per-bind
-// cache; an unversioned projection is rebuilt at most once per refresh interval unless the daemon
-// projection epoch advanced. Projection stays fresh on every call for one-shot reads.
+// cache; an unversioned projection, and its generation lookup, run at most once per refresh
+// interval unless the daemon projection epoch advanced. Projection stays fresh for one-shot reads.
 func (s *HostedService) StreamProjection(
 	ctx context.Context,
 	bindID string,
@@ -29,6 +29,13 @@ func (s *HostedService) StreamProjection(
 	record, err := s.recordForBind(ctx, bindID, peer)
 	if err != nil {
 		return HostedProjectionResponse{}, err
+	}
+	// A fresh unversioned entry exists only after the generation was unknown; serving it first
+	// skips repeating that lookup inside the refresh window.
+	if cached, ok := s.projectionCache.loadUnversioned(
+		record.bindID, s.currentProjectionEpoch(), s.now(),
+	); ok {
+		return cached, nil
 	}
 	registry := s.currentRegistry()
 	if registry == nil {

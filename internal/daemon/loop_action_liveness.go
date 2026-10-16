@@ -181,18 +181,16 @@ func (r *loopActionRuntime) refreshActionProgress(
 	if info.Liveness == nil {
 		return true, nil
 	}
-	if info.Liveness.Activity == nil {
-		return info.Liveness.StallState != store.SessionStallStateDetected, nil
-	}
+	stalled := info.Liveness.StallState == store.SessionStallStateDetected
 	activity := info.Liveness.Activity
-	if activity.LastActivityAt != nil && activity.LastActivityAt.After(snapshot.progressAt) {
-		usage.mu.Lock()
-		if activity.LastActivityAt.After(usage.progressAt) {
-			usage.progressAt = activity.LastActivityAt.UTC()
-		}
-		usage.mu.Unlock()
+	if activity == nil {
+		return !stalled, nil
 	}
-	return true, nil
+	fresh := activity.LastActivityAt != nil && usage.observeActivity(*activity.LastActivityAt)
+	inFlightTool := strings.TrimSpace(activity.CurrentTool) != "" || strings.TrimSpace(activity.ToolCallID) != ""
+	// Only activity newer than the last observation is evidence; a stale timestamp would
+	// otherwise renew liveness forever and hide a stuck node from its silence window.
+	return !stalled && (fresh || inFlightTool), nil
 }
 
 func (r *loopActionRuntime) recordActionLiveness(
