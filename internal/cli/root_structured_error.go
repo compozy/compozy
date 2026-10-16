@@ -25,6 +25,9 @@ func marshalStructuredPayload(args []string, payload any) ([]byte, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if refreshErr, ok := errors.AsType[*providerModelRefreshAPIError](err); ok {
+		return marshalStructuredPayload(args, refreshErr.payload)
+	}
 	if payload, ok := marshalSkillExposureExecutionError(args, err); ok {
 		return payload, true
 	}
