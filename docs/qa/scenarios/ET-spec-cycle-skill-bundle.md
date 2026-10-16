@@ -44,3 +44,21 @@ remains a separate QA walk.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+QA impact 2026-10-16 (#736): in a workspace without this repository's internal
+skills or policy files, read bundled `cy-create-spec` and its applicable templates.
+Create a small non-Go spec through all eight steps: product/stories, public DX,
+technical design, tests, inline self-check, saved files, and optional independent
+review only after approval. Repeat with a UI-bearing spec: use the target project's
+components/tokens/copy sources, never Compozy repository paths. No unshipped skill
+or helper may be required. The nine-skill catalog remains unchanged. For rebase
+helpers, invoke the installed absolute script path from a foreign repository;
+follow-up script paths must resolve beside that installed helper.
+
+Verification scope: the owning `TestEmbeddedResourcesShouldKeepBundleContract`
+materializes the real extension into a fresh home, checks dependency closure, and
+executes the installed validator in a foreign Git repository (clean and conflict
+cases). Managed-install update coverage checks the replacement payload. This is
+focused product-artifact evidence; the provider-authored spec journey remains
+pending CI/authorized runtime QA. No daemon lab was started for this fix.

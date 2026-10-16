@@ -10,6 +10,7 @@ echo "🔍 Merge/Rebase Validation"
 echo "======================================"
 echo ""
 
+helper_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 EXIT_CODE=0
 UNMERGED_FILES=()
 while IFS= read -r -d '' file; do
@@ -65,7 +66,7 @@ if git status --porcelain | grep -q '^ M\| ??'; then
     echo "   ⚠️  Unstaged changes found:"
     git status --short | sed 's/^/   /'
     echo ""
-    echo "   Tip: Run 'git add .' to stage all changes"
+    echo "   Stage only the resolved paths owned by this operation"
 else
     echo "   ✓ Working directory clean"
 fi
@@ -117,8 +118,8 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Validation PASSED - Ready for testing!"
     echo ""
     echo "Next steps:"
-    echo "  1. Run from the repository root: make gate"
-    echo "  2. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
+    echo "  1. Run the target repository documented validation commands"
+    echo "  2. Run the checks for the changed language and packages"
     echo "  3. Run a manual smoke test if needed"
     echo "  4. Then: git rebase --continue"
 else
@@ -129,7 +130,7 @@ else
     echo "  - Git shows unresolved conflicts"
     echo "  - Other validation errors above"
     echo ""
-    echo "Fix and run from the repository root: bash .agents/skills/git-rebase/scripts/validate-merge.sh"
+    printf 'Fix and run from the repository root: bash %q\n' "$helper_dir/validate-merge.sh"
 fi
 
 exit $EXIT_CODE

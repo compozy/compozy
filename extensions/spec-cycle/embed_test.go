@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -405,6 +406,95 @@ func TestEmbeddedResourcesShouldKeepBundleContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve workflow dependencies inside the installed bundle", func(t *testing.T) {
+		t.Parallel()
+
+		// These instruction artifacts are the product: installation must not rely on
+		// a source checkout to supply skills, resources, scripts, or internal policy.
+		skillReference := regexp.MustCompile(`\b(?:cy|eng|ui)-[a-z][a-z0-9-]*\b`)
+		listedSkillReference := regexp.MustCompile(`(?m)^[ \t]*- ([a-z][a-z0-9]*(?:-[a-z0-9]+)+):`)
+		resourceReference := regexp.MustCompile(`(?:references|scripts)/[a-zA-Z0-9_./-]+\.(?:md|sh|py)\b`)
+		internalReference := regexp.MustCompile(`SD-[0-9]+|docs/_memory/|\.agents/skills/|packages/(?:ui|site)|web/src/systems/|@compozy/ui`)
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !slices.Contains([]string{".md", ".yaml", ".sh", ".py"}, filepath.Ext(path)) {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			body := string(data)
+			for _, name := range skillReference.FindAllString(body, -1) {
+				if !slices.Contains(bundledSkillNames, name) {
+					t.Errorf("%s references unshipped skill %q", path, name)
+				}
+			}
+			for _, match := range listedSkillReference.FindAllStringSubmatch(body, -1) {
+				if !slices.Contains(bundledSkillNames, match[1]) {
+					t.Errorf("%s requires unshipped skill %q", path, match[1])
+				}
+			}
+			if reference := internalReference.FindString(body); reference != "" {
+				t.Errorf("%s depends on repository-only reference %q", path, reference)
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			parts := strings.Split(filepath.ToSlash(rel), "/")
+			if len(parts) < 3 || parts[0] != "skills" {
+				return nil
+			}
+			for _, resource := range resourceReference.FindAllString(body, -1) {
+				if _, err := os.Stat(filepath.Join(root, "skills", parts[1], filepath.FromSlash(resource))); err != nil {
+					t.Errorf("%s references unavailable skill resource %q: %v", path, resource, err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should run installed rebase helpers from a foreign repository", func(t *testing.T) {
+		t.Parallel()
+
+		repository := t.TempDir()
+		runGit := func(args ...string) {
+			t.Helper()
+			command := exec.CommandContext(t.Context(), "git", args...)
+			command.Dir = repository
+			command.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v\n%s", args, err, output)
+			}
+		}
+		runGit("init", "-b", "main")
+		runGit("-c", "user.name=Bundle test", "-c", "user.email=bundle@example.invalid", "commit", "--allow-empty", "-m", "Initial")
+		// No source-checkout skills, Makefile, or language toolchain exist here.
+		validator := filepath.Join(root, "skills", "git-rebase", "scripts", "validate-merge.sh")
+		command := exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("installed validator: %v\n%s", err, output)
+		}
+		if err := os.WriteFile(filepath.Join(repository, "conflict.txt"), []byte("<<<<<<< ours\nleft\n=======\nright\n>>>>>>> theirs\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runGit("add", "conflict.txt")
+		command = exec.CommandContext(t.Context(), "bash", validator)
+		command.Dir = repository
+		output, err := command.CombinedOutput()
+		if err == nil || !strings.Contains(string(output), "Validation FAILED") ||
+			!strings.Contains(string(output), "conflict.txt") || !strings.Contains(string(output), validator) {
+			t.Fatalf("installed validator with conflict: err=%v\n%s", err, output)
+		}
+	})
+
 	t.Run("Should exclude retired commands and skills", func(t *testing.T) {
 		t.Parallel()
 
@@ -642,8 +732,8 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		fixBatch := requireSpecCycleNode(t, def, "fix_batch")
 		prompt := requireStringParam(t, fixBatch, "prompt")
 		for _, required := range []string{
-			"systematic-debugging",
-			"no-workarounds",
+			"Reproduce the failure, trace it to its owning cause, and implement a complete fix",
+			"do not suppress diagnostics or patch only symptoms",
 			"cy-fix-reviews",
 			"cy-final-verify",
 			"Remediate this complete batch of review artifact files",
@@ -1357,8 +1447,8 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 		prompt := string(data)
 		for _, required := range []string{
-			"systematic-debugging",
-			"no-workarounds",
+			"Reproduce the failure, trace it to its owning cause, and implement a complete fix",
+			"do not suppress diagnostics or patch only symptoms",
 			"cy-fix-reviews",
 			"Read every supplied issue file completely before editing code",
 			"fails as a whole",

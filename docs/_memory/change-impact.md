@@ -2741,3 +2741,28 @@ behavior is unchanged. Operator docs cover the desktop preferences. QA owners ar
 APP-desktop-native-edit-shortcuts, ET-profile-identity-appearance-catalogs,
 RT-session-delete-owned-history, and TA-daemon-lifecycle-command-guard; native
 Windows evidence and packaged desktop evidence must be recorded before delivery.
+
+
+## Bundled spec-cycle portability — issue #736 (2026-10-16)
+
+Owner: `fix/issue-736-spec-cycle-skills`. The spec-cycle 0.5.1 instruction payload
+replaces missing preflight/review dependencies with a language-neutral inline
+self-check and optional available reviewer. Templates use the target project's
+compatibility, design, vocabulary, and component authorities. Delivery/review
+instructions and rebase helpers no longer require repository-only skills or paths.
+All shipped skills, references, agents and loops in spec-cycle and open-design
+were audited; connectivity/tailscale and forge/github ship no such resources.
+
+Native tool IDs and schemas, CLI/HTTP/UDS, hooks, config, Web, workspace/profile
+isolation and persisted user data are unchanged. SD-013: this repairs extension
+instruction content without removing a public skill or changing authored task
+shapes; no migration or compatibility shim. The nine-skill catalog stays stable.
+The internal create-spec/create-tasks/final-verify variants remain separate under
+`scripts/postinstall.sh`; the shared execute-task copy inherits the portable edit.
+Official `skills/compozy/` and site API/usage docs stay accurate; no changes needed.
+
+Owning checks: embedded spec-cycle product-contract suite, real materialization
+and managed-install update, dependency closure, and installed shell helper
+execution in a foreign Git repository. QA owner: `ET-spec-cycle-skill-bundle`.
+Heavy daemon/provider-driven walks and full gates are CI-owned by maintainer
+instruction; targeted checks do not establish provider-authored spec quality.
