@@ -35,7 +35,7 @@ CompozyOS archives them on load instead of failing; see
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
-| `[shell.sessions]`                   | Live operator preferences for the session list.                                        | last-activity order, recent sessions                                                                  |
+| `[shell.sessions]`                   | Live operator preferences for the session list.                                        | creation order, this workspace                                                                        |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
 | `[defaults]`                         | Default agent and provider resolution.                                                 | `agent = "general"`, `provider = ""`                                                                  |
@@ -199,10 +199,10 @@ max_per_daemon = 32
 max_subscribers = 16
 
 [shell.sessions]
-# Session ordering: "last_activity" or "attention".
-sort = "last_activity"
-# Session breadth: "recent", "all", or "all-workspaces".
-scope = "recent"
+# Session ordering: "created", "name", "last_activity", or "attention".
+sort = "created"
+# Session breadth: "workspace" or "all-workspaces".
+scope = "workspace"
 
 [cmd_palette]
 # The current runtime accepts "agent". Use [] to disable the fallback row.
@@ -873,10 +873,19 @@ Shell session preferences are global and live-applied as one validated candidate
 updates them through the typed Settings API; operators and agents can also use
 `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 
-| Field   | Type   | Default         | Valid values                      | Description                                              |
-| ------- | ------ | --------------- | --------------------------------- | -------------------------------------------------------- |
-| `sort`  | string | `last_activity` | `last_activity`, `attention`      | Orders sessions by recent activity or attention urgency. |
-| `scope` | string | `recent`        | `recent`, `all`, `all-workspaces` | Chooses the breadth of sessions shown in the shell.      |
+| Field   | Type   | Default     | Valid values                                    | Description                                                            |
+| ------- | ------ | ----------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `sort`  | string | `created`   | `created`, `name`, `last_activity`, `attention` | Newest created first, name A–Z, recent activity, or attention urgency. |
+| `scope` | string | `workspace` | `workspace`, `all-workspaces`                   | Chooses the breadth of sessions shown in the shell.                    |
+
+Created keeps parent and nested child rows still while agents work. Name orders the visible title
+case-insensitively using Unicode lowercase, then creation time descending and ID descending; unnamed
+sessions sort as `New session`. Created uses creation time descending, then ID descending.
+When the automatic title arrives after the first turn, Name may move the row once; subsequent
+renames may move it again. Created stays in place.
+Last activity and Attention first remain opt-in choices. An unset sort uses Created; an explicitly
+persisted `last_activity` or `attention` remains unchanged, even if it matched the previous default.
+No user-state migration or rewrite is performed.
 
 Both fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and

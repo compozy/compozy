@@ -1964,7 +1964,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "e5bfb7774ef89b4306a855dad9bb15d3d4d27b25baf1ae8efb11d063b9d19e48",
+    "input_schema_digest": "aa7c995bfde0c9f6c07377a26661e0ff5bc04f3c80255891074b1fb4fe828c90",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {

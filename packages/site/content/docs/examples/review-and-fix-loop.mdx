@@ -156,9 +156,10 @@ graph:
           Remediate this complete batch of review artifact files now. This prompt is the operator's
           authorization to make scoped code changes; begin immediately without asking for confirmation.
 
-          Required skills:
-          - systematic-debugging: establish the root cause before changing production code.
-          - no-workarounds: implement complete fixes instead of symptom patches.
+          Reproduce the failure, trace it to its owning cause, and implement a complete fix;
+          do not suppress diagnostics or patch only symptoms.
+
+          Required bundled skills:
           - cy-fix-reviews: follow the review-artifact remediation workflow.
           - cy-final-verify: run the repository's real verification before completion or commit.
 

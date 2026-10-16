@@ -18,6 +18,7 @@ const (
 
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
+	Name          *string                     `json:"name,omitzero"`
 	NavigatorBand *int                        `json:"navigator_band,omitzero"`
 	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
 	PrimaryAt     time.Time                   `json:"primary_at"`
@@ -92,6 +93,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	}
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
+	}
+	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
+		return fmt.Errorf("store: name cursor key is required")
 	}
 	if q.After != nil && q.Sort == "navigator" && q.After.NavigatorBand == nil {
 		return fmt.Errorf("store: navigator cursor band is required")

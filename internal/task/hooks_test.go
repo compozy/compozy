@@ -946,12 +946,16 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 
 	taskRecord := Task{
 		ID:           "task-node",
+		ProfileID:    "profile-loop",
 		ParentTaskID: "task-coordinator",
 		WorkspaceID:  "ws-1",
 		Status:       TaskStatusCompleted,
 	}
 
 	payload := manager.taskRunHookContext(run, taskRecord, actor)
+	if payload.ProfileID != taskRecord.ProfileID {
+		t.Fatalf("ProfileID = %q, want owning task profile %q", payload.ProfileID, taskRecord.ProfileID)
+	}
 	if got, want := payload.LoopRunID, "loop-run-1"; got != want {
 		t.Fatalf("LoopRunID = %q, want %q", got, want)
 	}

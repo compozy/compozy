@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	compozysdk "github.com/compozy/compozy/sdk/go"
+	"github.com/gorilla/websocket"
 )
 
 func TestBundledProviderEstablishesBothTiers(t *testing.T) {
@@ -711,7 +712,12 @@ func establishRequest(tier string) compozysdk.ConnectivityEstablishRequest {
 	}
 }
 
-func waitForForwarderHealth(t *testing.T, forwarder *tierForwarder, wantHealth string, wantReason string) {
+func waitForForwarderHealth(
+	t *testing.T,
+	forwarder interface{ Health() (string, string) },
+	wantHealth string,
+	wantReason string,
+) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
@@ -723,4 +729,422 @@ func waitForForwarderHealth(t *testing.T, forwarder *tierForwarder, wantHealth s
 	}
 	health, reason := forwarder.Health()
 	t.Fatalf("Health() = (%q, %q), want (%q, %q)", health, reason, wantHealth, wantReason)
+}
+
+func TestHTTPTierForwarder(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve HTTPS browser requests and replace spoofed forwarding metadata", func(t *testing.T) {
+		t.Parallel()
+		received := make(chan *http.Request, 2)
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- r.Clone(t.Context())
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusUnauthorized)
+			if _, err := io.WriteString(w, "gateway_device_unauthenticated"); err != nil {
+				t.Errorf("write response: %v", err)
+			}
+		}))
+		t.Cleanup(target.Close)
+		listener := newTestListener(t)
+		forwarder, err := newHTTPTierForwarder(
+			listener,
+			strings.TrimPrefix(target.URL, "http://"),
+			"https://gateway.example.ts.net:8443",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		forwarder.Start()
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := forwarder.Close(ctx); err != nil {
+				t.Errorf("close forwarder: %v", err)
+			}
+		})
+		client := &http.Client{Timeout: time.Second}
+		for range 2 {
+			request, err := http.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"http://"+listener.Addr().String()+"/api/gateway/status?pair=1",
+				http.NoBody,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Host = "gateway.example.ts.net:8443"
+			request.Header.Set("Origin", "https://gateway.example.ts.net:8443")
+			request.Header.Set("Sec-Fetch-Site", "same-origin")
+			request.Header.Set("Forwarded", "host=evil.example;proto=http")
+			request.Header.Set("X-Forwarded-Proto", "http")
+			request.Header.Set("X-Forwarded-Host", "evil.example")
+			request.Header.Set("X-Forwarded-For", "127.0.0.1")
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, readErr := io.ReadAll(response.Body)
+			closeErr := response.Body.Close()
+			if readErr != nil || closeErr != nil || response.StatusCode != http.StatusUnauthorized ||
+				string(body) != "gateway_device_unauthenticated" {
+				t.Fatalf("response: status=%d body=%q read=%v close=%v", response.StatusCode, body, readErr, closeErr)
+			}
+			actual := <-received
+			if actual.Host != request.Host || actual.URL.RequestURI() != "/api/gateway/status?pair=1" ||
+				actual.Header.Get(
+					"Origin",
+				) != request.Header.Get(
+					"Origin",
+				) || actual.Header.Get("Sec-Fetch-Site") != "same-origin" ||
+				actual.Header.Get(
+					"X-Forwarded-Proto",
+				) != "https" || actual.Header.Get("X-Forwarded-Host") != request.Host ||
+				actual.Header.Get("Forwarded") != "" || actual.Header.Get("X-Forwarded-For") != "" {
+				t.Fatalf(
+					"changed browser request or trusted client metadata: host=%q url=%s headers=%v",
+					actual.Host,
+					actual.URL,
+					actual.Header,
+				)
+			}
+		}
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"http://"+listener.Addr().String()+"/",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "evil.example"
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusForbidden ||
+			!strings.Contains(string(body), "host not allowed") {
+			t.Fatalf("spoofed host: status=%d body=%q read=%v close=%v", response.StatusCode, body, readErr, closeErr)
+		}
+	})
+	t.Run("Should flush streaming responses and cancel them on teardown", func(t *testing.T) {
+		t.Parallel()
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			if _, err := io.WriteString(w, "data: ready\n\n"); err != nil {
+				t.Errorf("write stream: %v", err)
+				return
+			}
+			if err := http.NewResponseController(w).Flush(); err != nil {
+				t.Errorf("flush stream: %v", err)
+				return
+			}
+			<-r.Context().Done()
+		}))
+		t.Cleanup(target.Close)
+		forwarder, address := newTestHTTPForwarder(t, target.URL)
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"http://"+address+"/stream",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prefix := make([]byte, len("data: ready\n\n"))
+		if _, err := io.ReadFull(response.Body, prefix); err != nil || string(prefix) != "data: ready\n\n" {
+			t.Fatalf("stream prefix=%q error=%v", prefix, err)
+		}
+		if err := forwarder.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadAll(response.Body); err == nil {
+			t.Error("stream remained readable after teardown")
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close stream: %v", err)
+		}
+	})
+	t.Run("Should carry WebSockets and close hijacked connections on teardown", func(t *testing.T) {
+		t.Parallel()
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			upgrader := websocket.Upgrader{}
+			connection, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				t.Errorf("upgrade: %v", err)
+				return
+			}
+			defer func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("close upstream WebSocket: %v", err)
+				}
+			}()
+			kind, payload, err := connection.ReadMessage()
+			if err != nil {
+				t.Errorf("read upstream WebSocket: %v", err)
+				return
+			}
+			if err := connection.WriteMessage(kind, payload); err != nil {
+				t.Errorf("echo WebSocket: %v", err)
+				return
+			}
+			if _, _, err := connection.ReadMessage(); err == nil {
+				t.Error("upstream WebSocket remained open")
+			}
+		}))
+		t.Cleanup(target.Close)
+		forwarder, address := newTestHTTPForwarder(t, target.URL)
+		dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+		connection, response, err := dialer.DialContext(
+			t.Context(),
+			"ws://"+address+"/socket",
+			http.Header{"Host": {"gateway.example.ts.net:8443"}},
+		)
+		if response != nil {
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("close upgrade response: %v", closeErr)
+			}
+		}
+		if err != nil {
+			t.Fatalf("dial WebSocket: %v response=%v", err, response)
+		}
+		defer func() {
+			if err := connection.Close(); err != nil {
+				t.Errorf("close WebSocket: %v", err)
+			}
+		}()
+		if err := connection.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := connection.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
+			t.Fatal(err)
+		}
+		_, payload, err := connection.ReadMessage()
+		if err != nil || string(payload) != "ping" {
+			t.Fatalf("WebSocket echo=%q error=%v", payload, err)
+		}
+		if err := forwarder.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := connection.ReadMessage(); err == nil {
+			t.Error("WebSocket remained open after teardown")
+		}
+	})
+
+	t.Run("Should report backend failure without exposing transport details", func(t *testing.T) {
+		t.Parallel()
+		target := newTestListener(t)
+		address := target.Addr().String()
+		if err := target.Close(); err != nil {
+			t.Fatal(err)
+		}
+		forwarder, proxyAddress := newTestHTTPForwarder(t, "http://"+address)
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"http://"+proxyAddress+"/api/gateway/status",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		response, err := (&http.Client{Timeout: time.Second}).Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusBadGateway ||
+			string(body) != "gateway forward target unavailable\n" {
+			t.Fatalf(
+				"backend failure: status=%d body=%q read=%v close=%v",
+				response.StatusCode,
+				body,
+				readErr,
+				closeErr,
+			)
+		}
+		waitForForwarderHealth(t, forwarder, providerHealthDegraded, "forward target is unavailable")
+	})
+	t.Run("Should report listener failure and close before serving", func(t *testing.T) {
+		t.Parallel()
+		listener := newTestListener(t)
+		forwarder, err := newHTTPTierForwarder(listener, "127.0.0.1:1", "https://gateway.example.ts.net:8443", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Fatal(err)
+		}
+		forwarder.Start()
+		waitForForwarderHealth(t, forwarder, providerHealthDegraded, "listener stopped accepting connections")
+		if err := forwarder.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should keep the provider healthy after an individual request timeout", func(t *testing.T) {
+		t.Parallel()
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/disconnect" {
+				connection, _, err := http.NewResponseController(w).Hijack()
+				if err != nil {
+					t.Errorf("hijack backend: %v", err)
+					return
+				}
+				if err := connection.Close(); err != nil {
+					t.Errorf("close backend before headers: %v", err)
+				}
+				return
+			}
+			if r.URL.Path == "/wait" {
+				<-r.Context().Done()
+				return
+			}
+			if _, err := io.WriteString(w, "ready"); err != nil {
+				t.Errorf("write response: %v", err)
+			}
+		}))
+		t.Cleanup(target.Close)
+		listener := newTestListener(t)
+		forwarder, err := newHTTPTierForwarder(
+			listener,
+			strings.TrimPrefix(target.URL, "http://"),
+			"https://gateway.example.ts.net:8443",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		forwarder.transport.ResponseHeaderTimeout = 250 * time.Millisecond
+		forwarder.Start()
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := forwarder.Close(ctx); err != nil {
+				t.Errorf("close forwarder: %v", err)
+			}
+		})
+		// Consecutive cases share the provider to prove recovery after request failures.
+		for _, test := range []struct {
+			name       string
+			path       string
+			wantStatus int
+			wantBody   string
+		}{
+			{"Should isolate a response-header timeout", "/wait", http.StatusBadGateway, "gateway forward target unavailable\n"},
+			{"Should isolate a backend response failure", "/disconnect", http.StatusBadGateway, "gateway forward target unavailable\n"},
+			{"Should serve another request after both failures", "/ready", http.StatusOK, "ready"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				request, err := http.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"http://"+listener.Addr().String()+test.path,
+					http.NoBody,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Host = "gateway.example.ts.net:8443"
+				response, err := (&http.Client{Timeout: time.Second}).Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, readErr := io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil || closeErr != nil || response.StatusCode != test.wantStatus ||
+					string(body) != test.wantBody {
+					t.Fatalf(
+						"%s: status=%d body=%q read=%v close=%v",
+						test.path,
+						response.StatusCode,
+						body,
+						readErr,
+						closeErr,
+					)
+				}
+				if health, reason := forwarder.Health(); health != providerHealthHealthy || reason != "" {
+					t.Fatalf("Health()=(%q,%q) after %s", health, reason, test.path)
+				}
+			})
+		}
+	})
+	t.Run("Should bound stalled writes and refresh the deadline after progress", func(t *testing.T) {
+		t.Parallel()
+		writer, reader := net.Pipe()
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Errorf("close writer: %v", err)
+			}
+			if err := reader.Close(); err != nil {
+				t.Errorf("close reader: %v", err)
+			}
+		})
+		connection := &httpForwardConn{Conn: shortWriteDeadlineConn{Conn: writer}}
+		written := make(chan error, 1)
+		go func() { _, err := connection.Write([]byte("ping")); written <- err }()
+		select {
+		case err := <-written:
+			if timeout, ok := errors.AsType[net.Error](err); !ok || !timeout.Timeout() {
+				t.Fatalf("stalled write error=%v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("stalled writer was not released")
+		}
+		read := make(chan error, 1)
+		go func() {
+			payload := make([]byte, 4)
+			_, err := io.ReadFull(reader, payload)
+			read <- err
+		}()
+		if _, err := connection.Write([]byte("ping")); err != nil {
+			t.Fatalf("write after expired deadline: %v", err)
+		}
+		if err := <-read; err != nil {
+			t.Fatalf("read after renewed deadline: %v", err)
+		}
+	})
+}
+
+func newTestHTTPForwarder(t *testing.T, targetURL string) (*httpTierForwarder, string) {
+	t.Helper()
+	listener := newTestListener(t)
+	forwarder, err := newHTTPTierForwarder(
+		listener,
+		strings.TrimPrefix(targetURL, "http://"),
+		"https://gateway.example.ts.net:8443",
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	forwarder.Start()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := forwarder.Close(ctx); err != nil {
+			t.Errorf("close HTTP forwarder: %v", err)
+		}
+	})
+	return forwarder, listener.Addr().String()
+}
+
+type shortWriteDeadlineConn struct{ net.Conn }
+
+func (c shortWriteDeadlineConn) SetWriteDeadline(deadline time.Time) error {
+	if !deadline.IsZero() {
+		deadline = time.Now().Add(250 * time.Millisecond)
+	}
+	return c.Conn.SetWriteDeadline(deadline)
 }

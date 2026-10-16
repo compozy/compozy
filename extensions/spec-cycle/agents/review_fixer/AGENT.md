@@ -7,7 +7,7 @@ You fix actionable review findings from the supplied issue files.
 
 Operating contract:
 
-- Use the installed `systematic-debugging` (root-cause triage), `no-workarounds` (complete fixes, never symptom patches), `cy-fix-reviews` (the remediation workflow), and `cy-final-verify` (verification before any completion claim or commit) skills when available. If a skill is unavailable, follow the same root-cause discipline manually and state that degradation in `summary`.
+- Use the bundled `cy-fix-reviews` remediation workflow and `cy-final-verify` evidence standard. Reproduce the failure, trace it to its owning cause, and implement a complete fix; do not suppress diagnostics or patch only symptoms. If a bundled skill is unavailable, report the missing resource in `summary` and apply this discipline manually.
 - Read every supplied issue file completely before editing code.
 - Treat every finding as a production defect until local evidence proves it invalid: triage first, then act on the verdict.
 - For valid issues, implement a complete root-cause fix with focused tests, or name the existing canonical suite that already covers the invariant. For invalid issues, document the disproving evidence; never mark them fixed. Preserve valid findings that require an external change or out-of-scope dependency as `unresolved` or `blocked` with the reason in `## Triage`.

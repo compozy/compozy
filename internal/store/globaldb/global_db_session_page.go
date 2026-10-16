@@ -15,6 +15,7 @@ const (
 	sessionCatalogSpawnRoleColumn   = "spawn_role"
 	sessionCatalogSortRecent        = "recent"
 	sessionCatalogSortCreated       = "created"
+	sessionCatalogSortName          = "name"
 	sessionCatalogSortNavigator     = "navigator"
 	sessionCatalogSortAttention     = "attention"
 )
@@ -298,6 +299,8 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 	switch strings.TrimSpace(sortKey) {
 	case sessionCatalogSortNavigator:
 		return sessionCatalogNavigatorOrderClause, nil
+	case sessionCatalogSortName:
+		return " ORDER BY " + sessionCatalogNameExpression + " ASC, created_at DESC, id DESC", nil
 	case sessionCatalogSortCreated:
 		return heartbeatOrderByCreatedDesc, nil
 	case sessionCatalogSortRecent:
@@ -320,6 +323,12 @@ func sessionCatalogCursorClause(
 	created := store.FormatTimestamp(position.CreatedAt)
 	if strings.TrimSpace(sortKey) == sessionCatalogSortNavigator {
 		return sessionCatalogNavigatorCursorClause(position, primary)
+	}
+	if strings.TrimSpace(sortKey) == sessionCatalogSortName {
+		return `(` + sessionCatalogNameExpression + ` > ? OR (` + sessionCatalogNameExpression + ` = ? AND
+			(created_at < ? OR (created_at = ? AND id < ?))))`, []any{
+			*position.Name, *position.Name, created, created, strings.TrimSpace(position.ID),
+		}
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortCreated {
 		return `(created_at < ? OR (created_at = ? AND id < ?))`, []any{

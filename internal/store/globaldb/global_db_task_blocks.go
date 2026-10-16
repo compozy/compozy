@@ -412,6 +412,9 @@ func (g *TaskRepo) BlockTaskAndReleaseRun(
 		if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
 			return err
 		}
+		if err := taskpkg.RequireLeaseSettlementActor(current, normalized.Actor); err != nil {
+			return err
+		}
 		if strings.TrimSpace(current.TaskID) != strings.TrimSpace(normalized.Block.TaskID) {
 			return fmt.Errorf(
 				"%w: task run %q belongs to task %q, not %q",
