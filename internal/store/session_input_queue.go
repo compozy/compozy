@@ -171,8 +171,11 @@ type SessionInputQueueInsert struct {
 	Origin            json.RawMessage
 	// OriginClass and OriginSessionID default from OwnerKind and Origin; set
 	// OriginClass explicitly only when a human re-authors an agent row.
-	OriginClass       string
-	OriginSessionID   string
+	OriginClass     string
+	OriginSessionID string
+	// Supersede cancels the same sender's older undispatched messages to this session in the
+	// transaction that inserts this agent-authored queue entry.
+	Supersede         bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string

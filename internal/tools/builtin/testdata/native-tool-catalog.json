@@ -1990,7 +1990,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "41f89bbbe0f8b49e2ca28aa5c8096483470782f9ce194b3a8636fd65a12c38e3",
+    "input_schema_digest": "f25d32d2602aace9469eba84cd5c808648a5c3eaac0a49126d50e10ac9530775",
     "output_schema_digest": "858fd69f67ed228a7a2568938ebfe98523a30f5a0fca49824a0251b3561990eb"
   },
   {

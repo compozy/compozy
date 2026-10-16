@@ -1196,6 +1196,63 @@ func TestSessionDeriveConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
+// Invariant: agent messaging guards never stop long-running work by default: reply watches never expire,
+// promotion only injects, and the rate budget can be switched off. Owner: canonical config suite (#760).
+func TestSessionMessagingConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default to non-expiring watches, a 30/10m budget, and 2m promotion", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{}).Session.Messaging
+		if cfg.ReplyWatchTTL != 0 || cfg.RateLimitMessages != 30 || cfg.RateLimitWindow != 10*time.Minute ||
+			cfg.QueuePromoteAfter != 2*time.Minute {
+			t.Fatalf("default Session.Messaging = %#v", cfg)
+		}
+		if got := cfg.Normalize(); got.ReplyWatchTTL != 0 {
+			t.Fatalf("Normalize() ReplyWatchTTL = %s, want 0 (never expire)", got.ReplyWatchTTL)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("default Session.Messaging.Validate() error = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		cfg     SessionMessagingConfig
+		wantErr string
+	}{
+		{name: "Should accept a disabled rate budget", cfg: SessionMessagingConfig{RateLimitMessages: -1}},
+		{name: "Should accept an opt-in reply watch TTL", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Hour}},
+		{
+			name: "Should reject a reply watch TTL below one minute", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Second},
+			wantErr: "session.messaging.reply_watch_ttl must be 0 (never expire) or between 1m0s and 720h0m0s: 1s",
+		},
+		{
+			name: "Should reject a negative budget other than -1", cfg: SessionMessagingConfig{RateLimitMessages: -2},
+			wantErr: "session.messaging.rate_limit_messages must be -1 (disabled) or between 1 and 10000: -2",
+		},
+		{
+			name:    "Should reject a promotion threshold below ten seconds",
+			cfg:     SessionMessagingConfig{QueuePromoteAfter: time.Second},
+			wantErr: "session.messaging.queue_promote_after must be 0 or between 10s and 24h0m0s: 1s",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tc.cfg.Validate()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestLoadSessionDeriveConfig(t *testing.T) {
 	load := func(t *testing.T, workspaceTOML string) (Config, error) {
 		t.Helper()

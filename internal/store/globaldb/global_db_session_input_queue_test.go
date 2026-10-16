@@ -1214,6 +1214,175 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 		}
 	})
 
+	admitAgent := func(
+		t *testing.T, db *GlobalDB, sessionID, id, sender string, supersede bool, at time.Time,
+	) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool) {
+		t.Helper()
+		admission := promptAdmissionRequest("ws-input-queue-workspace", sessionID, id, at)
+		admission.Origin = agentOrigin(sender)
+		admitted, entry, _, created, err := db.EnqueueAdmittedSessionInput(
+			testutil.Context(t), admission, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, Supersede: supersede, QueueCap: 10, Now: at,
+			},
+		)
+		if err != nil {
+			t.Fatalf("EnqueueAdmittedSessionInput(%s) error = %v", id, err)
+		}
+		return admitted, entry, created
+	}
+	statusOf := func(t *testing.T, db *GlobalDB, sessionID, id string) store.SessionInputQueueEntry {
+		t.Helper()
+		entry, err := db.GetSessionInputQueueEntry(testutil.Context(t), sessionID, id)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(%s) error = %v", id, err)
+		}
+		return entry
+	}
+
+	t.Run("Should supersede only the same sender's undispatched messages and replay idempotently", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 13, 0, 0, 0, time.UTC)
+		admitAgent(t, db, sessionID, "a1", "sess-a", false, now)
+		admitAgent(t, db, sessionID, "a2", "sess-a", false, now.Add(time.Second))
+		admitAgent(t, db, sessionID, "b1", "sess-b", false, now.Add(2*time.Second))
+		enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "human", SessionID: sessionID, Text: "operator", Now: now.Add(3 * time.Second),
+		})
+		admission, latest, created := admitAgent(t, db, sessionID, "a3", "sess-a", true, now.Add(4*time.Second))
+		if !created || !slices.Equal(latest.SupersededIDs, []string{"a1", "a2"}) {
+			t.Fatalf("supersede = created %v, ids %v; want a1 and a2", created, latest.SupersededIDs)
+		}
+		if admission.Result == nil || admission.Result.CanceledQueuedEntries != 2 {
+			t.Fatalf("admission result = %#v, want 2 canceled entries", admission.Result)
+		}
+		for id, want := range map[string]string{
+			"a1": store.SessionInputQueueStatusCanceled, "a2": store.SessionInputQueueStatusCanceled,
+			"b1": store.SessionInputQueueStatusQueued, "human": store.SessionInputQueueStatusQueued,
+			"a3": store.SessionInputQueueStatusQueued,
+		} {
+			if got := statusOf(t, db, sessionID, id); got.Status != want {
+				t.Fatalf("%s status = %q, want %q", id, got.Status, want)
+			}
+		}
+		replayed, entry, created := admitAgent(t, db, sessionID, "a3", "sess-a", true, now.Add(5*time.Second))
+		if created || entry.ID != "a3" || len(entry.SupersededIDs) != 0 ||
+			replayed.Result == nil || replayed.Result.CanceledQueuedEntries != 2 {
+			t.Fatalf(
+				"replay = created %v, entry %q/%v, result %#v",
+				created, entry.ID, entry.SupersededIDs, replayed.Result,
+			)
+		}
+	})
+
+	t.Run("Should claim a consecutive batch behind the head and stamp every entry with one turn", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 13, 10, 0, 0, time.UTC)
+		for index, id := range []string{"a1", "a2", "stop", "a4"} {
+			enqueue(t, db, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, Origin: agentOrigin("sess-a"),
+				Now: now.Add(time.Duration(index) * time.Second),
+			})
+		}
+		head, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Minute))
+		if err != nil || !ok || head.ID != "a1" {
+			t.Fatalf("head = %q/%v/%v, want a1", head.ID, ok, err)
+		}
+		accept := func(entry *store.SessionInputQueueEntry) bool { return entry.ID != "stop" }
+		batch, err := db.ClaimSessionInputBatch(ctx, sessionID, 7, accept, now.Add(time.Minute))
+		if err != nil || len(batch) != 1 || batch[0].ID != "a2" ||
+			batch[0].Status != store.SessionInputQueueStatusDispatching {
+			t.Fatalf("batch = %#v, %v; want a2 leased and the batch ended at the refused entry", batch, err)
+		}
+		for _, id := range []string{"a1", "a2"} {
+			err := db.MarkSessionInputSentInTurn(ctx, sessionID, id, "turn-batch", now.Add(time.Minute))
+			if err != nil {
+				t.Fatalf("MarkSessionInputSentInTurn(%s) error = %v", id, err)
+			}
+			if got := statusOf(t, db, sessionID, id); got.Status != store.SessionInputQueueStatusSent ||
+				got.TurnID != "turn-batch" {
+				t.Fatalf("%s = %q/%q, want sent in turn-batch", id, got.Status, got.TurnID)
+			}
+		}
+		enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "human", SessionID: sessionID, Text: "operator", Now: now.Add(time.Hour),
+		})
+		acceptAgents := func(entry *store.SessionInputQueueEntry) bool {
+			return entry.OriginClass == store.SessionInputOriginClassAgent
+		}
+		if batch, err := db.ClaimSessionInputBatch(ctx, sessionID, 7, acceptAgents, now.Add(time.Hour)); err != nil ||
+			len(batch) != 0 {
+			t.Fatalf("batch with operator input first = %#v, %v; want none merged past it", batch, err)
+		}
+	})
+
+	t.Run("Should promote a queued agent message in place and never past operator input", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 13, 20, 0, 0, time.UTC)
+		_, agent, _ := admitAgent(t, db, sessionID, "a1", "sess-a", false, now)
+		admitAgent(t, db, sessionID, "a2", "sess-a", false, now.Add(time.Second))
+		enqueue(t, db, store.SessionInputQueueInsert{ID: "human", SessionID: sessionID, Text: "operator", Now: now})
+		if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+			ctx, sessionID, "a1", "turn-live", now,
+		); err != nil || promoted {
+			t.Fatalf("promotion with operator input waiting = %v, %v; want refused", promoted, err)
+		}
+		if _, err := db.CancelSessionInput(ctx, sessionID, "human", now); err != nil {
+			t.Fatal(err)
+		}
+		staged, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(ctx, sessionID, "a1", "turn-live", now)
+		if err != nil || !promoted {
+			t.Fatalf("PromoteQueuedAgentSessionInputToSteer() = %v, %v", promoted, err)
+		}
+		if staged.Mode != store.SessionInputQueueModeSteer || staged.TargetTurnID != "turn-live" ||
+			staged.Dispatchable || staged.MessageID != agent.MessageID || staged.EventID != agent.EventID ||
+			staged.PromptAdmissionID != agent.PromptAdmissionID || staged.OriginClass != store.SessionInputOriginClassAgent {
+			t.Fatalf("staged = %#v, want an in-place steer keeping %#v identity", staged, agent)
+		}
+		if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+			ctx, sessionID, "a2", "turn-live", now,
+		); err != nil || promoted {
+			t.Fatalf("second promotion for the same sender = %v, %v; want the steer slot respected", promoted, err)
+		}
+		if reverted, err := db.RevertPromotedAgentSessionInput(ctx, sessionID, "a1", now); err != nil || !reverted {
+			t.Fatalf("RevertPromotedAgentSessionInput() = %v, %v", reverted, err)
+		}
+		if got := statusOf(t, db, sessionID, "a1"); got.Mode != store.SessionInputQueueModeQueue ||
+			got.Delivery != store.SessionInputDeliveryAfterTurn || !got.Dispatchable ||
+			got.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("reverted = %#v, want queued after-turn delivery", got)
+		}
+	})
+
+	t.Run("Should keep the sender's message identity when the operator promotes an agent row", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 13, 30, 0, 0, time.UTC)
+		_, agent, _ := admitAgent(t, db, sessionID, "a1", "sess-a", false, now)
+		request := store.SessionInputQueueInsert{
+			ID: "promoted", TargetTurnID: "turn-live", Text: agent.Text, MessageID: "operator-message",
+			IdempotencyKey: "operator-key", QueueCap: 10, Now: now.Add(time.Second),
+		}
+		promoted, created, err := db.PromoteSessionInputToSteer(ctx, sessionID, agent.ID, request)
+		if err != nil || !created || promoted.MessageID != agent.MessageID || promoted.EventID != agent.EventID {
+			t.Fatalf("promoted = %q/%q, created %v, %v; want sender message %q event %q",
+				promoted.MessageID, promoted.EventID, created, err, agent.MessageID, agent.EventID)
+		}
+		replayed, created, err := db.PromoteSessionInputToSteer(ctx, sessionID, agent.ID, request)
+		if err != nil || created || replayed.ID != promoted.ID {
+			t.Fatalf("replayed promotion = %q, created %v, %v; want the same steer", replayed.ID, created, err)
+		}
+	})
+
 	t.Run("Should settle sent receipts idempotently and fail leases stranded by a restart", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

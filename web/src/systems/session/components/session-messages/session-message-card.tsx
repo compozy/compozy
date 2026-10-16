@@ -28,6 +28,8 @@ export interface SessionMessageCardProps {
   delivery: SessionMessageDelivery | null;
   /** The sender asked for this turn's answer (`notify_on_complete`). */
   replyRequested: boolean;
+  /** The `in_reply_to` correlation chip; absent when the message answers nothing. */
+  replyTo?: ReactNode;
   timestampMs: number | null;
   onOpenSender?: SessionMessageOpen;
   /** Attachments and skill chips, reused from the operator message. */
@@ -45,6 +47,7 @@ export function SessionMessageCard({
   sender,
   delivery,
   replyRequested,
+  replyTo,
   timestampMs,
   onOpenSender,
   attachments,
@@ -68,6 +71,7 @@ export function SessionMessageCard({
               {chip.label}
             </SessionMessageChip>
           ) : null}
+          {replyTo}
           {replyRequested ? (
             <SessionMessageChip icon={<Reply aria-hidden="true" />}>
               Reply requested

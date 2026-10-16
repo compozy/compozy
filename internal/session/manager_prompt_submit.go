@@ -99,7 +99,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	} else {
 		session.setCurrentSkillInvocations(req.skillInvocations)
 	}
-	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message, req.delivery)
+	dispatchMessage, err := m.requestDispatchMessage(promptExecutionCtx, session, &req, message)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
-	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput.message)
+	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput)
 	if err != nil {
 		return nil, err
 	}
@@ -335,6 +335,8 @@ func closePromptPersistenceDone(done chan<- struct{}) {
 type preparedPromptInput struct {
 	message  string
 	sections []acp.PromptSection
+	// batched are the queued messages this turn carries after the request's own input.
+	batched []batchedPromptInput
 }
 
 func (m *Manager) promptDispatchMessage(
@@ -382,7 +384,7 @@ func (m *Manager) prepareReservedPromptInput(
 	ctx context.Context,
 	session *Session,
 	req *promptRequest,
-	message string,
+	input preparedPromptInput,
 ) (string, string, error) {
 	if req.delivery == PromptDeliveryMaintenance {
 		if err := m.recordCompactionRequest(ctx, session, *req); err != nil {
@@ -392,11 +394,14 @@ func (m *Manager) prepareReservedPromptInput(
 	if err := m.recordPromptInputEvent(ctx, session, req); err != nil {
 		return "", "", err
 	}
+	if err := m.recordBatchedPromptInputs(ctx, session, input.batched); err != nil {
+		return "", "", err
+	}
 	replayBlock := ""
 	if req.delivery != PromptDeliveryMaintenance {
 		replayBlock = m.pendingResumeReplay(session.ID)
 	}
-	return promptWithResumeReplay(replayBlock, message), replayBlock, nil
+	return promptWithResumeReplay(replayBlock, input.message), replayBlock, nil
 }
 
 func (m *Manager) consumeReservedPromptContext(session *Session, req promptRequest, replayBlock string) {

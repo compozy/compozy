@@ -66,13 +66,13 @@ function SessionQueuedOwner({ owner }: { owner: QueuedPromptOwner }) {
   );
 }
 
-function SessionQueuedPreview({ text }: { text: string }) {
+function SessionQueuedPreview({ text, className }: { text: string; className?: string }) {
   const preview = queuedPromptPreview(text);
   return (
     <span
       data-testid="composer-queued-preview"
       data-preview-kind={preview.kind}
-      className="min-w-0 flex-1 truncate text-transcript-body text-muted"
+      className={cn("min-w-0 flex-1 truncate text-transcript-body text-muted", className)}
       title={text}
     >
       {preview.kind === "code" ? (
@@ -163,22 +163,58 @@ function SessionQueuedRemove({
   );
 }
 
+function SessionQueuedSteer({
+  prompt,
+  disabled,
+  label,
+  onSteer,
+}: {
+  prompt: QueuedPrompt;
+  disabled: boolean;
+  label?: string;
+  onSteer: (prompt: QueuedPrompt) => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => onSteer(prompt)}
+      disabled={disabled || Boolean(prompt.attachments)}
+      data-testid="composer-queued-steer"
+      aria-label={label}
+      title={
+        prompt.attachments ? "Queued messages with files can't be steered on this agent" : undefined
+      }
+      className="text-muted hover:text-fg"
+    >
+      <CornerDownRight aria-hidden="true" className="size-3" />
+      Steer
+    </Button>
+  );
+}
+
 /**
  * A message another session sent (S4, VC-05): the sender's provider mark and
- * "From {title}" in the owner slot. Its text is agent-authored, so it can only
- * be removed; the daemon refuses edit and promote (409 `input_agent_authored`).
+ * "From {title}" in the owner slot, the title kept whole before the preview
+ * gives way so rows from different senders stay apart. Its text is
+ * agent-authored: the operator may steer it into the running turn (promotion
+ * changes when, never what) or remove it; edit stays refused
+ * (409 `input_agent_authored`).
  */
 function SessionQueuedSessionMessageRow({
   prompt,
   sender,
   disabled,
   actionsHidden,
+  onSteer,
   onRemove,
 }: {
   prompt: QueuedPrompt;
   sender: SessionMessageOrigin;
   disabled: boolean;
   actionsHidden: boolean;
+  onSteer: (prompt: QueuedPrompt) => void;
   onRemove: (id: string) => void;
 }) {
   // The viewing session's workspace: a sender in another one is named with its workspace (Gap 5).
@@ -199,7 +235,8 @@ function SessionQueuedSessionMessageRow({
       <span
         data-testid="composer-queued-sender"
         aria-busy={party.pending || undefined}
-        className="inline-flex max-w-[44%] min-w-0 shrink-0 items-center gap-1.5 text-micro text-muted"
+        title={party.pending ? undefined : `From ${title}`}
+        className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted"
       >
         <SubagentAvatar provider={sessionPartyMark(party)} size="sm" className="size-4.5" />
         <span className="shrink-0">From</span>
@@ -226,7 +263,7 @@ function SessionQueuedSessionMessageRow({
         ) : null}
       </span>
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
-      <SessionQueuedPreview text={prompt.text} />
+      <SessionQueuedPreview text={prompt.text} className="min-w-16 basis-0" />
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…
@@ -234,6 +271,12 @@ function SessionQueuedSessionMessageRow({
       ) : null}
       {isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden ? (
         <div className="flex shrink-0 items-center gap-px">
+          <SessionQueuedSteer
+            prompt={prompt}
+            disabled={disabled}
+            label={party.pending ? "Steer message" : `Steer message from ${title}`}
+            onSteer={onSteer}
+          />
           <SessionQueuedRemove
             label={party.pending ? "Remove message" : `Remove message from ${title}`}
             disabled={disabled}
@@ -278,6 +321,7 @@ export function SessionQueueEntryRow({
         sender={prompt.sender}
         disabled={disabled}
         actionsHidden={actionsHidden}
+        onSteer={onSteer}
         onRemove={onRemove}
       />
     );
@@ -299,23 +343,7 @@ export function SessionQueueEntryRow({
       ) : null}
       {mutable ? (
         <div className="flex shrink-0 items-center gap-px">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onSteer(prompt)}
-            disabled={disabled || Boolean(prompt.attachments)}
-            data-testid="composer-queued-steer"
-            title={
-              prompt.attachments
-                ? "Queued messages with files can't be steered on this agent"
-                : undefined
-            }
-            className="text-muted hover:text-fg"
-          >
-            <CornerDownRight aria-hidden="true" className="size-3" />
-            Steer
-          </Button>
+          <SessionQueuedSteer prompt={prompt} disabled={disabled} onSteer={onSteer} />
           {onEdit ? (
             <Button
               type="button"

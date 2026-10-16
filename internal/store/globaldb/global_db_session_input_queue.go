@@ -169,24 +169,11 @@ func (g *SessionRepo) ClaimNextSessionInput(
 		if scanErr != nil {
 			return scanErr
 		}
-		nowRaw := store.FormatTimestamp(now)
-		if admissionErr := commitQueuedPromptAdmissionDispatch(ctx, exec, &claimed, nowRaw); admissionErr != nil {
-			return admissionErr
-		}
-		affected, updateErr := queries.ClaimSessionInput(ctx, sqlcgen.ClaimSessionInputParams{
-			DispatchingStatus: store.SessionInputQueueStatusDispatching,
-			Now:               nullableSessionTime(now), UpdatedAt: nowRaw, ID: claimed.ID, SessionID: target,
-			QueuedStatus: store.SessionInputQueueStatusQueued,
-		})
-		if updateErr != nil {
-			return fmt.Errorf("store: mark session input dispatching: %w", updateErr)
-		}
-		if affected != 1 {
-			return goalControlStaleError("mark human session input dispatching lost compare-and-swap")
-		}
-		refreshed, getErr := getSessionInputQueueEntry(ctx, exec, target, claimed.ID)
-		if getErr != nil {
-			return getErr
+		refreshed, claimErr := claimSessionInputInTransaction(
+			ctx, exec, target, &claimed, now, store.FormatTimestamp(now),
+		)
+		if claimErr != nil {
+			return claimErr
 		}
 		entry = refreshed
 		ok = true

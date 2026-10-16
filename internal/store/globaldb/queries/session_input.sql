@@ -209,12 +209,6 @@ SET status = sqlc.arg(queued_status), dispatch_started_at = NULL, updated_at = s
 WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
   AND status = sqlc.arg(dispatching_status);
 
--- name: MarkSessionInputSent :execrows
-UPDATE session_input_queue
-SET status = sqlc.arg(sent_status), sent_at = sqlc.narg(now), failure_summary = '', updated_at = sqlc.arg(updated_at)
-WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
-  AND status = sqlc.arg(dispatching_status);
-
 -- name: MarkSessionInputFailed :execrows
 UPDATE session_input_queue
 SET status = sqlc.arg(failed_status), failed_at = sqlc.narg(now),
@@ -243,3 +237,84 @@ SELECT * FROM session_input_queue WHERE session_id = ? AND message_id = ?
 SELECT session_id, id FROM session_input_queue
 WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
 ORDER BY session_id, enqueued_at, id;
+
+-- name: CancelSupersededAgentSessionInputs :many
+-- Supersede: one sender replaces its own older undispatched messages to this target.
+UPDATE session_input_queue
+SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id)
+  AND origin_class = 'agent'
+  AND origin_session_id = sqlc.arg(origin_session_id)
+  AND owner_kind IS NULL
+  AND status = 'queued'
+  AND dispatchable = 1
+  AND delivery = 'after_turn'
+RETURNING id;
+
+-- name: ListDispatchableSessionInputs :many
+-- Dispatch-ordered candidates for batching behind an already claimed head; same filter as
+-- GetNextDispatchableSessionInput, so the Goal cutoff still bounds the batch.
+WITH prepared_goal AS (
+  SELECT goal_input_batch_max_rowid AS cutoff FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
+    AND status = 'queued' AND dispatchable = 0
+    AND terminal_at IS NULL AND fence_kind IS NULL
+    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
+  ORDER BY enqueued_at, id LIMIT 1
+)
+SELECT queued.* FROM session_input_queue AS queued
+WHERE queued.session_id = sqlc.arg(session_id)
+  AND queued.status = 'queued'
+  AND queued.dispatchable = 1
+  AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
+  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+  AND ((SELECT cutoff FROM prepared_goal) IS NULL
+       OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+ORDER BY CASE
+           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
+           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
+             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
+           ELSE 3
+         END,
+         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
+         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
+LIMIT sqlc.arg(row_limit);
+
+-- name: MarkSessionInputSentInTurn :execrows
+UPDATE session_input_queue
+SET status = 'sent', sent_at = sqlc.arg(now), failure_summary = '', updated_at = sqlc.arg(now),
+    turn_id = COALESCE(NULLIF(CAST(sqlc.arg(turn_id) AS TEXT), ''), turn_id)
+WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND status = 'dispatching';
+
+-- name: PromoteQueuedAgentSessionInputToSteer :execrows
+-- Long-turn promotion keeps the row identity (message, event, admission, origin) so reply watches
+-- follow it. It never runs while operator input waits, and it respects the per-sender steer slot.
+UPDATE session_input_queue
+SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
+    target_turn_id = sqlc.arg(target_turn_id), updated_at = sqlc.arg(now)
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
+  AND session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL
+  AND session_input_queue.dispatchable = 1
+  AND session_input_queue.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+  AND NOT EXISTS (
+    SELECT 1 FROM session_input_queue AS steer
+    WHERE steer.session_id = sqlc.arg(session_id) AND steer.mode = 'steer' AND steer.status = 'queued'
+      AND steer.origin_session_id = session_input_queue.origin_session_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM session_input_queue AS human
+    WHERE human.session_id = sqlc.arg(session_id) AND human.origin_class = 'human'
+      AND human.owner_kind IS NULL AND human.status IN ('queued', 'dispatching')
+  );
+
+-- name: RevertPromotedAgentSessionInput :execrows
+-- A promotion whose live delivery could not start returns the message to after-turn delivery instead of
+-- canceling it.
+UPDATE session_input_queue
+SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, dispatchable = 1, target_turn_id = '',
+    status = 'queued', dispatch_started_at = NULL, updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
+  AND origin_class = 'agent' AND owner_kind IS NULL AND mode = 'steer'
+  AND status IN ('queued', 'dispatching') AND steer_delivery IS NULL;

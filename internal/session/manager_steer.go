@@ -34,36 +34,32 @@ func (m *Manager) activateSteeringInput(
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
 	proc := session.processHandle()
-	steerer, supportsSteer := m.driver.(AgentSteerer)
-	if supportsSteer && proc != nil && session.CurrentTurnID() == entry.TargetTurnID {
-		capability := proc.CapsSnapshot().SteerCapability
-		if capability == config.SteerCapabilityExtension || capability == config.SteerCapabilityConcurrentPrompt {
-			steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
-			origin, originErr := decodePromptOrigin(entry.Origin)
-			if originErr != nil {
-				cancel()
-				return originErr
-			}
-			session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
-			attempt, steerErr := steerer.Steer(
-				steerCtx,
-				proc,
-				entry.TargetTurnID,
-				promptOriginMessage(origin, entry.Text),
-			)
+	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID {
+		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
+		origin, originErr := decodePromptOrigin(entry.Origin)
+		if originErr != nil {
 			cancel()
-			if steerErr == nil {
-				completion = attempt.Completion
-				switch attempt.Attempt {
-				case acp.SteerAttemptInjected:
-					delivery = store.SteerDeliveryInjected
-				case acp.SteerAttemptPendingInjection:
-					delivery = store.SteerDeliveryPendingInjection
-				}
-			} else if !errors.Is(steerErr, acp.ErrSteerTurnMismatch) {
-				m.sessionLogger(session).
-					Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
+			return originErr
+		}
+		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
+		attempt, steerErr := steerer.Steer(
+			steerCtx,
+			proc,
+			entry.TargetTurnID,
+			promptOriginMessage(origin, entry.Text),
+		)
+		cancel()
+		if steerErr == nil {
+			completion = attempt.Completion
+			switch attempt.Attempt {
+			case acp.SteerAttemptInjected:
+				delivery = store.SteerDeliveryInjected
+			case acp.SteerAttemptPendingInjection:
+				delivery = store.SteerDeliveryPendingInjection
 			}
+		} else if !errors.Is(steerErr, acp.ErrSteerTurnMismatch) {
+			m.sessionLogger(session).
+				Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
 		}
 	}
 	entry.SteerDelivery = delivery
@@ -91,6 +87,20 @@ func (m *Manager) activateSteeringInput(
 		return nil
 	}
 	return m.activateInterruptingInput(ctx, session, entry)
+}
+
+// injectedSteerer returns the driver that can inject guidance into proc's live turn, when the
+// provider advertises or is configured with a steering capability.
+func (m *Manager) injectedSteerer(proc *AgentProcess) (AgentSteerer, bool) {
+	steerer, ok := m.driver.(AgentSteerer)
+	if !ok || proc == nil {
+		return nil, false
+	}
+	capability := proc.CapsSnapshot().SteerCapability
+	if capability != config.SteerCapabilityExtension && capability != config.SteerCapabilityConcurrentPrompt {
+		return nil, false
+	}
+	return steerer, true
 }
 
 func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *store.SessionInputQueueEntry) {

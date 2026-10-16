@@ -18,13 +18,26 @@ func (g *SessionRepo) MarkSessionInputSent(
 	entryID string,
 	now time.Time,
 ) error {
+	return g.MarkSessionInputSentInTurn(ctx, sessionID, entryID, "", now)
+}
+
+// MarkSessionInputSentInTurn records successful dispatch and the turn that consumed the entry; a
+// batched dispatch stamps every entry with the one turn that carried them. An empty turn id keeps
+// the stored one.
+func (g *SessionRepo) MarkSessionInputSentInTurn(
+	ctx context.Context,
+	sessionID string,
+	entryID string,
+	turnID string,
+	now time.Time,
+) error {
 	return g.updateSessionInputTerminal(
 		ctx,
 		"mark session input sent",
 		sessionID,
 		entryID,
 		store.SessionInputQueueStatusSent,
-		"",
+		strings.TrimSpace(turnID),
 		now,
 	)
 }
@@ -81,13 +94,16 @@ func (g *SessionRepo) MarkSessionInputFailed(
 	)
 }
 
+// updateSessionInputTerminal settles one dispatching entry. detail is the failure summary of a
+// failed entry and the consuming turn id of a sent one.
+
 func (g *SessionRepo) updateSessionInputTerminal(
 	ctx context.Context,
 	action string,
 	sessionID string,
 	entryID string,
 	status string,
-	summary string,
+	detail string,
 	now time.Time,
 ) error {
 	if err := g.checkReady(ctx, action); err != nil {
@@ -115,15 +131,17 @@ func (g *SessionRepo) updateSessionInputTerminal(
 		var updateErr error
 		if status == store.SessionInputQueueStatusFailed {
 			affected, updateErr = sqlcgen.New(exec).MarkSessionInputFailed(ctx, sqlcgen.MarkSessionInputFailedParams{
-				FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(summary),
+				FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(detail),
 				UpdatedAt: nowRaw, ID: entryID, SessionID: target,
 				DispatchingStatus: store.SessionInputQueueStatusDispatching,
 			})
 		} else {
-			affected, updateErr = sqlcgen.New(exec).MarkSessionInputSent(ctx, sqlcgen.MarkSessionInputSentParams{
-				SentStatus: status, Now: nullableSessionTime(now), UpdatedAt: nowRaw,
-				ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
-			})
+			affected, updateErr = sqlcgen.New(exec).MarkSessionInputSentInTurn(
+				ctx,
+				sqlcgen.MarkSessionInputSentInTurnParams{
+					Now: nullableSessionTime(now), TurnID: detail, ID: entryID, SessionID: target,
+				},
+			)
 		}
 		if updateErr != nil {
 			return fmt.Errorf("store: %s: %w", action, updateErr)
@@ -132,7 +150,7 @@ func (g *SessionRepo) updateSessionInputTerminal(
 			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 		}
 		if status == store.SessionInputQueueStatusFailed {
-			return markQueuedPromptAdmissionIndeterminate(ctx, exec, &entry, strings.TrimSpace(summary), nowRaw)
+			return markQueuedPromptAdmissionIndeterminate(ctx, exec, &entry, strings.TrimSpace(detail), nowRaw)
 		}
 		return completeQueuedPromptAdmissionDispatch(ctx, exec, &entry, nowRaw)
 	})

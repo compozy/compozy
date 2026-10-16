@@ -128,7 +128,7 @@ describe("SessionThread queue stories", () => {
     expect(within(rows[2]!).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
   });
 
-  it("Should name a session message's sender and keep Remove only (agent collaboration VC-05)", async () => {
+  it("Should name a session message's sender and offer Steer and Remove, never Edit (VC-05, #760)", async () => {
     await mountStory(composed.SessionMessages);
     const rows = await screen.findAllByTestId("composer-queued-prompt-row");
     expect(rows).toHaveLength(4);
@@ -141,7 +141,9 @@ describe("SessionThread queue stories", () => {
       )
     );
     expect(within(sent).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
-    expect(within(sent).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    expect(
+      within(sent).getByRole("button", { name: "Steer message from Refactor billing" })
+    ).toBeInTheDocument();
     expect(
       within(sent).getByRole("button", { name: "Remove message from Refactor billing" })
     ).toBeInTheDocument();

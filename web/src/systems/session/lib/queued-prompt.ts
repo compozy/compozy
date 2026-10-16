@@ -40,10 +40,13 @@ export interface QueuedPrompt {
   /** Another actor's entry; `null` for the operator's own rows. */
   owner: QueuedPromptOwner | null;
   /**
-   * The session that sent this message (S4); absent for every other entry. Its text is agent-authored: it can be removed, never edited or steered.
+   * The session that sent this message (S4); absent for every other entry. Its text is agent-authored: it can be steered or removed, never edited.
    */
   sender?: SessionMessageOrigin;
-  /** Run order from the daemon list (1-based); the client never counts on its own. */
+  /**
+   * Run order from the daemon list (1-based): the list arrives in the daemon's
+   * dispatch rank (human input first), the same rank `queue_position` reports.
+   */
   position: number;
   status?: string;
   text: string;

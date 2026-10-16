@@ -3,6 +3,7 @@ import { use } from "react";
 
 import { SessionSentCard } from "@/systems/session/components/session-messages/session-sent-card";
 import type { SessionSentReplyState } from "@/systems/session/components/session-messages/session-sent-card";
+import { SessionMessageReplyTo } from "@/systems/session/components/session-messages/session-message-reply-to";
 import { useSessionLabel } from "@/systems/session/components/session-messages/use-session-label";
 import { useSessionMessageOpen } from "@/systems/session/components/session-messages/use-session-message-open";
 import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
@@ -14,6 +15,7 @@ import {
   type SessionSentCallState,
   type SessionSentMessagePart,
 } from "@/systems/session/lib/session-message-payload";
+import { sessionMessageReplyIndex } from "@/systems/session/lib/session-message-replies";
 import type { SessionTimelineToolPart } from "@/systems/session/lib/session-timeline-parts";
 import { SessionTranscriptMessagesContext } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { isRecord, stringField } from "@/systems/session/lib/timeline-message-parts";
@@ -76,7 +78,14 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
   const outcome = part.replyWatchId
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;
-  const reply: SessionSentReplyState = part.replyWatchId ? (outcome ?? "waiting") : "none";
+  // An explicit answer (`in_reply_to`) releases the watch without a wake: it reads Replied.
+  const answered =
+    part.messageId !== null && sessionMessageReplyIndex(messages).answered.has(part.messageId);
+  const reply: SessionSentReplyState = answered
+    ? "completed"
+    : part.replyWatchId
+      ? (outcome ?? "waiting")
+      : "none";
   const timestamp = row.timestamp ? Date.parse(row.timestamp) : Number.NaN;
   return (
     <div data-testid="session-sent-message-row" className="flex min-w-0 flex-col py-1">
@@ -87,6 +96,7 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         firstLine={firstLine(message)}
         error={toolError(tool)}
         reply={reply}
+        replyTo={part.inReplyTo ? <SessionMessageReplyTo inReplyTo={part.inReplyTo} /> : undefined}
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
       />

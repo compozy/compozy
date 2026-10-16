@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
@@ -29,6 +30,28 @@ type queuedInput struct {
 	skillInvocations  []commandpkg.Invocation
 	attachments       []AttachmentMeta
 	sessionGeneration int64
+	// batch holds the consecutive agent and reply entries claimed to run in this entry's turn.
+	batch []queuedInput
+}
+
+func queuedInputFromEntry(entry *store.SessionInputQueueEntry) queuedInput {
+	return queuedInput{
+		id:                entry.ID,
+		syntheticPrompt:   entry.SyntheticPrompt,
+		origin:            entry.Origin,
+		promptAdmissionID: entry.PromptAdmissionID,
+		messageID:         entry.MessageID,
+		idempotencyKey:    entry.IdempotencyKey,
+		turnID:            entry.TurnID,
+		eventID:           entry.EventID,
+		mode:              entry.Mode,
+		status:            entry.Status,
+		text:              entry.Text,
+		runtime:           entry.Runtime,
+		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
+		attachments:       attachmentMetaFromStore(entry.Attachments),
+		sessionGeneration: entry.SessionGeneration,
+	}
 }
 
 // maxQueuedInputSelectAttempts bounds peek/claim disagreement retries. Each
@@ -36,12 +59,36 @@ type queuedInput struct {
 // would otherwise recurse through Release without end.
 const maxQueuedInputSelectAttempts = 3
 
+// queuedInputReselectDelay spaces the one deferred retry after the selection bound, so a queue that
+// kept changing is picked up again even when no turn end or new enqueue follows.
+const queuedInputReselectDelay = time.Second
+
 func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
+	if m.selectNextQueuedInputPrompt(sessionID) {
+		// The bound only paces selection; the queue stays live. One deferred pass re-kicks it, and
+		// any later turn end or enqueue does the same.
+		m.startTrackedPromptTask(func() {
+			timer := time.NewTimer(queuedInputReselectDelay)
+			defer timer.Stop()
+			select {
+			case <-m.fallbackLifecycleContext().Done():
+				return
+			case <-timer.C:
+			}
+			m.selectNextQueuedInputPrompt(sessionID)
+		})
+	}
+}
+
+// selectNextQueuedInputPrompt reports whether selection stopped at its bound with the queue still
+// changing under it.
+func (m *Manager) selectNextQueuedInputPrompt(sessionID string) bool {
 	for attempt := 1; attempt <= maxQueuedInputSelectAttempts; attempt++ {
 		if !m.tryStartNextQueuedInputPrompt(sessionID, attempt) {
-			return
+			return false
 		}
 	}
+	return true
 }
 
 // tryStartNextQueuedInputPrompt reports whether selection must retry because
@@ -76,30 +123,15 @@ func (m *Manager) tryStartNextQueuedInputPrompt(sessionID string, attempt int) b
 		}
 		if attempt == maxQueuedInputSelectAttempts {
 			m.sessionLogger(session).Warn(
-				"session: queued input selection kept changing; waiting for the next turn edge",
+				"session: queued input selection kept changing; retrying shortly",
 				"peeked_entry_id", selected.ID, "claimed_entry_id", entry.ID, "attempts", attempt,
 			)
-			return false
 		}
 		return true
 	}
-	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, queuedInput{
-		id:                entry.ID,
-		syntheticPrompt:   entry.SyntheticPrompt,
-		origin:            entry.Origin,
-		promptAdmissionID: entry.PromptAdmissionID,
-		messageID:         entry.MessageID,
-		idempotencyKey:    entry.IdempotencyKey,
-		turnID:            entry.TurnID,
-		eventID:           entry.EventID,
-		mode:              entry.Mode,
-		status:            entry.Status,
-		text:              entry.Text,
-		runtime:           entry.Runtime,
-		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
-		attachments:       attachmentMetaFromStore(entry.Attachments),
-		sessionGeneration: entry.SessionGeneration,
-	})
+	head := queuedInputFromEntry(&entry)
+	head.batch = m.claimQueuedInputBatch(session, target, &entry)
+	m.dispatchQueuedInput(dispatchCtx, unlock, target, session, head)
 	return false
 }
 
@@ -140,6 +172,9 @@ func (m *Manager) dispatchQueuedInput(
 	}
 	if service := m.ReplyWatches(); service != nil {
 		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
+		for index := range entry.batch {
+			service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.batch[index].messageID)
+		}
 	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
@@ -191,6 +226,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 		runtime:          runtimeSelectionFromStore(entry.runtime),
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 		attachments:      cloneAttachmentMeta(entry.attachments),
+		batch:            entry.batch,
 	}
 	origin, err := decodePromptOrigin(entry.origin)
 	if err != nil {
@@ -235,6 +271,9 @@ func (m *Manager) handleQueuedInputDispatchError(
 	req promptRequest,
 	cause error,
 ) {
+	// Batched entries never started: they return to the queue whatever failed, and a follower that
+	// fails on its own is retried as the next head and settled there.
+	m.releaseQueuedInputBatch(session, target, entry.batch)
 	if errors.Is(cause, ErrPromptInProgress) || errors.Is(cause, ErrSessionNotActive) {
 		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.id); err != nil {
 			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.id, "error", err)
@@ -246,6 +285,9 @@ func (m *Manager) handleQueuedInputDispatchError(
 	}
 	if service := m.ReplyWatches(); service != nil {
 		service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.messageID)
+		for index := range entry.batch {
+			service.OnSteerResolved(m.fallbackLifecycleContext(), target, entry.batch[index].messageID)
+		}
 	}
 	if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == subagentWakeKind {
 		if service := m.subagentService(); service != nil {
@@ -269,7 +311,14 @@ func (m *Manager) acceptQueuedInputDispatch(
 	entry queuedInput,
 	req promptRequest,
 ) {
-	if err := m.markQueuedInputSent(target, entry.id); err != nil {
+	m.acceptQueuedInputEntry(session, target, entry, req.turnID)
+	for index := range entry.batch {
+		m.acceptQueuedInputEntry(session, target, entry.batch[index], req.turnID)
+	}
+}
+
+func (m *Manager) acceptQueuedInputEntry(session *Session, target string, entry queuedInput, turnID string) {
+	if err := m.markQueuedInputSent(target, entry.id, turnID); err != nil {
 		// The turn already started with this input, so the entry must not
 		// become failed: a failed row invites a retry that duplicates the turn.
 		// The lease stays dispatching until boot recovery settles it.
@@ -282,11 +331,11 @@ func (m *Manager) acceptQueuedInputDispatch(
 	evidence["message_id"] = entry.messageID
 	evidence["authored_text"] = entry.text
 	evidence["input_event_id"] = entry.eventID
-	evidence["target_turn_id"] = req.turnID
+	evidence["target_turn_id"] = turnID
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
 		session,
-		req.turnID,
+		turnID,
 		transcript.MarkerPromptAccepted,
 		"Queued input accepted for dispatch.",
 		evidence,
@@ -296,10 +345,10 @@ func (m *Manager) acceptQueuedInputDispatch(
 // queuedInputSentAttempts bounds retries of the idempotent sent receipt.
 const queuedInputSentAttempts = 3
 
-func (m *Manager) markQueuedInputSent(target, entryID string) error {
+func (m *Manager) markQueuedInputSent(target, entryID, turnID string) error {
 	var err error
 	for range queuedInputSentAttempts {
-		if err = m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entryID); err == nil {
+		if err = m.inputQueue.MarkSentInTurn(m.fallbackLifecycleContext(), target, entryID, turnID); err == nil {
 			return nil
 		}
 	}

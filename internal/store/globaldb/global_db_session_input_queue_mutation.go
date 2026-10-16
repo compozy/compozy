@@ -201,8 +201,9 @@ func (g *SessionRepo) replacePendingSessionInput(
 }
 
 // inheritReplacedSessionInput carries the replaced row's generation and sender
-// attribution. A promoted agent row keeps its origin, but the operator initiated
-// the steer, so it ranks and supersedes as human input.
+// attribution. A promoted agent row keeps its origin, message id, and input event
+// id, so the sender's reply watch follows the steer into the turn that consumes
+// it. The operator initiated the steer, so it ranks and supersedes as human input.
 func inheritReplacedSessionInput(
 	existing *store.SessionInputQueueEntry,
 	replacement store.SessionInputQueueInsert,
@@ -213,6 +214,8 @@ func inheritReplacedSessionInput(
 	}
 	replacement.Origin = append(json.RawMessage(nil), existing.Origin...)
 	replacement.OriginClass = store.SessionInputOriginClassHuman
+	replacement.MessageID = existing.MessageID
+	replacement.EventID = existing.EventID
 	return replacement.Normalize()
 }
 
@@ -220,8 +223,9 @@ func sameSessionInputMutation(
 	entry *store.SessionInputQueueEntry,
 	replacement store.SessionInputQueueInsert,
 ) bool {
+	// A promoted agent row answers with the sender's message id, not the operator's.
 	return entry.SessionID == replacement.SessionID &&
-		entry.MessageID == replacement.MessageID &&
+		(entry.MessageID == replacement.MessageID || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == replacement.IdempotencyKey &&
 		entry.TargetTurnID == replacement.TargetTurnID &&
 		entry.Mode == replacement.Mode &&
