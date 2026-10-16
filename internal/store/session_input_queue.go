@@ -98,6 +98,8 @@ type SessionInputQueueEntry struct {
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
 	Origin                   json.RawMessage
+	OriginClass              string
+	OriginSessionID          string
 	Attachments              []SessionInputAttachment
 	SessionGeneration        int64
 	TaskRunID                string
@@ -167,6 +169,10 @@ type SessionInputQueueInsert struct {
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
 	Origin            json.RawMessage
+	// OriginClass and OriginSessionID default from OwnerKind and Origin; set
+	// OriginClass explicitly only when a human re-authors an agent row.
+	OriginClass       string
+	OriginSessionID   string
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string
@@ -199,6 +205,7 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	normalized.OwnerKind = strings.TrimSpace(normalized.OwnerKind)
 	normalized.SyntheticPrompt = normalized.SyntheticPrompt.Clone()
+	normalized = normalized.normalizeOriginClass()
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()
 	} else {
@@ -234,6 +241,11 @@ func (r SessionInputQueueInsert) Validate() error {
 		return errors.New("store: session input queue text is required")
 	case normalized.QueueCap <= 0:
 		return fmt.Errorf("store: session input queue cap must be positive: %d", normalized.QueueCap)
+	}
+	switch normalized.OriginClass {
+	case SessionInputOriginClassHuman, SessionInputOriginClassAgent, SessionInputOriginClassSynthetic:
+	default:
+		return fmt.Errorf("store: invalid session input origin class %q", normalized.OriginClass)
 	}
 	switch normalized.Mode {
 	case SessionInputQueueModeQueue:

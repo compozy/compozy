@@ -376,6 +376,13 @@ func WithSessionBusyInputConfig(config compozyconfig.SessionBusyInputConfig) Opt
 	}
 }
 
+// WithSessionMessagingConfig sets the agent messaging rate budget and reply-watch TTL.
+func WithSessionMessagingConfig(config compozyconfig.SessionMessagingConfig) Option {
+	return func(manager *Manager) {
+		manager.messaging = config.Normalize()
+	}
+}
+
 // WithSessionDeriveConfig sets the carried-context bounds for continue and fork.
 func WithSessionDeriveConfig(cfg compozyconfig.SessionDeriveConfig) Option {
 	return func(manager *Manager) {

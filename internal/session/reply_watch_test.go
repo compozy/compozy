@@ -365,9 +365,11 @@ func TestReplyWatchQueueRetry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, id := range []string{"free-slot", "operator"} {
+		// The wake shares its cap pool with agent messages only, so agent rows fill it here.
+		for _, id := range []string{"free-slot", "peer"} {
 			if _, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
 				ID: id, SessionID: sender.ID, Text: id, QueueCap: 2,
+				Origin: []byte(`{"kind":"session","session_id":"sess-peer","workspace_id":"ws","hop":1}`),
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -402,9 +404,11 @@ func TestReplyWatchQueueRetry(t *testing.T) {
 			t.Fatalf("retry = %+v, %v", got, err)
 		}
 		rows, err := db.ListPendingSessionInputs(t.Context(), sender.ID)
-		if err != nil || len(rows) != 2 || rows[0].ID != got.DeliveredInputID || rows[1].ID != "operator" {
+		// Agent messages dispatch before synthetic wakes.
+		if err != nil || len(rows) != 2 || rows[0].ID != "peer" || rows[1].ID != got.DeliveredInputID {
 			t.Fatalf("priority = %+v, %v", rows, err)
 		}
+		wake := rows[1]
 		want := fmt.Sprintf(
 			"Session %q (%s) replied to your message %s: completed.\n---\n%s\n[Reply truncated at 12000 characters. Read the full turn with compozy__session_history.]",
 			target.Info().Name,
@@ -412,11 +416,11 @@ func TestReplyWatchQueueRetry(t *testing.T) {
 			w.MessageID,
 			strings.Repeat("界", 12000),
 		)
-		if rows[0].Text != want || rows[0].MessageID != "prompt-reply:"+w.ID || rows[0].SyntheticPrompt == nil {
-			t.Fatalf("wake contract = %+v", rows[0])
+		if wake.Text != want || wake.MessageID != "prompt-reply:"+w.ID || wake.SyntheticPrompt == nil {
+			t.Fatalf("wake contract = %+v", wake)
 		}
 		var meta acp.PromptSyntheticMeta
-		if err := json.Unmarshal(rows[0].SyntheticPrompt.Metadata, &meta); err != nil {
+		if err := json.Unmarshal(wake.SyntheticPrompt.Metadata, &meta); err != nil {
 			t.Fatal(err)
 		}
 		if meta.Kind != acp.PromptSyntheticKindSessionReply || !meta.ReplyTruncated || meta.Hop != 1 ||
@@ -980,6 +984,8 @@ func TestReplyWatchSteerSupersession(t *testing.T) {
 			}
 			if requeue {
 				completion <- errors.New("pending injection superseded by provider")
+				// An agent steer degrades to a queued turn, so it dispatches once the held turn ends.
+				once.Do(func() { close(release) })
 			} else {
 				if err := h.manager.Stop(t.Context(), target.ID); err != nil {
 					t.Fatal(err)
@@ -1588,6 +1594,98 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 				)
 				return err == nil && len(rows) == 1
 			})
+		})
+	}
+}
+
+// Invariant: an armed watch past session.messaging.reply_watch_ttl fires once with the expired outcome and
+// stops counting as awaited work; a younger watch is untouched. Owner: session reply-watch suite (#760).
+func TestReplyWatchTTLExpiry(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expire a stale armed watch and wake the sender once", func(t *testing.T) {
+		t.Parallel()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		cfg := compozyconfig.SessionMessagingConfig{ReplyWatchTTL: time.Hour}
+		h, db, service, sender, _, w := replyWatchFixtureWith(
+			t, []Option{WithNow(clock), WithSessionMessagingConfig(cfg)},
+		)
+		h.manager.SetReplyWatchService(service)
+		replies := service.(*replyWatchService)
+		replies.expireStale(t.Context())
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchArmed {
+			t.Fatalf("young watch = %+v, %v; want armed", got, err)
+		}
+		nowMu.Lock()
+		now = now.Add(2 * time.Hour)
+		nowMu.Unlock()
+		if signals := mustAwaitingReplySignals(t, service, sender.ID, clock().Add(time.Minute)); len(signals) != 0 {
+			t.Fatalf("expired watch signals = %#v, want none", signals)
+		}
+		replies.expireStale(t.Context())
+		if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.GetReplyWatch(t.Context(), w.ID)
+		if err != nil || got.Outcome != store.ReplyOutcomeExpired || got.State != store.ReplyWatchDelivered ||
+			!strings.Contains(got.ReplyText, "1h0m0s") {
+			t.Fatalf("expired watch = %+v, %v; want a delivered expired outcome", got, err)
+		}
+		entry, err := db.GetSessionInputQueueEntry(t.Context(), sender.ID, got.DeliveredInputID)
+		var meta acp.PromptSyntheticMeta
+		if err != nil || entry.SyntheticPrompt == nil ||
+			json.Unmarshal(entry.SyntheticPrompt.Metadata, &meta) != nil || meta.Reason != store.ReplyOutcomeExpired {
+			t.Fatalf("expiry wake = %+v, %v; want a session_reply wake with reason expired", entry, err)
+		}
+		replies.expireStale(t.Context())
+		if again, err := db.GetReplyWatch(
+			t.Context(),
+			w.ID,
+		); err != nil ||
+			again.DeliveredInputID != got.DeliveredInputID {
+			t.Fatalf("second sweep = %+v, %v; want the single delivered wake", again, err)
+		}
+	})
+}
+
+// Invariant: an explicit in_reply_to answer from the watched target releases the matching watch, so the
+// original sender is woken by that message only; unrelated replies leave the watch armed.
+// Owner: session reply-watch suite (#760).
+func TestReplyWatchAnsweredByExplicitReply(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		inReplyTo string
+		toSender  bool
+		want      string
+	}{
+		{name: "Should abandon the watch answered with in_reply_to", inReplyTo: "reply-message", toSender: true,
+			want: store.ReplyWatchAbandoned},
+		{name: "Should keep the watch for a reply to another message", inReplyTo: "other-message", toSender: true,
+			want: store.ReplyWatchArmed},
+		{name: "Should keep the watch for a reply sent to another session", inReplyTo: "reply-message",
+			want: store.ReplyWatchArmed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, db, service, sender, target, w := replyWatchFixture(t)
+			h.manager.SetReplyWatchService(service)
+			recipient := createSession(t, h).ID
+			if tc.toSender {
+				recipient = sender.ID
+			}
+			h.manager.AcknowledgeSessionReply(t.Context(), &acp.PromptOriginMeta{
+				Kind: acp.PromptOriginKindSession, SessionID: target.ID, WorkspaceID: h.workspaceID, Hop: 1,
+				InReplyTo: tc.inReplyTo,
+			}, recipient)
+			got, err := db.GetReplyWatch(t.Context(), w.ID)
+			if err != nil || got.State != tc.want {
+				t.Fatalf("watch = %+v, %v; want %s", got, err, tc.want)
+			}
+			if tc.want == store.ReplyWatchAbandoned && got.AbandonReason != store.ReplyAbandonAnswered {
+				t.Fatalf("abandon reason = %q, want answered", got.AbandonReason)
+			}
 		})
 	}
 }

@@ -290,6 +290,13 @@ default_mode = "steer"
 queue_cap = 10
 max_text_bytes = 65536
 
+[session.messaging]
+# Agent-to-agent messages (compozy__session_prompt) one sender session may send to one target per window.
+rate_limit_messages = 30
+rate_limit_window = "10m"
+# An armed reply watch with no answer after this long wakes its sender once with an `expired` outcome.
+reply_watch_ttl = "24h"
+
 [session.supervision]
 # Short heartbeats update durable liveness only. They are not persisted as session events.
 activity_heartbeat_interval = "30s"
@@ -2401,6 +2408,16 @@ See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, a
 Changes through General Settings apply to subsequent admissions without a daemon restart.
 The historical `interrupt` default remains accepted with a warning through v0.4 and is scheduled
 for removal in v0.5.0. Interrupt remains an explicit per-send action.
+
+### Agent message budget and reply watches
+
+`session.messaging.rate_limit_messages` (default `30`, 1–10000) and `session.messaging.rate_limit_window`
+(default `10m`, 1s–24h) bound how many messages one agent session may send to the same target session.
+The count comes from durable admissions, so retries of an admitted message are not counted twice. A send
+past the budget is refused with `message_rate_limited` (HTTP 429), and the error details carry `limit`,
+`window`, and `retry_after_seconds`. `session.messaging.reply_watch_ttl` (default `24h`, 1m–30d) releases a
+`notify_on_complete` reply watch that never fired: the sender is woken once with the `expired` outcome and
+the watch stops keeping the sender awake. These values apply when the daemon starts.
 
 `providers.<name>.steer_capability` accepts `steer_ext`, `concurrent_prompt`, or `none`.
 An advertised steering extension takes precedence over this override. Otherwise the daemon uses

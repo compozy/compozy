@@ -47348,6 +47348,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -47568,6 +47569,7 @@ export interface operations {
                 origin?: {
                   agent_name?: string;
                   hop: number;
+                  in_reply_to?: string;
                   kind: string;
                   notify_on_complete?: boolean;
                   reply_watch_id?: string;
@@ -48135,6 +48137,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -48225,6 +48228,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -75882,6 +75886,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -76741,6 +76746,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77034,6 +77040,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -77603,6 +77610,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77874,6 +77882,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78152,6 +78161,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78498,6 +78508,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78761,6 +78772,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79032,6 +79044,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -79310,6 +79323,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79645,6 +79659,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79929,6 +79944,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80200,6 +80216,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80463,6 +80480,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80734,6 +80752,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81005,6 +81024,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81268,6 +81288,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81531,6 +81552,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81794,6 +81816,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82087,6 +82110,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82516,6 +82540,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82941,6 +82966,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83212,6 +83238,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83490,6 +83517,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -108377,6 +108405,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -110953,6 +110982,7 @@ export interface operations {
                 origin?: {
                   agent_name?: string;
                   hop: number;
+                  in_reply_to?: string;
                   kind: string;
                   notify_on_complete?: boolean;
                   reply_watch_id?: string;
@@ -111780,6 +111810,7 @@ export interface operations {
           }[];
           expected_turn_id?: string;
           idempotency_key: string;
+          in_reply_to?: string;
           message?: string;
           message_id: string;
           messages?: {
@@ -111804,6 +111835,7 @@ export interface operations {
             /** @enum {string} */
             speed?: "normal" | "fast";
           } | null;
+          supersede?: boolean;
         };
       };
     };
@@ -113076,6 +113108,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -113234,6 +113267,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -113430,6 +113464,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -117487,6 +117522,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -117577,6 +117613,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -118493,6 +118530,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -119056,6 +119094,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -119319,6 +119358,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126169,6 +126209,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126432,6 +126473,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126695,6 +126737,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"

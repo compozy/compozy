@@ -107,6 +107,10 @@ func (g *SessionRepo) updateSessionInputTerminal(
 		if getErr != nil {
 			return getErr
 		}
+		if status == store.SessionInputQueueStatusSent && entry.Status == store.SessionInputQueueStatusSent {
+			// A retried sent receipt after the turn started is already settled.
+			return nil
+		}
 		var affected int64
 		var updateErr error
 		if status == store.SessionInputQueueStatusFailed {
@@ -218,4 +222,30 @@ func (g *SessionRepo) CancelPendingSessionInputs(
 		return 0, fmt.Errorf("store: cancel pending session inputs: %w", err)
 	}
 	return int(rows), nil
+}
+
+// FailStaleDispatchingSessionInputs settles non-Goal leases left by a previous
+// daemon process. Their dispatch outcome is unknown, so they fail (marking any
+// admission receipt indeterminate) instead of requeueing and risking a
+// duplicate turn; either way they stop holding queue capacity.
+func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now time.Time) (int, error) {
+	if err := g.checkReady(ctx, "fail stale dispatching session inputs"); err != nil {
+		return 0, err
+	}
+	rows, err := g.queries.ListStaleDispatchingSessionInputs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("store: list stale dispatching session inputs: %w", err)
+	}
+	failed := 0
+	var errs []error
+	for _, row := range rows {
+		if err := g.MarkSessionInputFailed(
+			ctx, row.SessionID, row.ID, store.SessionInputStaleDispatchSummary, now,
+		); err != nil {
+			errs = append(errs, fmt.Errorf("store: fail stale dispatching input %s: %w", row.ID, err))
+			continue
+		}
+		failed++
+	}
+	return failed, errors.Join(errs...)
 }

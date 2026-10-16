@@ -36,6 +36,10 @@ type SendPromptRequest struct {
 	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
 	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
 	Attachments    []PromptAttachmentRef          `json:"attachments,omitempty"`
+	// InReplyTo names the message id this prompt answers. It requires a calling agent session.
+	InReplyTo string `json:"in_reply_to,omitempty"`
+	// Supersede replaces the caller's own older queued prompt to the same session.
+	Supersede bool `json:"supersede,omitempty"`
 }
 
 // PromptAttachmentRef is one provider-neutral attachment on a prompt request.

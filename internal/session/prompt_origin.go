@@ -87,29 +87,48 @@ func (s *Session) raiseTurnHop(turnID string, hop int) {
 
 // CurrentTurnEffectiveHop includes the pre-provider fence and every durable input in the active turn.
 func (m *Manager) CurrentTurnEffectiveHop(ctx context.Context, sessionID string) (int, error) {
+	turn, err := m.currentTurnMessageContext(ctx, sessionID)
+	return turn.hop, err
+}
+
+// turnMessageContext is what the active turn knows about the session messages driving it.
+type turnMessageContext struct {
+	hop int
+	// senders holds every session whose input started or joined the active turn, including reply wakes.
+	senders map[string]struct{}
+}
+
+func (c turnMessageContext) drivenBy(sessionID string) bool {
+	_, ok := c.senders[strings.TrimSpace(sessionID)]
+	return ok
+}
+
+func (m *Manager) currentTurnMessageContext(ctx context.Context, sessionID string) (turnMessageContext, error) {
 	s, err := m.lookup(strings.TrimSpace(sessionID))
 	if err != nil {
-		return 0, err
+		return turnMessageContext{}, err
 	}
 	for {
 		s.mu.RLock()
-		turnID, hop := s.currentTurnID, s.currentTurnHopFloor
+		turnID, hop, meta := s.currentTurnID, s.currentTurnHopFloor, s.currentPromptMeta
 		s.mu.RUnlock()
 		if turnID == "" {
-			return 0, nil
+			return turnMessageContext{}, nil
 		}
+		turn := turnMessageContext{hop: hop, senders: map[string]struct{}{}}
+		turn.addPromptMeta(meta)
 		query := store.EventQuery{TurnID: turnID, Type: acp.EventTypeUserMessage, Limit: 200}
 		for {
 			page, err := m.Events(ctx, sessionID, query)
 			if err != nil {
-				return 0, err
+				return turnMessageContext{}, err
 			}
 			for _, stored := range page {
 				event, err := transcript.UnmarshalAgentEvent(stored.Content)
 				if err != nil {
-					return 0, err
+					return turnMessageContext{}, err
 				}
-				hop = max(hop, originHop(event.PromptOrigin()))
+				turn.addOrigin(event.PromptOrigin())
 			}
 			if len(page) < query.Limit {
 				break
@@ -118,13 +137,32 @@ func (m *Manager) CurrentTurnEffectiveHop(ctx context.Context, sessionID string)
 		}
 		s.mu.RLock()
 		sameTurn := s.currentTurnID == turnID
-		hop = max(hop, s.currentTurnHopFloor)
+		turn.hop = max(turn.hop, s.currentTurnHopFloor)
 		s.mu.RUnlock()
 		if sameTurn {
-			return hop, nil
+			return turn, nil
 		}
 		if err := ctx.Err(); err != nil {
-			return 0, err
+			return turnMessageContext{}, err
+		}
+	}
+}
+
+func (c *turnMessageContext) addOrigin(origin *acp.PromptOriginMeta) {
+	if origin == nil {
+		return
+	}
+	c.hop = max(c.hop, origin.Hop)
+	if id := strings.TrimSpace(origin.SessionID); id != "" {
+		c.senders[id] = struct{}{}
+	}
+}
+
+func (c *turnMessageContext) addPromptMeta(meta acp.PromptMeta) {
+	c.addOrigin(meta.Origin)
+	if meta.Synthetic != nil && meta.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {
+		if id := strings.TrimSpace(meta.Synthetic.ChildSessionID); id != "" {
+			c.senders[id] = struct{}{}
 		}
 	}
 }

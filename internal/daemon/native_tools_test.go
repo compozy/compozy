@@ -13088,15 +13088,40 @@ func TestNativeSubagentHostedCaller(t *testing.T) {
 	}
 }
 
+// originNativeSessionManager models the session manager's message-origin contract: self-target and the
+// hop limit refuse, a rate-limited pair refuses with the typed budget error, and an accepted send is
+// stamped from the sender's status one hop deeper. The hop model itself is owned by the session suite.
 type originNativeSessionManager struct {
 	core.SessionManager
-	hop int
+	hop         int
+	rateLimited bool
 }
 
-var _ nativeSessionHopReader = originNativeSessionManager{}
+var _ nativeSessionMessageOriginBuilder = originNativeSessionManager{}
 
-func (m originNativeSessionManager) CurrentTurnEffectiveHop(context.Context, string) (int, error) {
-	return m.hop, nil
+func (m originNativeSessionManager) SessionMessageOrigin(
+	ctx context.Context,
+	req session.MessageOriginRequest,
+) (*acp.PromptOriginMeta, error) {
+	switch {
+	case req.SenderSessionID == req.TargetSessionID:
+		return nil, session.ErrSessionMessageSelfTarget
+	case m.hop >= acp.MaxSessionMessageHops:
+		return nil, session.ErrSessionMessageHopLimit
+	case m.rateLimited:
+		return nil, &session.MessageRateLimitError{
+			TargetSessionID: req.TargetSessionID, Limit: 30, Window: 10 * time.Minute, RetryAfter: time.Minute,
+		}
+	}
+	sender, err := m.Status(ctx, req.SenderSessionID)
+	if err != nil {
+		return nil, err
+	}
+	return &acp.PromptOriginMeta{
+		Kind: acp.PromptOriginKindSession, SessionID: req.SenderSessionID, WorkspaceID: sender.WorkspaceID,
+		AgentName: req.AgentName, TitleAtSend: sender.Name, Hop: m.hop + 1,
+		NotifyOnComplete: req.NotifyOnComplete, InReplyTo: req.InReplyTo,
+	}, nil
 }
 
 type replayNativeSessionManager struct {
@@ -13301,6 +13326,78 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 				got.Origin.Hop != tc.hop+1 ||
 				!got.NotifyOnComplete {
 				t.Fatal(got)
+			}
+		})
+	}
+}
+
+// Invariant: the native send maps the session message budget to message_rate_limited, carries in_reply_to
+// into the stamped origin and supersede into admission, and refuses in_reply_to from operator scope.
+// Owner: native session_prompt suite.
+func TestNativeSessionPromptMessageGuards(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		operator    bool
+		rateLimited bool
+		code        toolspkg.ErrorCode
+	}{
+		{name: "Should refuse an exhausted sender budget with message_rate_limited", rateLimited: true,
+			code: toolspkg.ErrorCodeSessionMessageRateLimited},
+		{name: "Should carry in_reply_to and supersede through admission"},
+		{name: "Should refuse in_reply_to from operator scope", operator: true,
+			code: toolspkg.ErrorCodeInvalidRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got *session.SendPromptOpts
+			base := nativeTestSessionManager("ws-origin")
+			base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, Name: "Sender title", WorkspaceID: "ws-origin",
+					AgentName: "coder", State: session.StateActive,
+				}, nil
+			}
+			base.SendPromptFn = func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				got = &opts
+				return session.SendPromptResult{Status: "accepted", MessageID: opts.MessageID}, nil
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions: originNativeSessionManager{
+						SessionManager: base, hop: 2, rateLimited: tc.rateLimited,
+					},
+					Workspaces: nativeTestWorkspaceService(t),
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input, err := json.Marshal(map[string]any{
+				"workspace": "ws-origin", "session_id": "target", "message": "Approved.",
+				"message_id": "msg", "idempotency_key": "key", "in_reply_to": "msg-plan", "supersede": true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					SessionID: "sender", WorkspaceID: "ws-origin", AgentName: "coder", Operator: tc.operator,
+				},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input},
+			)
+			if tc.code != "" {
+				requireToolCode(t, err, tc.code)
+				if got != nil {
+					t.Fatal("refused send reached admission")
+				}
+				return
+			}
+			if err != nil || got == nil {
+				t.Fatalf("send = %v, %v", got, err)
+			}
+			if got.Origin == nil || got.Origin.InReplyTo != "msg-plan" || got.Origin.Hop != 3 || !got.Supersede {
+				t.Fatalf("send opts = %+v origin = %+v, want in_reply_to and supersede carried", got, got.Origin)
 			}
 		})
 	}

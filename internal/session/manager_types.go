@@ -237,6 +237,7 @@ type Manager struct {
 	stopConfig                   compozyconfig.SessionStopConfig
 	busyInput                    compozyconfig.SessionBusyInputConfig
 	busyInputMu                  sync.RWMutex
+	messaging                    compozyconfig.SessionMessagingConfig
 	deriveConfig                 compozyconfig.SessionDeriveConfig
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 
@@ -328,6 +329,23 @@ func (c *daemonClient) SendSessionPrompt(
 		return SessionPromptRecord{}, err
 	}
 	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
+}
+
+// SendSessionPromptAs sends a prompt on behalf of a validated agent session identity, which stamps the
+// calling session as the message origin.
+func (c *daemonClient) SendSessionPromptAs(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+	credentials agentidentity.Credentials,
+) (SessionPromptRecord, error) {
+	query := url.Values{}
+	query.Set(cliFormatKey, "raw")
+	path, err := c.sessionScopedPath(ctx, id, "/prompt")
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
+	return c.doSessionPromptAs(ctx, http.MethodPost, path, query, request, credentials)
 }
 
 func (c *daemonClient) SteerSessionPrompt(

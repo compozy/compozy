@@ -321,13 +321,11 @@ func (s *replyWatchService) Recover(ctx context.Context) error {
 		return err
 	}
 	for _, w := range rows {
-		if w.State == store.ReplyWatchArmed && s.manager.now().Sub(w.CreatedAt) >= 24*time.Hour {
-			s.manager.logger.WarnContext(ctx, "reply_watch.armed_stale", "id", w.ID, "created_at", w.CreatedAt)
-		}
 		if err := s.reconcile(ctx, w.ID, true); err != nil {
 			s.manager.logger.ErrorContext(ctx, "reply_watch.recover_failed", "id", w.ID, "error", err)
 		}
 	}
+	s.expireStale(ctx)
 	s.manager.logger.InfoContext(ctx, "reply_watch.recovered", "count", len(rows))
 	return nil
 }
@@ -339,6 +337,7 @@ func (s *replyWatchService) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			s.expireStale(ctx)
 			s.retry(ctx, "")
 		}
 	}

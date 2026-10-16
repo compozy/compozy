@@ -80,9 +80,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry.Attachments = attachments
-	if row.OriginJson.Valid {
-		entry.Origin = json.RawMessage(row.OriginJson.String)
-	}
+	scanSessionInputOrigin(row, &entry)
 	if err := decodeSyntheticQueuePrompt(row.SyntheticPromptJson, &entry); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
@@ -94,6 +92,14 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input queue entry times: %w", err)
 	}
 	return entry, nil
+}
+
+func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.SessionInputQueueEntry) {
+	if row.OriginJson.Valid {
+		entry.Origin = json.RawMessage(row.OriginJson.String)
+	}
+	entry.OriginClass = strings.TrimSpace(row.OriginClass)
+	entry.OriginSessionID = strings.TrimSpace(row.OriginSessionID)
 }
 
 func sqlNullStringFromTime(value sql.NullTime) sql.NullString {

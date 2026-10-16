@@ -12,6 +12,7 @@ type sessionPromptInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	MessageID   string `json:"message_id"`
 	Mode        string `json:"mode"`
+	InReplyTo   string `json:"in_reply_to"`
 }
 
 // sessionPromptArguments reads the call's arguments. Claude reports them as the tool input

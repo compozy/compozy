@@ -125,11 +125,16 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionPrompt,
 		"session_prompt",
 		"Session Prompt",
-		"Send a prompt to a session. While it is busy, choose queue, interrupt, or steer; "+
-			"steering uses the expected active turn. Agent calls carry an immutable sender origin; "+
-			"self-targeting is rejected and message chains are limited to 8 hops. "+
-			"Use notify_on_complete to request a reply wake. It requires an agent session; "+
-			"operator-scoped calls are refused with invalid_request.",
+		"Send a prompt to a session. Each message costs the receiver a full turn, so send at milestones "+
+			"and batch updates instead of streaming status. While the target is busy, mode chooses queue "+
+			"(after its current turn), steer (into the active turn), or interrupt; omitting mode uses "+
+			"session.busy_input.default_mode (steer by default). Agent calls carry an immutable sender origin; "+
+			"self-targeting is rejected. Forwarding depth is limited to 8 hops, but answering the session "+
+			"that started your current turn, or replying with in_reply_to, keeps the hop. Each sender→target "+
+			"pair has a rate budget (message_rate_limited when exceeded). Without notify_on_complete nobody "+
+			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
+			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
+			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -257,10 +262,20 @@ const sessionPromptInputSchema = `{
 		"attachments":{"type":"array","items":{"type":"string","minLength":1}},
 		"message_id":{"type":"string","minLength":1},
 		"idempotency_key":{"type":"string","minLength":1},
-		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
+		"mode":{"type":"string","enum":["queue","interrupt","steer"],
+ "description":"How to deliver while the target is busy: queue waits for its current turn to end, ` +
+	`steer joins the active turn, interrupt cancels it. ` +
+	`Omitted means session.busy_input.default_mode (steer by default)."},
 		"expected_turn_id":{"type":"string","minLength":1},
 		"notify_on_complete":{"type":"boolean","default":false,
- "description":"Request a reply wake when the receiving turn completes. Requires an agent session."},
+ "description":"Request a reply wake with the receiver's final answer when its turn completes. ` +
+	`When omitted or false, nobody is woken when the receiver finishes. Requires an agent session."},
+		"in_reply_to":{"type":"string","minLength":1,"maxLength":200,"pattern":"^\\S+$",
+ "description":"Message id this message answers (shown on the received message). ` +
+	`A reply keeps the hop instead of adding one, and answering a message that requested ` +
+	`notify_on_complete releases that reply watch so the sender is woken once. Requires an agent session."},
+		"supersede":{"type":"boolean","default":false,
+ "description":"Replace your own older queued message to the same target instead of adding another entry."},
  "wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
 		"runtime":{
 			"type":"object",

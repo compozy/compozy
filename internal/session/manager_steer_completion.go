@@ -54,7 +54,7 @@ func (m *Manager) watchSteerCompletion(session *Session, entryID, targetTurnID s
 		}
 		m.sessionLogger(session).Warn("session: pending steer failed; falling back",
 			"entry_id", entryID, "error", deliveryErr)
-		if session.CurrentTurnID() != targetTurnID {
+		if steerFallbackWaitsForTurn(&resolved) || session.CurrentTurnID() != targetTurnID {
 			m.startNextQueuedInputPrompt(session.ID)
 			return
 		}

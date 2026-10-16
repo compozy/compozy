@@ -84,18 +84,19 @@ func enqueueAdmittedSessionInputInTransaction(
 			return err
 		}
 	}
-	count, err := countPendingSessionInputs(ctx, exec, queueReq.SessionID)
-	if err != nil {
-		return err
-	}
-	if queueReq.Mode == store.SessionInputQueueModeQueue && count >= queueReq.QueueCap {
-		return &store.SessionInputQueueFullError{SessionID: queueReq.SessionID, Cap: queueReq.QueueCap, Count: count}
+	if queueReq.Mode == store.SessionInputQueueModeQueue {
+		if err := checkSessionInputQueueCap(ctx, exec, queueReq); err != nil {
+			return err
+		}
 	}
 	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
 	if err != nil {
 		return err
 	}
-	result.position = count + 1
+	result.position, err = sessionInputQueuePosition(ctx, exec, inserted.SessionID, inserted.ID)
+	if err != nil {
+		return err
+	}
 	completed, err := completeSessionPromptAdmission(
 		ctx,
 		exec,
@@ -265,12 +266,13 @@ func cancelPriorAdmittedSessionSteers(
 	ids, err := sqlcgen.New(exec).CancelPriorSessionSteers(
 		ctx,
 		sqlcgen.CancelPriorSessionSteersParams{
-			CanceledStatus: store.SessionInputQueueStatusCanceled,
-			CanceledAt:     nullableSessionTime(now),
-			UpdatedAt:      nowRaw,
-			SessionID:      queueReq.SessionID,
-			SteerMode:      store.SessionInputQueueModeSteer,
-			QueuedStatus:   store.SessionInputQueueStatusQueued,
+			CanceledStatus:  store.SessionInputQueueStatusCanceled,
+			CanceledAt:      nullableSessionTime(now),
+			UpdatedAt:       nowRaw,
+			SessionID:       queueReq.SessionID,
+			SteerMode:       store.SessionInputQueueModeSteer,
+			QueuedStatus:    store.SessionInputQueueStatusQueued,
+			OriginSessionID: queueReq.Normalize().OriginSessionID,
 		},
 	)
 	if err != nil {
