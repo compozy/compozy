@@ -124,6 +124,67 @@ func TestGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 		t.Parallel()
 		exerciseGatewayPairingAndBrowserCredentialIntegration(t)
 	})
+	t.Run("Should reach the pairing gate and redeem through the advertised HTTPS origin", func(t *testing.T) {
+		t.Parallel()
+		service := newGatewayIntegrationService(t)
+		server := newGatewayIntegrationServer(t, service)
+		const origin = "https://gateway.example.ts.net:8443"
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			server.URL+"/api/gateway/status",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		response, err := gatewayIntegrationHTTPClient().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := readAndCloseHTTPBody(t, response)
+		if response.StatusCode != http.StatusUnauthorized ||
+			!strings.Contains(string(body), "gateway_device_unauthenticated") {
+			t.Fatalf("pairing gate: status=%d body=%s", response.StatusCode, body)
+		}
+		artifact, err := service.MintPairing(t.Context(), gateway.PairingRequest{Source: gateway.PairingSourceLocal})
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload := `{"artifact":"` + artifact.Artifact + `","name":"Tailnet browser","actor_kind":"operator_device"}`
+		request, err = http.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			server.URL+"/api/gateway/pairings/redeem",
+			strings.NewReader(payload),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Host = "gateway.example.ts.net:8443"
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		request.Header.Set("Content-Type", "application/json")
+		response, err = gatewayIntegrationHTTPClient().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = readAndCloseHTTPBody(t, response)
+		if response.StatusCode != http.StatusOK || len(response.Cookies()) != 1 || !response.Cookies()[0].Secure ||
+			response.Header.Get("Access-Control-Allow-Origin") != origin {
+			t.Fatalf(
+				"pairing redemption: status=%d cookies=%d body=%s",
+				response.StatusCode,
+				len(response.Cookies()),
+				body,
+			)
+		}
+	})
 }
 
 func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
@@ -929,6 +990,7 @@ func newGatewayIntegrationServer(t *testing.T, service *gatewayIntegrationServic
 		boundHost: "127.0.0.1",
 	})
 	router := gin.New()
+	router.Use(corsMiddlewareWithForwardedTarget("127.0.0.1", true))
 	router.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
 	RegisterSurfaceRoutes(router, handlers, SurfaceSetPrivate)
 	server := httptest.NewServer(router)
