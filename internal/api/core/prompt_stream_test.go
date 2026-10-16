@@ -2,6 +2,8 @@ package core_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,7 +11,9 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subagentid"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestDeliverPromptEventStream(t *testing.T) {
@@ -776,6 +780,74 @@ func TestPromptStreamSessionMessage(t *testing.T) {
 			t.Fatalf("states = %v", states)
 		}
 	})
+	// Recorded Claude and Codex sends (#742), delivered as the session manager does: each stored
+	// event decoded and annotated with the turn's SessionMessageCards fold.
+	for _, tc := range []struct {
+		fixture string
+		want    map[string]transcript.UISessionMessagePayload
+	}{
+		{fixture: "claude.jsonl", want: map[string]transcript.UISessionMessagePayload{
+			"toolu_01L3DE1yXY8CcKF8hkd3k8Z5": {
+				ToolCallID: "toolu_01L3DE1yXY8CcKF8hkd3k8Z5", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "issue742-goal-unavailable-v1", Mode: "queue",
+				Delivery: "direct", ReplyWatchID: "rw-f9a45066bce98c57", State: "done",
+			},
+		}},
+		{fixture: "codex.jsonl", want: map[string]transcript.UISessionMessagePayload{
+			"exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22": {
+				ToolCallID: "exec-2536d1eb-7fab-4bd7-b971-e62f6b970e22", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-review-remediation-1", Mode: "queue",
+				Delivery: "after_turn", State: "done",
+			},
+			"exec-5f2789fa-43ce-4158-a1b6-190745d05f03": {
+				ToolCallID: "exec-5f2789fa-43ce-4158-a1b6-190745d05f03", TargetSessionID: "sess-844b851f052bd406",
+				TargetWorkspaceID: "ws_a5a306022a1c98a1", MessageID: "736-fixture-remediation-1518", Mode: "steer",
+				Delivery: "interrupt_then_prompt", SteerDelivery: "injected", State: "done",
+			},
+		}},
+	} {
+		t.Run("Should stream the settled card of every recorded send in "+tc.fixture, func(t *testing.T) {
+			t.Parallel()
+			writer := &bufferFlusher{}
+			encoder := core.NewPromptStreamEncoder(
+				func() time.Time { return time.Date(2026, 10, 16, 14, 45, 0, 0, time.UTC) },
+			)
+			var cards transcript.SessionMessageCards
+			for _, stored := range recordedPromptStream(t, tc.fixture) {
+				event, err := transcript.UnmarshalAgentEvent(stored.Content)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if card, ok := cards.Card(stored); ok {
+					data, err := json.Marshal(card)
+					if err != nil {
+						t.Fatal(err)
+					}
+					event = event.WithSessionMessageCard(data)
+				}
+				mustEmitPromptEvent(t, encoder, writer, event)
+			}
+			got := make(map[string]transcript.UISessionMessagePayload)
+			for line := range strings.SplitSeq(writer.String(), "\n") {
+				var frame struct {
+					Type string                             `json:"type"`
+					Data transcript.UISessionMessagePayload `json:"data"`
+				}
+				if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &frame) != nil ||
+					frame.Type != "data-compozy-session-message" {
+					continue
+				}
+				// Every frame names its target: no client ever receives a card it cannot draw.
+				if frame.Data.TargetSessionID == "" {
+					t.Fatalf("frame without a target: %+v", frame.Data)
+				}
+				got[frame.Data.ToolCallID] = frame.Data
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("settled cards = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
 	t.Run("Should attribute a send made inside a provider-native subagent to its parent call", func(t *testing.T) {
 		t.Parallel()
 		writer := &bufferFlusher{}
@@ -812,4 +884,27 @@ func TestPromptStreamSessionMessage(t *testing.T) {
 			t.Fatal("no session message frame")
 		}
 	})
+}
+
+// recordedPromptStream loads a recorded provider stream shared with the transcript suite.
+func recordedPromptStream(t *testing.T, name string) []store.SessionEvent {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "transcript", "testdata", "session-prompt", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []store.SessionEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var recorded struct {
+			Type    string          `json:"type"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(line), &recorded); err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, store.SessionEvent{
+			Sequence: int64(len(rows) + 1), Type: recorded.Type, Content: string(recorded.Content),
+		})
+	}
+	return rows
 }

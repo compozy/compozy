@@ -4,7 +4,10 @@
 // part is drawn as the card, never as a tool row, failed or not: the card owns
 // "Could not send to {title}". The card renders where its part sits.
 
-import { sessionSentMessagePart } from "@/systems/session/lib/session-message-payload";
+import {
+  SESSION_MESSAGE_PART_NAME,
+  sessionSentMessagePart,
+} from "@/systems/session/lib/session-message-payload";
 import type {
   SessionTimelineDataPart,
   SessionTimelinePart,
@@ -15,6 +18,11 @@ import type { SessionSentMessageRow } from "./session-timeline-rows";
 
 export function isSessionMessagePart(part: SessionTimelineDataPart): boolean {
   return sessionSentMessagePart(part.name, part.data) !== null;
+}
+
+/** Any session-message part, including one the card cannot name (no target yet, an unread shape). */
+export function isSessionMessageDataPart(part: SessionTimelineDataPart): boolean {
+  return part.name === SESSION_MESSAGE_PART_NAME;
 }
 
 export interface SessionMessagePartition {
