@@ -22,10 +22,14 @@ import { SubagentRoster, type SubagentRosterProps } from "./subagent-roster";
 import type { SubagentView } from "./types";
 
 export interface SubagentComposerControlProps {
-  /** Loaded rows; empty while a cold read is in flight. */
   subagents: readonly SubagentView[];
   /** What the trigger reports: the rows' counts, or the session's summary before they load. */
   counts: SubagentCounts;
+  /** The session reports subagents whose rows have not arrived yet. */
+  loading?: boolean;
+  /** The rows could not be read; `onRetry` reads them again. */
+  failed?: boolean;
+  onRetry?: () => void;
   onOpen?: SubagentRosterProps["onOpen"];
   onStop?: SubagentRosterProps["onStop"];
   /** The popover opened or closed; the owner reads the roster while it is open. */
@@ -43,6 +47,9 @@ export interface SubagentComposerControlProps {
 export function SubagentComposerControl({
   subagents,
   counts,
+  loading = false,
+  failed = false,
+  onRetry,
   onOpen,
   onStop,
   onOpenChange,
@@ -50,7 +57,6 @@ export function SubagentComposerControl({
 }: SubagentComposerControlProps) {
   const reduced = useReducedMotionConfig();
   const signal = subagentComposerSignal(counts);
-  const loading = subagents.length === 0 && counts.total > 0;
 
   return (
     <Popover onOpenChange={open => onOpenChange?.(open)}>
@@ -108,6 +114,15 @@ export function SubagentComposerControl({
             // Nothing runs: the previous rows are the whole answer, so they start open.
             defaultPreviousOpen={counts.live === 0}
           />
+        ) : failed ? (
+          <div className="flex items-center justify-between gap-2 px-0.5">
+            <p className="text-transcript-caption text-muted">Couldn't load subagents.</p>
+            {onRetry ? (
+              <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
+                Try again
+              </Button>
+            ) : null}
+          </div>
         ) : loading ? (
           <SkeletonRows count={2} className="gap-2 px-0.5" rowClassName="h-7.5 justify-center">
             <Skeleton className="h-3.5 w-2/3" />

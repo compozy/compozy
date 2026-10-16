@@ -27,13 +27,16 @@ export function SessionComposerSubagents({ session, onOpen }: SessionComposerSub
   const roster = useSessionSubagents(session.workspace_id ?? "", session.id, {
     coldRead: open || summary !== null,
   });
-  const counts =
-    roster.subagents.length > 0 ? subagentCounts(roster.subagents) : (summary ?? NO_SUBAGENTS);
+  // The whole roster is the answer, even an empty one; the summary stands in until every row is in.
+  const counts = roster.complete ? subagentCounts(roster.subagents) : (summary ?? NO_SUBAGENTS);
 
   return (
     <SubagentComposerControl
       subagents={roster.subagents}
       counts={counts}
+      loading={!roster.complete && counts.total > 0}
+      failed={roster.failed}
+      onRetry={roster.retry}
       onOpen={onOpen}
       onStop={roster.stop}
       onOpenChange={setOpen}

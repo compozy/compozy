@@ -306,6 +306,9 @@ func (s *subagentService) nativeStitchMiss(ctx context.Context, parent, id strin
 	}
 }
 
+// publishNativeSubagentEvent ingests a committed event on the persistence path,
+// the goroutine that later settles the turn: interruptNative treats any row
+// still live then as interrupted and cannot accept a late terminal update.
 func (m *Manager) publishNativeSubagentEvent(
 	ctx context.Context,
 	child *Session,

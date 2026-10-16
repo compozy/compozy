@@ -3071,8 +3071,10 @@ Owner: branch `fix/issue-766-subagent-status-indicator`; issue #766.
   layer also reads the launch input `run_in_background: true`. The receipt no longer settles the
   provider-native row: it stays `running`/`working`. claude-agent-acp holds the prompt response
   until every background subagent of the turn has settled and reports each outcome only to the
-  model, so the turn's non-canceled `done` (handled on the persistence path, before turn
-  settlement) completes those rows with `result: null`. Canceled turns, parent stops and boot
+  model, so the turn's non-canceled `done` completes those rows with `result: null`. Native tool
+  events are now ingested on the persistence path (when the event is recorded) instead of the
+  prompt-delivery pump, so ingestion and the `done` handling run on the goroutine that settles the
+  turn, in ledger order, whatever a slow prompt consumer does. Canceled turns, parent stops and boot
   recovery still settle them `interrupted`. Foreground calls keep settling on their result.
   Codex's own collab subagents are still not recorded as provider-native rows (unchanged).
 - Native tools, CLI, HTTP/UDS: `compozy__subagent_status`, `compozy session subagents`, and the
@@ -3095,5 +3097,4 @@ Owner: branch `fix/issue-766-subagent-status-indicator`; issue #766.
   `COPY.md` Subagent Terms, and QA scenarios `ET-web-native-subagent` and `ET-web-subagent-card`
   co-ship. Automated owners: `TestClaudeAgentSubagentContract`, `TestNativeSubagentEventFromStored`,
   `TestSubagentNativeLifecycle`, IT-020 `TestSubagentNativeDaemonIntegration`, and the
-  `SubagentComposerControl` and composer-placement web tests.
-||||||| dcdb098b4
+  `SubagentComposerControl`, composer-placement, and composer-control wiring web tests.

@@ -10,6 +10,15 @@ import type { SubagentRoster } from "../lib/subagent-roster";
 
 export interface SessionSubagentsModel {
   subagents: readonly SubagentView[];
+  /**
+   * The rows are the whole answer, even when empty: the stream roster, or a list
+   * read with every page in.
+   */
+  complete: boolean;
+  /** The list read failed and no stream roster stands in. */
+  failed: boolean;
+  /** Re-reads the list after a failure. */
+  retry: () => void;
   /** Cancels one delegated subagent; rejects so the row raises its stop-failed toast. */
   stop: (subagent: SubagentView) => Promise<unknown>;
 }
@@ -80,7 +89,7 @@ export function useSessionSubagents(
     ...sessionSubagentsOptions(workspaceId, sessionId),
     enabled: scoped && coldRead && live === null,
   });
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = query;
   const walk = allPages && coldRead && live === null;
   useEffect(() => {
     if (walk && hasNextPage && !isFetchingNextPage) void fetchNextPage().catch(() => undefined);
@@ -91,6 +100,9 @@ export function useSessionSubagents(
       live?.rows ??
       query.data?.pages.flatMap(page => page.subagents.map(subagentViewFromPayload)) ??
       [],
+    complete: live !== null || (query.isSuccess && !hasNextPage),
+    failed: live === null && query.isError,
+    retry: () => void refetch(),
     stop: async subagent => {
       await cancelSubagent(workspaceId, subagent.id);
       // A live roster settles through the stream; a cold read re-reads the list.

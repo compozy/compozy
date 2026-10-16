@@ -393,7 +393,7 @@ describe("SubagentComposerControl (issue #766)", () => {
   it("Should open previous rows when nothing runs and hold their place while they load", async () => {
     const user = userEvent.setup();
     const { rerender } = renderUI(
-      <SubagentComposerControl subagents={[]} counts={counts(0, 2)} onOpen={vi.fn()} />
+      <SubagentComposerControl subagents={[]} counts={counts(0, 2)} loading onOpen={vi.fn()} />
     );
     const trigger = screen.getByRole("button", { name: "Subagents, none running" });
     await user.click(trigger);
@@ -413,6 +413,26 @@ describe("SubagentComposerControl (issue #766)", () => {
       "true"
     );
     expect(screen.getAllByRole("button", { name: /^Open completed/ })).toHaveLength(2);
+  });
+
+  it("Should say the rows could not be read and offer Try again", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    renderUI(
+      <SubagentComposerControl
+        subagents={[]}
+        counts={{ live: 1, total: 2, failed: 0, attention: 0 }}
+        loading
+        failed
+        onRetry={onRetry}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Subagents, 1 running" }));
+    const popover = await screen.findByRole("dialog");
+    expect(within(popover).getByText("Couldn't load subagents.")).toBeInTheDocument();
+    expect(popover.querySelector('[data-slot="skeleton-rows"]')).toBeNull();
+    await user.click(within(popover).getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });
 
