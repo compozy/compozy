@@ -103,3 +103,21 @@ func sourceErrorText(err error) string {
 	}
 	return RedactString(err.Error())
 }
+
+// FailureReason classifies persisted diagnostics without changing their storage format.
+func (s SourceStatus) FailureReason() string {
+	if s.RefreshState != RefreshStateFailed {
+		return ""
+	}
+	diagnostic := strings.ToLower(s.LastError)
+	if s.SourceKind == SourceKindProviderLive &&
+		(strings.Contains(diagnostic, "authentication required") ||
+			strings.Contains(diagnostic, "not authenticated") ||
+			strings.Contains(diagnostic, "not logged in")) {
+		return "auth_required"
+	}
+	if strings.Contains(diagnostic, "timed out") || strings.Contains(diagnostic, "deadline exceeded") {
+		return "timeout"
+	}
+	return "refresh_failed"
+}

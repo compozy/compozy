@@ -17,6 +17,7 @@ const { mockRefreshMutation, mockStatusQuery } = vi.hoisted(() => ({
         {
           source_id: "models.dev",
           source_kind: "models_dev",
+          failure_reason: "",
           refresh_state: "succeeded",
           row_count: 42,
           stale: true,
@@ -55,6 +56,7 @@ describe("ProviderModelCatalogStatus", () => {
         {
           source_id: "models.dev",
           source_kind: "models_dev",
+          failure_reason: "",
           refresh_state: "succeeded",
           row_count: 42,
           stale: true,
@@ -82,6 +84,15 @@ describe("ProviderModelCatalogStatus", () => {
     const list = container.querySelector("ul");
     expect(list).toBeInTheDocument();
     expect(row.closest("li")?.parentElement).toBe(list);
+  });
+
+  it("Should explain an authentication failure on its source", () => {
+    mockStatusQuery.data.sources[0].refresh_state = "failed";
+    mockStatusQuery.data.sources[0].failure_reason = "auth_required";
+    renderStatus();
+    expect(screen.getByTestId("provider-catalog-source-models.dev")).toHaveTextContent(
+      "Sign in to update the model list."
+    );
   });
 
   it("Should request a forced refresh for the current provider", async () => {

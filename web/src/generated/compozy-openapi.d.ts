@@ -35653,6 +35653,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -35767,6 +35768,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36336,6 +36338,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36450,6 +36453,7 @@ export interface operations {
           "application/json": {
             error?: string;
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36487,6 +36491,7 @@ export interface operations {
         content: {
           "application/json": {
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;
@@ -36641,6 +36646,7 @@ export interface operations {
         content: {
           "application/json": {
             sources: {
+              failure_reason?: string;
               last_error?: string;
               last_refresh?: string;
               last_success?: string;

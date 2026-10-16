@@ -15,6 +15,7 @@ import {
 
 import {
   modelRefreshStateTone,
+  modelSourceFailureMessage,
   type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
@@ -57,7 +58,10 @@ export function ProviderModelCatalogStatus({
   }
 
   const sources = statusQuery.data?.sources ?? [];
-  const refreshError = errorMessage(refreshMutation.error);
+  const refreshError =
+    refreshMutation.error && !sources.some(source => source.refresh_state === "failed")
+      ? "Could not refresh the model list. Try again."
+      : null;
   const queryError = errorMessage(statusQuery.error);
 
   const handleRefresh = () => {
@@ -88,6 +92,9 @@ export function ProviderModelCatalogStatus({
                 <ItemTitle className="text-small-body text-fg">
                   <span className="truncate font-mono">{source.source_id}</span>
                 </ItemTitle>
+                {modelSourceFailureMessage(source) ? (
+                  <p className="text-form-hint text-subtle">{modelSourceFailureMessage(source)}</p>
+                ) : null}
                 {timestampOf(source) ? (
                   <span className="flex items-center gap-1 text-form-hint text-subtle">
                     <Eyebrow className="text-subtle">refreshed</Eyebrow>
@@ -96,8 +103,15 @@ export function ProviderModelCatalogStatus({
                 ) : null}
               </ItemContent>
               <ItemActions className="flex-wrap items-center gap-1.5">
-                <Pill mono tone={modelRefreshStateTone(source.refresh_state)}>
-                  {source.refresh_state}
+                <Pill
+                  mono
+                  tone={
+                    source.failure_reason === "auth_required"
+                      ? "warning"
+                      : modelRefreshStateTone(source.refresh_state)
+                  }
+                >
+                  {source.failure_reason === "auth_required" ? "Sign in" : source.refresh_state}
                 </Pill>
                 {source.stale ? (
                   <Pill mono tone="warning">

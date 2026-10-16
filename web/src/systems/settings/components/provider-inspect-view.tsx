@@ -23,6 +23,7 @@ import { SettingsAdvancedFold } from "./settings-advanced-fold";
 import { SettingsSourceBadge } from "./settings-source-badge";
 import {
   modelRefreshStateTone,
+  modelSourceFailureMessage,
   type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
@@ -332,7 +333,10 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
   }
 
   const sources = statusQuery.data?.sources ?? [];
-  const refreshError = errorMessage(refreshMutation.error);
+  const refreshError =
+    refreshMutation.error && !sources.some(source => source.refresh_state === "failed")
+      ? "Could not refresh the model list. Try again."
+      : null;
   const queryError = errorMessage(statusQuery.error);
   const refreshing = refreshMutation.isPending || statusQuery.isFetching;
 
@@ -384,6 +388,9 @@ function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md bg-sunken px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5">
         <MonoId preserveCase value={source.source_id} />
+        {modelSourceFailureMessage(source) ? (
+          <p className="text-form-hint text-subtle">{modelSourceFailureMessage(source)}</p>
+        ) : null}
         {timestamp ? (
           <span className="flex items-center gap-1 text-form-hint text-subtle">
             Updated <Time iso={timestamp} mode="relative" />
@@ -392,8 +399,15 @@ function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
       </div>
       <div className="flex flex-col items-end gap-1">
         <span className="flex flex-wrap items-center gap-1.5">
-          <Pill mono tone={modelRefreshStateTone(source.refresh_state)}>
-            {source.refresh_state}
+          <Pill
+            mono
+            tone={
+              source.failure_reason === "auth_required"
+                ? "warning"
+                : modelRefreshStateTone(source.refresh_state)
+            }
+          >
+            {source.failure_reason === "auth_required" ? "Sign in" : source.refresh_state}
           </Pill>
           {source.stale ? <Pill tone="warning">Out of date</Pill> : null}
         </span>

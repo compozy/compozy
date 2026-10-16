@@ -88,6 +88,20 @@ describe("refreshAllModels (aggregate catalog refresh)", () => {
     expect(await request.clone().json()).toEqual({ force: true, request_id: "req-1" });
   });
 
+  it("Should retain attributed source failures from a non-success refresh without exposing stderr", async () => {
+    const sources = [
+      { provider_id: "cursor", refresh_state: "failed", failure_reason: "auth_required" },
+    ];
+    mockJsonResponse(
+      { sources, error: "discovery command failed: exit status 1" },
+      { status: 500 }
+    );
+    const error = await refreshAllModels({}).catch(caught => caught);
+    expect(error).toBeInstanceOf(ModelCatalogApiError);
+    expect(error.sources).toEqual(sources);
+    expect(error.message).toBe("Could not refresh the model list. Try again.");
+  });
+
   it("Should POST an empty body when no refresh input is supplied", async () => {
     mockJsonResponse({ models: [] });
 

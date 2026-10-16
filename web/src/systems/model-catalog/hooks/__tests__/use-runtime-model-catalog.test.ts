@@ -157,9 +157,7 @@ describe("useRuntimeModelCatalog", () => {
     act(() => result.current.refresh());
 
     await waitFor(() =>
-      expect(result.current.refreshError).toBe(
-        "inspect claude ACP model options: deadline exceeded"
-      )
+      expect(result.current.refreshError).toBe("Could not refresh the model list. Try again.")
     );
   });
 
@@ -207,11 +205,42 @@ describe("useRuntimeModelCatalog", () => {
     act(() => result.current.refresh());
 
     await waitFor(() =>
-      expect(result.current.refreshError).toBe(
-        "Couldn't refresh claude models: ACP initialization failed"
-      )
+      expect(result.current.providerIssues).toEqual({
+        claude: "Could not update the model list. Try refreshing again.",
+      })
     );
+    expect(result.current.refreshError).toBeNull();
     expect(result.current.models.map(model => model.id)).toEqual(["claude-opus-5"]);
+  });
+
+  it("Should attribute authentication failures from an HTTP error and preserve healthy and fallback models", async () => {
+    mockModels([payload("codex", "gpt-test"), payload("cursor", "cursor-test", { stale: true })]);
+    vi.mocked(refreshAllModels).mockRejectedValue(
+      new ModelCatalogApiError("Could not refresh the model list. Try again.", 500, [
+        {
+          source_id: "provider_live:cursor",
+          source_kind: "provider_live",
+          provider_id: "cursor",
+          priority: 110,
+          refresh_state: "failed",
+          row_count: 1,
+          stale: true,
+          failure_reason: "auth_required",
+          last_error: "discovery command failed: Authentication required",
+        },
+      ])
+    );
+    const { result } = renderHook(
+      () => useRuntimeModelCatalog([{ id: "codex" }, { id: "cursor" }]),
+      { wrapper: createWrapper() }
+    );
+    await waitFor(() => expect(result.current.models).toHaveLength(2));
+    act(() => result.current.refresh());
+    await waitFor(() =>
+      expect(result.current.providerIssues).toEqual({ cursor: "Sign in to update the model list." })
+    );
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.models.every(model => !model.disabled)).toBe(true);
   });
 
   it("Should disable every row of a needs-auth provider", async () => {

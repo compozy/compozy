@@ -54,9 +54,9 @@ export function initialModelCatalogReadinessOptions(queryClient: QueryClient, en
   return queryOptions({
     queryKey: modelCatalogKeys.initialReadiness,
     queryFn: async ({ signal }) => {
-      await refreshAllModels({}, signal);
+      const response = await refreshAllModels({}, signal);
       await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
-      return true;
+      return response;
     },
     enabled,
     staleTime: Number.POSITIVE_INFINITY,

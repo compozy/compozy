@@ -84665,6 +84665,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -84961,6 +84964,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -86522,6 +86528,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -86818,6 +86827,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -86909,6 +86921,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },
@@ -87293,6 +87308,9 @@
                     "sources": {
                       "items": {
                         "properties": {
+                          "failure_reason": {
+                            "type": "string"
+                          },
                           "last_error": {
                             "type": "string"
                           },

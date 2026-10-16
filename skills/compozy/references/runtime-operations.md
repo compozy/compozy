@@ -658,7 +658,10 @@ Inspect the redacted effective state with `compozy config show` after a live app
 `compozy__provider_models_status` is read-only. `compozy__provider_models_refresh` accepts optional
 provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure
 and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
-`compozy provider models refresh`.
+`compozy provider models refresh`. Failed sources include optional `failure_reason`:
+`auth_required` (sign in to the provider), `timeout` (retry discovery), or `refresh_failed`.
+Use that classification for guidance; `last_error` is redacted diagnostic detail. One
+provider's failed discovery does not invalidate other providers or cached/curated rows.
 
 Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, curated views, and
 OpenClaw's provider-managed limits are defined once in

@@ -324,6 +324,7 @@ func providerModelSourceStatusBundle(
 			"Rows",
 			"Stale",
 			providerModelsErrorValue,
+			"Reason",
 		},
 		toonName,
 		[]string{
@@ -334,8 +335,9 @@ func providerModelSourceStatusBundle(
 			"row_count",
 			"stale",
 			"last_error",
+			"failure_reason",
 		},
-		providerModelSourceStatusRow,
+		providerModelSourceStatusHumanRow,
 		providerModelSourceStatusRow,
 	)
 }
@@ -349,7 +351,20 @@ func providerModelSourceStatusRow(source ProviderModelSourceStatusRecord) []stri
 		fmt.Sprintf("%d", source.RowCount),
 		providerModelBoolString(source.Stale),
 		source.LastError,
+		source.FailureReason,
 	}
+}
+
+func providerModelSourceStatusHumanRow(source ProviderModelSourceStatusRecord) []string {
+	switch source.FailureReason {
+	case "auth_required":
+		source.LastError = "Sign in to update the model list."
+	case "timeout":
+		source.LastError = "The model list took too long to update. Try refreshing again."
+	case "refresh_failed":
+		source.LastError = "Could not update the model list. Try refreshing again."
+	}
+	return providerModelSourceStatusRow(source)
 }
 
 func optionalProviderArg() cobra.PositionalArgs {

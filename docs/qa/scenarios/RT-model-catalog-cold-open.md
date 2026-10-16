@@ -79,3 +79,14 @@ QA 2026-09-16, issue #655: Fresh discovery produced exact Fable 5.1 and model-sp
 
 
 QA impact 2026-10-11 (verification in progress): Create Claude and Cursor sessions using a recently discovered model in the same provider/profile/workspace context. Confirm no forced discovery is needed for non-stale rows aged between five and ten minutes; repeat at ten minutes, beyond ten minutes, and with stale discovery and verify refresh. Session creation retains a bounded 90-second default and explicit shorter deadlines still cancel. Evidence and exact verification scope: [startup/cache/notification report](../reports/2026-10-11-startup-cache-notifications.md).
+
+QA impact 2026-10-16, issue #740: With `cursor-agent` installed but signed out,
+refresh the session runtime selector while Codex/Claude are healthy. Confirm a
+calm Cursor-attributed sign-in hint, no global red subprocess error, and that
+healthy providers and cached/curated models remain selectable. Compare
+`compozy provider models status cursor -o json`, HTTP/UDS status, native
+`compozy__provider_models_status`, and Settings: failed live discovery carries
+`failure_reason=auth_required`; redacted `last_error` remains diagnostic-only.
+Repeat with stale cached rows, a timeout, and a successful recovery. Rendered
+Storybook and targeted Go/Web checks verify presentation/classification; no live
+provider login or full-daemon lab is implied by that evidence.

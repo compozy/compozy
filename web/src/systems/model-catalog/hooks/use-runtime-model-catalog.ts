@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { ModelCatalogApiError } from "../adapters/model-catalog-api";
+import { modelSourceFailureMessage } from "../lib/model-source-failure";
 import { allModelsListOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
-import type { AllModelsRefreshResponse, ProviderModelPayload } from "../types";
+import type { ProviderModelPayload } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
 import { useRefreshAllModels } from "./use-refresh-all-models";
 import type { RuntimeModelOption } from "@/systems/runtime";
@@ -32,28 +34,7 @@ export interface RuntimeModelCatalog {
   refresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
-}
-
-/**
- * The aggregate refresh answers 200 when any source succeeds, so a provider whose
- * discovery failed is reported only in `sources`. Surface the first failure among
- * the surface's signed-in providers instead of treating the refresh as clean.
- */
-function describeFailedRefreshSource(
-  response: AllModelsRefreshResponse | undefined,
-  allowed: ReadonlyMap<string, boolean>
-): string | null {
-  const failed = response?.sources.find(
-    source =>
-      source.refresh_state === "failed" &&
-      allowed.has(source.provider_id) &&
-      !allowed.get(source.provider_id)
-  );
-  if (!failed) return null;
-  const reason = failed.last_error?.trim() || response?.error?.trim();
-  return reason
-    ? `Couldn't refresh ${failed.provider_id} models: ${reason}`
-    : `Couldn't refresh ${failed.provider_id} models.`;
+  providerIssues: Record<string, string>;
 }
 
 function describeCatalogError(error: unknown): string {
@@ -120,6 +101,23 @@ export function useRuntimeModelCatalog(
   // while the daemon's cached source status (even a failed one) is within its TTL.
   const refresh = () => refreshMutation.mutate({ force: true });
 
+  const refreshFailure = refreshMutation.isIdle ? initialRefresh.error : refreshMutation.error;
+  const refreshResponse = refreshMutation.isIdle ? initialRefresh.data : refreshMutation.data;
+  const sources =
+    refreshResponse?.sources ??
+    (refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : []);
+  const providerIssues: Record<string, string> = {};
+  for (const source of sources) {
+    if (!allowed.has(source.provider_id)) continue;
+    const message = modelSourceFailureMessage(source);
+    if (
+      message &&
+      (!providerIssues[source.provider_id] || source.failure_reason === "auth_required")
+    ) {
+      providerIssues[source.provider_id] = message;
+    }
+  }
+
   return {
     models,
     payloadsByProvider,
@@ -129,11 +127,10 @@ export function useRuntimeModelCatalog(
     stale,
     refresh,
     refreshing: refreshMutation.isPending || initialRefresh.isFetching,
-    refreshError: refreshMutation.error
-      ? describeCatalogError(refreshMutation.error)
-      : (describeFailedRefreshSource(refreshMutation.data, allowed) ??
-        (missingAllowedProvider && initialRefresh.error
-          ? describeCatalogError(initialRefresh.error)
-          : null)),
+    providerIssues,
+    refreshError:
+      refreshFailure && sources.length === 0
+        ? "Could not refresh the model list. Try again."
+        : null,
   };
 }
