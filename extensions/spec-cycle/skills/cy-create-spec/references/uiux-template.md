@@ -1,15 +1,15 @@
 # UIUX Template
 
-Structure for `_uiux.md` — the UI change map written only for UI-bearing features (anything touching `web/` surfaces). It freezes the operator-facing surface the way `_dx.md` freezes the developer-facing one. Its presence marks the feature UI-bearing, so the task suite carries browser e2e coverage. Downstream consumers: the Stage 2 surface grill reworks it, the design pass (`designer` agent with `eng-design` + `ui-craft`) consumes it as its inventory, implementation tasks cite its component plan, and `_tests.md` derives browser E2E journeys from its surface map.
+Structure for `_uiux.md` — the UI change map written only for UI-bearing features (screens, controls, or interaction states). It freezes the operator-facing surface the way `_dx.md` freezes the developer-facing one. Its presence marks the feature UI-bearing, so the task suite carries browser e2e coverage. Downstream consumers: the project's design/review process consumes it as its inventory, implementation tasks cite its component plan, and `_tests.md` derives browser E2E journeys from its surface map.
 
 ## Rules
 
-- **Inventory, not design**: this document names every touched surface, its states, and its production mapping; the visual language itself belongs to the design pass and its artboards under `docs/design/opendesign/<slug>/`. Name an artboard only when the task has a visual reference; existing-surface adjustments may use `none — no named visual reference`.
-- **Grammar**: `DESIGN.md` + `packages/ui/src/tokens.css` only — flat depth, no invented tokens. Signal palette is information, never decoration; propose the semantic mapping, final call belongs to the design pass.
-- **Reuse before create**: check the `@compozy/ui` inventory (`packages/ui/src/index.ts`) before naming any new component; justify every new primitive against it. New generic primitives land in `packages/ui`, domain composites in `web/src/systems/<domain>/`.
+- **Inventory, not design**: this document names every touched surface, its states, and its production mapping; the visual language itself belongs to the design pass and its artboards under the project's agreed design-artifact directory. Name an artboard only when the task has a visual reference; existing-surface adjustments may use `none — no named visual reference`.
+- **Grammar**: use the target project's design system and token sources. Identify the actual source files; when none exist, record the proposed visual constraints and their approval owner. Propose semantic mappings for signals; do not invent project-specific token paths.
+- **Reuse before create**: check the target project's component inventory before naming any new component; justify every new primitive against it. Use its existing locations for shared primitives and domain composites.
 - **Truthful UI**: unknown renders as unknown, pending ≠ ready, affordances absent (not disabled) when the runtime cannot support them.
 - **Anchored in code**: every modified surface cites its today-state with `file:line` anchors; states are enumerated from `_user_stories.md` ACs/ECs, cited by ID.
-- **Copy**: `COPY.md` register; no subtitles or helper prose under headings.
+- **Copy**: follow the target project's copy guidelines and established UI patterns; add supporting prose only when it helps users make a decision or avoid an error.
 
 ## Document Skeleton
 
@@ -18,7 +18,7 @@ Structure for `_uiux.md` — the UI change map written only for UI-bearing featu
 
 Every UI surface this feature touches: where it lives today, what changes,
 which states change, and any named reference artboard. New visual references
-land under `docs/design/opendesign/<slug>/`; only named references become
+land under the project's agreed design-artifact directory; only named references become
 visual contracts. Existing-surface or copy-only work needs no new artboard.
 
 Companions: `_spec.md` Part I (behavior authority), `_user_stories.md`
@@ -53,13 +53,13 @@ visual contract, never a stylesheet to import.
 
 Feature-specific composition rules.
 
-### New `@compozy/ui` primitives
+### New shared primitives
 
 Each one justified against the export inventory — or "none".
 
 ### New domain components
 
-Per `web/src/systems/<domain>/`: component name, composed from which
+Per target-project domain/module: component name, composed from which
 primitives, used by which surfaces.
 
 ### Signal & state mapping
