@@ -122,3 +122,7 @@ Lab hygiene: exact-manifest teardown completed with `clean=true`. The local beha
 Greptile identified that a rejected lazy import could escape Suspense and replace the whole desktop through the root boundary. The existing `OsWindowErrorBoundary` now accepts an optional fallback slot. The empty launcher and each deferred worktree dialog reuse it with existing `Empty`/`ConfirmDialog` primitives. Errors remain logged without exposing raw exception details. A failed dialog can close without affecting other windows; both feature fallbacks offer an explicit full-page Reload because React lazy retains rejected module state.
 
 Existing real-daemon `os-shell.spec.ts` and `worktrees.spec.ts` journeys now abort the corresponding module request at the network boundary, assert contained recovery, and continue after reload to the original happy-path assertions. No test file or dependency was added, and no heavy local run was started. CI owns execution of these final recovery legs.
+
+## Review follow-up: cached outcome ownership
+
+CodeRabbit identified that a returned outcome value remained mutable even though its containing map is read-only. The projection now shallow-copies sparse outcome facts into each result, so a consumer cannot mutate the cache or alter later verified precedence. The existing turn-outcomes suite owns the new mutation-isolation regression. Transformation timings above precede this ownership hardening; no fresh performance timing or heavy local gate was run after the user's instruction.

@@ -109,7 +109,7 @@ export function deriveTurnOutcomes(messages: readonly ThreadMessageLike[]): Sess
     for (const outcome of messageOutcomes(message.content)) {
       const previous = outcomes.get(outcome.turnId);
       if (previous?.verified && !outcome.verified) continue;
-      outcomes.set(outcome.turnId, outcome);
+      outcomes.set(outcome.turnId, { ...outcome });
     }
   }
   return outcomes.size === 0 ? EMPTY : outcomes;
