@@ -7,7 +7,7 @@
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { primarySessionFixture, sessionTranscriptFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../../lib/session-query-invalidation";
+import { sessionUsageOptions } from "../../lib/query-options";
 import { isSessionStreamLive } from "../../lib/session-stream-liveness";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
@@ -55,12 +56,17 @@ vi.mock("../../adapters/session-api", () => ({
   fetchSessionHistory: vi.fn(),
   fetchSessionRecap: vi.fn(),
   fetchSessionTranscript: vi.fn(),
+  fetchSessionUsage: vi.fn(),
   fetchSessions: vi.fn(),
   SessionApiError: class SessionApiError extends Error {},
   SessionNotFoundError: class SessionNotFoundError extends Error {},
 }));
 
-import { fetchSession, fetchSessionTranscript } from "../../adapters/session-api";
+import {
+  fetchSession,
+  fetchSessionTranscript,
+  fetchSessionUsage,
+} from "../../adapters/session-api";
 import type { SubagentRoster } from "../../lib/subagent-roster";
 
 function fixtureWorkspaceId(): string {
@@ -1344,6 +1350,38 @@ describe("useSessionLiveTail", () => {
     expect(isSessionStreamLive(SESSION_ID)).toBe(true);
     unmount();
     expect(isSessionStreamLive(SESSION_ID)).toBe(false);
+  });
+
+  // Invariant: a mounted stream-backed read switches cadence when stream ownership changes,
+  // not after the timer it armed under the previous ownership.
+  it("Should re-arm stream-backed reads at once when the stream gains or loses the live edge", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionUsage).mockResolvedValue({} as never);
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    // The read lives in its own root, as in production, so live-tail renders never touch it.
+    renderHook(() => useQuery(sessionUsageOptions(WORKSPACE_ID, SESSION_ID, "active")), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(fetchSessionUsage).toHaveBeenCalledTimes(1);
+
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    act(() =>
+      sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.phase).toBe("live"));
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(6_000));
+    expect(fetchSessionUsage).toHaveBeenCalledTimes(1);
+
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    await act(async () => vi.advanceTimersByTimeAsync(5_100));
+    expect(fetchSessionUsage).toHaveBeenCalledTimes(2);
   });
 
   // Invariant: a reopen after a drop reads "catching up" until the replayed frames drain,

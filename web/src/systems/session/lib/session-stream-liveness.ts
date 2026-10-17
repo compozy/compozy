@@ -1,6 +1,8 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { createStore } from "@xstate/store";
 
 import type { SessionState } from "../types";
+import { sessionKeys } from "./query-keys";
 
 /** Fallback cadence for a live session whose transcript stream is not on its live edge. */
 export const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
@@ -67,4 +69,30 @@ export function sessionStreamBackedRefetchInterval(
   if (!isLiveSessionState(state)) return false;
   if (isSessionStreamLive(sessionId)) return SESSION_STREAM_SAFETY_REFETCH_INTERVAL_MS;
   return fallbackMs;
+}
+
+/**
+ * Re-arms the session's mounted stream-backed reads after its stream ownership changed.
+ * An observer re-evaluates its cadence only after a result, so without this a read armed
+ * for the safety cadence would wait out that timer before falling back. Reapplying the
+ * observer's own options recomputes the interval without fetching a fresh query.
+ */
+export function rescheduleSessionStreamBackedReads(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+): void {
+  const cache = queryClient.getQueryCache();
+  const queries = [
+    ...[
+      sessionKeys.detail(workspaceId, sessionId),
+      sessionKeys.inputQueue(workspaceId, sessionId),
+      sessionKeys.usage(workspaceId, sessionId),
+      sessionKeys.usageTurns(workspaceId, sessionId),
+    ].flatMap(queryKey => cache.findAll({ queryKey, exact: true })),
+    ...cache.findAll({ queryKey: sessionKeys.byIdRoot(sessionId) }),
+  ];
+  for (const query of queries) {
+    for (const observer of query.observers) observer.setOptions(observer.options);
+  }
 }
