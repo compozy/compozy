@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3065,6 +3066,60 @@ func TestRetiredBuiltinProviders(t *testing.T) {
 		}
 		if got.Command != "hermes acp --profile work" || got.DisplayName != "" || got.AuthStatusCmd != "" {
 			t.Fatalf("ResolveProvider(hermes) = %#v, want only the declared custom provider", got)
+		}
+	})
+}
+
+func TestRetiredBuiltinProviderWarnings(t *testing.T) {
+	t.Run("Should warn through the routed logger with the effective replacement", func(t *testing.T) {
+		var logs bytes.Buffer
+		RouteRetiredProviderWarnings(slog.New(slog.NewJSONHandler(&logs, nil)))
+		t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Defaults.Provider = "hermes-agent"
+		cfg.Providers["mistral"] = ProviderConfig{Models: ProviderModelsConfig{Default: "codestral-latest"}}
+		cfg.WarnRetiredProviderReferences()
+		cfg.WarnRetiredProviderReferences()
+
+		records := map[string]map[string]any{}
+		for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
+			var record map[string]any
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("decode warning %q: %v", line, err)
+			}
+			if record["msg"] != "provider.retired_builtin" || record["removed_in"] != "v0.5.0" {
+				t.Fatalf("warning = %#v, want provider.retired_builtin removed_in v0.5.0", record)
+			}
+			provider, _ := record["provider"].(string)
+			if _, dup := records[provider]; dup {
+				t.Fatalf("provider %q warned twice: %s", provider, logs.String())
+			}
+			records[provider] = record
+		}
+		if len(records) != 2 || records["hermes"] == nil || records["mistral"] == nil {
+			t.Fatalf("warnings = %s, want one each for hermes and mistral", logs.String())
+		}
+
+		var document struct {
+			Providers map[string]ProviderConfig `toml:"providers"`
+		}
+		replacement, _ := records["mistral"]["replacement"].(string)
+		if _, err := toml.Decode(replacement, &document); err != nil {
+			t.Fatalf("decode mistral replacement error = %v\n%s", err, replacement)
+		}
+		want, err := cfg.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral) error = %v", err)
+		}
+		declared := DefaultWithHome(HomePaths{})
+		declared.Providers["mistral"] = document.Providers["mistral"]
+		got, err := declared.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral replacement) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) || got.Models.Default != "codestral-latest" {
+			t.Fatalf("replacement resolves to %#v, want effective %#v", got, want)
 		}
 	})
 }

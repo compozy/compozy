@@ -28,7 +28,7 @@ and the daemon log, not a Hermes session.
    `command = "hermes acp"`. `compozy.log` holds exactly one `provider.retired_builtin` line for
    `provider=hermes` with `removed_in=v0.5.0` and a `replacement` holding the `[providers.hermes]`
    TOML entry. Resolving it again in the same daemon run logs no second warning.
-3. Paste the logged `replacement` into `config.toml` as `[providers.hermes]` and restart. Resolution
+3. Replace any `[providers.hermes]` tables in `config.toml` with the logged `replacement` and restart. Resolution
    still succeeds with the declared command, and the daemon log records no new
    `provider.retired_builtin` warning.
 4. Repeat step 2 with an alias (`hermes-agent`) and with a pi-backed ID (`mistral`) to confirm the
