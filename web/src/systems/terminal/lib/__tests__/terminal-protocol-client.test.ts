@@ -395,9 +395,14 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
-  it.each([false, true])(
-    "Should recover overflowing render and snapshot buffers during replay=%s",
-    async replaying => {
+  it.each([
+    { replaying: false, chunkBytes: 32 * 1024, count: 100, staleSeq: 1024 * 1024 },
+    { replaying: true, chunkBytes: 32 * 1024, count: 100, staleSeq: 1024 * 1024 },
+    { replaying: false, chunkBytes: 1, count: 3100, staleSeq: 1024 },
+    { replaying: true, chunkBytes: 1, count: 3100, staleSeq: 1024 },
+  ])(
+    "Should recover overflowing buffers with $chunkBytes-byte frames during replay=$replaying",
+    async ({ replaying, chunkBytes, count, staleSeq }) => {
       const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({
         autoParse: false,
         deferScreen: true,
@@ -410,15 +415,15 @@ describe("TerminalProtocolClient", () => {
       socket.deliver(serverOutputFrame("0", "inflight"));
       await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
 
-      const chunk = "x".repeat(32 * 1024);
+      const chunk = "x".repeat(chunkBytes);
       let seq = 8;
-      for (let index = 0; index < 100; index += 1) {
+      for (let index = 0; index < count; index += 1) {
         socket.deliver(serverOutputFrame(String(seq), chunk));
         seq += chunk.length;
       }
       await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
       expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
-      fetchStub.resolveScreen({ content: "stale snapshot", seq: String(1024 * 1024) });
+      fetchStub.resolveScreen({ content: "stale snapshot", seq: String(staleSeq) });
       sink.completeWrite(0);
       await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
       sink.completeWrite(1);

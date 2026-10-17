@@ -26,7 +26,7 @@ probe. No host daemon or existing user workspace is changed.
 - The same regression passes with `-race` after removing viewer-dependent PTY waits.
 - Attach cancellation regression reproduced HTTP 500 in identity, ticket mint, and mapped errors;
   all three now return HTTP 499 with the existing `api_error` envelope.
-- Protocol client suite: 41 tests passed via root Turborepo, including ordered parsing, gaps,
+- Protocol client suite: 43 tests passed via root Turborepo, including ordered parsing, gaps,
   snapshot recovery, reconnect, stale completions, and nonblocking writable attachments.
 - The former producer-pause assertion intentionally contradicted the new issue contract and was
   retired with its internal Group implementation. Queue bounds/demotion/gap coverage remains.
@@ -56,12 +56,18 @@ probe. No host daemon or existing user workspace is changed.
 ## Review-remediation re-walk
 
 - Greptile and CodeRabbit identified browser buffers that could grow after removing producer
-  backpressure. Both the render backlog and the held snapshot tail now have a 1 MiB byte limit.
+  backpressure. Both the render backlog and the held snapshot tail now have limits of 1 MiB and 1,024 frames.
   Overflow discards stale work and requires a snapshot covering all discarded sequences.
 - The owning protocol regression failed against the original PR head and passes after the fix.
   It covers overflow during normal output and initial replay, stale snapshots, input gating,
   and live output after recovery. A pending replay could reopen input mid-resync; production now
   leaves that transition to the recovery owner.
+- A second CodeRabbit review identified one-byte frames accumulating too many promise operations
+  below the byte budget. Both buffers now enforce the frame-count limit as well. The same
+  protocol case covers 1-byte and 32 KiB frames; the two tiny-frame cases failed before this fix.
+  A scoped real-browser repeat with 25,000 one-byte writes and 12x CPU throttling entered
+  recovery and rendered `SMALL_DONE`; public read sequence advanced `16,271 → 38,995` and
+  public wait returned `match`. Screenshot: `small-frames-recovered.png` in the evidence folder.
 - Consecutive queue trims reproduced incomplete GAP metadata in both ACK and drop modes.
   The existing wire suite now checks the cumulative range/byte count, and healthy ACK delivery
   synchronizes with delivered credit before acknowledging it.

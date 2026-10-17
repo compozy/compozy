@@ -3144,7 +3144,7 @@ Owner: branch `fix/issue-774-terminal-workspace-stall`.
 - Web: writable and read-only browser attachments use the existing drop flow; hidden, suspended,
   minimized and stale renderers cannot pause the process. Input rights and resize votes remain
   controlled by attach mode. Obsolete browser ACK bookkeeping is removed with all consumers.
-  Render and snapshot-tail buffers are bounded at 1 MiB; overflow requests a current snapshot
+  Render and snapshot-tail buffers are bounded at 1 MiB or 1,024 frames; overflow requests a current snapshot
   without throttling the PTY. Input stays gated through recovery, including pending replay.
   Repeated server queue trims merge undelivered GAP ranges and byte counts.
 - Native tools/CLI/HTTP/UDS: `terminal_read` and `terminal_wait` observe background progress. Existing

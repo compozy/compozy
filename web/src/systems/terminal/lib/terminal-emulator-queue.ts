@@ -10,6 +10,7 @@
  * is the order the operations were issued in.
  */
 export const TERMINAL_RENDER_BUFFER_BYTES = 1024 * 1024;
+export const TERMINAL_RENDER_BUFFER_FRAMES = 1024;
 
 type PendingOperation = {
   operation: (() => Promise<void>) | null;
@@ -25,7 +26,11 @@ export class TerminalEmulatorQueue {
 
   /** Serializes mutations; overflowing byte writes discard queued work and request a snapshot. */
   run(operation: () => Promise<void>, bytes = 0, through = 0n): Promise<void> {
-    if (bytes > 0 && this.pendingBytes + bytes > TERMINAL_RENDER_BUFFER_BYTES) {
+    if (
+      bytes > 0 &&
+      (this.pendingBytes + bytes > TERMINAL_RENDER_BUFFER_BYTES ||
+        this.pending.size >= TERMINAL_RENDER_BUFFER_FRAMES)
+    ) {
       // Keep the write already being parsed, but release queued byte buffers.
       // Snapshot recovery is serialized after that write and replaces the loss.
       for (const pending of this.pending) {

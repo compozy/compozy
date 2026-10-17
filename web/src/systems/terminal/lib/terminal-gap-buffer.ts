@@ -9,7 +9,10 @@
  * screen.
  */
 
-import { TERMINAL_RENDER_BUFFER_BYTES } from "./terminal-emulator-queue";
+import {
+  TERMINAL_RENDER_BUFFER_BYTES,
+  TERMINAL_RENDER_BUFFER_FRAMES,
+} from "./terminal-emulator-queue";
 
 /** One frame held back while the screen is being rebuilt. */
 interface HeldFrame {
@@ -64,7 +67,10 @@ export class TerminalGapBuffer {
   }
 
   private holdFrame(frame: HeldFrame): void {
-    if (this.bufferedBytes + frame.bytes.byteLength > TERMINAL_RENDER_BUFFER_BYTES) {
+    if (
+      this.bufferedBytes + frame.bytes.byteLength > TERMINAL_RENDER_BUFFER_BYTES ||
+      this.frames.length >= TERMINAL_RENDER_BUFFER_FRAMES
+    ) {
       this.frames.length = 0;
       this.bufferedBytes = 0;
       this.requireSnapshot(frame.end);
