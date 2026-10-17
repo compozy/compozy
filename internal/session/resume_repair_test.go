@@ -128,6 +128,42 @@ func TestClassifyPreviousStop(t *testing.T) {
 	}
 }
 
+// Invariant: a runtime released while idle has no subprocess to verify; a daemon restart ends the session
+// like a clean shutdown and keeps its ACP session for the next prompt. Owner: session boot recovery.
+func TestClassifyInactiveMetaForRecoveryReleasedRuntime(t *testing.T) {
+	t.Parallel()
+	t.Run("Should end a released idle runtime like a clean shutdown", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:         string(StateActive),
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			ACPSessionID:  stringPointer("acp-released"),
+			Liveness:      &store.SessionLivenessMeta{},
+		}
+		got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if !changed || got.State != string(StateStopped) || got.StopVerificationFailed || got.Failure != nil {
+			t.Fatalf("released runtime = %s, verification failed %t, failure %#v", got.State,
+				got.StopVerificationFailed, got.Failure)
+		}
+		assertOptionalStopReasonEqual(t, got.StopReason, stopReasonPointer(store.StopShutdown))
+		assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-released"))
+	})
+	t.Run("Should keep crash attribution for an exited runtime mid-transition", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:             string(StateActive),
+			RuntimeStatus:     store.SessionRuntimeUnbound,
+			RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+			ACPSessionID:      stringPointer("acp-exited"),
+			Liveness:          &store.SessionLivenessMeta{},
+		}
+		got, _ := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if got.StopReason != nil && *got.StopReason == store.StopShutdown {
+			t.Fatalf("exited runtime classified as a clean shutdown: %#v", got)
+		}
+	})
+}
+
 func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Parallel()
 	t.Run(

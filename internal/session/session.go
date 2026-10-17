@@ -125,6 +125,10 @@ type Session struct {
 	supervisionProgressAt        time.Time
 	supervisionWarningRecordedAt time.Time
 	supervisionReportedSources   []SignalSourceState
+	// supervisionIdleSince starts when a session with no turn in flight goes quiet.
+	supervisionIdleSince time.Time
+	// runtimeRelease marks a runtime the supervisor released while the session was idle.
+	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr        error
 	stopVerifiedOutcome        StopOutcome // Protected by mu.

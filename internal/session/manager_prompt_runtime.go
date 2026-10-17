@@ -15,6 +15,11 @@ type promptRuntimePlan struct {
 	runtime   sessionStartRuntime
 	// attempt is the fallback chain index this plan binds (0 = primary route).
 	attempt int
+	// reloadACPSessionID rebinds a released runtime through session/load; a failed load
+	// falls back to a transcript replay.
+	reloadACPSessionID string
+	// replayHistory carries the transcript into a bind that cannot load the prior session.
+	replayHistory bool
 }
 
 func (m *Manager) ensurePromptRuntime(
@@ -45,15 +50,8 @@ func (m *Manager) ensurePromptRuntime(
 		return nil, err
 	}
 	if snapshot.process == nil {
-		if pending := session.pendingRouteSnapshot(); pending != nil {
-			proc, handled, err := m.bindPendingRoute(ctx, session, &snapshot, plan, *pending)
-			if handled {
-				return proc, err
-			}
-		}
-		// Initial bind of a logical session: the agent's fallback_chain applies (ADR-004).
-		if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
-			return m.bindPromptRuntimeWithFallback(ctx, session, &snapshot, plan, routes)
+		if proc, handled, err := m.bindUnboundPromptRuntime(ctx, session, &snapshot, plan); handled {
+			return proc, err
 		}
 	}
 	if snapshot.process != nil &&
@@ -78,6 +76,32 @@ func (m *Manager) ensurePromptRuntime(
 	}
 
 	return m.replacePromptRuntime(ctx, session, &snapshot, plan)
+}
+
+// bindUnboundPromptRuntime owns the binds that differ for a session without a process:
+// a released idle runtime reloads its ACP session, a derived child binds its pending
+// route, and a logical session's first bind walks the agent's fallback_chain (ADR-004).
+func (m *Manager) bindUnboundPromptRuntime(
+	ctx context.Context,
+	session *Session,
+	snapshot *runtimeBindingSnapshot,
+	plan *promptRuntimePlan,
+) (*AgentProcess, bool, error) {
+	if snapshot.runtimeRelease != nil {
+		proc, err := m.rebindReleasedRuntime(ctx, session, snapshot, plan)
+		return proc, true, err
+	}
+	if pending := session.pendingRouteSnapshot(); pending != nil {
+		proc, handled, err := m.bindPendingRoute(ctx, session, snapshot, plan, *pending)
+		if handled {
+			return proc, true, err
+		}
+	}
+	if routes := fallbackRoutesForAgent(plan.runtime.agentDef); len(routes) > 0 {
+		proc, err := m.bindPromptRuntimeWithFallback(ctx, session, snapshot, plan, routes)
+		return proc, true, err
+	}
+	return nil, false, nil
 }
 
 func (m *Manager) configurePromptRuntime(
@@ -167,11 +191,15 @@ func (m *Manager) replacePromptRuntime(
 	runtime.mcpServers = mcpServers
 	// A replacement rebuilds history; so does the first bind of a derived child, whose
 	// carried context rides in front of its first prompt.
-	plan.spec.resumeReplay = snapshot.process != nil || session.hasImportedContext()
+	plan.spec.resumeReplay = snapshot.process != nil || plan.replayHistory || session.hasImportedContext()
 	plan.spec.startAction = "bind runtime"
 
 	// A fork child's first bind loads its pending native clone instead of replaying.
 	native := m.prepareNativeBootstrapBind(session, snapshot, plan)
+	if native == nil && plan.reloadACPSessionID != "" {
+		plan.spec.acpSessionID = plan.reloadACPSessionID
+		plan.spec.resumeReplay = false
+	}
 
 	if err := session.beginRuntimeTransition(status, strategy, m.now()); err != nil {
 		return nil, err

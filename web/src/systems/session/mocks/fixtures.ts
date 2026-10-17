@@ -276,45 +276,6 @@ export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session 
 
 export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;
 
-/**
- * The primary session during a supervision quiet episode (US-014.EC-2): no
- * work signal for `quiet_after` (30m), warned once, inactivity stop scheduled
- * after `stop_grace` (10m). Instants sit one minute past the warning so the
- * live status row reads "Quiet for 31m · stops in 9m" against a clock frozen
- * at `quietWarningNowFixture`.
- */
-export const quietWarningNowFixture = Date.parse("2026-04-17T18:31:00Z");
-
-export const quietWarningSessionFixture: SessionPayload = {
-  ...primarySessionFixture,
-  badge: "idle",
-  supervision: {
-    quiet_warning: {
-      quiet_since: "2026-04-17T18:00:00Z",
-      stop_at: "2026-04-17T18:40:00Z",
-      warned_at: "2026-04-17T18:30:00Z",
-    },
-    sources: [
-      { kind: "agent_progress", state: "absent" },
-      { kind: "tool_running", state: "absent" },
-      { kind: "active_child", state: "absent" },
-      { kind: "loop_run", state: "absent" },
-      { kind: "task_lease", state: "absent" },
-      { kind: "scheduled_wait", state: "absent" },
-    ],
-    work_signals: [],
-  },
-};
-
-/** The same episode with `stop_grace = "0"`: warned, but no automatic stop scheduled. */
-export const quietWarningNoAutoStopSessionFixture: SessionPayload = {
-  ...quietWarningSessionFixture,
-  supervision: {
-    ...quietWarningSessionFixture.supervision!,
-    quiet_warning: { ...quietWarningSessionFixture.supervision!.quiet_warning!, stop_at: null },
-  },
-};
-
 export const sessionCatalogChangedFixture: SessionCatalogEventPayload = {
   ...DEFAULT_PROFILE_LABEL,
   kind: "upserted",

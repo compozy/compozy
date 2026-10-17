@@ -36,8 +36,10 @@ existing session. Save `reply_watch.id`, finish your current turn, and let the r
 work. The watch follows the message through queued or steered delivery, not an unrelated turn.
 Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
-you wait. A stopped target keeps queued messages and their watches. If CompozyOS stopped you
-(inactivity, restart, crash), the reply resumes you; an operator stop waits for the operator's resume.
+you wait. Once you end your turn you are idle, and an idle session is never stopped for inactivity;
+your runtime may be released and the reply rebinds it transparently. A stopped target keeps queued
+messages and their watches. If CompozyOS stopped you (restart, crash, or an inactivity stop of a hung
+turn), the reply resumes you; an operator stop waits for the operator's resume.
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
@@ -241,8 +243,9 @@ an unrelated lease. Global task runs do not consume this workspace limit.
 
 Action nodes have no inherited duration limit. Only `timeout` or lifecycle deadlines written on the
 node bound execution time; the Loop silence window raises attention without canceling work.
-Session supervision independently stops sessions whose evidence has expired when configured
-`stop_grace` elapses. After verified exit, owned task work consumes the next available attempt,
+Session supervision independently stops a session whose in-flight turn stays silent after its
+evidence expires, once configured `stop_grace` elapses; idle sessions are never stopped for
+inactivity. After verified exit, owned task work consumes the next available attempt,
 preserving its task identity and linking the new run. Exhaustion becomes `needs_attention` with
 `supervised_silence_exhausted`; explicit cancellation is never retried. Recovered expired leases
 increment the run's `recovery_count`; once `attempt + recovery_count` reaches `max_attempts`, the run

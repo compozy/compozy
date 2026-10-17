@@ -142,10 +142,11 @@ current turn.
 
 Waiting is long-running work, not silence. While the asked session is live, the sender's open watch
 counts as an `awaiting_reply` work signal, so inactivity supervision does not stop an orchestrator
-that is waiting for an answer, however long the target works. If the sender was stopped anyway (the
-target stopped with the message queued and the sender went quiet, a daemon restart, or an agent
-crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
-stays stopped and receives the wake when you resume it.
+that is waiting for an answer, however long the target works. A sender with no turn in flight is
+never stopped for inactivity; if the target stopped with the message queued, the idle sender stays
+active (its runtime may be released) and the later reply wakes it once. If the sender was stopped
+anyway (a daemon restart or an agent crash), the reply resumes the sender and delivers the wake
+once. A sender you stopped yourself stays stopped and receives the wake when you resume it.
 
 `compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
 include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target

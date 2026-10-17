@@ -46,7 +46,7 @@ Confirm drain through `.daemon.status == "draining"` in `compozy status -o json`
 CompozyOS sessions are daemon-owned runtimes. Common states:
 
 - starting - the daemon accepted the session and is booting the provider.
-- active - the logical session accepts prompts; its runtime may be `unbound` or ready.
+- active - the logical session accepts prompts; its runtime may be `unbound` (before the first prompt, or after idle runtime release) or ready.
 - stopping - shutdown has started.
 - stopped - the runtime exited. The durable record and transcript remain promptable.
 
@@ -349,8 +349,8 @@ cannot be validated fail closed.
     compozy session wait <session-id>
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
-unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
-select `--provider`; `--model`, `--reasoning-effort`, `--speed`, repeatable `--acp-option id=value`,
+unbound session; use its ID in a later `compozy session prompt`. A first prompt to a never-bound session must
+select `--provider` (a released idle session keeps its selection and needs none); `--model`, `--reasoning-effort`, `--speed`, repeatable `--acp-option id=value`,
 and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
 `normal`; live catalog descriptors and valid option combinations remain authoritative. Fast is applied
 only when the live descriptor exposes one unambiguous speed option; absent or ambiguous support is
@@ -1131,16 +1131,39 @@ Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_w
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
-watch not yet delivered) prevent inactivity termination. A reply resumes a sender CompozyOS stopped
-(inactivity/timeout, shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
+watch not yet delivered) prevent inactivity termination. A reply wakes an idle sender once,
+binding its released runtime if needed; it resumes a sender CompozyOS stopped (inactivity of a hung
+turn, timeout, shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
-With no work, `session.supervision.quiet_after` defaults to 30m and emits one warning; `stop_grace`
-defaults to 10m and then uses the standard stop ladder with inactivity cause. Fresh work clears
-the warning. Zero quiet disables both actions; zero grace keeps warning only. A warning's
-`stop_at: null` means no automatic stop. Stop now uses the usual authorized stop surface.
-Canonical events are `session.supervision_warning`, `session.supervision_stopped`, and
-`session.supervision_source_error`. Persisted inactivity stop metadata remains timeout/inactivity.
+`quiet_after`/`stop_grace` are a hung-turn watchdog: silence accrues only while a turn is in flight
+and waiting on the agent. A session with no turn in flight (agent finished, waiting for the operator)
+never gets a quiet warning and is never stopped for inactivity; a turn blocked on a pending
+permission or clarify request does not accrue silence either. Do not stop, recreate, or "keep alive"
+an idle session to avoid an inactivity stop. With no work in a turn in flight,
+`session.supervision.quiet_after` defaults to 30m and emits one warning; `stop_grace` defaults to
+10m and then uses the standard stop ladder with inactivity cause. Fresh work or the end of the turn
+clears the warning. Zero quiet disables the watchdog; zero grace keeps warning only. A warning's
+`stop_at: null` means no automatic stop. To end a hung turn early, cancel the prompt or use the usual
+authorized stop surface. Canonical events are `session.supervision_warning`,
+`session.supervision_stopped`, and `session.supervision_source_error`. Persisted inactivity stop
+metadata remains timeout/inactivity.
+
+Idle runtime release: after `session.supervision.idle_release_after` (default 30m, `0` disables) a
+session with no turn in flight, no work signal, no unknown source, no pending permission/clarify,
+and an agent that advertised ACP `session/load` has its agent process stopped silently. The session
+is not stopped: it stays `state: "active"` with `runtime.status: "unbound"`, keeps its transcript and
+ACP session id, shows the `idle` badge, records no supervision warning/stop event, and dispatches no
+`session.post_stop` hook (the process-level `agent.stopped` hook still fires). Agents without
+`session/load` keep their runtime. Treat `runtime.status: "unbound"` on an active session as
+released, not broken: just prompt it. The next prompt from any surface (composer, CLI, HTTP/UDS,
+`compozy__session_prompt`, reply delivery, wake) rebinds transparently with `session/load`; if the
+load fails it starts a fresh ACP session and replays the bounded transcript
+(`session.derive.max_replay_bytes`); a prompt selecting another provider/model binds that route and
+carries the transcript like a live runtime switch. If the daemon exits uncleanly while a runtime is
+released, boot recovery ends the session `stopped` with `stop_reason: "shutdown"` and detail
+"daemon exited while the idle session runtime was released" (not a failure); a later prompt resumes
+it with `session/load`.
 
 After verified process-tree exit, the durable stop receipt settles authoritative task work before
 session reuse. Each owned run settles independently, so replay can finish remaining candidates

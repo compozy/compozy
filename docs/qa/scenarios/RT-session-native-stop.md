@@ -6,7 +6,7 @@ persona: Ada
 journey: J-15
 expected: compozy__session_stop stops one live same-workspace target through the canonical session stop path, returns the terminal winner once, applies destructive approval policy, denies self or foreign-workspace targets, and leaves repeated or raced callers with deterministic structured outcomes.
 entry_points: compozy__session_stop; compozy session stop; POST /api/workspaces/{workspace_id}/sessions/{session_id}/stop over HTTP and UDS; compozy session status <session-id>
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260906-stop-receipt-outcome-race
 fix_status:
 retest_status:
@@ -144,14 +144,37 @@ Concurrent callers must share one new bounded attempt, rather than reuse the exh
 forever or run parallel termination sequences. Completed outcomes and failures without a pending
 process retain their existing result.
 
-QA impact 2026-09-06 sessions-stability task_05 (walk owned by final task_10): configure short
-quiet/grace intervals in the isolated lab. Exercise fresh progress, verified tool, active child,
-recent Loop reconciliation, task lease, and scheduled wait independently; each must suppress the
-warning. Provider waiting and an open subscriber must not. Observe one quiet warning in the open
-session, matching CLI/HTTP/UDS/resource/native describe fields, then verified inactivity stop.
-Resume real work during grace and confirm warning cancellation. Check zero quiet, zero grace,
-source-error unknown/attention, stale-source attention, and warning append retry without duplication.
-Existing waits without expiry must use their original creation time for admission-horizon expiry.
+Supervision branch (introduced by sessions-stability task_05 on 2026-09-06; narrowed to in-flight
+turns by #782 on 2026-10-17): configure short `quiet_after`/`stop_grace` intervals in the isolated
+lab. Hold a turn in flight that stops producing work (for example a provider that hangs inside a
+prompt). Exercise fresh progress, verified tool, active child, recent Loop reconciliation, task
+lease, and scheduled wait independently; each must suppress the warning. Provider waiting and an
+open subscriber must not. Observe one quiet warning: no window banner, and the working status line
+under the transcript reads `Working for … · quiet for …`; CLI/HTTP/UDS/resource/native describe
+fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
+`stop_reason: "timeout"`, `stop_detail: "inactivity"`). Resume real work during grace and confirm
+warning cancellation; end the turn during grace and confirm the warning clears and no stop follows.
+A turn blocked on a pending permission or clarify request must not accrue silence. Let a session
+finish its turn and sit idle past `quiet_after + stop_grace`: no quiet warning, no stop, the badge
+stays `idle`. Check zero quiet, zero grace, source-error unknown/attention, stale-source attention,
+and warning append retry without duplication. Existing waits without expiry must use their
+original creation time for admission-horizon expiry.
+
+Idle-release branch (#782): set `session.supervision.idle_release_after` to a short value (for
+example `2m`) with `compozy config set` in the isolated lab and use an agent that advertises ACP
+`session/load` (`runtime.acp_caps.supports_load_session: true`). Let a session finish its turn and
+sit idle past the release period. Confirm `compozy session status <id> -o json` reports
+`state: "active"`, `runtime.status: "unbound"`, the same ACP session ID, and the `idle` badge; the
+agent subprocess is gone; the session window shows no banner and no Stopped presentation; the event
+log has no `session.supervision_warning`, `session.supervision_stopped`, or `session_stopped`; no
+`session.post_stop` hook ran while the `agent.stopped` hook did. Send the next prompt from the
+composer and again (after another release) from `compozy session prompt`: each continues the same
+conversation without a Resume step, and the agent recalls an earlier fact from the transcript. A
+session with a pending permission/clarify request or a work signal is not released. Repeat with an
+agent that does not advertise `session/load`: its runtime is never released. With a runtime
+released, kill the daemon uncleanly and restart: the session is `stopped` with
+`stop_reason: "shutdown"` and detail `daemon exited while the idle session runtime was released`,
+and the next prompt resumes it. Setting `idle_release_after = "0"` disables the release.
 
 QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death constraints remain the previously documented external branch; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
 
@@ -163,3 +186,26 @@ QA re-walk 2026-09-06: Stop settlement preserves the same cause, phase, escalati
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-17 (#782): silence supervision is now a hung-turn watchdog and idle sessions
+release their runtime silently instead of being warned and stopped. The supervision branch above
+was rewritten and the idle-release branch added; both need a re-walk against a real daemon. Stale
+verdict reset to untested; historical evidence preserved.
+
+QA walk 2026-10-17 (#782, idle-release branch, CLI/HTTP only): PASS for the walked steps. An isolated
+lab daemon built from the branch ran the real `claude` provider (`claude-agent-acp`, which advertises
+`session/load`) with `idle_release_after = "1m"`. After the first turn the session stayed `active`
+with `runtime.status: "ready"`. About a minute later it read `active`/`unbound` with the same badge
+and no quiet warning, the agent subprocess had exited, the daemon logged
+`session.runtime.idle_released`, and the 28 recorded events had no supervision or stop event. The
+next `compozy session prompt` rebound the runtime under the same ACP session ID and the agent
+recalled a code word from the first turn. After a second release the daemon was killed with
+`kill -9` and restarted: the session read `stopped`, `stop_reason: "shutdown"`, with the
+released-runtime detail and no failure. The next prompt resumed it and the agent still recalled the
+code word. Lab teardown was clean.
+
+Not walked: the composer/Web steps, the hook checks, the agent without `session/load`, and the
+pending-interaction guard. The supervision branch was also not walked. These are covered only by the
+owning `internal/session` suites (`TestSupervisionReleasesIdleRuntime`,
+`TestSupervisionIgnoresSessionWaitingForOperator`) and the daemon integration test
+`TestReplyWatchLongWaitIntegration`, so `qa_status` stays `untested` until a full re-walk.

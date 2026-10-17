@@ -145,7 +145,7 @@ uploaded through the attachment store before submission. Use
 The store enforces `session.attachments.max_file_bytes`,
 `session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
 attachment settings in `references/configuration.md` before submitting large or unsupported files.
-The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, speed,
+The first prompt to a never-bound session requires `runtime.provider` (a session whose idle runtime was released keeps its selection and rebinds without it); model, reasoning effort, speed,
 and typed `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
 `bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested

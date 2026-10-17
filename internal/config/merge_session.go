@@ -39,6 +39,9 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	if o.StopGrace != nil {
 		dst.StopGrace = *o.StopGrace
 	}
+	if o.IdleReleaseAfter != nil {
+		dst.IdleReleaseAfter = *o.IdleReleaseAfter
+	}
 	if o.TimeoutCancelGrace != nil {
 		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
 	}

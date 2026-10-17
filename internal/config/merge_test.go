@@ -551,6 +551,7 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 		{name: "current disable both", body: "quiet_after = '0s'\nstop_grace = '1m'", want: QuietPolicy{}},
 		{name: "current warning only", body: "quiet_after = '5m'\nstop_grace = '0s'", want: QuietPolicy{WarningAfter: 5 * time.Minute}},
 		{name: "current keys win", body: "inactivity_warning_after = '1m'\ninactivity_timeout = '2m'\nquiet_after = '3m'\nstop_grace = '4m'", want: QuietPolicy{WarningAfter: 3 * time.Minute, StopGrace: 4 * time.Minute}},
+		{name: "idle release independent of quiet", body: "quiet_after = '5m'\nstop_grace = '0s'\nidle_release_after = '0s'", want: QuietPolicy{WarningAfter: 5 * time.Minute}},
 		{name: "legacy invalid order", body: "inactivity_warning_after = '2m'\ninactivity_timeout = '1m'", invalid: true},
 		{name: "legacy negative cutoff", body: "inactivity_timeout = '-1s'", invalid: true},
 	} {
@@ -577,7 +578,16 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 				t.Fatalf("policy = %+v, want %+v", got, tc.want)
 			}
 			entries := FlattenConfigEntries(RedactedConfigMap(&cfg))
-			for _, key := range []string{"quiet_after", "stop_grace", "inactivity_warning_after", "inactivity_timeout"} {
+			wantIdle := 30 * time.Minute
+			if strings.Contains(tc.body, "idle_release_after") {
+				wantIdle = 0
+			}
+			if got := cfg.Session.Supervision.IdleReleaseAfter; got != wantIdle {
+				t.Fatalf("idle_release_after = %s, want %s independent of the watchdog keys", got, wantIdle)
+			}
+			for _, key := range []string{
+				"quiet_after", "stop_grace", "idle_release_after", "inactivity_warning_after", "inactivity_timeout",
+			} {
 				path := "session.supervision." + key
 				if _, ok := EntryByPath(entries, path); !ok {
 					t.Fatalf("config read missing %s", path)

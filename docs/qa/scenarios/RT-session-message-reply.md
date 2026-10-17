@@ -48,8 +48,10 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 11. Long wait: keep B working longer than `session.supervision.quiet_after` + `stop_grace` (shorten
     them for the lab). A, idle with an armed watch, is never stopped for inactivity and shows an
     `awaiting_reply` work signal in `compozy session status A -o json`. Then stop B with the message
-    queued: A goes quiet and is stopped for inactivity; resume B and confirm the reply resumes A and
-    delivers exactly one wake.
+    queued: A, idle with no turn in flight, stays `active` and is never stopped for inactivity (with
+    a short `idle_release_after` its runtime is released: `runtime.status: "unbound"`, `idle`
+    badge); resume B and confirm the reply wakes A exactly once, rebinding its runtime if it was
+    released.
 
 Task 04 automated evidence covers admission/watch atomicity, legacy replay exclusion, native
 receipts in every prompt mode, exact reply content, queue priority, restart, abrupt process loss,

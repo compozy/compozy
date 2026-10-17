@@ -7,6 +7,7 @@ import { StateGlyph, TypingDots } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 import { useSecondClock } from "@/hooks/use-second-clock";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
+import { formatQuietDuration } from "../lib/session-quiet-warning";
 import {
   agentCountLabel,
   deriveWorkingStatus,
@@ -70,6 +71,24 @@ function WorkingTimer({
   );
 }
 
+/** "quiet for 12m": the daemon saw no work for this turn since `quietSinceMs`. */
+function QuietFor({
+  quietSinceMs,
+  enabled,
+  fallback,
+}: {
+  quietSinceMs: number;
+  enabled: boolean;
+  fallback: string | null;
+}) {
+  const now = useSecondClock(enabled);
+  return (
+    <span data-testid="session-working-quiet" className="shrink-0 whitespace-nowrap">
+      quiet for {enabled || fallback === null ? formatQuietDuration(now - quietSinceMs) : fallback}
+    </span>
+  );
+}
+
 function Dots({ reducedMotion }: { reducedMotion: boolean }) {
   if (reducedMotion) return null;
   return <TypingDots className="session-working-dots gap-transcript-meta-gap [&>span]:bg-faint" />;
@@ -115,6 +134,16 @@ function WorkingStatusLine({
             "Working…"
           )}
         </span>
+        {status.quietSinceMs !== null ? (
+          <>
+            <SessionStatusSeparator />
+            <QuietFor
+              quietSinceMs={status.quietSinceMs}
+              enabled={liveDataEnabled}
+              fallback={status.quietFor}
+            />
+          </>
+        ) : null}
         {status.activity ? (
           <>
             <SessionStatusSeparator />
@@ -243,7 +272,8 @@ function SessionStatusLine({
  * `SessionThinkingRow` (S3): the one line that says what the agent is doing
  * right now. "Thinking…" from your send until the first word or tool, then
  * "Working for 2m 14s · Running shell", still working while spawned agents
- * run ("· 2 agents running"), and after a stop a frozen "Stopped by you after
+ * run ("· 2 agents running"), "· quiet for 12m" when the daemon saw no work
+ * for the turn in a while, and after a stop a frozen "Stopped by you after
  * 1m 40s" in warning ink — the only tone it wears besides danger for a real
  * failure. A completed turn reads nothing here: its "Worked for" moved to the
  * fold. Elapsed is the daemon's, so it survives a reconnect; a paused window

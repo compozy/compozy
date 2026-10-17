@@ -350,7 +350,7 @@ affect a newer turn.
 
 ### Runtime activity supervision
 
-Supervision inspects every live session, including idle sessions. Any fresh work signal
+Supervision inspects every live session. Any fresh work signal
 keeps the session alive: agent progress, a verified running tool, an active child, a recently
 reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
 session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
@@ -365,18 +365,55 @@ Expired evidence stops counting as work. A stale tool, stopping child, or Loop r
 a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop
 until the source can be inspected again.
 
-After `session.supervision.quiet_after` of observed silence (default `30m`), CompozyOS records
-one `session.supervision_warning` and shows it in the open session. Continued silence for
+Silence supervision is a hung-turn watchdog. Silence accrues only while a turn is in flight and
+waiting on the agent. A session with no turn in flight (the agent finished and is waiting for you)
+never gets a quiet warning and is never stopped for inactivity. A turn blocked on a pending
+permission or clarify request does not accrue silence either. When a turn ends, any quiet warning
+clears.
+
+After `session.supervision.quiet_after` of observed silence in a turn (default `30m`), CompozyOS
+records one `session.supervision_warning` and the open session shows it on the working status line
+under the transcript, for example `Working for 42m · quiet for 12m`. Use **Stop generation** in the
+composer or **Stop** in the topbar to end the turn yourself. Continued silence for
 `session.supervision.stop_grace` (default `10m`) requests the normal stop ladder with cause
 `inactivity`. `session.supervision_stopped` records verified termination. Persisted stop metadata
 uses `stop_reason: "timeout"` and `stop_detail: "inactivity"`. New work clears the warning and
-cancels the pending automatic stop. `quiet_after = "0"` disables both actions;
+cancels the pending automatic stop. `quiet_after = "0"` disables the watchdog;
 `stop_grace = "0"` keeps the warning but disables automatic stop.
 
+### Idle runtime release
+
+An idle session keeps its agent process for `session.supervision.idle_release_after` (default
+`30m`). After that, CompozyOS silently stops the agent process and keeps the session. This happens
+only when the session has no turn in flight, no work signal, no `unknown` signal source, no pending
+permission or clarify request, and its agent advertised ACP `session/load`. Agents without
+`session/load` keep their runtime. `idle_release_after = "0"` disables the release.
+
+A released session stays `state: "active"` with `runtime.status: "unbound"`. It keeps its
+transcript and ACP session ID and shows the normal `idle` badge. The release records no supervision
+warning or stop event and dispatches no `session.post_stop` hook. The process-level `agent.stopped`
+hook fires, as it does for any runtime replacement.
+
+The next prompt from any surface (composer, CLI, HTTP/UDS, a reply delivery, or a wake) binds a
+runtime again without a Resume step:
+
+- CompozyOS reloads the same ACP session with `session/load`.
+- If the load fails, it starts a fresh ACP session and replays the bounded transcript
+  (`session.derive.max_replay_bytes`).
+- If the prompt selects a different provider or model, it binds that route and carries the
+  transcript, as a live runtime switch does.
+
+If the daemon exits uncleanly while a runtime is released, boot recovery ends that session
+`stopped` with `stop_reason: "shutdown"` and the detail
+`daemon exited while the idle session runtime was released`. It is not recorded as a failure, and a
+later prompt resumes it with `session/load`.
+
 A reply can still arrive after the sender stopped, for example when the asked session was itself
-stopped with the message queued and is resumed later. If CompozyOS stopped the sender (inactivity,
-timeout, daemon shutdown or an agent crash), the reply resumes it and delivers the wake once. A
-sender you stopped yourself stays stopped; the wake is delivered when you resume it.
+stopped with the message queued and is resumed later. An idle sender is not stopped while it waits;
+its runtime may be released, and the reply binds it again and delivers the wake once. If CompozyOS
+stopped the sender (an inactivity stop of a hung turn, a timeout, daemon shutdown or an agent
+crash), the reply resumes it and delivers the wake once. A sender you stopped yourself stays
+stopped; the wake is delivered when you resume it.
 
 Event waits without an authored expiry receive the effective admission horizon, normally `168h`.
 Existing expiryless waits use their original creation time and pinned configuration when upgraded.
@@ -685,8 +722,9 @@ CompozyOS has separate timeout concepts:
 | Timeout                                    | What it protects                                                              |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |
 | `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                          |
-| `session.supervision.quiet_after`          | Observed silence before one warning; zero disables silence actions.           |
-| `session.supervision.stop_grace`           | Continued silence after the warning before the standard stop ladder.          |
+| `session.supervision.quiet_after`          | Silence in an in-flight turn before one warning; zero disables the watchdog.  |
+| `session.supervision.stop_grace`           | Continued turn silence after the warning before the standard stop ladder.     |
+| `session.supervision.idle_release_after`   | Idle time before the agent process is released; zero disables the release.    |
 | `session.supervision.prompt_deadline`      | Optional total prompt budget; zero disables it.                               |
 | `session.supervision.timeout_cancel_grace` | Grace after explicit prompt-budget cancellation.                              |
 | `session.stop.cooperative_grace`           | Cooperative phase of the stop ladder, followed by bounded forced/kill phases. |
@@ -706,11 +744,11 @@ The session manager currently emits these persisted stop classifications:
 | `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                                             |
 | `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                                              |
 | `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                                            |
-| `timeout`         | An explicit runtime budget expired, or silence supervision completed its warning/grace path (`stop_detail: inactivity`).                                         |
+| `timeout`         | An explicit runtime budget expired, or a silent in-flight turn completed its warning/grace path (`stop_detail: inactivity`).                                     |
 | `error`           | Start or stop failed, or ACP reported a transport failure and the subprocess then exited successfully with code `0`.                                             |
 | `agent_crashed`   | The subprocess exited with a non-zero code, a signal, or a wait error; also used when CompozyOS repairs stale `active`/`stopping` metadata after a daemon crash. |
 | `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                                                   |
-| `shutdown`        | The daemon shut the session down.                                                                                                                                |
+| `shutdown`        | The daemon shut the session down, or exited uncleanly while the idle session runtime was released.                                                               |
 
 Inspect the current session state and stop classification at any time:
 

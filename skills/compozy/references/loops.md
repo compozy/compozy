@@ -409,7 +409,8 @@ succeeded: read their independent outcomes. Explicit Run/node cancel or stop sti
 operator's request; actual provider failures remain visible.
 
 The Loop silence window raises attention and never auto-kills or auto-pauses. Separately, configured
-session supervision can stop a session after all work evidence expires and `stop_grace` elapses.
+session supervision can stop a session whose in-flight turn stays silent after all work evidence
+expires and `stop_grace` elapses; a session with no turn in flight is never stopped for inactivity.
 A verified supervised stop recovers its authoritative task work within `max_attempts`; an owned
 `run-agent` cell advances to the linked task attempt and next epoch. Explicit cancellation,
 paused/quarantined cells, and borrowed Goal bindings are not automatically requeued.

@@ -53,7 +53,9 @@ func (m *Manager) superviseSession(ctx context.Context, target *Session, now tim
 	}
 	previous := CloneSupervisionState(target.supervisionState)
 	state.QuietWarning = previous.QuietWarning
-	updateSupervisionQuietStateLocked(target, state, policy, now)
+	turnInFlight := target.turnAwaitsAgentLocked()
+	updateSupervisionQuietStateLocked(target, state, policy, now, turnInFlight)
+	release := idleRuntimeReleaseDueLocked(target, state, m.supervision.IdleReleaseAfter, now)
 	if !supervisionNeedsAttention(state) {
 		target.supervisionReportedSources = nil
 	}
@@ -91,20 +93,22 @@ func (m *Manager) superviseSession(ctx context.Context, target *Session, now tim
 		}
 		return err
 	}
+	if release {
+		return m.releaseIdleRuntime(ctx, target, progress)
+	}
 	return nil
 }
 
 // updateSupervisionQuietStateLocked advances only the currently observed quiet episode.
-// The caller holds target.mu across observation validation and publication decisions.
+// Quiet is a hung-turn watchdog: a session that is not waiting on the agent (idle, or
+// blocked on the operator's answer) never accrues silence. The caller holds target.mu
+// across observation validation and publication decisions.
 func updateSupervisionQuietStateLocked(
-	target *Session, state *SupervisionState, policy compozyconfig.QuietPolicy, now time.Time,
+	target *Session, state *SupervisionState, policy compozyconfig.QuietPolicy, now time.Time, turnInFlight bool,
 ) {
-	unknown := slices.ContainsFunc(
-		state.Sources,
-		func(source SignalSourceState) bool { return source.State == signalSourceUnknown },
-	)
+	unknown := supervisionSourceUnknown(state)
 	switch {
-	case len(state.WorkSignals) > 0 || (policy.WarningAfter == 0 && policy.StopAfterQuiet == 0):
+	case !turnInFlight || len(state.WorkSignals) > 0 || (policy.WarningAfter == 0 && policy.StopAfterQuiet == 0):
 		target.supervisionQuietSince = time.Time{}
 		state.QuietWarning = nil
 	case unknown:
@@ -136,4 +140,11 @@ func updateSupervisionQuietStateLocked(
 			target.supervisionStopAt = *state.QuietWarning.StopAt
 		}
 	}
+}
+
+func supervisionSourceUnknown(state *SupervisionState) bool {
+	return slices.ContainsFunc(
+		state.Sources,
+		func(source SignalSourceState) bool { return source.State == signalSourceUnknown },
+	)
 }

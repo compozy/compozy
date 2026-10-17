@@ -329,10 +329,6 @@ export {
 } from "./lib/session-stop-attention";
 export { SessionPanelToggle } from "./components/session-panel-toggle";
 export {
-  SessionQuietWarningNotice,
-  type SessionQuietWarningNoticeProps,
-} from "./components/session-quiet-warning-notice";
-export {
   SessionThinkingRow,
   type SessionThinkingRowProps,
 } from "./components/session-thinking-row";
@@ -392,16 +388,7 @@ export {
   type SessionTurnOutcomes,
 } from "./lib/session-turn-outcomes";
 export { SessionTurnOutcomesProvider } from "./lib/session-turn-outcomes-context";
-export {
-  formatQuietDuration,
-  formatQuietDurationWords,
-  sessionQuietWarning,
-  sessionQuietWarningClock,
-  sessionQuietWarningFacts,
-  type SessionQuietWarning,
-  type SessionQuietWarningClock,
-  type SessionQuietWarningFacts,
-} from "./lib/session-quiet-warning";
+export { formatQuietDuration, formatQuietDurationWords } from "./lib/session-quiet-warning";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,

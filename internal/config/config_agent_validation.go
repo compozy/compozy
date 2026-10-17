@@ -180,6 +180,7 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 		PromptDeadline:            0,
 		QuietAfter:                30 * time.Minute,
 		StopGrace:                 10 * time.Minute,
+		IdleReleaseAfter:          30 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
 	}
 }
@@ -273,6 +274,11 @@ func (c SessionSupervisionConfig) Validate() error {
 		)
 	case c.StopGrace < 0:
 		return fmt.Errorf("session.supervision.stop_grace must be zero or positive: %s", c.StopGrace)
+	case c.IdleReleaseAfter < 0:
+		return fmt.Errorf(
+			"session.supervision.idle_release_after must be zero or positive: %s",
+			c.IdleReleaseAfter,
+		)
 	case c.TimeoutCancelGrace <= 0:
 		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
 	default:

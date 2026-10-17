@@ -234,6 +234,34 @@ describe("useSessionTopbarSlot", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  // Invariant: an idle session whose agent process the daemon released
+  // (`active` + `runtime.status: "unbound"`) reads exactly like any idle
+  // session — the Idle state and the same lifecycle controls, never a stopped
+  // session's presentation; the next prompt rebinds it.
+  it.each(["ready", "unbound"] as const)(
+    "Should present an idle session with a %s runtime with the same idle controls",
+    status => {
+      renderWithTopbar(
+        <SessionPublisher
+          onStop={vi.fn()}
+          session={{
+            ...primarySessionFixture,
+            badge: "idle",
+            state: "active",
+            attachable: true,
+            runtime: { ...primarySessionFixture.runtime, status },
+          }}
+        />
+      );
+
+      expect(screen.getByText("Session status: Idle")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Resume session" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+      expect(screen.getByRole("menuitem", { name: "Stop session" })).toBeInTheDocument();
+    }
+  );
+
   it("Should offer unarchive without attach or resume controls for an archived session", () => {
     const onUnarchive = vi.fn();
 

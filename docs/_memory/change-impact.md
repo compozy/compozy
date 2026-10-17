@@ -3248,3 +3248,42 @@ Owner: branch `fix/issue-774-terminal-workspace-stall`.
   no native invocation contract changes. Site documentation needs no changed command or shape.
 - QA: `ET-terminal-stream-resilience` owns workspace-switch, hidden-view and recovery checks.
   Evidence is tracked in `docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md`.
+
+## Issue #782 — hung-turn watchdog and silent idle runtime release (2026-10-17)
+
+Owner: branch `fix/silent-idle-session-reclaim`; issue #782.
+
+- Runtime: `session.supervision.quiet_after`/`stop_grace` become a hung-turn watchdog. Silence
+  accrues only while a turn is in flight and waiting on the agent; an idle session (no turn in
+  flight) or a turn blocked on a pending permission/clarify request never warns or stops for
+  inactivity, and a quiet warning clears when the turn ends. The in-flight path is unchanged:
+  `session.supervision_warning`, the stop ladder with cause `inactivity`,
+  `session.supervision_stopped`, `stop_reason: "timeout"`/`stop_detail: "inactivity"`, task
+  recovery, Loop death-resume and reply-wake. A new idle runtime release stops the agent process of
+  an idle session with no work signal, no unknown source, no pending interaction, and ACP
+  `session/load` support after `session.supervision.idle_release_after`. The session stays
+  `active`, `runtime.status: "unbound"`, keeps transcript and ACP session id, and the next prompt
+  from any surface rebinds through `session/load`, falling back to bounded transcript replay, or
+  binds a newly selected route with the transcript. An unclean daemon exit while released boots the
+  session `stopped`/`shutdown` with detail "daemon exited while the idle session runtime was
+  released"; a later prompt resumes it.
+- Native tools, CLI, HTTP/UDS: no new tool or route; session describe/status/resource fields keep
+  their shapes. `runtime.status: "unbound"` on an active session now also means a released
+  runtime, and `supervision.quiet_warning` appears only during in-flight turns.
+- Extensibility/hooks/config (SD-013, additive): new key `session.supervision.idle_release_after`
+  (duration, default `30m`, zero or positive, `0` disables), readable/writable through config
+  get/set and `compozy__config_*`. A release dispatches no `session.post_stop` hook; the
+  process-level `agent.stopped` hook fires as for any runtime replacement. Inactivity stops, and the hooks that follow them, now happen only for
+  in-flight turns. No persisted schema change or migration; the released shape is the existing
+  active/unbound metadata.
+- Workspace/profile isolation: unchanged.
+- Web: the window-level quiet warning notice ("Quiet for … This session stops in …", Stop now) is
+  removed; a quiet in-flight turn adds a muted "quiet for …" segment to the working status line.
+  Released sessions render as ordinary idle sessions. Historic inactivity stops keep "Stopped after
+  … · no work for …".
+- Official skill and docs: `skills/compozy/references/runtime-operations.md`, `native-tools.md`,
+  `loops.md`, `tasks-and-orchestration.md`; site `sessions/lifecycle`, `sessions/health`,
+  `sessions/events` (stale `runtime_warning`/legacy-key text corrected), `sessions/orchestration`,
+  `agents/heartbeat`, and `configuration/config-toml`. QA scenarios `RT-session-native-stop`
+  (supervision branch rewritten, idle-release branch added, re-walk required) and
+  `RT-session-message-reply` (step 11).

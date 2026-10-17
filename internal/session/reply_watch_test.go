@@ -1532,8 +1532,9 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 			}
 			if cause == CauseInactivity {
 				// The target gives no evidence (absent sources), as when it stopped with the message queued:
-				// the real supervisor stops the quiet sender.
+				// the real supervisor stops the sender whose in-flight turn went quiet.
 				installAbsentWorkSources(h.manager)
+				markTurnInFlight(sender)
 				for range 3 {
 					if err := h.manager.Supervise(t.Context(), clock()); err != nil {
 						t.Fatal(err)
