@@ -4,6 +4,8 @@
 // - the sender's side holds the "Sent to" part whose `message_id` was answered;
 // - the target's side holds the received prompt, whose thread message id is
 //   that same message id.
+// Message ids are chosen per send, so the same id may go to several targets:
+// sent cards and answers are keyed by the peer session plus the message id.
 
 import { isRecord, stringField } from "./timeline-message-parts";
 import {
@@ -20,15 +22,20 @@ interface ReplyIndexMessage {
 }
 
 export interface SessionMessageReplyIndex {
-  /** The thread message that holds the "Sent to" card for a message id. */
+  /** The thread message holding the "Sent to" card, by `sessionReplyKey(target, messageId)`. */
   sentByMessageId: ReadonlyMap<string, string>;
-  /** Message ids some inbound message in this transcript answers. */
+  /** `sessionReplyKey(answering session, messageId)` for every answer in this transcript. */
   answered: ReadonlySet<string>;
   /** Every thread message id; a received prompt's id is its message id. */
   threadMessageIds: ReadonlySet<string>;
 }
 
 const indexes = new WeakMap<object, SessionMessageReplyIndex>();
+
+/** The key that pairs one sent message with its answers: the peer session and the message id. */
+export function sessionReplyKey(peerSessionId: string, messageId: string): string {
+  return `${peerSessionId}\u0000${messageId}`;
+}
 
 function partName(part: Record<string, unknown>): string | null {
   const type = stringField(part, "type");
@@ -39,15 +46,15 @@ function partName(part: Record<string, unknown>): string | null {
   return type?.startsWith("data-") ? type : null;
 }
 
-function sentMessageIds(message: ReplyIndexMessage): string[] {
+function sentMessageKeys(message: ReplyIndexMessage): string[] {
   if (message.role !== "assistant" || !Array.isArray(message.content)) return [];
-  const ids: string[] = [];
+  const keys: string[] = [];
   for (const part of message.content) {
     if (!isRecord(part) || partName(part) !== SESSION_MESSAGE_PART_NAME) continue;
-    const messageId = sessionSentMessagePart(SESSION_MESSAGE_PART_NAME, part.data)?.messageId;
-    if (messageId) ids.push(messageId);
+    const sent = sessionSentMessagePart(SESSION_MESSAGE_PART_NAME, part.data);
+    if (sent?.messageId) keys.push(sessionReplyKey(sent.targetSessionId, sent.messageId));
   }
-  return ids;
+  return keys;
 }
 
 /** The reply index over the loaded messages, cached per message list identity. */
@@ -61,10 +68,9 @@ export function sessionMessageReplyIndex(
   const threadMessageIds = new Set<string>();
   for (const message of messages) {
     threadMessageIds.add(message.id);
-    for (const messageId of sentMessageIds(message)) sentByMessageId.set(messageId, message.id);
-    const inReplyTo =
-      message.role === "user" ? sessionMessageOrigin(message.metadata)?.inReplyTo : undefined;
-    if (inReplyTo) answered.add(inReplyTo);
+    for (const key of sentMessageKeys(message)) sentByMessageId.set(key, message.id);
+    const origin = message.role === "user" ? sessionMessageOrigin(message.metadata) : null;
+    if (origin?.inReplyTo) answered.add(sessionReplyKey(origin.sessionId, origin.inReplyTo));
   }
   const index = { sentByMessageId, answered, threadMessageIds };
   indexes.set(messages, index);
@@ -73,15 +79,17 @@ export function sessionMessageReplyIndex(
 
 /**
  * The thread message holding the message `inReplyTo` names: this session's
- * "Sent to" card, or the received prompt itself. `null` when it is not loaded.
+ * "Sent to" card for `peerSessionId`, or the received prompt itself. `null`
+ * when it is not loaded.
  */
 export function sessionReplyTargetMessageId(
   index: SessionMessageReplyIndex,
-  inReplyTo: string | null | undefined
+  inReplyTo: string | null | undefined,
+  peerSessionId: string
 ): string | null {
   if (!inReplyTo) return null;
   return (
-    index.sentByMessageId.get(inReplyTo) ??
+    index.sentByMessageId.get(sessionReplyKey(peerSessionId, inReplyTo)) ??
     (index.threadMessageIds.has(inReplyTo) ? inReplyTo : null)
   );
 }

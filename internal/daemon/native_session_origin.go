@@ -132,7 +132,7 @@ type nativeSessionReplayReader interface {
 func (n *daemonNativeTools) sessionPromptReplayOrigin(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	workspaceID, target, messageID, idempotencyKey string,
+	workspaceID, target, messageID, idempotencyKey, inReplyTo string,
 	refusal error,
 ) (*acp.PromptOriginMeta, error) {
 	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
@@ -148,6 +148,10 @@ func (n *daemonNativeTools) sessionPromptReplayOrigin(
 	}
 	if !found || (origin != nil && origin.SessionID != scope.SessionID) {
 		return nil, refusal
+	}
+	if origin != nil {
+		// The retry's own reply link joins the admission fingerprint, so changing it conflicts instead of replaying.
+		origin.InReplyTo = inReplyTo
 	}
 	return origin, nil
 }

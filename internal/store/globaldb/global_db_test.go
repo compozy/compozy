@@ -506,7 +506,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 	})
 	// Invariant: classifying queue origins and widening reply-watch outcomes keeps every row across upgrade.
-	t.Run("Should backfill queue origin classes and keep reply watches across 00138", func(t *testing.T) {
+	t.Run("Should keep rowids, Goal cutoffs and reply watches across 00138", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -526,11 +526,17 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			 VALUES ('origin-session', '00000000000000000000000000', 'coder', 'origin-ws', 'stopped', '2026-10-16', '2026-10-16')`,
 			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
 			 VALUES ('human-input', 'origin-session', 'queued', 'queue', 'Human message', '2026-10-16', '2026-10-16')`,
+			// A deleted row leaves a rowid gap; Goal batch cutoffs refer to rowids, so the rebuild must keep them.
+			`INSERT INTO session_input_queue (id, session_id, status, mode, text, enqueued_at, updated_at)
+			 VALUES ('deleted-input', 'origin-session', 'queued', 'queue', 'Deleted', '2026-10-16', '2026-10-16')`,
 			`INSERT INTO session_input_queue (id, session_id, status, mode, text, origin_json, enqueued_at, updated_at)
 			 VALUES ('agent-input', 'origin-session', 'queued', 'queue', 'Agent message',
 			         '{"kind":"session","session_id":"sess-sender","workspace_id":"origin-ws","hop":1}', '2026-10-16', '2026-10-16')`,
 			`INSERT INTO session_input_queue (id, session_id, status, mode, text, owner_kind, priority, enqueued_at, updated_at)
 			 VALUES ('wake-input', 'origin-session', 'queued', 'queue', 'Wake', 'synthetic', 1, '2026-10-16', '2026-10-16')`,
+			`DELETE FROM session_input_queue WHERE id = 'deleted-input'`,
+			`UPDATE session_input_queue SET goal_input_batch_max_rowid = (
+			   SELECT rowid FROM session_input_queue WHERE id = 'agent-input') WHERE id = 'human-input'`,
 			`INSERT INTO session_prompt_reply_watches (id, workspace_id, sender_session_id, target_workspace_id,
 			   target_session_id, message_id, admission_id, hop, state, outcome, created_at)
 			 VALUES ('watch-1', 'origin-ws', 'sess-sender', 'origin-ws', 'origin-session', 'msg-1', 'adm-1', 1,
@@ -540,8 +546,8 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		const retainedQueue = `SELECT json_group_array(json_array(id, text, status, origin_json, owner_kind, priority))
-			FROM (SELECT * FROM session_input_queue ORDER BY id)`
+		const retainedQueue = `SELECT json_group_array(json_array(rowid, id, text, status, origin_json, owner_kind, priority,
+			goal_input_batch_max_rowid)) FROM (SELECT rowid, * FROM session_input_queue ORDER BY id)`
 		const retainedWatches = `SELECT json_group_array(json_array(id, state, outcome, sender_session_id, message_id))
 			FROM session_prompt_reply_watches`
 		var beforeQueue, beforeWatches string

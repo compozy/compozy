@@ -212,7 +212,9 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	origin, err := n.sessionPromptOrigin(ctx, scope, req.ToolID, sessionID, input)
 	if err != nil {
-		origin, err = n.sessionPromptReplayOrigin(ctx, scope, workspaceID, sessionID, messageID, idempotencyKey, err)
+		origin, err = n.sessionPromptReplayOrigin(
+			ctx, scope, workspaceID, sessionID, messageID, idempotencyKey, strings.TrimSpace(input.InReplyTo), err,
+		)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}

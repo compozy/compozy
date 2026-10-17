@@ -1359,6 +1359,61 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 			got.Status != store.SessionInputQueueStatusQueued {
 			t.Fatalf("reverted = %#v, want queued after-turn delivery", got)
 		}
+		// A reservation commits the admission dispatch; reverting the reserved row must reopen it, or the
+		// ordinary claim that follows fails as an indeterminate dispatch.
+		if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+			ctx, sessionID, "a1", "turn-live", now,
+		); err != nil || !promoted {
+			t.Fatalf("second promotion = %v, %v", promoted, err)
+		}
+		if reserved, ok, err := db.ReserveSessionSteer(ctx, sessionID, "a1", now); err != nil || !ok ||
+			reserved.Status != store.SessionInputQueueStatusDispatching {
+			t.Fatalf("ReserveSessionSteer() = %#v, %v, %v; want a dispatching reservation", reserved, ok, err)
+		}
+		if reverted, err := db.RevertPromotedAgentSessionInput(ctx, sessionID, "a1", now); err != nil || !reverted {
+			t.Fatalf("revert of a reserved promotion = %v, %v", reverted, err)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Minute))
+		if err != nil || !ok || claimed.ID != "a1" {
+			t.Fatalf("ClaimNextSessionInput() = %q, %v, %v; want the reverted message claimed", claimed.ID, ok, err)
+		}
+	})
+
+	t.Run("Should recover steers staged before a restart instead of leaving them undispatchable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 10, 16, 13, 25, 0, 0, time.UTC)
+		admitAgent(t, db, sessionID, "a1", "sess-a", false, now)
+		if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+			ctx, sessionID, "a1", "turn-before-restart", now,
+		); err != nil || !promoted {
+			t.Fatalf("promotion = %v, %v", promoted, err)
+		}
+		enqueue(t, db, store.SessionInputQueueInsert{
+			ID: "human-steer", SessionID: sessionID, Text: "operator guidance", Mode: store.SessionInputQueueModeSteer,
+			Delivery: store.SessionInputDeliveryInterruptThenPrompt, TargetTurnID: "turn-before-restart", Now: now,
+		})
+		if got := statusOf(t, db, sessionID, "human-steer"); got.Dispatchable {
+			t.Fatalf("staged human steer = %#v, want undispatchable before recovery", got)
+		}
+		if _, err := db.FailStaleDispatchingSessionInputs(ctx, now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if got := statusOf(t, db, sessionID, "a1"); got.Mode != store.SessionInputQueueModeQueue ||
+			got.Delivery != store.SessionInputDeliveryAfterTurn || !got.Dispatchable ||
+			got.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("recovered promotion = %#v, want plain after-turn delivery", got)
+		}
+		if got := statusOf(t, db, sessionID, "human-steer"); !got.Dispatchable ||
+			got.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("recovered human steer = %#v, want dispatchable", got)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Minute))
+		if err != nil || !ok || claimed.ID != "human-steer" {
+			t.Fatalf("ClaimNextSessionInput() = %q, %v, %v; want the operator steer first", claimed.ID, ok, err)
+		}
 	})
 
 	t.Run("Should keep the sender's message identity when the operator promotes an agent row", func(t *testing.T) {

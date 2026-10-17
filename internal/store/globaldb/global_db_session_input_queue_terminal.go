@@ -245,7 +245,8 @@ func (g *SessionRepo) CancelPendingSessionInputs(
 // FailStaleDispatchingSessionInputs settles non-Goal leases left by a previous
 // daemon process. Their dispatch outcome is unknown, so they fail (marking any
 // admission receipt indeterminate) instead of requeueing and risking a
-// duplicate turn; either way they stop holding queue capacity.
+// duplicate turn; either way they stop holding queue capacity. Steers staged
+// but never reserved are recovered first so they cannot stay undispatchable.
 func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now time.Time) (int, error) {
 	if err := g.checkReady(ctx, "fail stale dispatching session inputs"); err != nil {
 		return 0, err
@@ -256,6 +257,9 @@ func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now
 	}
 	failed := 0
 	var errs []error
+	if _, err := g.queries.RecoverStagedSessionSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
+		errs = append(errs, fmt.Errorf("store: recover staged session steers: %w", err))
+	}
 	for _, row := range rows {
 		if err := g.MarkSessionInputFailed(
 			ctx, row.SessionID, row.ID, store.SessionInputStaleDispatchSummary, now,

@@ -71,13 +71,13 @@ func (h *BaseHandlers) sessionPromptOrigin(
 	if err == nil {
 		return origin, nil
 	}
-	return h.sessionPromptReplayOrigin(ctx, workspaceID, targetSessionID, sender, input, err)
+	return h.sessionPromptReplayOrigin(ctx, workspaceID, targetSessionID, sender, inReplyTo, input, err)
 }
 
 // sessionPromptReplayOrigin lets a retry of an admitted send reach its receipt after a guard would refuse it.
 func (h *BaseHandlers) sessionPromptReplayOrigin(
 	ctx context.Context,
-	workspaceID, targetSessionID, sender string,
+	workspaceID, targetSessionID, sender, inReplyTo string,
 	input contract.PromptInput,
 	refusal error,
 ) (*acp.PromptOriginMeta, error) {
@@ -94,6 +94,8 @@ func (h *BaseHandlers) sessionPromptReplayOrigin(
 	if !found || origin == nil || origin.SessionID != sender {
 		return nil, refusal
 	}
+	// The retry's own reply link joins the admission fingerprint, so changing it conflicts instead of replaying.
+	origin.InReplyTo = inReplyTo
 	return origin, nil
 }
 

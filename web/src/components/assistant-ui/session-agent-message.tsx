@@ -84,7 +84,9 @@ export function SessionAgentMessage({ origin }: { origin: SessionMessageOrigin }
         delivery={deliveryFromSteer(steer?.kind)}
         replyRequested={origin.notifyOnComplete}
         replyTo={
-          origin.inReplyTo ? <SessionMessageReplyTo inReplyTo={origin.inReplyTo} /> : undefined
+          origin.inReplyTo ? (
+            <SessionMessageReplyTo inReplyTo={origin.inReplyTo} peerSessionId={origin.sessionId} />
+          ) : undefined
         }
         timestampMs={messageTimestampMs(message)}
         onOpenSender={onOpen}

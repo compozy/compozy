@@ -246,6 +246,9 @@ type Session struct {
 	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
 	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
 	promotedSteers sync.Map
+	// promotionDeclined maps a queued entry whose promotion input.pre_submit refused to the turn it was
+	// refused in, so later passes of that turn leave it for ordinary after-turn dispatch.
+	promotionDeclined sync.Map
 }
 
 func (s *Session) processHandle() *AgentProcess {

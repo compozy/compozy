@@ -150,7 +150,9 @@ func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 }
 
 // RevertPromotedAgentSessionInput returns a promoted agent message whose live delivery never started to
-// after-turn delivery, so a failed promotion defers the message instead of dropping it.
+// after-turn delivery, so a failed promotion defers the message instead of dropping it. A reservation
+// already committed the message's admission dispatch; reverting a reserved row completes that admission
+// again in the same transaction, so the later ordinary claim can commit it.
 func (g *SessionRepo) RevertPromotedAgentSessionInput(
 	ctx context.Context,
 	sessionID string,
@@ -163,11 +165,31 @@ func (g *SessionRepo) RevertPromotedAgentSessionInput(
 	if now.IsZero() {
 		now = g.now()
 	}
-	affected, err := g.queries.RevertPromotedAgentSessionInput(ctx, sqlcgen.RevertPromotedAgentSessionInputParams{
-		Now: store.FormatTimestamp(now.UTC()), SessionID: strings.TrimSpace(sessionID), ID: strings.TrimSpace(entryID),
+	target, id := strings.TrimSpace(sessionID), strings.TrimSpace(entryID)
+	nowRaw := store.FormatTimestamp(now.UTC())
+	reverted := false
+	err := g.withImmediateTransaction(ctx, "revert promoted agent session input", func(exec globalSQLExecutor) error {
+		existing, err := getSessionInputQueueEntry(ctx, exec, target, id)
+		if err != nil {
+			return err
+		}
+		affected, err := sqlcgen.New(exec).RevertPromotedAgentSessionInput(
+			ctx, sqlcgen.RevertPromotedAgentSessionInputParams{Now: nowRaw, SessionID: target, ID: id},
+		)
+		if err != nil {
+			return fmt.Errorf("store: revert promoted agent session input: %w", err)
+		}
+		if affected != 1 {
+			return nil
+		}
+		reverted = true
+		if existing.Status != store.SessionInputQueueStatusDispatching {
+			return nil
+		}
+		return completeQueuedPromptAdmissionDispatch(ctx, exec, &existing, nowRaw)
 	})
 	if err != nil {
-		return false, fmt.Errorf("store: revert promoted agent session input: %w", err)
+		return false, err
 	}
-	return affected == 1, nil
+	return reverted, nil
 }
