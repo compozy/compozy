@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Issue 764 — Idle UI polling and attention cost — 2026-10-17
+
+`GET /api/notifications/attention` reads task attention once for every registered population
+(`CatalogScopeAll`) instead of a global read plus one read per workspace; each inbox read
+re-prepared the catalog CTE, so the cost grew with the workspace count. Notification identity
+(`attention.Identity` over the task row), per-row workspace binding, `AllProfiles` read scope,
+actor authorization, and the registered-workspace filter are unchanged; the needs-input escalation
+read now maps the all population onto stored task scopes. In the web client, a session's
+stream-backed reads (detail, by-id, usage, usage turns, prompt queue) drop to a 30 s safety read
+while its transcript stream is live, background session windows stop polling their queue, and the
+bell polls every 30 s while the document is hidden. Internal regime only: HTTP/UDS DTOs, CLI,
+native tools, hooks, extensibility, config keys, persisted state, and official `skills/compozy/`
+are unchanged; no migration or compatibility adapter is needed. Workspace/profile isolation is
+unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
+the change. No site documentation changes are needed.
+
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

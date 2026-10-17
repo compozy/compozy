@@ -83,6 +83,7 @@ export function useSessionWindowController(input: {
   );
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
+    liveDataEnabled,
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });

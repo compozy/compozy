@@ -23,6 +23,7 @@ const routeHookMocks = vi.hoisted(() => ({
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
+  sessionInputsEnabled: [] as Array<boolean | undefined>,
   sessionInputsQuery: {
     data: { inputs: [] } as {
       inputs: Array<Record<string, unknown>>;
@@ -86,7 +87,14 @@ vi.mock("@/systems/session", async () => {
     useRenameSession: () => routeHookMocks.renameMutation,
     useResumeSession: () => routeHookMocks.resumeMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
-    useSessionInputs: () => routeHookMocks.sessionInputsQuery,
+    useSessionInputs: (
+      _workspaceId: string,
+      _sessionId: string,
+      options: { enabled?: boolean }
+    ) => {
+      routeHookMocks.sessionInputsEnabled.push(options.enabled);
+      return routeHookMocks.sessionInputsQuery;
+    },
     useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
     useStopSession: () => routeHookMocks.stopMutation,
   };
@@ -173,6 +181,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.transcriptMessages = [];
     routeHookMocks.deleteOptions.current = undefined;
     routeHookMocks.sessionInputsQuery.data = { inputs: [] };
+    routeHookMocks.sessionInputsEnabled = [];
     routeHookMocks.resetThread.mockReset();
     routeHookMocks.toastError.mockReset();
     routeHookMocks.toastSuccess.mockReset();
@@ -613,6 +622,24 @@ describe("useSessionPageControls", () => {
     expect(result.current.queuedPrompts).toEqual([
       { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
+  });
+
+  // Invariant: a window without live data (a background tab) holds no queue read; the
+  // read resumes when the window owns live data again. Owner: this page-controls suite.
+  it("Should read the queue only while the hosting window owns live data", () => {
+    let liveDataEnabled = false;
+    const { rerender } = renderHook(
+      () =>
+        useSessionPageControls("sess-1", makeSession("active", "turn-a"), {
+          liveDataEnabled,
+          workspaceId: WORKSPACE_ID,
+        }),
+      { wrapper: createWrapper() }
+    );
+    expect(routeHookMocks.sessionInputsEnabled.at(-1)).toBe(false);
+    liveDataEnabled = true;
+    rerender();
+    expect(routeHookMocks.sessionInputsEnabled.at(-1)).toBe(true);
   });
 
   it("Should keep a queue draft pending until acknowledgement and resolve its disposition", async () => {
