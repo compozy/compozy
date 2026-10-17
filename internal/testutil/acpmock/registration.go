@@ -24,17 +24,15 @@ type RegisterOptions struct {
 
 // Provider identities supported by provider-aware fixture scenarios.
 const (
-	ProviderName     = "acpmock"
-	ProviderClaude   = "claude"
-	ProviderOpenClaw = "openclaw"
-	ProviderHermes   = "hermes"
+	ProviderName   = "acpmock"
+	ProviderClaude = "claude"
 )
 
 // ProviderConfigForIdentity returns an ACP mock config under one typed native provider identity.
 func ProviderConfigForIdentity(provider string, command ...string) (compozyconfig.ProviderConfig, error) {
 	canonical := compozyconfig.CanonicalProviderName(provider)
 	switch canonical {
-	case ProviderClaude, ProviderOpenClaw, ProviderHermes:
+	case ProviderClaude:
 		return ProviderConfig(command...), nil
 	default:
 		return compozyconfig.ProviderConfig{}, fmt.Errorf(

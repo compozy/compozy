@@ -324,9 +324,11 @@ Explicit `false`, `0`, and valid empty strings remain present values.
 | `sound.{enabled,on_completed,on_failed,on_parked}`                                                                                                             | Dropped; no v0.3 destination.                                                                                                                                        |
 
 Provider mapping is exact: `codex → codex`, `claude → claude`, `cursor-agent → cursor`,
-`opencode → opencode`, `pi → pi`, `gemini → gemini`, `copilot → copilot`, and `kiro → kiro`.
-Drop `droid`, `devin`, and legacy-only reasoning `ultra` as
-`unsupported_destination_value`; never silently alias or weaken them. The v0.2 schema had no
+`opencode → opencode`, `pi → pi`, `gemini → gemini`, and `copilot → copilot`.
+Drop `droid`, `devin`, `kiro`, and legacy-only reasoning `ultra` as
+`unsupported_destination_value`; never silently alias or weaken them. `kiro` is no longer a
+built-in provider; an operator who still uses Kiro CLI can declare it as a
+[custom provider](https://compozy.com/docs/agents/providers#run-another-acp-cli) with `command = "kiro-cli-chat acp"`. The v0.2 schema had no
 persisted `defaults.provider` or `defaults.pr`, so do not fabricate either.
 
 You can manage an input default manually now:

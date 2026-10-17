@@ -10,8 +10,8 @@ func TestBuiltinProviderExecutionStrategies(t *testing.T) {
 	t.Parallel()
 
 	providers := compozyconfig.BuiltinProviders()
-	if len(providers) != 26 {
-		t.Fatalf("BuiltinProviders() count = %d, want 26", len(providers))
+	if len(providers) != 14 {
+		t.Fatalf("BuiltinProviders() count = %d, want 14", len(providers))
 	}
 	for providerID, provider := range providers {
 		t.Run("Should classify builtin provider "+providerID, func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestProviderExecutionStrategyContracts(t *testing.T) {
 	}{
 		{
 			name:     "Should classify a direct ACP CLI",
-			provider: compozyconfig.ProviderConfig{Command: "hermes acp"},
+			provider: compozyconfig.ProviderConfig{Command: "kimi acp"},
 			wantKind: StrategyDirectACP,
 		},
 		{

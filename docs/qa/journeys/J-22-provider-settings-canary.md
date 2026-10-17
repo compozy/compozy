@@ -62,7 +62,7 @@ design_reference:
   truthful_ui_checks:
     - "Settings models projection equals catalog projection for the same provider (single projection — invariant §7.3)."
     - "Unchanged GET→PUT preserves raw operator metadata; present empty curated[] clears authoritatively and fails closed when sources are unavailable."
-    - "New KindIcon provider marks (cursor/opencode/openrouter/xai/groq/zai/kiro/pi/mistral/minimax/moonshot) resolve; providers without marks keep the lucide fallback (no invented marks)."
+    - "New KindIcon provider marks (cursor/opencode/openrouter/xai/zai/pi/moonshot) resolve; providers without marks keep the lucide fallback (no invented marks)."
 
 e2e_backbone:
   integration:

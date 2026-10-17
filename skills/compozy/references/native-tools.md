@@ -377,13 +377,12 @@ one-time secret must be issued.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Claude, Codex, and Hermes catalog discovery starts a short-lived ACP inspection and stores its live
+Claude and Codex catalog discovery starts a short-lived ACP inspection and stores its live
 model and configuration options under `provider_live:<id>`. Cursor runs `cursor-agent models`, groups
 transport aliases into logical models, and keeps valid Reasoning, Fast, and Thinking combinations plus
 private launch bindings. Live sources refresh periodically and after their five-minute TTL; failed
 refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
-out of the default view, so use `view=all` before concluding it is absent. OpenClaw is provider-managed
-and exposes no fabricated model controls. Refresh through `compozy__provider_models_refresh` or
+out of the default view, so use `view=all` before concluding it is absent. Refresh through `compozy__provider_models_refresh` or
 `compozy provider models refresh <provider>`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only
 writes do not invoke the provider.

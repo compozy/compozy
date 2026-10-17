@@ -23,7 +23,7 @@ const meta: Meta<typeof ProviderLogo> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const PROVIDERS = ["claude", "codex", "gemini", "qwen-code", "openclaw", "hermes", "unknown"];
+const PROVIDERS = ["claude", "codex", "gemini", "qwen-code", "cursor", "opencode", "unknown"];
 
 /**
  * Default — single Claude logo at 20px (the size used inside the provider-card icon-well).

@@ -24,3 +24,7 @@ QA 2026-08-16: unauthenticated initialize returned 401, the bound request return
 invocation after unsetting the binding failed, and rebind recovered. Public reads exposed only the
 environment key, MCP server, header name, and presence; Claude Code and Hermes both received the
 authorized response without seeing the credential.
+
+QA impact 2026-10-17 (issue #761, long-tail provider removal): `hermes` is no longer a built-in
+provider. The next walk proves remote-header delivery through a real Claude Code session; the
+2026-08-16 Hermes observation stays as historical evidence.

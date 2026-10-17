@@ -4,7 +4,7 @@ import { HeroVisual } from "./hero-visual";
 import { CtaButton } from "./primitives/cta-button";
 import { BUILTIN_PROVIDER_COUNT } from "./provider-data";
 
-const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
+const featuredAgentNames = ["Claude Code", "Codex", "Cursor"];
 const additionalProviderCount = Math.max(0, BUILTIN_PROVIDER_COUNT - featuredAgentNames.length);
 const featuredAgentDetail =
   additionalProviderCount > 0

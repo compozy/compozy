@@ -1744,7 +1744,7 @@ func TestStartCapturesHermesModelStateAsTypedConfigOption(t *testing.T) {
 			wantBooleanValue:  true,
 		},
 		{
-			name:             "Should preserve an advertised model config option over the Hermes extension",
+			name:             "Should preserve an advertised model config option over the session models state",
 			payload:          `{"models":{"currentModelId":"hermes:extension-model","availableModels":[{"modelId":"hermes:extension-model","name":"Extension model"}]},"configOptions":[{"type":"select","id":"model","name":"Model","currentValue":"provider:configured-model","options":[{"value":"provider:configured-model","name":"Configured model"}]},{"type":"boolean","id":"thinking","name":"Thinking","currentValue":false}]}`,
 			wantModel:        "provider:configured-model",
 			wantValues:       []string{"provider:configured-model"},

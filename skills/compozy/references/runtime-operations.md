@@ -664,8 +664,8 @@ and redacts credential material from errors. CLI fallbacks are `compozy provider
 Use that classification for guidance; `last_error` is redacted diagnostic detail. One
 provider's failed discovery does not invalidate other providers or cached/curated rows.
 
-Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, curated views, and
-OpenClaw's provider-managed limits are defined once in
+Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, and curated views
+are defined once in
 `references/native-tools.md#runtime-and-workspace-tools`.
 
 The session usage endpoint

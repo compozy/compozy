@@ -174,7 +174,7 @@ const ATTENTION: OsAttentionModel = {
         kind: "session",
         id: "session-9",
         title: "Release notes draft",
-        agentName: "hermes",
+        agentName: "gemini",
         workspaceId: "workspace-2",
         workspaceLabel: "infra",
         badge: "done",

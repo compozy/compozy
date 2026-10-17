@@ -179,14 +179,14 @@ again. When a session's provider natively reads an enabled source, and the winni
 lives in one of that provider's own folders, CompozyOS omits it from that session's injected
 catalog:
 
-| Provider   | Origin it reads natively |
-| ---------- | ------------------------ |
-| `claude`   | `claude`                 |
-| `openclaw` | `agents`                 |
-| `hermes`   | `agents`                 |
+| Provider | Origin it reads natively |
+| -------- | ------------------------ |
+| `claude` | `claude`                 |
 
 Nothing else changes: the skill stays in the picker, in every list, and in every management surface,
-and an explicit invocation always delivers it. Any other provider receives the full catalog.
+and an explicit invocation always delivers it. Any other provider receives the full catalog. No
+provider reads the `agents` origin (`.agents/skills`) natively, so CompozyOS injects those skills
+for every provider.
 
 ## One Profile At A Time
 

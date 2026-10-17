@@ -1465,9 +1465,12 @@ manual clear or revive command.
 ## `[providers.<name>]`
 
 Provider keys override built-ins with the same name or create a custom provider. Built-ins are
-`claude`, `codex`, `gemini`, `opencode`, `copilot`, `cursor`, `kiro`, `blackbox`, `cline`,
-`goose`, `hermes`, `junie`, `kimi-cli`, `openclaw`, `openhands`, `qoder`, `qwen-code`, `pi`,
-`openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`, `minimax`, `mistral`, and `groq`.
+`claude`, `codex`, `gemini`, `opencode`, `copilot`, `cursor`, `kimi-cli`, `qwen-code`, `pi`,
+`openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, and `xai`. The retired built-ins `hermes`,
+`openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`, `openhands`, `qoder`, `mistral`, `groq`,
+and `minimax` keep resolving with a `provider.retired_builtin` warning until v0.5.0; declare them
+here with their own `command` to keep using them. See
+[Retired built-in providers](/docs/agents/providers#retired-built-in-providers).
 
 | Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                         |
 | --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -1549,7 +1552,7 @@ metadata, never an allowlist.
 | `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
 | `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
 | `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
-| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Claude, Codex, Cursor, and Hermes have built-in paths.                      |
+| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Claude, Codex, and Cursor have built-in paths.                              |
 | `models.discovery.command`                      | string  | adapter default.                   | Shell-style command string.                                                            | Discovery command. Cursor defaults to `cursor-agent models`; ACP adapters use the provider command.                    |
 | `models.discovery.endpoint`                     | string  | adapter default.                   | Absolute HTTP(S) URL.                                                                  | Discovery endpoint URL. Cursor accepts command discovery only.                                                         |
 | `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
@@ -1559,7 +1562,7 @@ Agent-reported actual cost remains authoritative over catalog estimation. Estima
 finite, non-negative rate for every nonzero token bucket; missing cache-read, cache-write, or
 reasoning rates do not fall back to input or output rates.
 
-Discovery adapters use the resolved provider auth, env, and home policy. Claude, Codex, and Hermes use a
+Discovery adapters use the resolved provider auth, env, and home policy. Claude and Codex use a
 short-lived ACP inspection. Cursor runs `cursor-agent models`, groups its aliases into logical models, and
 stores the valid Reasoning, Fast, and Thinking combinations plus private launch bindings. If discovery is
 unavailable or fails, the catalog records source status and keeps the last successful rows as stale data.
@@ -1569,9 +1572,7 @@ also refreshes periodically.
 Writes under `providers.<id>.models.discovery` apply live. A changed discovery source refreshes
 immediately; provider model metadata changes do not rerun discovery.
 
-Hermes has built-in ACP discovery and requires a successful ACP handshake; `hermes acp --check` is only
-its install/import preflight. OpenClaw has no built-in model source because its Gateway owns model
-selection. Pi and custom providers need an explicit discovery path or an extension `model.source` when
+Pi and custom providers need an explicit discovery path or an extension `model.source` when
 they should contribute live rows.
 
 Top-level `[model_catalog.sources.models_dev]` controls the cross-provider `models.dev` enrichment
@@ -1619,8 +1620,7 @@ vault paths are not valid provider credential refs.
 The slot `required` flag is enforced at session start for both `env:` and `vault:` refs.
 `credential_slots` are valid only when `auth_mode = "bound_secret"`. Direct ACP built-ins and the
 direct `pi` provider use `native_cli` by default and do not preflight provider API keys. Pi-backed
-API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral,
-and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs Pi under the hood.
+API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI default to CompozyOS-managed `bound_secret` slots while CompozyOS runs Pi under the hood.
 
 | Built-in            | Harness  | Runtime provider    | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | --------------------------- | -------------- | -------------------- |
@@ -1630,16 +1630,7 @@ and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs 
 | `opencode`          | `acp`    | `opencode`          | none                        | `native_cli`   | provider login       |
 | `copilot`           | `acp`    | `copilot`           | none                        | `native_cli`   | provider login       |
 | `cursor`            | `acp`    | `cursor`            | none                        | `native_cli`   | provider login       |
-| `kiro`              | `acp`    | `kiro`              | none                        | `native_cli`   | provider login       |
-| `blackbox`          | `acp`    | `blackbox`          | none                        | `native_cli`   | provider login       |
-| `cline`             | `acp`    | `cline`             | none                        | `native_cli`   | provider login       |
-| `goose`             | `acp`    | `goose`             | none                        | `native_cli`   | provider login       |
-| `hermes`            | `acp`    | `hermes`            | none                        | `native_cli`   | provider login       |
-| `junie`             | `acp`    | `junie`             | none                        | `native_cli`   | provider login       |
 | `kimi-cli`          | `acp`    | `kimi-cli`          | none                        | `native_cli`   | provider login       |
-| `openclaw`          | `acp`    | `openclaw`          | none                        | `native_cli`   | provider login       |
-| `openhands`         | `acp`    | `openhands`         | none                        | `native_cli`   | provider login       |
-| `qoder`             | `acp`    | `qoder`             | none                        | `native_cli`   | provider login       |
 | `qwen-code`         | `acp`    | `qwen-code`         | `qwen3.6-plus`              | `native_cli`   | provider login       |
 | `pi`                | `pi_acp` | `anthropic`         | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
 | `openrouter`        | `pi_acp` | `openrouter`        | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
@@ -1647,9 +1638,6 @@ and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs 
 | `moonshot`          | `pi_acp` | `kimi-coding`       | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
 | `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
 | `xai`               | `pi_acp` | `xai`               | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
-| `minimax`           | `pi_acp` | `minimax`           | `MiniMax-M2.1`              | `bound_secret` | `MINIMAX_API_KEY`    |
-| `mistral`           | `pi_acp` | `mistral`           | `devstral-medium-latest`    | `bound_secret` | `MISTRAL_API_KEY`    |
-| `groq`              | `pi_acp` | `groq`              | `openai/gpt-oss-120b`       | `bound_secret` | `GROQ_API_KEY`       |
 
 ## `[model_catalog.sources.models_dev]`
 

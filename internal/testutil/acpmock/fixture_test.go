@@ -863,7 +863,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 	t.Run("Should expose typed native provider identities and diagnostics matching", func(t *testing.T) {
 		t.Parallel()
 
-		for _, provider := range []string{ProviderClaude, ProviderOpenClaw, ProviderHermes, "claude-code", "hermes-agent"} {
+		for _, provider := range []string{ProviderClaude, "claude-code"} {
 			t.Run("Should resolve provider alias "+provider, func(t *testing.T) {
 				t.Parallel()
 
@@ -880,7 +880,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 			t.Fatal("ProviderConfigForIdentity(custom) error = nil, want unsupported identity")
 		}
 
-		records := []DiagnosticsRecord{{Provider: "claude"}, {Provider: "openclaw"}, {Provider: "claude-code"}}
+		records := []DiagnosticsRecord{{Provider: "claude"}, {Provider: "codex"}, {Provider: "claude-code"}}
 		claude := DiagnosticsForProvider(records, "claude")
 		if len(claude) != 2 {
 			t.Fatalf("DiagnosticsForProvider(claude) = %#v, want canonical alias pair", claude)

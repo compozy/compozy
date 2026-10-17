@@ -32,7 +32,7 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 | `$COMPOZY_HOME/agents/<name>/AGENT.md`                                             | Global agent            | User-wide agent definition.                                                         |
 | `$COMPOZY_HOME/agents/<name>/skills/<group>/.../<skill>/SKILL.md`                  | Global agent skill      | Agent-local skill overlay for the global agent; group directories are optional.     |
 | `$COMPOZY_HOME/skills/<group>/.../<name>/SKILL.md`                                 | Global skill            | User or marketplace skill definition; group directories are optional.               |
-| `~/.agents/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`agents`)   | Universal convention, scanned by default. Read natively by OpenClaw.                |
+| `~/.agents/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`agents`)   | Universal convention, scanned by default. CompozyOS injects it for every provider.  |
 | `~/.claude/skills/<group>/.../<name>/SKILL.md`                                     | User skill (`claude`)   | Claude Code convention, scanned when `skills.sources` includes `claude`.            |
 | `<custom-source>/<group>/.../<name>/SKILL.md`                                      | Configured skill root   | Any directory listed in `skills.custom_sources`; group directories are optional.    |
 | `<workspace>/.env`                                                                 | Workspace               | Optional dotenv file loaded before workspace config.                                |
@@ -48,7 +48,7 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 | `<workspace>/.compozy/agents/<name>/AGENT.md`                                      | Workspace agent         | Workspace-local agent definition.                                                   |
 | `<workspace>/.compozy/agents/<name>/skills/<group>/.../<skill>/SKILL.md`           | Workspace agent skill   | Agent-local skill overlay for that workspace agent; group directories are optional. |
 | `<workspace>/.compozy/skills/<group>/.../<name>/SKILL.md`                          | Workspace skill         | Workspace-local skill definition; group directories are optional.                   |
-| `<workspace>/.agents/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`agents`)    | Universal convention inside the project. Read natively by OpenClaw and Hermes.      |
+| `<workspace>/.agents/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`agents`)    | Universal convention inside the project. CompozyOS injects it for every provider.   |
 | `<workspace>/.claude/skills/<group>/.../<name>/SKILL.md`                           | Workspace (`claude`)    | Claude Code convention inside the project, scanned when `claude` is enabled.        |
 
 Profile resource discovery is most-specific first: workspace named profile, workspace base,

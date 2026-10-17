@@ -164,7 +164,7 @@ export const Overflow: Story = {
         target: target({
           id: "sess-docs",
           title: "Docs sweep",
-          agentName: "hermes",
+          agentName: "gemini",
           reason: "Keep the deprecated aliases page?",
           workspaceLabel: "agh-docs",
         }),
@@ -185,7 +185,7 @@ export const SingleCompletion: Story = {
           target({
             id: "sess-notes",
             title: "Release notes draft",
-            agentName: "hermes",
+            agentName: "gemini",
             badge: "done",
           }),
         ],

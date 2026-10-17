@@ -34,13 +34,18 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	}
 
 	resolved, hasBuiltin := builtinProviders[providerName]
+	var override ProviderConfig
+	overridden := false
+	if c != nil {
+		override, overridden = c.Providers[providerName]
+	}
 	if hasBuiltin {
 		resolved = cloneProvider(resolved)
+	} else {
+		resolved, hasBuiltin = retiredProviderBase(providerName, override, overridden)
 	}
-	if c != nil {
-		if override, ok := c.Providers[providerName]; ok {
-			resolved = mergeProvider(resolved, override)
-		}
+	if overridden {
+		resolved = mergeProvider(resolved, override)
 	}
 
 	if !hasBuiltin {

@@ -41,7 +41,7 @@ CompozyOS is the system around the agent, already built: it keeps AI agents work
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, Codex, and Cursor) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
 
 ### Product Category
 
@@ -64,7 +64,7 @@ People get advanced, continuous agent work (loops, scheduled automation, permiss
 Lead with compression, then prove it through the connected parts:
 
 1. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
-2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, OpenClaw, and Hermes) plug in as drivers. CompozyOS is not another boxed agent competing with them.
+2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
 3. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
 4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
 5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
@@ -189,9 +189,9 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 When public copy needs to name 2–3 specific agent CLIs as examples (hero subhead, runtime intros, installation prerequisites, blog narrative, project overviews), use this trio in this order:
 
-> Claude Code, OpenClaw, and Hermes.
+> Claude Code, Codex, and Cursor.
 
-Why this trio: these are the most recognizable ACP-compatible CLIs in the current CompozyOS ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
+Why this trio: these are the most recognizable ACP-compatible CLIs in the current CompozyOS ecosystem. Older copy used Claude Code, OpenClaw, and Hermes, or Gemini CLI and Pi, as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
@@ -435,7 +435,7 @@ Use:
 
 - the Hero Lock in §2 verbatim: headline, subhead, and the small category label.
 - the compression promise first, then proof that loops, triggers, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
-- agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes).
+- agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, Codex, and Cursor).
 - extensibility as the next criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
 - architecture only as a why-it-holds caption ("one runtime, one state model"), never a section lead.
 - install path as primary conversion.
@@ -770,7 +770,7 @@ Before shipping copy or product-facing text, verify:
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
 - The copy uses `CompozyOS` and `compozy` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `AGENT.md`, and `AGENTS.md`.
-- Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
+- Inline example lists of agent CLIs use the canonical trio (Claude Code, Codex, and Cursor) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
 - The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.

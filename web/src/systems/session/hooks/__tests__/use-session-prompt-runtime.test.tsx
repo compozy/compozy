@@ -107,24 +107,24 @@ describe("useSessionPromptRuntime", () => {
           runtime_provider: "codex",
         },
         {
-          display_name: "Groq",
+          display_name: "OpenRouter",
           harness: "pi_acp",
-          name: "groq",
-          runtime_provider: "groq",
+          name: "openrouter",
+          runtime_provider: "openrouter",
         },
       ],
     };
     const globalProviders: ProviderListResponse = {
       providers: [
         provider("codex", "authenticated"),
-        provider("groq", "missing_credential"),
+        provider("openrouter", "missing_credential"),
         provider("claude", "authenticated"),
       ],
     };
     const catalog: AllModelsListResponse = {
       models: [
         model("codex", "gpt-5.6-sol"),
-        model("groq", "llama-4"),
+        model("openrouter", "llama-4"),
         model("claude", "claude-fable-5"),
       ],
     };
@@ -163,14 +163,19 @@ describe("useSessionPromptRuntime", () => {
     const { result, unmount } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
 
     await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
-    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "groq"]);
-    expect(result.current.catalog.providers.find(entry => entry.id === "groq")?.needs_auth).toBe(
-      true
-    );
+    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual([
+      "codex",
+      "openrouter",
+    ]);
+    expect(
+      result.current.catalog.providers.find(entry => entry.id === "openrouter")?.needs_auth
+    ).toBe(true);
     expect(result.current.catalog.models.find(entry => entry.provider === "codex")?.disabled).toBe(
       false
     );
-    expect(result.current.catalog.models.find(entry => entry.provider === "groq")).toMatchObject({
+    expect(
+      result.current.catalog.models.find(entry => entry.provider === "openrouter")
+    ).toMatchObject({
       disabled: true,
       disabled_reason: "Sign in",
     });
