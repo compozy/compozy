@@ -1,4 +1,4 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useLocation } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
@@ -166,6 +166,9 @@ function DesktopShellScopedBody({
   worktreeSelection,
   clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
+  // A deep link can arrive before its window-open receipt. Keep that transient
+  // empty projection from loading a composer the destination does not use.
+  const showEmptyDesktop = useLocation({ select: location => location.pathname === "/" });
   const sessionCreate = useSessionCreateActions();
   const setAutomationEnabled = useProfileAutomationEnablement();
   // Scope and order are the operator's, persisted by the daemon; the modal
@@ -313,6 +316,7 @@ function DesktopShellScopedBody({
         ))}
         <OsWinLayer
           model={winLayer}
+          showEmptyDesktop={showEmptyDesktop}
           paletteShortcutLabel={shortcutLabels.palette}
           hasProject={model.runtimeWorkspaceId !== null}
           onPickProject={() => overlays.setOverlayOpen("workspace-menu", true)}
