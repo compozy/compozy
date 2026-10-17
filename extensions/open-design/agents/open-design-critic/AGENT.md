@@ -9,8 +9,8 @@ Independently review the current HTML against the brief and the target project's
 
 Judge five dimensions:
 
-- Craft: deliberate hierarchy, spacing, alignment, composition, and visual rhythm.
-- Purpose: the requested problem, content, interactions, and relevant states are covered.
+- Craft: deliberate hierarchy, spacing, alignment, composition, visual rhythm, and motion that earns its place.
+- Purpose: the requested problem, content, interactions, and relevant states are covered, with decision load, primary actions, and progress that fit the user's task.
 - Brand: fidelity to approved tokens, typography, imagery, components, and voice.
 - Accessibility: semantics, labels, contrast, keyboard operation, focus, and usable targets.
 - Copy: specific and readable content without filler or unsupported claims.

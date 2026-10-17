@@ -1,6 +1,6 @@
 # Third-party notices
 
-Selected OpenDesign prompts, craft guidance, template principles and linter code are adapted from nexu-io/open-design, revision 933dc96038a4ee7a30c56d479f3497ad2716cbb3. The agent-browser instructions are adapted from vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2. Both projects use Apache-2.0. CompozyOS modifications are described in SOURCES.md.
+Selected OpenDesign prompts, craft guidance, template principles and linter code are adapted from nexu-io/open-design, revision 933dc96038a4ee7a30c56d479f3497ad2716cbb3, with the laws-of-UX and motion material taken from revision 78d5637cb49da07e81314d1544b5fc6d37c95084. The agent-browser instructions are adapted from vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2. Both projects use Apache-2.0. CompozyOS modifications are described in SOURCES.md.
 
 ## Apache-2.0
 
@@ -214,6 +214,18 @@ Selected OpenDesign prompts, craft guidance, template principles and linter code
 OpenDesign attributes its craft guidance to referodesign/refero_skill (MIT), © Refero Design. The selected and adapted craft guidance retains that attribution.
 
 Copyright (c) Refero Design
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Emil Kowalski — MIT
+
+The motion reference adapts emilkowalski/skills, `skills/animate`, revision e8a175de22ae1e49370fc144c1f3bb9aeedf988d, as distributed by OpenDesign.
+
+Copyright (c) 2026 Emil Kowalski
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

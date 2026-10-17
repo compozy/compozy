@@ -15,10 +15,11 @@ For `_uiux.md`, preserve requested surfaces, states, artifact paths, component m
 
 Load only the reference sections needed for this artifact, relative to this skill's directory:
 
-- [craft.md](references/craft.md): hierarchy, composition, content, and color for a new direction; semantics, focus, and states for interactive work; language and motion when affected.
+- [craft.md](references/craft.md): hierarchy, composition, choice and decision load, content, and color for a new direction; semantics, focus, and states for interactive work; language and the reduced-motion floor when affected.
 - [artifacts.md](references/artifacts.md): the matching lane for an interface, site, HTML slide deck, or visual document, including its relevant delivery checks.
+- [motion.md](references/motion.md): whether something should animate, the cheapest tool, curves, durations, springs, interruption, and reduced motion when the artifact adds or changes motion.
 
-Use `compozy__skill_view` with `name: open-design` and `file: references/craft.md` or `references/artifacts.md` when available. If the native skill reader is unavailable or denies access, report the reference as unavailable; do not bypass the managed-session reader. Reuse already-read guidance while it remains relevant.
+Use `compozy__skill_view` with `name: open-design` and `file: references/craft.md`, `references/artifacts.md`, or `references/motion.md` when available. If the native skill reader is unavailable or denies access, report the reference as unavailable; do not bypass the managed-session reader. Reuse already-read guidance while it remains relevant.
 
 ## Author a directly openable artifact
 
