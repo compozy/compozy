@@ -92,7 +92,9 @@ export class TerminalProtocolClient {
       replayTarget: () => this.replay.replayTarget,
       discardReplay: () => this.replay.discardReplay,
       finishReplay: () => this.replay.finishReplay(),
-      onReplayComplete: () => this.setInputEnabled(this.options.mode === "write"),
+      onReplayComplete: () => {
+        if (!this.consumers.resync.isRunning) this.setInputEnabled(this.options.mode === "write");
+      },
       onTrustedFrame: frame => this.options.handlers?.onRedactedInput?.(frame),
       setStatus: status => this.setStatus(status),
       setInputEnabled: enabled => this.setInputEnabled(enabled),
@@ -100,6 +102,7 @@ export class TerminalProtocolClient {
       mayWrite: () => this.options.mode === "write",
       reportError: (cause, fallback) => this.reportClientError(cause, fallback),
       reconnectFromCommitted: () => this.reconnectFromCommitted(),
+      resynchronize: () => void this.startResync(),
     });
   }
 

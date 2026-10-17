@@ -43,7 +43,10 @@ Walk:
    reason, never silently fed stale bytes.
 3. Confirm that neither acknowledging nor dropping viewers can stall the running process. A viewer
    that stops consuming remains bounded and receives a GAP or an explicit disconnect; it cannot
-   prevent public terminal reads from advancing.
+   prevent public terminal reads from advancing. Slow browser parsing under a sustained flood
+   must also bound the client render backlog and held snapshot tail. Confirm snapshot recovery
+   replaces discarded work, keeps input gated through replay completion, and renders current
+   output once the viewer catches up. Consecutive server trims must preserve cumulative GAP metadata.
 4. Drop and restore the network for one viewer mid-command; confirm it resumes from where it left off
    with no duplicated and no missing acknowledged output.
 5. Resize from two interactive viewers and confirm the last accepted size converges everywhere while

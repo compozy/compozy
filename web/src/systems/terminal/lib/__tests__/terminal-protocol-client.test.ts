@@ -395,6 +395,56 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
+  it.each([false, true])(
+    "Should recover overflowing render and snapshot buffers during replay=%s",
+    async replaying => {
+      const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({
+        autoParse: false,
+        deferScreen: true,
+      });
+      client.start();
+      await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+      const socket = sockets.last();
+      socket.open();
+      socket.deliver(attachedFrame({ seq: replaying ? "8" : "0" }));
+      socket.deliver(serverOutputFrame("0", "inflight"));
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+
+      const chunk = "x".repeat(32 * 1024);
+      let seq = 8;
+      for (let index = 0; index < 100; index += 1) {
+        socket.deliver(serverOutputFrame(String(seq), chunk));
+        seq += chunk.length;
+      }
+      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
+      fetchStub.resolveScreen({ content: "stale snapshot", seq: String(1024 * 1024) });
+      sink.completeWrite(0);
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+      sink.completeWrite(1);
+
+      // The held tail also overflowed while the snapshot was in flight. Fetch
+      // again instead of rendering a suffix over a screen that still has a gap.
+      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
+      fetchStub.resolveScreen({ content: "current snapshot", seq: String(seq) });
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(3));
+      sink.completeWrite(2);
+      await vi.waitFor(() =>
+        expect(inputEnabled).toEqual(replaying ? [true] : [true, false, true])
+      );
+      expect(sink.parsed).toEqual(["inflight", "stale snapshot", "current snapshot"]);
+
+      socket.deliver(serverOutputFrame(String(seq), "live tail"));
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(4));
+      sink.completeWrite(3);
+      await vi.waitFor(() => expect(sink.parsed.at(-1)).toBe("live tail"));
+      expect(sockets.sockets).toHaveLength(1);
+      expect(ackCredits(socket)).toEqual([]);
+      client.stop();
+    }
+  );
+
   it("Should never return credit while watching", async () => {
     const { client, sockets, sink } = buildClient({ mode: "read" });
     client.start();

@@ -2,7 +2,7 @@
 
 - **Scope:** issue #774; workspace switches, hidden terminal views, stale stream recovery, and canceled attach requests.
 - **Cadence tier:** targeted
-- **Build:** branch `fix/issue-774-terminal-workspace-stall`, based on `b4636e3322ee306a36f955f0068745a1add51042`; uncommitted candidate.
+- **Build:** branch `fix/issue-774-terminal-workspace-stall`, based on `b4636e3322ee306a36f955f0068745a1add51042`; original fix `4c7dd1b` plus the review-remediation candidate.
 - **Environment:** isolated macOS daemon and real Web dev server; no provider required for this terminal-only journey.
 - **Started:** 2026-10-17T20:10:07Z · **Status:** targeted re-walk passed
 
@@ -26,7 +26,7 @@ probe. No host daemon or existing user workspace is changed.
 - The same regression passes with `-race` after removing viewer-dependent PTY waits.
 - Attach cancellation regression reproduced HTTP 500 in identity, ticket mint, and mapped errors;
   all three now return HTTP 499 with the existing `api_error` envelope.
-- Protocol client suite: 39 tests passed via root Turborepo, including ordered parsing, gaps,
+- Protocol client suite: 41 tests passed via root Turborepo, including ordered parsing, gaps,
   snapshot recovery, reconnect, stale completions, and nonblocking writable attachments.
 - The former producer-pause assertion intentionally contradicted the new issue contract and was
   retired with its internal Group implementation. Queue bounds/demotion/gap coverage remains.
@@ -52,6 +52,30 @@ probe. No host daemon or existing user workspace is changed.
 - Screenshots: `docs/qa/evidence/2026-10-17-issue-774/workspace-b.png`,
   `docs/qa/evidence/2026-10-17-issue-774/workspace-a-return.png`, and
   `docs/qa/evidence/2026-10-17-issue-774/background-complete.png`.
+
+## Review-remediation re-walk
+
+- Greptile and CodeRabbit identified browser buffers that could grow after removing producer
+  backpressure. Both the render backlog and the held snapshot tail now have a 1 MiB byte limit.
+  Overflow discards stale work and requires a snapshot covering all discarded sequences.
+- The owning protocol regression failed against the original PR head and passes after the fix.
+  It covers overflow during normal output and initial replay, stale snapshots, input gating,
+  and live output after recovery. A pending replay could reopen input mid-resync; production now
+  leaves that transition to the recovery owner.
+- Consecutive queue trims reproduced incomplete GAP metadata in both ACK and drop modes.
+  The existing wire suite now checks the cumulative range/byte count, and healthy ACK delivery
+  synchronizes with delivered credit before acknowledging it.
+- Real Chrome was throttled to 1/12 CPU speed while a process emitted 20,000 records of 8 KiB.
+  The UI visibly entered `Catching up…`. During 43 seconds in workspace B, public read sequence
+  advanced `62,179,104 → 98,523,878 → 134,147,509`. Returning to A recovered the current screen;
+  the public wait matched `BUFFER_DONE`, which was then visibly rendered with the shell prompt.
+  Final sequence: `163,984,436`. This verifies recovery under an actually slow renderer; the
+  deterministic suite owns exact byte-bound and stale-snapshot assertions.
+- Rebuilt daemon passed three no-ACK full-history reattachments in 721/1487/1594 ms, each with
+  a public wait match. Focused race suites, real PTY/WebSocket integration, affected Web typecheck,
+  changed-file formatting/lint, and React Doctor 100/100 passed.
+- Local captures: `bounded-buffer-catching-up.png` and `bounded-buffer-recovered.png` under
+  `docs/qa/evidence/2026-10-17-issue-774/`; the latter shows the completion marker and prompt.
 
 ## Verification and limits
 

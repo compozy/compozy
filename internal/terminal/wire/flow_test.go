@@ -14,7 +14,7 @@ import (
 func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should deliver ATTACHED before a gap from an oversized initial replay", func(t *testing.T) {
+	t.Run("Should deliver ATTACHED before a cumulative gap from an oversized initial replay", func(t *testing.T) {
 		t.Parallel()
 		for _, flow := range []Flow{FlowAck, FlowDrop} {
 			t.Run(string(flow), func(t *testing.T) {
@@ -26,13 +26,30 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 				}
 				queue.Enqueue(Frame{Op: ServerOpAttached, Payload: []byte(`{"seq":"0"}`)}, 0)
 				queue.Enqueue(Frame{Op: ServerOpOutput, Payload: make([]byte, AckPendingLimit+1)}, AckPendingLimit+1)
+				queue.Enqueue(
+					Frame{Op: ServerOpOutput, Seq: AckPendingLimit + 1, Payload: make([]byte, AckPendingLimit+1)},
+					2*(AckPendingLimit+1),
+				)
 				go queue.deliver()
 				t.Cleanup(queue.Close)
 				if frame := receiveFrame(t, queue); frame.Op != ServerOpAttached {
 					t.Fatalf("first opcode = 0x%02x, want ATTACHED", frame.Op)
 				}
-				if frame := receiveFrame(t, queue); frame.Op != ServerOpGap {
+				frame := receiveFrame(t, queue)
+				if frame.Op != ServerOpGap {
 					t.Fatalf("second opcode = 0x%02x, want GAP", frame.Op)
+				}
+				var gap struct {
+					From    string `json:"from_seq"`
+					To      string `json:"to_seq"`
+					Dropped uint64 `json:"dropped_bytes"`
+				}
+				if err := json.Unmarshal(frame.Payload, &gap); err != nil {
+					t.Fatalf("decode cumulative GAP: %v", err)
+				}
+				if gap.From != "0" || gap.To != strconv.Itoa(2*(AckPendingLimit+1)) ||
+					gap.Dropped != 2*(AckPendingLimit+1) {
+					t.Fatalf("cumulative GAP = %#v, want full replay range and byte count", gap)
 				}
 			})
 		}
@@ -262,6 +279,11 @@ func TestFlowQueueShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 			healthy.Enqueue(frame, start+chunkBytes)
 			received := receiveFrame(t, healthy)
 			delivered += len(received.Payload)
+			waitForQueueState(t, func() bool {
+				healthy.mu.Lock()
+				defer healthy.mu.Unlock()
+				return healthy.deliveredAck >= len(received.Payload)
+			}, "delivered ACK credit")
 			healthy.Ack(len(received.Payload))
 			stalled.Enqueue(frame, start+chunkBytes)
 			for _, queue := range drops {
@@ -270,6 +292,9 @@ func TestFlowQueueShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 		}
 		if delivered != chunks*chunkBytes {
 			t.Fatalf("healthy ack bytes = %d, want %d", delivered, chunks*chunkBytes)
+		}
+		if healthy.Flow() != FlowAck {
+			t.Fatalf("healthy flow = %q, want ack", healthy.Flow())
 		}
 		if stalled.Flow() != FlowDrop || stalled.PendingBytes() != 0 {
 			t.Fatalf("stalled flow/pending = %q/%d, want drop/0", stalled.Flow(), stalled.PendingBytes())

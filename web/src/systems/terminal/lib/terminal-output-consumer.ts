@@ -37,14 +37,18 @@ export class TerminalOutputConsumer {
     }
     const epoch = this.options.currentEpoch();
     void this.options.emulator
-      .run(async () => {
-        if (epoch !== this.options.currentEpoch()) return;
-        await this.options.write(bytes);
-        this.options.commit(end);
-        if (replayComplete && epoch === this.options.currentEpoch()) {
-          this.options.onReplayComplete();
-        }
-      })
+      .run(
+        async () => {
+          if (epoch !== this.options.currentEpoch()) return;
+          await this.options.write(bytes);
+          this.options.commit(end);
+          if (replayComplete && epoch === this.options.currentEpoch()) {
+            this.options.onReplayComplete();
+          }
+        },
+        size,
+        end
+      )
       .catch(cause => {
         if (this.options.isStopped() || epoch !== this.options.currentEpoch()) return;
         this.options.reportError(cause);

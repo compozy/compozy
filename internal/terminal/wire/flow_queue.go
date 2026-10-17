@@ -22,6 +22,7 @@ type queuedFrame struct {
 	end       uint64
 	size      int
 	credit    int
+	dropped   uint64
 	sequenced bool
 }
 
@@ -222,7 +223,7 @@ func (q *Queue) demoteLocked() bool {
 			to = item.end
 		}
 		// #nosec G115 -- credit is the nonnegative encoded output length.
-		dropped += uint64(item.credit)
+		dropped += uint64(item.credit) + item.dropped
 	}
 	// ATTACHED establishes the stream before any replay GAP can be interpreted.
 	if len(q.items) > 0 && q.items[0].frame.Op == ServerOpAttached {
@@ -269,7 +270,7 @@ func (q *Queue) trimDropQueueLocked() {
 			to = item.end
 		}
 		// #nosec G115 -- credit is the nonnegative encoded output length.
-		dropped += uint64(item.credit)
+		dropped += uint64(item.credit) + item.dropped
 	}
 	if sequenced {
 		q.appendGapLocked(from, to, dropped)
@@ -314,18 +315,21 @@ func (q *Queue) notifyDemoted() {
 	}
 }
 
+// appendGapLocked keeps loss metadata in the queue so a later trim can merge it.
 func (q *Queue) appendGapLocked(from, to, dropped uint64) {
 	payload := []byte(fmt.Sprintf(
 		`{"dropped_bytes":%d,"from_seq":"%d","to_seq":"%d"}`,
 		dropped, from, to,
 	))
-	frame := Frame{Op: ServerOpGap, Payload: payload}
+	frame := Frame{Op: ServerOpGap, Seq: from, Payload: payload}
 	size := frameBytes(frame)
 	index := 0
 	if len(q.items) > 0 && q.items[0].frame.Op == ServerOpAttached {
 		index = 1
 	}
-	q.items = slices.Insert(q.items, index, queuedFrame{frame: frame, size: size})
+	q.items = slices.Insert(q.items, index, queuedFrame{
+		frame: frame, end: to, size: size, dropped: dropped, sequenced: true,
+	})
 	q.queuedBytes += size
 }
 
