@@ -1181,6 +1181,22 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 			waitForTerminalTail(t, handle, "reader stalled after reattach", func(tail *ReadResult) bool {
 				return tail.Seq == uint64(len(payload)+len("after reattach\r\n"))
 			})
+			// Only consume after proving that this fresh viewer cannot stall the PTY.
+			assertAttachedFrame(t, receiveSubscriptionFrame(t, reconnected), uint64(len(payload)), true)
+			var liveOutput []byte
+			sawGap := false
+			for len(liveOutput) < len("after reattach\r\n") {
+				frame := receiveSubscriptionFrame(t, reconnected)
+				if frame.Op == terminalwire.ServerOpGap {
+					sawGap = true
+				}
+				if frame.Op == terminalwire.ServerOpOutput && frame.Seq >= uint64(len(payload)) {
+					liveOutput = append(liveOutput, frame.Payload...)
+				}
+			}
+			if !sawGap || string(liveOutput) != "after reattach\r\n" {
+				t.Fatalf("reattached gap/output = %v/%q, want replay GAP followed by live output", sawGap, liveOutput)
+			}
 		})
 	}
 
