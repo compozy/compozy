@@ -60,6 +60,7 @@ export function WorkspaceSetupDialogBoundary({
   open: boolean;
 }) {
   const setup = useWorkspaceSetupContent({
+    enabled: open,
     onWorkspaceResolved,
     onSuccessClose: () => onOpenChange(false),
   });
