@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -279,20 +280,111 @@ func seenHasEnv(env []string, want string) bool {
 func TestProviderProbeEnvCarriesWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
-	cfg := agyProbeTestConfig(t)
-	handlers := NewBaseHandlers(&BaseHandlerConfig{Config: cfg})
-	provider, err := cfg.ResolveProvider("agy")
-	if err != nil {
-		t.Fatalf("ResolveProvider(agy) error = %v", err)
+	t.Run("Should preserve the daemon working directory", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := agyProbeTestConfig(t)
+		handlers := NewBaseHandlers(&BaseHandlerConfig{Config: cfg})
+		provider, err := cfg.ResolveProvider("agy")
+		if err != nil {
+			t.Fatalf("ResolveProvider(agy) error = %v", err)
+		}
+		env, err := handlers.providerProbeEnv("agy", provider)
+		if err != nil {
+			t.Fatalf("providerProbeEnv() error = %v", err)
+		}
+		if got := strings.TrimSpace(env.CommandDir); got == "" {
+			t.Fatal("CommandDir is empty, want the daemon working directory")
+		}
+		if info, err := os.Stat(env.CommandDir); err != nil || !info.IsDir() {
+			t.Fatalf("CommandDir = %q, want an existing directory (%v)", env.CommandDir, err)
+		}
+		if want, err := os.Getwd(); err != nil || env.CommandDir != want {
+			t.Fatalf("CommandDir = %q, want daemon working directory %q (%v)", env.CommandDir, want, err)
+		}
+	})
+}
+
+func TestProviderHandlersWithoutWorkingDirectory(t *testing.T) {
+	const helperEnv = "COMPOZY_TEST_PROVIDER_REMOVED_CWD"
+	if os.Getenv(helperEnv) != "1" {
+		t.Parallel()
+		t.Run("Should keep provider endpoints available after the launch directory is removed", func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows does not allow removing the current working directory")
+			}
+			cmd := exec.CommandContext(
+				t.Context(),
+				os.Args[0],
+				"-test.run=^TestProviderHandlersWithoutWorkingDirectory$",
+			)
+			cmd.Env = append(os.Environ(), helperEnv+"=1", "TMPDIR="+t.TempDir())
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("removed working directory subprocess: %v\n%s", err, output)
+			}
+		})
+		return
 	}
-	env, err := handlers.providerProbeEnv("agy", provider)
-	if err != nil {
-		t.Fatalf("providerProbeEnv() error = %v", err)
-	}
-	if got := strings.TrimSpace(env.CommandDir); got == "" {
-		t.Fatal("CommandDir is empty, want the daemon working directory")
-	}
-	if info, err := os.Stat(env.CommandDir); err != nil || !info.IsDir() {
-		t.Fatalf("CommandDir = %q, want an existing directory (%v)", env.CommandDir, err)
-	}
+
+	t.Run("Should use the temporary directory for inventory and native and ACP probes", func(t *testing.T) {
+		// not parallel: the isolated helper subprocess removes its own working directory.
+		tempDir := os.TempDir()
+		cfg := agyProbeTestConfig(t)
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config: cfg,
+			ProviderAuthCommandResolver: func(_ context.Context, command string, _ []string, dir string) (string, error) {
+				if dir != tempDir {
+					t.Fatalf("resolver dir = %q, want %q", dir, tempDir)
+				}
+				return "/test/bin/" + command, nil
+			},
+			ProviderAuthRunner: func(_ context.Context, spec authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
+				if spec.Dir != tempDir {
+					t.Fatalf("native probe Dir = %q, want %q", spec.Dir, tempDir)
+				}
+				return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
+			},
+			ProviderACPProbe: func(_ context.Context, req acp.SessionInspectionRequest) error {
+				if req.Cwd != tempDir {
+					t.Fatalf("ACP probe Cwd = %q, want %q", req.Cwd, tempDir)
+				}
+				return nil
+			},
+		})
+		router := gin.New()
+		router.GET("/providers", handlers.ListProviders)
+		router.GET("/providers/:provider_id", handlers.GetProvider)
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+
+		workdir := t.TempDir()
+		t.Chdir(workdir)
+		if err := os.Remove(workdir); err != nil {
+			t.Fatalf("remove working directory: %v", err)
+		}
+		if _, err := os.Getwd(); err == nil {
+			t.Fatal("os.Getwd() succeeded after removing the working directory")
+		}
+		for _, endpoint := range []struct{ method, path, body string }{
+			{http.MethodGet, "/providers", `"providers":[`},
+			{http.MethodGet, "/providers/public", `"name":"public"`},
+			{http.MethodPost, "/providers/native/auth/probe", `"state":"authenticated"`},
+			{http.MethodPost, "/providers/agy/auth/probe", `"state":"authenticated"`},
+		} {
+			t.Run("Should serve "+endpoint.method+" "+endpoint.path, func(t *testing.T) {
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, httptest.NewRequestWithContext(
+					t.Context(), endpoint.method, endpoint.path, http.NoBody,
+				))
+				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), endpoint.body) {
+					t.Fatalf(
+						"status = %d body = %s, want 200 containing %s",
+						response.Code,
+						response.Body.String(),
+						endpoint.body,
+					)
+				}
+			})
+		}
+	})
 }

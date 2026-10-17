@@ -217,7 +217,10 @@ func (h *rawAuthHelper) handleAuthenticate(frame rawAuthEnvelope) {
 	var params struct {
 		MethodID string `json:"methodId"`
 	}
-	_ = json.Unmarshal(frame.Params, &params)
+	if err := json.Unmarshal(frame.Params, &params); err != nil {
+		h.note("authenticate params error")
+		return
+	}
 	h.note("authenticate methodId=" + params.MethodID)
 	switch h.scenario {
 	case "login_block":
@@ -278,7 +281,9 @@ func (h *rawAuthHelper) ask(method string, params map[string]any) {
 			continue
 		}
 		var gotID string
-		_ = json.Unmarshal(frame.ID, &gotID)
+		if err := json.Unmarshal(frame.ID, &gotID); err != nil {
+			continue
+		}
 		if gotID != id {
 			// A concurrent client notification or unrelated frame: keep waiting
 			// for the refusal answer to this request.
@@ -288,11 +293,18 @@ func (h *rawAuthHelper) ask(method string, params map[string]any) {
 			var errObj struct {
 				Code int `json:"code"`
 			}
-			_ = json.Unmarshal(frame.Error, &errObj)
+			if err := json.Unmarshal(frame.Error, &errObj); err != nil {
+				h.note("inbound " + method + " error=parse")
+				return
+			}
 			h.note(fmt.Sprintf("inbound %s error=%d", method, errObj.Code))
 			return
 		}
-		compact, _ := json.Marshal(frame.Result)
+		compact, marshalErr := json.Marshal(frame.Result)
+		if marshalErr != nil {
+			h.note("inbound " + method + " error=marshal")
+			return
+		}
 		h.note("inbound " + method + " result=" + string(compact))
 		return
 	}

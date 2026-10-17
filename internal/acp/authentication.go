@@ -56,7 +56,7 @@ func (e *AuthMethodUnavailableError) Error() string {
 	return fmt.Sprintf(
 		"acp: ACP auth method %q unavailable: %s",
 		e.MethodID,
-		strings.TrimSpace(string(e.Reason)),
+		e.Reason,
 	)
 }
 
@@ -81,6 +81,9 @@ type AuthenticationRequest struct {
 // agent method only when that probe reports auth-required, then verifies
 // readiness once. A refused post-login session stays a classified failure.
 func Authenticate(ctx context.Context, req AuthenticationRequest) error {
+	if strings.TrimSpace(req.MethodID) == "" {
+		return errors.New("acp: auth method is required")
+	}
 	if err := compozyconfig.ValidateACPMethod(req.MethodID, "acp: auth method"); err != nil {
 		return err
 	}

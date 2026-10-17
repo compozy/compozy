@@ -251,7 +251,7 @@ func resolvedAgentFromProvider(
 		NoneSecurity:    provider.EffectiveNoneSecurity(),
 		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
 		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
-		AuthACPMethod:   strings.TrimSpace(provider.AuthACPMethod),
+		AuthACPMethod:   provider.EffectiveACPMethod(),
 		SessionMCP:      provider.SessionMCPEnabled(),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 		MCPServers:      mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),

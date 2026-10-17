@@ -5234,7 +5234,7 @@ auth_acp_method = "oauth-personal"
 		}
 	})
 
-	t.Run("Should remove the local override on a present empty write", func(t *testing.T) {
+	t.Run("Should persist an explicit empty method on a present empty write", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -5254,15 +5254,15 @@ auth_acp_method = "oauth-personal"
 		}
 
 		stored := readFile(t, homePaths.ConfigFile)
-		if strings.Contains(stored, "auth_acp_method") {
-			t.Fatalf("stored config still carries auth_acp_method after removal:\n%s", stored)
+		if !strings.Contains(stored, `auth_acp_method = ""`) {
+			t.Fatalf("stored config missing explicit empty auth_acp_method:\n%s", stored)
 		}
 		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
-			t.Fatalf("LoadForHome(after removal) error = %v", err)
+			t.Fatalf("LoadForHome(after clear) error = %v", err)
 		}
 		if got := cfg.Providers["acp-custom"].AuthACPMethod; got != "" {
-			t.Fatalf("stored auth_acp_method = %q, want removed override", got)
+			t.Fatalf("stored auth_acp_method = %q, want empty method", got)
 		}
 	})
 

@@ -341,7 +341,7 @@ func mapACPLoginError(methodID string, hasTimeout bool, err error) error {
 	if errors.As(err, &unavailable) {
 		return fmt.Errorf(
 			"provider auth: ACP method %q is not advertised as an agent method",
-			strings.TrimSpace(methodID),
+			methodID,
 		)
 	}
 	if hasTimeout && errors.Is(err, context.DeadlineExceeded) {

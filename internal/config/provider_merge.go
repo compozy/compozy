@@ -48,8 +48,10 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if strings.TrimSpace(override.AuthLoginCmd) != "" {
 		merged.AuthLoginCmd = override.AuthLoginCmd
 	}
-	if strings.TrimSpace(override.AuthACPMethod) != "" {
-		merged.AuthACPMethod = strings.TrimSpace(override.AuthACPMethod)
+	if override.EffectiveACPMethod() != "" {
+		merged.AuthACPMethod = override.EffectiveACPMethod()
+	} else if merged.EffectiveHarness() != ProviderHarnessACP {
+		merged.AuthACPMethod = ""
 	}
 	if override.SessionMCP != nil {
 		merged.SessionMCP = new(*override.SessionMCP)

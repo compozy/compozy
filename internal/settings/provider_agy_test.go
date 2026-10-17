@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -92,6 +93,52 @@ func TestAgyProviderSettingsUpgradeBoundary(t *testing.T) {
 		}
 		if got, want := agy.Settings.AuthACPMethod, "oauth-personal"; got != want {
 			t.Fatalf("Settings.AuthACPMethod = %q, want inherited %q", got, want)
+		}
+	})
+
+	t.Run("Should save a pi_acp harness switch while keeping native CLI authentication", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "agy").Settings
+		settings.Harness = compozyconfig.ProviderHarnessPiACP
+		settings.AuthACPMethod = ""
+		settings.AuthACPMethodSet = true
+		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			Collection: CollectionProviders,
+			Name:       "agy",
+			Provider:   &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(pi_acp switch) error = %v", err)
+		}
+
+		if stored := readFile(t, homePaths.ConfigFile); !strings.Contains(stored, `auth_acp_method = ""`) {
+			t.Fatalf("stored config missing explicit empty auth_acp_method:\n%s", stored)
+		}
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after harness switch) error = %v", err)
+		}
+		provider, err := cfg.ResolveProvider("agy")
+		if err != nil {
+			t.Fatalf("ResolveProvider(agy) error = %v", err)
+		}
+		if got := provider.EffectiveHarness(); got != compozyconfig.ProviderHarnessPiACP {
+			t.Fatalf("Harness = %q, want pi_acp", got)
+		}
+		if got := provider.EffectiveAuthMode(); got != compozyconfig.ProviderAuthModeNativeCLI {
+			t.Fatalf("AuthMode = %q, want native_cli", got)
+		}
+		if got := provider.AuthACPMethod; got != "" {
+			t.Fatalf("AuthACPMethod = %q, want no inherited method", got)
 		}
 	})
 }

@@ -44,12 +44,7 @@ func DescribeProviderLogin(
 	descriptor.Source = providerauth.NativeCLISourceAuthLogin
 	parsed, err := providerauth.ParseCommand(command)
 	if err != nil {
-		if descriptor.RecommendedAction == ProviderFailureActionNone &&
-			classification.State != ProviderAuthStateAuthenticated &&
-			classification.State != ProviderAuthStateNone {
-			descriptor.RecommendedAction = ProviderFailureActionInspect
-		}
-		return descriptor
+		return withParseFallback(descriptor, classification)
 	}
 	return finishLoginDescriptor(descriptor, parsed.Executable, nativeCLI)
 }
@@ -57,6 +52,15 @@ func DescribeProviderLogin(
 // describeACPMethodLogin derives the safe descriptor for protocol-owned login:
 // only the launch executable basename and its presence, never arguments,
 // paths, environment, or account identity.
+func withParseFallback(descriptor ProviderLoginDescriptor, classification Classification) ProviderLoginDescriptor {
+	if descriptor.RecommendedAction == ProviderFailureActionNone &&
+		classification.State != ProviderAuthStateAuthenticated &&
+		classification.State != ProviderAuthStateNone {
+		descriptor.RecommendedAction = ProviderFailureActionInspect
+	}
+	return descriptor
+}
+
 func describeACPMethodLogin(
 	provider compozyconfig.ProviderConfig,
 	nativeCLI *providerauth.NativeCLIStatus,
@@ -71,14 +75,9 @@ func describeACPMethodLogin(
 	}
 	descriptor.Configured = true
 	descriptor.Source = providerauth.NativeCLISourceAuthACPMethod
-	parsed, err := providerauth.ParseCommand(strings.TrimSpace(provider.Command))
+	parsed, err := providerauth.ParseCommand(provider.Command)
 	if err != nil {
-		if descriptor.RecommendedAction == ProviderFailureActionNone &&
-			classification.State != ProviderAuthStateAuthenticated &&
-			classification.State != ProviderAuthStateNone {
-			descriptor.RecommendedAction = ProviderFailureActionInspect
-		}
-		return descriptor
+		return withParseFallback(descriptor, classification)
 	}
 	return finishLoginDescriptor(descriptor, parsed.Executable, nativeCLI)
 }

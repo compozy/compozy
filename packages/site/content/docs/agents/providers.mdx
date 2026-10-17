@@ -120,6 +120,10 @@ at config load time.
 CompozyOS overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
+`auth_acp_method` requires `harness = "acp"` and `auth_mode = "native_cli"`. When switching a built-in
+provider to `pi_acp`, an empty or omitted method no longer inherits the built-in ACP method. An
+explicit nonempty method is still rejected with `pi_acp`; switching harnesses does not change auth ownership.
+
 ### Configure and inspect native login
 
 `auth_login_command` is a write-only configuration input. Set it in `config.toml`, with the operator
@@ -230,11 +234,7 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, Hermes, and Agy inspect a
-short-lived ACP session. Agy publishes the exact advertised model IDs — on the verified 1.4.0 server
-the 2 bare IDs (`gemini-4-argon`, `gemini-3.8-flash`) plus a first-class `thinking_level`
-(`low`/`medium`/`high`) option; the superseded 1.3.0 `-high`/`-medium`/`-low` ID suffixes are no
-longer advertised and prompt as `model_unavailable` — with unobserved pricing, context, reasoning, and speed left unknown; the built-in ships no model seed and
-never substitutes Gemini CLI/API models. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+short-lived ACP session. Agy publishes the exact advertised model IDs with unobserved pricing, context, reasoning, and speed; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
 `cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the
@@ -597,6 +597,7 @@ Use the provider that already owns your credentials and preferred operating path
 | OpenHands                   | `openhands`         |
 | Qoder CLI                   | `qoder`             |
 | Qwen Code                   | `qwen-code`         |
+| Google Antigravity          | `agy`               |
 | Pi                          | `pi`                |
 | OpenRouter                  | `openrouter`        |
 | z.ai / GLM                  | `zai`               |

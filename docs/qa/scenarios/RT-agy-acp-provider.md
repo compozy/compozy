@@ -33,6 +33,19 @@ story: As an operator with a Google Antigravity account I sign in once explicitl
 1. With the provider logged out, attempt session creation and observe the authentication-required diagnostic.
 2. Complete explicit login, run the remote probe, and immediately retry session creation without restarting the daemon. The session starts; a failed or canceled probe must not clear the failure.
 
+## Removed daemon launch directory
+
+1. Start the daemon from a disposable directory, then remove that directory.
+2. Read `/providers` and a non-ACP provider detail: both remain available without a working-directory 500.
+3. Probe native-command and ACP providers: both use the temporary directory when the daemon working directory cannot be resolved; ACP still receives a non-empty `Cwd`.
+4. With an intact launch directory, probes continue to use that directory instead of the fallback.
+
+Automated coverage: `TestProviderHandlersWithoutWorkingDirectory` in
+`internal/api/core/providers_agy_test.go` exercises all four HTTP handler calls
+after actually removing the working directory in an isolated subprocess, with
+provider command/ACP boundaries stubbed. `TestProviderProbeEnvCarriesWorkingDirectory`
+pins the successful-resolution path. This is not a new live-provider walkthrough.
+
 ## Model discovery and exact selection
 
 1. Run `compozy provider models list agy --refresh --all -o json`: the result contains exactly the IDs the effective server/account advertises (verified 1.4.0 shape: the 2 bare IDs `gemini-4-argon`, `gemini-3.8-flash` plus a `thinking_level` option; the superseded 1.3.0 suffixed IDs such as `gemini-3.8-flash-high` are no longer advertised and prompt as `model_unavailable`), published under `provider_live:agy` with unobserved pricing, context, reasoning, and speed unknown. No Gemini CLI/API model is substituted.
@@ -61,7 +74,7 @@ The Settings half of E2E-003 (method round-trip, unverified state, keyboard,
 narrow viewport) is in `MS-web-provider-auth-gate.md`. This receipt is
 reusable by Task 05 unless later changes invalidate it.
 
-## Task 05 live-probe note (2026-10-16, still blocked-verify)
+## Task 05 live-probe note (2026-10-16, blocked at the time; superseded by the 1.4.0 consented run)
 
 Implementation build (`compozy dev`), official server 1.3.0 on Linux x86_64
 (registry advertises 1.4.0, not executed). Isolated lab, operator HOME
@@ -78,7 +91,7 @@ not attempted (no consenting account/browser in this environment).
 `.compozy/tasks/agy-acp/evidence/task_05/`; report:
 `docs/qa/reports/2026-10-16-agy-acp.md`.
 
-## Post-05 repair note (2026-10-16, still blocked-verify)
+## Post-05 repair note (2026-10-16, blocked at the time; superseded by the 1.4.0 consented run)
 
 D-001 is repaired in-tree (uncommitted): `providerAuthProbeEnv`
 (`internal/cli/provider_credentials.go`), `runACPProviderLogin` /
@@ -98,7 +111,7 @@ a clean logged-out home, explicit login, repair-without-restart, prompts,
 tools, `yolo`, cancellation, restoration. Task 07 walks W-1..W-5 per the
 Task 06 handoff in `.compozy/tasks/agy-acp/memory/MEMORY.md`.
 
-## Task 07 W-1 residual note (2026-10-16, still blocked-verify)
+## Task 07 W-1 residual note (2026-10-16, blocked at the time; superseded by the 1.4.0 consented run)
 
 Fresh implementation-build binary + isolated lab daemon (own COMPOZY_HOME,
 port, socket; operator HOME preserved, creds never copied; teardown clean —
@@ -112,7 +125,7 @@ recorded as explicit blockers, not coverage. The live walk above remains
 blocked-verify until run with a consenting account in an authorized clean
 provider home.
 
-## 1.4.0 re-baseline note (2026-10-17, still blocked-verify)
+## 1.4.0 re-baseline note (2026-10-17, blocked at the time; superseded by the 1.4.0 consented run)
 
 Real 1.4.0 server (registry `antigravity-acp`, Linux x86_64; provenance +
 sha256 in

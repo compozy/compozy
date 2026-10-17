@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -210,9 +209,6 @@ type agyEntryFixture struct {
 
 func setupAgyEntryFixture(t *testing.T) *agyEntryFixture {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("agy entry uses a POSIX PATH shim")
-	}
 
 	stateDir := t.TempDir()
 	binDir := t.TempDir()
@@ -391,12 +387,12 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		}
 		var text strings.Builder
 		timeout := time.After(60 * time.Second)
-		for open := true; open; {
+	collect:
+		for {
 			select {
 			case event, ok := <-events:
 				if !ok {
-					open = false
-					continue
+					break collect
 				}
 				text.WriteString(event.Text)
 			case <-timeout:

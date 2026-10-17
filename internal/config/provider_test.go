@@ -3067,30 +3067,32 @@ func TestProviderACPMethodValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a method on pi_acp providers", func(t *testing.T) {
-		t.Parallel()
+	for _, name := range []string{"custom", "agy"} {
+		t.Run("Should reject a method on pi_acp provider "+name, func(t *testing.T) {
+			t.Parallel()
 
-		cfg := Config{
-			Providers: map[string]ProviderConfig{
-				"custom": {
-					Command:         "pi-agent --acp",
-					Harness:         ProviderHarnessPiACP,
-					RuntimeProvider: "custom",
-					AuthMode:        ProviderAuthModeNativeCLI,
-					AuthACPMethod:   "oauth-personal",
+			cfg := Config{
+				Providers: map[string]ProviderConfig{
+					name: {
+						Command:         "pi-agent --acp",
+						Harness:         ProviderHarnessPiACP,
+						RuntimeProvider: name,
+						AuthMode:        ProviderAuthModeNativeCLI,
+						AuthACPMethod:   "oauth-personal",
+					},
 				},
-			},
-		}
+			}
 
-		_, err := cfg.ResolveProvider("custom")
-		if err == nil {
-			t.Fatal("ResolveProvider(pi_acp method) error = nil, want validation error")
-		}
-		if !strings.Contains(err.Error(), "providers.custom.auth_acp_method") ||
-			!strings.Contains(err.Error(), `harness = "acp"`) {
-			t.Fatalf("ResolveProvider(pi_acp method) error = %v, want harness guidance", err)
-		}
-	})
+			_, err := cfg.ResolveProvider(name)
+			if err == nil {
+				t.Fatalf("ResolveProvider(%s pi_acp method) error = nil, want validation error", name)
+			}
+			if !strings.Contains(err.Error(), "providers."+name+".auth_acp_method") ||
+				!strings.Contains(err.Error(), `harness = "acp"`) {
+				t.Fatalf("ResolveProvider(%s pi_acp method) error = %v, want harness guidance", name, err)
+			}
+		})
+	}
 
 	t.Run("Should reject a method with incompatible auth modes", func(t *testing.T) {
 		t.Parallel()

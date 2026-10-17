@@ -221,7 +221,11 @@ func TestAuthenticateCleanLoginOrdering(t *testing.T) {
 				t.Fatalf("session/new param %q carries unexpected surface", key)
 			}
 		}
-		if raw, _ := json.Marshal(params["mcpServers"]); string(raw) != "[]" {
+		raw, err := json.Marshal(params["mcpServers"])
+		if err != nil {
+			t.Fatalf("marshal mcpServers error = %v", err)
+		}
+		if string(raw) != "[]" {
 			t.Fatalf("session/new mcpServers = %s, want empty list", raw)
 		}
 	}
@@ -362,11 +366,23 @@ func TestAuthenticateMethodSafety(t *testing.T) {
 func TestAuthenticateRejectsUnshapedMethod(t *testing.T) {
 	t.Parallel()
 
-	for _, methodID := range []string{"", "   ", "oauth-personal\n", "oauth\x00personal"} {
-		req := AuthenticationRequest{MethodID: methodID}
-		if err := Authenticate(testutil.Context(t), req); err == nil {
-			t.Fatalf("Authenticate(%q) error = nil, want validation failure", methodID)
-		}
+	for _, tt := range []struct {
+		name     string
+		methodID string
+		wantErr  string
+	}{
+		{"Should reject an empty method", "", "acp: auth method is required"},
+		{"Should reject a whitespace-only method", "   ", "acp: auth method is required"},
+		{"Should reject an untrimmed method", "oauth-personal\n", "acp: auth method must be trimmed"},
+		{"Should reject control characters", "oauth\x00personal", "acp: auth method must not contain control characters"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := AuthenticationRequest{MethodID: tt.methodID}
+			err := Authenticate(t.Context(), req)
+			assertACPErrorContains(t, err, tt.wantErr)
+		})
 	}
 }
 
@@ -389,7 +405,11 @@ func TestProbeAuthentication(t *testing.T) {
 			"initialize", "session/new", "session/close",
 		})
 		for _, params := range captureRequestParamsForMethod(t, capturePath, "session/new") {
-			if raw, _ := json.Marshal(params["mcpServers"]); string(raw) != "[]" {
+			raw, err := json.Marshal(params["mcpServers"])
+			if err != nil {
+				t.Fatalf("marshal mcpServers error = %v", err)
+			}
+			if string(raw) != "[]" {
 				t.Fatalf("session/new mcpServers = %s, want empty list", raw)
 			}
 		}
@@ -492,8 +512,10 @@ func TestAuthenticateRefusesInboundWork(t *testing.T) {
 	}
 	refusals := map[string]string{}
 	for _, line := range lines {
-		if method, result, ok := strings.Cut(strings.TrimPrefix(line, "inbound "), " "); ok &&
-			strings.HasPrefix(line, "inbound ") {
+		if !strings.HasPrefix(line, "inbound ") {
+			continue
+		}
+		if method, result, ok := strings.Cut(strings.TrimPrefix(line, "inbound "), " "); ok {
 			refusals[method] = result
 		}
 	}

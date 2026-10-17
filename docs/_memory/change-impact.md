@@ -73,6 +73,41 @@ skill refs, and `RT-agy-acp-provider.md` discovery/selection expectations
 after Task 02 + Task 03 guidance; the overflow predates this task). Evidence:
 `.compozy/tasks/agy-acp/evidence/task_03/`.
 
+**Provider probe availability review (2026-10-17):** the shared API probe
+environment preserves the daemon working directory when available and uses
+`os.TempDir()` if it was removed. Provider inventory/detail reads and native/ACP
+auth probes retain their existing HTTP/UDS contracts instead of failing with 500.
+The existing API provider suite owns the removed-directory regression. Native
+tools, extensions/hooks/config, workspace isolation, persisted data, Web/site,
+and the official skill need no contract changes; no migration or codegen is needed.
+
+**Authentication validation review (2026-10-17):** `Authenticate` rejects empty
+or whitespace-only method IDs before starting a session; the existing ACP suite
+asserts the required-method error and preserves malformed-method coverage.
+Optional configuration methods, CLI/HTTP/UDS, native tools, hooks/extensions,
+workspace isolation, persisted data, Web, site, and official skill contracts are
+unchanged. No migration or live-provider scenario change is needed.
+
+**Harness-switch fix (2026-10-17):** `internal/config/provider_merge.go` clears
+only an inherited ACP auth method when the resolved harness is not `acp`; an
+explicit nonempty method still reaches validation and is rejected. Settings
+HTTP/UDS writes, CLI/config operations, and native config tools reuse the same
+resolution path without new fields, commands, or tool IDs. Web needs no code
+change; provider docs and the official skill clarify inheritance. Extensions,
+hooks, MCP, workspace/profile isolation, persisted schemas, and credentials are
+unchanged; no migration or codegen is needed. Owners: config ACP-method validation
+and Settings AGY save/reload suites; `MS-web-provider-auth-gate` records the
+automated regression and the outstanding browser walk.
+
+**Explicit method-clear review (2026-10-17):** Settings now writes
+`auth_acp_method = ""` when `AuthACPMethodSet` marks an explicit clear, while
+retaining nonempty writes. The existing Settings HTTP/UDS and Web write paths
+share this fix; no DTO, CLI, native tool ID, hook/extension, MCP, workspace
+isolation, schema, credential, site, or official skill change is needed.
+No migration or codegen is required. The Settings mutation and AGY save/reload
+suites verify persisted presence; `MS-web-provider-auth-gate` records that
+expectation without claiming a browser re-walk.
+
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

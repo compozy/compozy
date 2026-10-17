@@ -283,13 +283,10 @@ func (h *BaseHandlers) providerProbeEnv(
 	if err != nil {
 		return authproviders.ProbeEnv{}, err
 	}
-	// Disposable ACP probes launch the provider server through session base
-	// validation: use the daemon working directory, matching live model
-	// discovery, so the probe reaches the server instead of failing with
-	// cwd-required.
+	// ACP probes need a working directory even when the daemon's launch directory was removed.
 	commandDir, err := os.Getwd()
 	if err != nil {
-		return authproviders.ProbeEnv{}, fmt.Errorf("resolve provider probe working directory: %w", err)
+		commandDir = os.TempDir()
 	}
 	return authproviders.ProbeEnv{
 		ProviderName:   providerName,

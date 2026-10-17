@@ -35,5 +35,5 @@ CLI. See the dated run report and its isolated lab receipts.
 With `permissions.provider_full_access = true` and effective `approve-all`, a new `agy` session
 prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session permissions reject
 `yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
-(config negotiation cases); the live `agy` opt-in walk is unexecuted and this scenario stays green
+(config negotiation cases); the live `agy` opt-in walk is unexecuted and this scenario remains `pass`
 only on its previously verified Codex/Claude branches.

@@ -47,9 +47,7 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
 		values["auth_login_command"] = strings.TrimSpace(settings.AuthLoginCmd)
 	}
-	// An empty method carries no local override: omitting it lets a built-in
-	// default show through instead of shadowing it with an empty value.
-	if strings.TrimSpace(settings.AuthACPMethod) != "" {
+	if settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "" {
 		values["auth_acp_method"] = strings.TrimSpace(settings.AuthACPMethod)
 	}
 	if len(settings.CredentialSlots) > 0 {
