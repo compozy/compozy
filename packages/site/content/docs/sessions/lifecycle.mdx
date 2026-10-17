@@ -355,7 +355,8 @@ keeps the session alive: agent progress, a verified running tool, an active chil
 reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
 session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
 `notify_on_complete: true` stays alive while the session it asked is live, and while the reply
-wake is waiting to be delivered.
+wake is waiting to be delivered, until the watch expires after `session.messaging.reply_watch_ttl`
+(24 hours by default).
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`

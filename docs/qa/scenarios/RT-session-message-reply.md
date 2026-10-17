@@ -6,13 +6,13 @@ persona: Dora
 journey: J-session-collaboration
 expected: The sender receives one reply for the turn that consumed its message, with durable retry and no redelivery after operator cancellation.
 entry_points: compozy__session_prompt; compozy__session_status; compozy session status; session input queue; session history
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pending
+retest_status: pass
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-17-issue-760-session-messaging.md
 overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 ---
 
@@ -83,8 +83,9 @@ Explicit reply and expiry regression (#760)
 12. B answers A with `compozy__session_prompt` and `in_reply_to` set to A's message id: A's card shows
     "In reply", the hop does not increase, and A's armed watch stays armed: when B's turn ends A still
     receives the completion wake, so an early acknowledgement never cancels it.
-13. Set `session.messaging.reply_watch_ttl = "1m"` (restart the daemon), send a watched message to a
-    busy B and wait past the TTL: A receives one wake with the `expired` outcome, the sent card reads
-    "No reply" and the body "No reply arrived in time. The message may still be pending; check the
-    target session." With the default `0s` an armed watch never expires and keeps A out of inactivity
-    stop while B is live.
+13. The default `session.messaging.reply_watch_ttl` is `24h`; for the lab, override it to `"1m"`
+    (restart the daemon), send a watched message to a busy B and wait past the TTL: A receives one wake
+    with the `expired` outcome, the sent card reads "No reply" and the body "No reply arrived in time.
+    The message may still be pending; check the target session." After expiry the watch no longer
+    keeps A out of inactivity stop. With `"0s"` an armed watch never expires and keeps A out of
+    inactivity stop while B is live.

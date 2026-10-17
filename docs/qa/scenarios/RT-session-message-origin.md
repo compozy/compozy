@@ -4,15 +4,15 @@ area: RT
 title: Attribute session messages across delivery and restart
 persona: Ada
 journey: J-15-operate-session-via-cli-api
-expected: Native agent messages retain daemon-stamped origin through direct, queue, steer, interrupt and restart; provider text has the sender header while stored text does not; replay is actor-scoped, self-targeting and hop nine are rejected, and agent-authored queue entries can only be canceled.
+expected: Native agent messages retain daemon-stamped origin through direct, queue, steer, interrupt and restart; provider text has the sender header while stored text does not; replay is actor-scoped, self-targeting and hop nine are rejected, and agent-authored queue entries can be canceled or promoted but not replaced.
 entry_points: compozy__session_prompt; session input list/replace/promote/cancel; session events; HTTP and UDS prompt/queue and events
-qa_status: untested
+qa_status: pass
 bug_ids: none
 fix_status: not-applicable
-retest_status: pending
+retest_status: pass
 fix_commits: pending
 evidence: internal/daemon/subagent_integration_test.go TestSessionMessageOriginDaemonIntegration; internal/session/manager_busy_input_test.go TestManagerPromptOriginDelivery and TestManagerPromptOriginHopFence
-last_report: pending tail QA
+last_report: docs/qa/reports/2026-10-17-issue-760-session-messaging.md
 overlaps: RT-session-message-reply; ET-web-session-message-card
 ---
 
@@ -31,8 +31,8 @@ the trailing QA pair. Do not infer a real-provider pass from fixture evidence.
 4. Send an operator prompt through HTTP and CLI. Its queue/event/UI metadata has no origin.
 5. Retry the same agent message after renaming A: original admission and title remain. Retry from
    another agent, from the operator, or with a changed notification flag: identity conflict.
-6. Replace or promote an agent-authored queue entry: 409 `input_agent_authored` and unchanged text.
-   Cancel the same entry successfully. Reply-watch effects are owned by the reply scenario.
+6. Replace an agent-authored queue entry: 409 `input_agent_authored` and unchanged text. Promote it
+   to steer successfully (step 13). Cancel the same entry successfully. Reply-watch effects are owned by the reply scenario.
 7. Send to A from A: `invalid_request`, no admission. Build a chain to hop 8, including steers during
    a turn: the next send returns `message_hop_limit`. An operator turn starts at hop 0 again.
 8. Upgrade a database containing v4 receipts and queue rows. Values survive and `origin_json` starts
@@ -80,12 +80,16 @@ Busy-target policy regression (#760)
     (works) and try to replace it (409 `input_agent_authored`).
 14. Hop and rate: A answering the session that drives its turn, or sending with `in_reply_to`, keeps
     the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
-    that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, other
-    sends and sessions are unaffected; `-1` disables the budget.
+    that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, and both
+    HTTP (429) and the native tool carry the same message: "Message rate limit reached: <limit>
+    messages to session <id> within <window>. Retry after <d>, and send fewer, milestone-level
+    messages." Other sends and sessions are unaffected; `-1` disables the budget.
 15. CLI origin: inside a managed session run `compozy session prompt <id> "hi"`; it stays operator
     input and stderr prints the `--from-session auto` hint. With `--from-session auto` the receiver sees
     A as sender, `--in-reply-to` links the card, and `--supersede` replaces the older queued prompt.
-    `--from-session auto` outside a managed session is refused.
+    `--from-session auto` outside a managed session is refused, and so are `--in-reply-to` and
+    `--supersede` without `--from-session` (HTTP and the native tool return `invalid_request` for a
+    caller without an agent session).
 16. Web: the queue strip shows "From {title}" with Steer and Remove; consecutive inbound cards from one
     sender collapse into "{title} · N messages"; a reply shows the "In reply" chip; a session in
     Needs attention shows its reason.

@@ -539,8 +539,10 @@ and reply watch; operator input is never merged. A message from another session 
 target in the same turn longer than `session.messaging.queue_promote_after` (default `2m`, `0s`
 disables) is injected as steer when the target supports injection and no operator input waits. The
 operator can promote (Steer) an agent-authored row but not edit it. `session.messaging` also holds
-`rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`) and the opt-in
-`reply_watch_ttl` (default `0s`, never expires); see `references/configuration.md`.
+`rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`) and
+`reply_watch_ttl` (default `24h`, `0s` never expires); see `references/configuration.md`.
+A long-turn promotion whose injection fails returns to ordinary after-turn queue delivery; it is never
+dropped and never interrupts.
 Queue list and session status include `queue: {entries, cap}`. A full queue returns `queue_full`
 with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt remain admitted.
 An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored
@@ -570,6 +572,14 @@ both original values together:
 
 The same rule applies to `--queue`, `--interrupt`, and `--steer`. Do not supply either identity flag
 by itself. `--cancel` does not accept prompt identity flags.
+
+`compozy session prompt` sends operator input by default, even inside a managed session (stderr prints
+a hint). Origin stamping is opt-in: `--from-session auto` uses the managed session's
+`COMPOZY_SESSION_ID`, and `--from-session <id>` names the sending session; the message then follows
+the native tool's self-target, hop, rate, and workspace rules. `--in-reply-to <message-id>` and
+`--supersede` require a sending session and are refused without `--from-session` (HTTP and the native
+tool return `invalid_request` for a caller without an agent session). Agents should still prefer
+`compozy__session_prompt`, which stamps the origin from the calling session.
 
 An exact retry returns the stored prompt result with `replayed: true` and does not create another
 prompt stream or repeat its accepted side effect. Treat the result's `message_id` as the durable
@@ -1143,9 +1153,10 @@ Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_w
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
-watch not yet delivered) prevent inactivity termination. A reply wakes an idle sender once,
-binding its released runtime if needed; it resumes a sender CompozyOS stopped (inactivity of a hung
-turn, timeout, shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
+watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
+(`session.messaging.reply_watch_ttl`, default `24h`). A reply wakes an idle sender once, binding its
+released runtime if needed; it resumes a sender CompozyOS stopped (inactivity of a hung turn, timeout,
+shutdown, crash) and wakes it once; an operator-stopped sender waits for resume. Reads, subscriptions, provider waiting and runtime progress projections
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 `quiet_after`/`stop_grace` are a hung-turn watchdog: silence accrues only while a turn is in flight
