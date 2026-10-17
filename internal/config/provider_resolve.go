@@ -50,7 +50,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 		resolved = mergeProvider(resolved, override)
 	}
 	if retiredBase {
-		warnRetiredBuiltinProvider(providerName, resolved)
+		warnRetiredBuiltinProvider(providerName, overridden)
 	}
 
 	if !hasBuiltin {

@@ -3073,14 +3073,18 @@ func TestRetiredBuiltinProviders(t *testing.T) {
 }
 
 func TestRetiredBuiltinProviderWarnings(t *testing.T) {
-	t.Run("Should warn through the routed logger with the effective replacement", func(t *testing.T) {
+	t.Run("Should warn through the routed logger without echoing operator values", func(t *testing.T) {
 		var logs bytes.Buffer
 		RouteRetiredProviderWarnings(compozylogger.WithRedaction(slog.New(slog.NewJSONHandler(&logs, nil))))
 		t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
 
 		cfg := DefaultWithHome(HomePaths{})
 		cfg.Defaults.Provider = "hermes-agent"
-		cfg.Providers["mistral"] = ProviderConfig{Models: ProviderModelsConfig{Default: "codestral-latest"}}
+		override := ProviderConfig{
+			Models:       ProviderModelsConfig{Default: "codestral-latest"},
+			AuthLoginCmd: "provider login raw-login-secret",
+		}
+		cfg.Providers["mistral"] = override
 		cfg.WarnRetiredProviderReferences()
 		cfg.WarnRetiredProviderReferences()
 
@@ -3110,10 +3114,21 @@ func TestRetiredBuiltinProviderWarnings(t *testing.T) {
 		if strings.Contains(logs.String(), "[REDACTED]") {
 			t.Fatalf("redacting logger masked the migration guidance:\n%s", logs.String())
 		}
+		for _, operatorValue := range []string{"raw-login-secret", "codestral-latest"} {
+			if strings.Contains(logs.String(), operatorValue) {
+				t.Fatalf("warning echoed operator-authored value %q:\n%s", operatorValue, logs.String())
+			}
+		}
+		if action, _ := records["hermes"]["action"].(string); action != "add replacement to config.toml" {
+			t.Fatalf("hermes action = %q, want add instruction for an undeclared reference", action)
+		}
 		if _, err := toml.Decode(replacement, &document); err != nil {
 			t.Fatalf("decode mistral replacement error = %v\n%s", err, replacement)
 		}
 		action, _ := records["mistral"]["action"].(string)
+		if !strings.Contains(action, "merge replacement into the existing [providers.mistral] tables") {
+			t.Fatalf("mistral action = %q, want merge instructions for an existing override", action)
+		}
 		fill := regexp.MustCompile(`api_key uses scheme "([a-z]+)" and name "([A-Z_]+)"`).FindStringSubmatch(action)
 		if fill == nil {
 			t.Fatalf("action = %q, want secret_ref fill instructions", action)
@@ -3127,14 +3142,15 @@ func TestRetiredBuiltinProviderWarnings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveProvider(mistral) error = %v", err)
 		}
+		// Following the merge action keeps every value already set and adds the missing ones.
 		declared := DefaultWithHome(HomePaths{})
-		declared.Providers["mistral"] = document.Providers["mistral"]
+		declared.Providers["mistral"] = mergeProvider(document.Providers["mistral"], override)
 		got, err := declared.ResolveProvider("mistral")
 		if err != nil {
-			t.Fatalf("ResolveProvider(mistral replacement) error = %v", err)
+			t.Fatalf("ResolveProvider(merged mistral) error = %v", err)
 		}
 		if !reflect.DeepEqual(got, want) || got.Models.Default != "codestral-latest" {
-			t.Fatalf("replacement resolves to %#v, want effective %#v", got, want)
+			t.Fatalf("merged replacement resolves to %#v, want effective %#v", got, want)
 		}
 	})
 }

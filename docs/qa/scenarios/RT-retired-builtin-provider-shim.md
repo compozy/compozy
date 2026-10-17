@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-final-20261017-222608-137965-lab/qa-artifacts/qa/retired-provider-final-evidence.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-merge-20261017-224016-688770-lab/qa-artifacts/qa/retired-provider-merge-evidence.md
 last_report:
 overlaps: MS-028; RT-081
 ---
@@ -28,7 +28,7 @@ and the daemon log, not a Hermes session.
    `command = "hermes acp"`. `compozy.log` holds exactly one `provider.retired_builtin` line for
    `provider=hermes` with `removed_in=v0.5.0` and a `replacement` holding the `[providers.hermes]`
    TOML entry. Resolving it again in the same daemon run logs no second warning.
-3. Replace any `[providers.hermes]` tables in `config.toml` with the logged `replacement` and restart. Resolution
+3. Follow the logged `action`: add the `replacement` (or merge it into existing `[providers.<id>]` tables, keeping set values) and restart. Resolution
    still succeeds with the declared command, and the daemon log records no new
    `provider.retired_builtin` warning.
 4. Repeat step 2 with an alias (`hermes-agent`) and with a pi-backed ID (`mistral`) to confirm the
@@ -51,3 +51,13 @@ record per ID with no `[REDACTED]` markers. The `mistral` replacement kept `code
 instructed restarted the daemon with no retired warnings. `hermes` and `mistral` were then listed as
 declared providers, and `provider inspect mistral` showed `bound_secret` with
 `env:MISTRAL_API_KEY`.
+
+2026-10-17 re-walk after the warning stopped echoing operator values (logged replacement = former
+definition, `action` = add or merge): PASS. The old config combined `defaults.provider =
+"hermes-agent"` with a partial `[providers.mistral]` that set `auth_login_command = "provider login
+raw-login-secret"` and `models.default = "codestral-latest"`. `compozy.log` held one record per ID,
+with no `[REDACTED]` marker and no occurrence of `raw-login-secret` or `codestral-latest`. Hermes's
+`action` said to add the replacement. Mistral's said to merge into the existing tables and add the
+`env` / `MISTRAL_API_KEY` secret_ref. After following both, the daemon restarted with no retired
+warnings. The merged Mistral entry kept `codestral-latest` and the login command, and `provider
+inspect mistral` showed `bound_secret` with `env:MISTRAL_API_KEY`.

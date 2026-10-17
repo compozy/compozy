@@ -514,8 +514,9 @@ Until v0.5.0, a reference to one of these IDs or aliases keeps resolving with th
 definition. That covers `defaults.provider`, a partial `[providers.<id>]` override, an agent's
 `provider:`, Loop and automation runtime defaults, and persisted sessions. The daemon logs one
 `provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that
-holds the exact `[providers.<id>]` entry, including any partial override you already set. Replace
-every existing `[providers.<id>]` table for that ID in `config.toml` with it. Log redaction masks
+holds the former `[providers.<id>]` entry. The warning never echoes values you wrote. Its `action`
+field says to add the entry, or, when `config.toml` already has `[providers.<id>]` tables, to merge
+it into them: add each missing key or table and keep every value you already set. Log redaction masks
 secret references, so for `mistral`, `groq`, and `minimax` the logged entry omits each
 `credential_slots` `secret_ref` line and the warning's `action` field names the value to add back
 (for example `secret_ref = "env:MISTRAL_API_KEY"`, as in the Mistral example above):

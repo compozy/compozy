@@ -166,9 +166,10 @@ func (c *Config) WarnRetiredProviderReferences() {
 	}
 }
 
-// warnRetiredBuiltinProvider reports the effective definition, including partial overrides, so
-// the replacement keeps the user's existing choices.
-func warnRetiredBuiltinProvider(name string, effective ProviderConfig) {
+// warnRetiredBuiltinProvider reports the former definition only. Logging the effective provider
+// would echo operator-authored values, such as commands with inline credentials, so an existing
+// override is merged by instruction instead.
+func warnRetiredBuiltinProvider(name string, overridden bool) {
 	retiredProviderWarnings.mu.Lock()
 	if _, seen := retiredProviderWarnings.seen[name]; seen {
 		retiredProviderWarnings.mu.Unlock()
@@ -180,12 +181,21 @@ func warnRetiredBuiltinProvider(name string, effective ProviderConfig) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	action := fmt.Sprintf("replace every [%s.%s] table in config.toml with replacement", providersConfigKey, name)
-	if len(effective.CredentialSlots) > 0 {
+	retired := retiredBuiltinProviders[name]
+	table := fmt.Sprintf("[%s.%s]", providersConfigKey, name)
+	action := "add replacement to config.toml"
+	if overridden {
+		action = fmt.Sprintf(
+			"merge replacement into the existing %s tables in config.toml: "+
+				"add each missing key or table and keep every value already set",
+			table,
+		)
+	}
+	if len(retired.CredentialSlots) > 0 {
 		// Log redaction masks secret_ref lines, so the replacement omits them and this action
 		// spells out each value without the redactable joined form.
-		refs := make([]string, 0, len(effective.CredentialSlots))
-		for _, slot := range effective.CredentialSlots {
+		refs := make([]string, 0, len(retired.CredentialSlots))
+		for _, slot := range retired.CredentialSlots {
 			scheme, ref, _ := strings.Cut(slot.SecretRef, ":")
 			refs = append(refs, fmt.Sprintf("%s uses scheme %q and name %q", slot.Name, scheme, ref))
 		}
@@ -197,7 +207,7 @@ func warnRetiredBuiltinProvider(name string, effective ProviderConfig) {
 		"provider", name,
 		"removed_in", retiredBuiltinProviderRemovalRelease,
 		"action", action,
-		"replacement", withoutSecretRefLines(retiredBuiltinProviderReplacement(name, effective)),
+		"replacement", withoutSecretRefLines(retiredBuiltinProviderReplacement(name, retired)),
 	)
 }
 
