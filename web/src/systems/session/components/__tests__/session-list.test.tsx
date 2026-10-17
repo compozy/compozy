@@ -1,5 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -568,6 +576,53 @@ describe("SessionList subagents", () => {
   });
 
   // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  // Invariant: only this parent's workspace-qualified roster updates its live
+  // preview; removing its last stream observer restores the authoritative list.
+  // Owning layer: roster/query integration; canonical suite: this sidebar suite.
+  it("Should keep a live preview scoped and fall back when its stream owner leaves", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 1) });
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [{ ...wireSubagent(1, "running"), title: "Cold list row" }],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    const roster = (title: string) => ({
+      rows: [subagentViewFromPayload({ ...wireSubagent(1, "running"), title } as never)],
+      staleIds: new Set<string>(),
+    });
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster("Live row"));
+    const owner = renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    expect(await screen.findByText("Live row")).toBeInTheDocument();
+    act(() => {
+      queryClient.setQueryData(
+        sessionKeys.subagentRoster("another-workspace", "parent"),
+        roster("Foreign row")
+      );
+      queryClient.setQueryData(
+        sessionKeys.subagentRoster(workspaceId, "parent"),
+        roster("Updated live row")
+      );
+    });
+    expect(await screen.findByText("Updated live row")).toBeInTheDocument();
+    expect(screen.queryByText("Foreign row")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    owner.unmount();
+    expect(await screen.findByText("Cold list row")).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
     const user = userEvent.setup();
     const parent = row("parent", { badge: "running", ...summary(1, 1) });
