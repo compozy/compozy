@@ -28,8 +28,10 @@ probe. No host daemon or existing user workspace is changed.
   all three now return HTTP 499 with the existing `api_error` envelope.
 - Protocol client suite: 43 tests passed via root Turborepo, including ordered parsing, gaps,
   snapshot recovery, reconnect, stale completions, and nonblocking writable attachments.
-- The former producer-pause assertion intentionally contradicted the new issue contract and was
-  retired with its internal Group implementation. Queue bounds/demotion/gap coverage remains.
+- Former producer-pause assertions contradict the new issue contract and were retired with the
+  internal Group implementation. CI additionally found an obsolete pause test in the OSC suite;
+  its viewer-mode coverage is consolidated in the canonical manager regression for both read
+  and write ACK viewers. Queue bounds/delivery/demotion/gap coverage remains in the wire suite.
 
 ## Session Debriefs
 
