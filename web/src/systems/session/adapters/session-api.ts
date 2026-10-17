@@ -130,13 +130,14 @@ export async function deleteSession(
 export async function renameSession(
   workspaceId: string,
   id: string,
+  profile: string,
   request: RenameSessionRequest,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.PATCH(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       body: request,
       signal,
     }

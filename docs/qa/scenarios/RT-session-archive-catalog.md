@@ -29,3 +29,13 @@ SQLite audit 2026-10-09: Archive and reopen a session whose event ledger contain
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.

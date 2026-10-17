@@ -29,6 +29,7 @@ import {
 import { SessionComposerSubagents } from "@/systems/session/components/session-composer-subagents";
 import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
@@ -118,6 +119,9 @@ function harness(
   navigation: SubagentNavigation | null = null,
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 ) {
+  queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+    profile_name: "design",
+  });
   queryClient.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
     rows,
     staleIds: new Set(),
@@ -271,9 +275,9 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
     expect(screen.getByText("Waiting on 2 subagents")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(cancelSubagent).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 2))).toEqual([
-      [WORKSPACE_ID, "sub-a"],
-      [WORKSPACE_ID, "sub-b"],
+    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 3))).toEqual([
+      [WORKSPACE_ID, "sub-a", "design"],
+      [WORKSPACE_ID, "sub-b", "design"],
     ]);
   });
 
@@ -364,6 +368,36 @@ describe("composer subagents control (issue #766 wiring)", () => {
     );
     await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: "Subagents, 3 running" })).toBeInTheDocument();
+  });
+
+  it("Should stop a failed cold page walk until the operator retries", async () => {
+    // Invariant: a failed continuation cannot spin requests; explicit retry can recover.
+    // Owner: cold roster wiring, reusing this suite's real QueryClient and adapter boundary.
+    vi.mocked(fetchSessionSubagents).mockReset().mockRejectedValue(new Error("Page unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const firstPage = { subagents: [subagentPayload("sub-a")], next_cursor: "page-2" };
+    client.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [firstPage],
+      pageParams: [""],
+    });
+    const { result } = renderHook(() => useSessionSubagents(WORKSPACE_ID, SESSION_ID), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    expect(result.current.complete).toBe(false);
+    vi.mocked(fetchSessionSubagents)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({ subagents: [subagentPayload("sub-b")], next_cursor: null });
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.complete).toBe(true));
+    expect(result.current.subagents.map(row => row.id)).toEqual(["sub-a", "sub-b"]);
+    client.clear();
   });
 });
 

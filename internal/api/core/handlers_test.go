@@ -1404,6 +1404,77 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	})
 }
 
+// Lifecycle mutations must select the session owner before reaching the manager.
+func TestSessionLifecycleProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"archive", "unarchive", "rename"} {
+		for _, selector := range []string{"", "?profile=default", "?profile=marketing", "?all_profiles=true"} {
+			t.Run("Should scope "+action+" with "+selector, func(t *testing.T) {
+				t.Parallel()
+				info := testutil.NewSessionInfo("sess-profile")
+				info.ProfileID = "profile-marketing"
+				info.WorkspaceID = "ws-workspace"
+				info.State = session.StateStopped
+				calls := 0
+				mutate := func(_ context.Context, workspaceID, id string) (*session.Info, error) {
+					calls++
+					if workspaceID != info.WorkspaceID || id != info.ID {
+						t.Fatalf("mutation target = %s/%s", workspaceID, id)
+					}
+					updated := *info
+					updated.Name = "Renamed"
+					if action == "archive" {
+						updated.ArchivedAt = new(time.Date(2026, 10, 17, 0, 0, 0, 0, time.UTC))
+					}
+					return &updated, nil
+				}
+				manager := testutil.StubSessionManager{
+					StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
+					ArchiveFn: mutate, UnarchiveFn: mutate,
+					RenameFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
+						return mutate(ctx, workspaceID, id)
+					},
+				}
+				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+				fixture.Handlers.Profiles = sessionProfileServiceStub{}
+				path := "/workspaces/ws-workspace/sessions/sess-profile/" + action
+				method := http.MethodPost
+				var body []byte
+				if action == "rename" {
+					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile", http.MethodPatch, []byte(
+						`{"name":"Renamed"}`,
+					)
+				}
+				response := performRequest(t, fixture.Engine, method, path+selector, body)
+				if selector != "?profile=marketing" {
+					status := http.StatusNotFound
+					if selector == "?all_profiles=true" {
+						status = http.StatusBadRequest
+					}
+					if response.Code != status || !strings.Contains(response.Body.String(), "error") || calls != 0 {
+						t.Fatalf("refusal = %d %s, mutation calls=%d", response.Code, response.Body, calls)
+					}
+					return
+				}
+				var payload contract.SessionResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != http.StatusOK || calls != 1 || payload.Session.ProfileName != "marketing" ||
+					payload.Session.ID != info.ID {
+					t.Fatalf("result = %d %s, calls=%d", response.Code, response.Body, calls)
+				}
+				if (payload.Session.ArchivedAt != nil) != (action == "archive") {
+					t.Fatalf("archive marker = %v", payload.Session.ArchivedAt)
+				}
+				if action == "rename" && payload.Session.Name != "Renamed" {
+					t.Fatalf("renamed session = %q", payload.Session.Name)
+				}
+			})
+		}
+	}
+}
+
 func TestRenameSessionHandler(t *testing.T) {
 	t.Parallel()
 

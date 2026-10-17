@@ -97,7 +97,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isError: sessionsError,
     retry: onRetrySessions,
   } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
+  const sessionLifecycle = useSessionLifecycleActions();
 
   const deleteFlow = useAgentDeleteFlow({
     agent,

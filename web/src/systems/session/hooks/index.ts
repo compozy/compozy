@@ -103,7 +103,6 @@ export {
   type SessionLifecycleAction,
   type SessionLifecycleActionHandlers,
   type SessionRenameConfirmation,
-  type UseSessionLifecycleActionsOptions,
   type UseSessionLifecycleActionsResult,
 } from "./use-session-lifecycle-actions";
 export {

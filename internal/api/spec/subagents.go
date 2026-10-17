@@ -40,10 +40,10 @@ func registrySubagentOperations() []OperationSpec {
 			Summary:     "Cancel a delegated subagent",
 			Tags:        []string{specSessionsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("workspace_id", "Workspace id"),
 				pathParam("subagent_id", "Subagent id"),
-			},
+			),
 			RequestBody: contract.SubagentCancelRequest{},
 			Responses: append(subagentResponses(202, contract.SubagentCancelPayload{}),
 				ResponseSpec{Status: 409, Description: "Subagent is not cancelable", Body: contract.ErrorPayload{}}),

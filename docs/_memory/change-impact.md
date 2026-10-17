@@ -75,6 +75,22 @@ change is needed. QA impact is flagged in `RT-047`,
 Focused canonical suites and differential probes provide local slice evidence;
 heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
 
+## Profile-bound session actions — 2026-10-17
+
+Owner: issue #783, branch `fix/issue-783-profile-session-404`.
+Evidence and route-by-route audit: `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+Web lifecycle mutations carry the selected row's immutable profile and workspace; rewind
+and subagent cancellation reuse the canonical session detail owner. Roster reads use the
+existing authorized aggregate read scope, and terminal 404/410 control polls stop. Failed
+cold-page walks require explicit retry. Existing workspace and profile authorization remains
+unchanged. OpenAPI additively documents already-supported profile selectors for archive,
+unarchive, rename, rewind, and subagent cancel; generated clients co-ship. HTTP/UDS paths and DTOs,
+CLI verbs, native `compozy__session_*`/subagent tool IDs, extensions, hooks, configuration,
+SQLite state, and workspace files retain their contracts; no migration or shim is needed.
+Official `skills/compozy/` already describes explicit owner selection and needs no change. Site guides need no
+behavioral rewrite. The session row, archive, profile-owner, and subagent QA scenarios cover
+the affected interactions; other profile surfaces are outside this focused change.
+
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

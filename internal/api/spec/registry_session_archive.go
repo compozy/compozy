@@ -24,10 +24,10 @@ func sessionArchiveOperationSpec(action string, operationID string, summary stri
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},

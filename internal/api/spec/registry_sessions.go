@@ -48,10 +48,10 @@ func renameSessionOperationSpec() OperationSpec {
 		Summary:     "Rename one user session",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		RequestBody: contract.RenameSessionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},

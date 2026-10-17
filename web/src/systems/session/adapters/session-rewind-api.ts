@@ -30,12 +30,13 @@ function isSessionRewindResult(value: unknown): value is SessionRewindResult {
 export async function rewindSession(
   workspaceId: string,
   id: string,
+  profile: string,
   params: SessionRewindRequest,
   signal: AbortSignal
 ): Promise<SessionRewindResult> {
   const request = new Request(
     new URL(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/rewind`,
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/rewind?${new URLSearchParams({ profile })}`,
       typeof window === "undefined" ? "http://localhost" : window.location.origin
     ),
     {

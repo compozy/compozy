@@ -101,3 +101,13 @@ scenario's real-provider or visual-parity verdict.
 QA impact 2026-10-16 (#766): the composer gains the subagents control and popover (step 8);
 rendered evidence for none, previous only, active, mixed, light/dark, and a narrow composer is in
 the PR. The inspector roster keeps its section. Real-provider walk pending; verdict unchanged.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { SessionApiError } from "../adapters/session-api-errors";
 import { sessionKeys } from "../lib/query-keys";
 import { sessionSubagentRosterPollOptions } from "../lib/query-options";
 import { applySubagentsSnapshot, type SubagentRoster } from "../lib/subagent-roster";
@@ -27,7 +28,14 @@ export function useSubagentRosterControlPoll({
   const poll = useQuery({
     ...sessionSubagentRosterPollOptions(workspaceId, sessionId),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
-    refetchInterval: enabled ? intervalMs : false,
+    refetchInterval: query =>
+      enabled &&
+      !(
+        query.state.error instanceof SessionApiError &&
+        [404, 410].includes(query.state.error.status)
+      )
+        ? intervalMs
+        : false,
   });
   const page = enabled ? poll.data : undefined;
   useEffect(() => {

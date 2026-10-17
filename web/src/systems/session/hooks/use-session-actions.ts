@@ -49,27 +49,28 @@ interface UseSessionWorkspaceOptions {
   workspaceId?: string | null;
 }
 
-export interface RenameSessionParams {
-  id: string;
+export type SessionActionTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name">;
+
+export interface RenameSessionParams extends SessionActionTarget {
   name: string;
 }
 
-export function useRenameSession(options: UseSessionWorkspaceOptions = {}) {
+export function useRenameSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, name }: RenameSessionParams) =>
-      request(signal => renameSession(requireWorkspace(workspaceId), id, { name }, signal)),
+    mutationFn: ({ id, workspace_id, profile_name, name }: RenameSessionParams) =>
+      request(signal =>
+        renameSession(requireWorkspace(workspace_id), id, profile_name, { name }, signal)
+      ),
     onSuccess: session => {
       const successWorkspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
     },
     onSettled: (_data, _error, variables) => {
-      if (workspaceId) {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, variables.id);
+      if (variables.workspace_id) {
+        void invalidateSessionMutationQueries(queryClient, variables.workspace_id, variables.id);
       }
     },
   });
@@ -160,32 +161,28 @@ export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {})
   });
 }
 
-export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
+export function useArchiveSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      request(signal => archiveSession(requireWorkspace(workspaceId), id, signal)),
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+      request(signal => archiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }
 
-export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
+export function useUnarchiveSession() {
   const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      request(signal => unarchiveSession(requireWorkspace(workspaceId), id, signal)),
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
+      request(signal => unarchiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    onSettled: (_data, _error, { id, workspace_id }) => {
+      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
   });
 }

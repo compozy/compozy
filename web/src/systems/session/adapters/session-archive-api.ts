@@ -6,12 +6,13 @@ import { throwSessionRequestError } from "./session-api-errors";
 export async function archiveSession(
   workspaceId: string,
   id: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       signal,
     }
   );
@@ -24,12 +25,13 @@ export async function archiveSession(
 export async function unarchiveSession(
   workspaceId: string,
   id: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       signal,
     }
   );
