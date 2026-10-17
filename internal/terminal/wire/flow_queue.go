@@ -2,6 +2,7 @@ package wire
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -25,7 +26,6 @@ type queuedFrame struct {
 }
 
 type Queue struct {
-	group     *Group
 	now       func() time.Time
 	slowAfter time.Duration
 	onDemoted func(string)
@@ -119,7 +119,6 @@ func (q *Queue) Enqueue(frame Frame, end uint64) {
 	}
 	q.notifyLocked()
 	q.mu.Unlock()
-	q.signalGroup()
 	if demoted {
 		q.notifyDemoted()
 	}
@@ -140,7 +139,6 @@ func (q *Queue) Ack(bytes int) {
 		}
 	}
 	q.mu.Unlock()
-	q.signalGroup()
 }
 
 func (q *Queue) Close() {
@@ -149,7 +147,6 @@ func (q *Queue) Close() {
 	q.stopAckSlowTimerLocked()
 	q.notifyLocked()
 	q.mu.Unlock()
-	q.signalGroup()
 	<-q.done
 }
 
@@ -160,13 +157,6 @@ func (q *Queue) Finish() {
 		q.notifyLocked()
 	}
 	q.mu.Unlock()
-	q.signalGroup()
-}
-
-func (q *Queue) flowState() (Flow, bool, bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.flow, q.high, q.closed
 }
 
 func (q *Queue) deliver() {
@@ -234,8 +224,15 @@ func (q *Queue) demoteLocked() bool {
 		// #nosec G115 -- credit is the nonnegative encoded output length.
 		dropped += uint64(item.credit)
 	}
-	q.items = nil
-	q.queuedBytes = 0
+	// ATTACHED establishes the stream before any replay GAP can be interpreted.
+	if len(q.items) > 0 && q.items[0].frame.Op == ServerOpAttached {
+		clear(q.items[1:])
+		q.items = q.items[:1]
+		q.queuedBytes = q.items[0].size
+	} else {
+		q.items = nil
+		q.queuedBytes = 0
+	}
 	if sequenced {
 		q.appendGapLocked(from, to, dropped)
 	}
@@ -254,8 +251,15 @@ func (q *Queue) trimDropQueueLocked() {
 	var dropped uint64
 	sequenced := false
 	for q.queuedBytes > DropQueueLimit && len(q.items) > 0 {
-		item := q.items[0]
-		q.items = q.items[1:]
+		index := 0
+		if q.items[0].frame.Op == ServerOpAttached {
+			index = 1
+			if len(q.items) == 1 {
+				break
+			}
+		}
+		item := q.items[index]
+		q.items = slices.Delete(q.items, index, index+1)
 		q.queuedBytes -= item.size
 		if item.sequenced && !sequenced {
 			from = item.frame.Seq
@@ -301,7 +305,6 @@ func (q *Queue) demoteSlowAck() {
 	if !demoted {
 		return
 	}
-	q.signalGroup()
 	q.notifyDemoted()
 }
 
@@ -318,7 +321,11 @@ func (q *Queue) appendGapLocked(from, to, dropped uint64) {
 	))
 	frame := Frame{Op: ServerOpGap, Payload: payload}
 	size := frameBytes(frame)
-	q.items = append([]queuedFrame{{frame: frame, size: size}}, q.items...)
+	index := 0
+	if len(q.items) > 0 && q.items[0].frame.Op == ServerOpAttached {
+		index = 1
+	}
+	q.items = slices.Insert(q.items, index, queuedFrame{frame: frame, size: size})
 	q.queuedBytes += size
 }
 
@@ -326,12 +333,6 @@ func (q *Queue) notifyLocked() {
 	select {
 	case q.wake <- struct{}{}:
 	default:
-	}
-}
-
-func (q *Queue) signalGroup() {
-	if q.group != nil {
-		q.group.signal()
 	}
 }
 

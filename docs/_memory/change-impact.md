@@ -3131,3 +3131,26 @@ Owner: branch `daemon-cpu-attention`.
   native tool change. Workspace/profile isolation is unchanged. Official `skills/compozy/` and
   `packages/site` need no update; behavior only becomes accurate (no false attention) and cheaper.
   QA owner: `TA-action-run-liveness`.
+
+
+## Terminal background progress — issue #774 — 2026-10-17
+
+Owner: branch `fix/issue-774-terminal-workspace-stall`.
+
+- Runtime: PTY output is always drained independently of viewer ACKs. Existing bounded ACK/drop
+  queues, demotion, GAP, snapshot and replay remain. Removed internal Group wait coordination.
+  Preserve ATTACHED before overflow GAPs, and emit replay demotion events without reacquiring
+  the session lock.
+- Web: writable and read-only browser attachments use the existing drop flow; hidden, suspended,
+  minimized and stale renderers cannot pause the process. Input rights and resize votes remain
+  controlled by attach mode. Obsolete browser ACK bookkeeping is removed with all consumers.
+- Native tools/CLI/HTTP/UDS: `terminal_read` and `terminal_wait` observe background progress. Existing
+  `flow=ack` clients remain accepted with bounded queues; no request/frame/DTO shape changes.
+  Canceled terminal requests are classified as 499 using the existing `api_error` envelope.
+- Hooks/extensibility/config: no new hook, SDK shape, setting, permission, dependency or timer.
+- Compatibility/user state: no persisted layout, workspace-file or SQLite changes, no migration.
+  Profile/workspace authorization and retained history bounds remain authoritative.
+- Official `skills/compozy/`: existing detach/closed-browser process-lifetime guidance remains true;
+  no native invocation contract changes. Site documentation needs no changed command or shape.
+- QA: `ET-terminal-stream-resilience` owns workspace-switch, hidden-view and recovery checks.
+  Evidence is tracked in `docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md`.

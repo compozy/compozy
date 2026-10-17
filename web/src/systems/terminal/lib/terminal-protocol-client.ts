@@ -2,8 +2,7 @@
  * The live terminal connection.
  *
  * Owns one terminal's byte stream: minting a fresh attach pass per attempt,
- * decoding frames, returning flow-control credit only after the emulator has
- * parsed what it was given, resynchronising from a server snapshot after a gap,
+ * decoding frames, resynchronising from a server snapshot after a gap,
  * and reconnecting with jittered backoff.
  *
  * It owns no rendering or authorization policy. The emulator is reached
@@ -23,7 +22,6 @@ import { TerminalCommandSender } from "./terminal-command-sender";
 import { terminalStreamFatalCode } from "./terminal-stream-fatal";
 import { defaultSchedule, terminalBackoffDelay } from "./terminal-backoff";
 import { dispatchTerminalControlFrame } from "./terminal-control-frames";
-import { TerminalCreditWindow } from "./terminal-credit-window";
 import {
   createTerminalFrameConsumers,
   type TerminalFrameConsumers,
@@ -70,9 +68,6 @@ export class TerminalProtocolClient {
     socket: () => (this.socketOpen ? this.socket : null),
     reportError: (cause: unknown, fallback: string) => this.reportClientError(cause, fallback),
   });
-  private readonly credit = new TerminalCreditWindow(frame =>
-    this.sender.send(frame, "The terminal could not report what it has drawn.")
-  );
   private inputEnabled = false;
   private readonly consumers: TerminalFrameConsumers;
   private cancelReconnect: (() => void) | null = null;
@@ -91,7 +86,6 @@ export class TerminalProtocolClient {
           this.abort.signal
         ),
       commit: seqEnd => this.replay.commit(seqEnd),
-      returnCredit: bytes => this.returnCredit(bytes),
       currentEpoch: () => this.connectionEpoch,
       isStopped: () => this.stopped,
       isGapCancelled: () => this.replay.isResyncCancelled(this.stopped, this.connectionEpoch),
@@ -107,11 +101,6 @@ export class TerminalProtocolClient {
       reportError: (cause, fallback) => this.reportClientError(cause, fallback),
       reconnectFromCommitted: () => this.reconnectFromCommitted(),
     });
-  }
-
-  /** The flow class follows the attach mode: watchers drop, writers ack. */
-  private get flow(): "drop" | "ack" {
-    return this.options.mode === "write" ? "ack" : "drop";
   }
 
   start(): void {
@@ -194,7 +183,8 @@ export class TerminalProtocolClient {
         scope: this.options.scope,
         mode: this.options.mode,
         viewer: this.options.viewer,
-        flow: this.flow,
+        // Browser rendering can pause without a visibility event reaching the daemon.
+        flow: "drop",
         afterSeq: resumedFrom > 0n ? resumedFrom : undefined,
         proposed: carriedProposal,
         ...(this.options.socketFactory ? { socketFactory: this.options.socketFactory } : {}),
@@ -296,12 +286,6 @@ export class TerminalProtocolClient {
     this.scheduleReconnect();
   }
 
-  /** Watchers drop what they cannot keep up with, so only writers ack. */
-  private returnCredit(bytes: number): void {
-    if (this.flow !== "ack" || !this.socket) return;
-    this.credit.record(bytes);
-  }
-
   private consumeControl(op: number, payload: unknown): void {
     const handlers = this.options.handlers;
     try {
@@ -327,7 +311,6 @@ export class TerminalProtocolClient {
 
   private applyAttached(frame: TerminalAttachedFrame): void {
     this.attempt = 0;
-    this.credit.reset();
     const replayPlan = this.replay.applyAttached(frame);
     // A client that asked for the whole history cannot vouch for what is
     // already on the screen: the emulator's buffer outlives connections by

@@ -94,7 +94,7 @@ export class TerminalResync {
       if (this.port.isStopped() || epoch !== this.port.currentEpoch()) return;
       // This socket is abandoned below. Its held tail is replayed from the last
       // committed byte on the fresh connection, so none of it belongs here.
-      this.port.gapBuffer.drop();
+      this.port.gapBuffer.discard();
       this.port.reportError(cause, "The terminal could not catch up after skipped output.");
       // Carrying on over this socket would commit every later frame onto a
       // screen that still has a hole in it.
@@ -110,7 +110,7 @@ export class TerminalResync {
     if (this.port.isStopped() || epoch !== this.port.currentEpoch()) {
       // The held tail belongs to a connection that no longer exists, and none
       // of it was drawn. The committed resume point still precedes that tail.
-      this.port.gapBuffer.drop();
+      this.port.gapBuffer.discard();
       return false;
     }
     return this.queued ? this.rebuildQueued(epoch) : true;

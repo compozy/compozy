@@ -19,8 +19,7 @@ import {
  *
  * Invariant: a fresh attach pass per attempt, `ATTACHED` then `OUTPUT` rendered
  * in order, input held closed across a `GAP` until the replayed snapshot has
- * been parsed, and ack credit returned only from the parse callback, in 16 KiB
- * grains.
+ * been parsed, and browser attachments never backpressure the producer.
  */
 
 const ACK_GRAIN_BYTES = 16 * 1024;
@@ -134,7 +133,7 @@ describe("TerminalProtocolClient", () => {
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
     expect(socket.path).toContain("ticket=tkt-1");
     expect(socket.path).toContain("mode=write");
-    expect(socket.path).toContain("flow=ack");
+    expect(socket.path).toContain("flow=drop");
     // The daemon's size lands from the first frame; nothing else set it.
     expect(sink.dimensions).toEqual([{ cols: 96, rows: 28 }]);
     client.stop();
@@ -365,7 +364,7 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
-  it("Should return credit only after the parse, in 16 KiB grains", async () => {
+  it("Should keep an inactive writable renderer on drop flow and recover its ordered output", async () => {
     const { client, sockets, sink } = buildClient({ autoParse: false });
     client.start();
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
@@ -384,13 +383,15 @@ describe("TerminalProtocolClient", () => {
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(0);
-    // Half a grain parsed is still below the threshold: credit is returned in
-    // grains, not per frame. Completing the first write lets the second start.
+    // Completing the first write lets the second start.
     await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(1);
-    await vi.waitFor(() => expect(ackCredits(socket)).toEqual([ACK_GRAIN_BYTES]));
+    await vi.waitFor(() => expect(sink.parsed).toEqual([half, half]));
+    expect(socket.path).toContain("mode=write");
+    expect(socket.path).toContain("flow=drop");
+    expect(ackCredits(socket)).toEqual([]);
     client.stop();
   });
 

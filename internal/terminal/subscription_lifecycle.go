@@ -92,11 +92,12 @@ func (s *subscription) demoted(reason string) {
 }
 
 func (s *subscription) emitFlowTransition(reason string) {
-	info := s.session.Info()
+	// Identity fields are immutable. Replay can demote a queue while Attach holds
+	// the session lock, so this callback must not acquire it through Info.
 	s.session.manager.events.Notify(s.session.ctx, Event{
-		Kind: EventKindSubscriberEvicted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
+		Kind: EventKindSubscriberEvicted, WorkspaceID: s.session.info.WS, ProfileID: s.session.info.ProfileID,
 		ProfileName: s.session.profileName,
-		TerminalID:  info.ID, Actor: s.actor,
+		TerminalID:  s.session.info.ID, Actor: s.actor,
 		Reason: reason, Detail: &EventDetail{Flow: string(s.queue.Flow())}, At: s.session.manager.now(),
 	})
 }

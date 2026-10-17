@@ -27,7 +27,6 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 	changed := cols != s.cols || rows != s.rows
 	s.cols, s.rows = cols, rows
 	s.mu.Unlock()
-	s.flow.Remove(subscriber.queue)
 	s.broadcastPresence()
 	if changed {
 		if err := s.applyResize(cols, rows, previousCols, previousRows); err != nil {
