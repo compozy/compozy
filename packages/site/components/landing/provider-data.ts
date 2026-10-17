@@ -1,4 +1,5 @@
 export const BUILTIN_PROVIDER_INTEGRATIONS = [
+  { id: "agy", name: "Google Antigravity" },
   { id: "claude", name: "Claude Code" },
   { id: "codex", name: "Codex" },
   { id: "gemini", name: "Gemini CLI" },

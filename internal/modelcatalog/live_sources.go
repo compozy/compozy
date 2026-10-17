@@ -19,6 +19,7 @@ import (
 
 const (
 	liveSourcesOpenAIEnvName        = "OPENAI_API_KEY"
+	liveSourcesAgyKey               = "agy"
 	liveSourcesClaudeKey            = "claude"
 	liveSourcesCodexKey             = "codex"
 	liveSourcesCursorKey            = "cursor"

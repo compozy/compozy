@@ -376,8 +376,11 @@ one-time secret must be issued.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Claude, Codex, and Hermes catalog discovery starts a short-lived ACP inspection and stores its live
-model and configuration options under `provider_live:<id>`. Cursor runs `cursor-agent models`, groups
+Claude, Codex, Hermes, and Agy catalog discovery starts a short-lived ACP inspection and stores its live
+model and configuration options under `provider_live:<id>`. Agy rows keep exact advertised IDs with
+unobserved pricing, context, reasoning, and speed unknown; an omitted model negotiates the server
+default during a real session, and an unknown explicit model fails with `model_unavailable` instead of
+a silent default. Cursor runs `cursor-agent models`, groups
 transport aliases into logical models, and keeps valid Reasoning, Fast, and Thinking combinations plus
 private launch bindings. Live sources refresh periodically and after their five-minute TTL; failed
 refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
@@ -388,7 +391,7 @@ Changing `providers.<id>.models.discovery.*` refreshes that provider source; mod
 writes do not invoke the provider.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 
-Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command.
+Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command. Providers with `auth_acp_method` and no native login command (the `agy` built-in uses `oauth-personal`) log in through the exact advertised protocol method instead: login verifies readiness with a promptless session, remote probes never send `authenticate`, and read surfaces report `source: auth_acp_method` with basename and presence only. Never accept a key, token, or secret for these providers; a missing server is `install_cli`, not a credential prompt.
 
 ## Profile Tools
 

@@ -48,6 +48,7 @@ The built-in registry lives in `internal/config/provider.go`.
 | `openhands`         | `acp`    | `openhands`         | `openhands acp`                                                  | none                        | `native_cli`   | provider login       |
 | `qoder`             | `acp`    | `qoder`             | `npx -y @qoder-ai/qodercli@latest --acp`                         | none                        | `native_cli`   | provider login       |
 | `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | `native_cli`   | provider login       |
+| `agy`               | `acp`    | `agy`               | `agy_acp_server.par --uid=` (Linux), `agy_acp_server.par` (macOS), `agy_acp_server.exe` (Windows) | none | `native_cli` | protocol login |
 | `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
 | `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
 | `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                           | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
@@ -105,6 +106,7 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                 |
 | `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                      |
 | `auth_login_command`  | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command. |
+| `auth_acp_method`     | string | no                       | Protocol-owned login method id (for example `oauth-personal` on `agy`). Used by `compozy provider auth login` and remote probes when no native login/status command is configured; read surfaces expose only `source: auth_acp_method` with the executable basename and presence. |
 | `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                    |
 | `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                             |
 
@@ -136,6 +138,31 @@ Those read surfaces expose a `login` descriptor instead. It contains only `confi
 `unknown`), and a recovery `recommended_action`: `install_cli`, `login`, `bind_secret`, `retry`,
 `inspect`, or `no_retry`. Use that action and the provider auth state to decide what to do next; do
 not treat the descriptor as a command you can copy or execute.
+
+### Protocol-owned login (Google Antigravity)
+
+The `agy` built-in needs no `[providers.agy]` block. Install the official `agy_acp_server`
+executable for your OS on `PATH` (the interactive `agy` CLI is a different binary and is not
+substituted), then sign in explicitly and verify readiness:
+
+```bash
+compozy provider auth login agy --timeout 5m -o json
+compozy provider auth status agy --remote -o json
+```
+
+Login runs the exact advertised `oauth-personal` agent method and verifies readiness with a
+promptless session; the remote probe never sends `authenticate` and never launches a browser.
+There is no automatic login on failure: a logged-out probe reports `needs_login`, a missing
+server reports `missing_cli` with an `install_cli` recommendation naming only the executable
+basename, and sessions keep the server-default model. Operator-home login state is shared across
+profiles by design; a different home or context must authenticate separately.
+
+In Settings → Providers, `Google Antigravity` reports `Sign-in unverified` (never `Ready`) until
+a live probe succeeds — an installed executable is not evidence of an authenticated account. Its
+native-auth editor offers an optional `Sign-in method` field and no key, secret, or rotation
+controls: leaving the field empty uses the built-in `oauth-personal` default, and clearing a
+custom value removes the local override to reveal that default. Editing any other field preserves
+the stored method.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
 `claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
@@ -202,8 +229,12 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
-Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Hermes inspect a
-short-lived ACP session. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, Hermes, and Agy inspect a
+short-lived ACP session. Agy publishes the exact advertised model IDs — on the verified 1.4.0 server
+the 2 bare IDs (`gemini-4-argon`, `gemini-3.8-flash`) plus a first-class `thinking_level`
+(`low`/`medium`/`high`) option; the superseded 1.3.0 `-high`/`-medium`/`-low` ID suffixes are no
+longer advertised and prompt as `model_unavailable` — with unobserved pricing, context, reasoning, and speed left unknown; the built-in ships no model seed and
+never substitutes Gemini CLI/API models. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
 `cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the

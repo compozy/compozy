@@ -29,3 +29,11 @@ clearly. Stop the sessions and remove the disposable services.
 and PostgreSQL fixture on the provider-neutral build. Narrower agent and session modes, rejection
 of an explicit unrestricted override, and unsupported-provider failure were verified through the
 CLI. See the dated run report and its isolated lab receipts.
+
+## agy prefers yolo only under explicit full access
+
+With `permissions.provider_full_access = true` and effective `approve-all`, a new `agy` session
+prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session permissions reject
+`yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
+(config negotiation cases); the live `agy` opt-in walk is unexecuted and this scenario stays green
+only on its previously verified Codex/Claude branches.

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
@@ -96,6 +97,9 @@ type commandDeps struct {
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
 	resolveProviderAuthCommand  authproviders.ProviderAuthCommandResolver
+	runACPProbe                 func(context.Context, acp.SessionInspectionRequest) error
+	runACPLogin                 func(context.Context, acp.AuthenticationRequest) error
+	acpLoginStderr              io.Writer
 	inputIsTerminal             func(io.Reader) bool
 	runMCPServe                 mcpServeRunner
 }

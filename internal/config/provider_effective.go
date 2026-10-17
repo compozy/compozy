@@ -33,6 +33,11 @@ func (p ProviderConfig) EffectiveAuthMode() ProviderAuthMode {
 	return ProviderAuthModeNativeCLI
 }
 
+// EffectiveACPMethod returns the trimmed protocol-owned authentication method.
+func (p ProviderConfig) EffectiveACPMethod() string {
+	return strings.TrimSpace(p.AuthACPMethod)
+}
+
 // EffectiveEnvPolicy returns the configured provider environment inheritance policy.
 func (p ProviderConfig) EffectiveEnvPolicy() ProviderEnvPolicy {
 	if p.EnvPolicy != "" {

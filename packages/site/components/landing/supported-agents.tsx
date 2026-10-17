@@ -9,6 +9,7 @@ import {
   UIProvider,
 } from "@compozy/ui";
 import {
+  AntigravityLogo,
   BlackboxLogo,
   ClaudeLogo,
   ClineLogo,
@@ -50,6 +51,7 @@ type Provider = BuiltinProviderIntegration & { logo: ReactNode };
 const logoClassName = "size-6 text-fg";
 
 const providerLogos: Record<BuiltinProviderIntegration["id"], ReactNode> = {
+  agy: <AntigravityLogo aria-hidden className="size-6" />,
   claude: <ClaudeLogo aria-hidden className="size-6" />,
   codex: <OpenAILogo aria-hidden className="size-6" mode="dark" />,
   gemini: <GeminiLogo aria-hidden className="size-6" />,
@@ -87,7 +89,7 @@ const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
 // with PROVIDERS order; keep the '*' count in sync whenever PROVIDERS grows or
 // shrinks so the radial mask continues to fade the band ends instead of orphans.
 const QUILT_PATTERN = [
-  ".*..*.*.*..*.*",
+  "**..*.*.*..*.*",
   "*.*.**.*.*..*.",
   ".*.**.*.*.*.*.",
   "*..*.*.*..*..*",

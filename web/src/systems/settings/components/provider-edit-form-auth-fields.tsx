@@ -124,11 +124,13 @@ interface ProviderNativeAuthFieldsProps {
 }
 
 /**
- * Provider-owned login exposes one editable status command and one safe,
- * read-only descriptor for the write-only login command.
+ * Provider-owned login exposes one editable status command, one optional
+ * protocol-owned sign-in method for ACP harnesses, and one safe, read-only
+ * descriptor for the write-only login command.
  */
 function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuthFieldsProps) {
   const authStatus = entry?.auth_status ?? null;
+  const supportsProtocolMethod = draft.harness === "acp";
 
   return (
     <>
@@ -162,6 +164,30 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
           </>
         }
       />
+
+      {supportsProtocolMethod ? (
+        <ModalSettingsFieldRow
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-providers-editor-auth-acp-method-input"
+              onChange={event =>
+                onChange(current => ({ ...current, auth_acp_method: event.target.value }))
+              }
+              placeholder="oauth-personal"
+              value={draft.auth_acp_method}
+            />
+          }
+          data-testid="settings-providers-editor-auth-acp-method"
+          description="Protocol-owned sign-in method the provider advertises. Leave empty to use the built-in default."
+          label={
+            <>
+              Sign-in method
+              <Eyebrow className="ml-1.5 text-subtle">optional</Eyebrow>
+            </>
+          }
+        />
+      ) : null}
 
       <ModalSettingsFieldRow
         control={

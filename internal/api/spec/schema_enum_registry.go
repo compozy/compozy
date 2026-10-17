@@ -201,6 +201,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SettingsUpdateInstallMethod](): settingsUpdateInstallMethodValues(),
 		reflect.TypeFor[contract.ProviderLoginSource](): {
 			string(contract.ProviderLoginSourceAuthLoginCommand),
+			string(contract.ProviderLoginSourceAuthACPMethod),
 		},
 		reflect.TypeFor[contract.ProviderLoginPresence](): {
 			string(contract.ProviderLoginPresencePresent),

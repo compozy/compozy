@@ -96342,7 +96342,8 @@
                                   },
                                   "source": {
                                     "enum": [
-                                      "auth_login_command"
+                                      "auth_login_command",
+                                      "auth_acp_method"
                                     ],
                                     "type": "string"
                                   }
@@ -96564,7 +96565,8 @@
                             },
                             "source": {
                               "enum": [
-                                "auth_login_command"
+                                "auth_login_command",
+                                "auth_acp_method"
                               ],
                               "type": "string"
                             }
@@ -96854,7 +96856,8 @@
                             },
                             "source": {
                               "enum": [
-                                "auth_login_command"
+                                "auth_login_command",
+                                "auth_acp_method"
                               ],
                               "type": "string"
                             }
@@ -136353,7 +136356,8 @@
                                   },
                                   "source": {
                                     "enum": [
-                                      "auth_login_command"
+                                      "auth_login_command",
+                                      "auth_acp_method"
                                     ],
                                     "type": "string"
                                   }
@@ -136433,6 +136437,9 @@
                             "properties": {
                               "settings": {
                                 "properties": {
+                                  "auth_acp_method": {
+                                    "type": "string"
+                                  },
                                   "auth_mode": {
                                     "type": "string"
                                   },
@@ -136703,6 +136710,9 @@
                           },
                           "settings": {
                             "properties": {
+                              "auth_acp_method": {
+                                "type": "string"
+                              },
                               "auth_mode": {
                                 "type": "string"
                               },
@@ -137639,7 +137649,8 @@
                                 },
                                 "source": {
                                   "enum": [
-                                    "auth_login_command"
+                                    "auth_login_command",
+                                    "auth_acp_method"
                                   ],
                                   "type": "string"
                                 }
@@ -137719,6 +137730,9 @@
                           "properties": {
                             "settings": {
                               "properties": {
+                                "auth_acp_method": {
+                                  "type": "string"
+                                },
                                 "auth_mode": {
                                   "type": "string"
                                 },
@@ -137989,6 +138003,9 @@
                         },
                         "settings": {
                           "properties": {
+                            "auth_acp_method": {
+                              "type": "string"
+                            },
                             "auth_mode": {
                               "type": "string"
                             },
@@ -138573,6 +138590,10 @@
                   },
                   "settings": {
                     "properties": {
+                      "auth_acp_method": {
+                        "nullable": true,
+                        "type": "string"
+                      },
                       "auth_login_command": {
                         "nullable": true,
                         "type": "string"
@@ -151556,7 +151577,8 @@
                               },
                               "source": {
                                 "enum": [
-                                  "auth_login_command"
+                                  "auth_login_command",
+                                  "auth_acp_method"
                                 ],
                                 "type": "string"
                               }

@@ -43,6 +43,9 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.AuthLoginCmd != nil {
 		dst.AuthLoginCmd = *o.AuthLoginCmd
 	}
+	if o.AuthACPMethod != nil {
+		dst.AuthACPMethod = *o.AuthACPMethod
+	}
 	if o.SessionMCP != nil {
 		dst.SessionMCP = new(*o.SessionMCP)
 	}

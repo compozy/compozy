@@ -972,6 +972,161 @@ opencode/provider-managed
 		}
 	})
 
+	t.Run("Should discover Agy models with exact identities and no borrowed metadata", func(t *testing.T) {
+		t.Parallel()
+
+		// Synthetic parser/dedup input seeded from the superseded 1.3.0 shape.
+		// The live 1.4.0 server advertises 2 bare IDs (gemini-4-argon,
+		// gemini-3.8-flash) plus a thinking_level option; test logic unchanged.
+		historical := []acp.SessionConfigOptionValue{
+			{Value: "gemini-4-argon-medium", Label: "Argon Medium"},
+			{Value: "gemini-4-argon-high", Label: "Argon High"},
+			{Value: "gemini-4-argon-low", Label: "Argon Low"},
+			{Value: "gemini-3.8-flash-high", Label: "Flash High"},
+			{Value: "gemini-3.8-flash-medium", Label: "Flash Medium"},
+			{Value: "gemini-3.8-flash-low", Label: "Flash Low"},
+		}
+		values := append([]acp.SessionConfigOptionValue(nil), historical...)
+		values = append(values,
+			acp.SessionConfigOptionValue{Value: "gemini-3.8-flash-high", Label: "Flash High"},
+			acp.SessionConfigOptionValue{Value: "gemini-4-argon-low", Label: "Argon Low"},
+			acp.SessionConfigOptionValue{Value: "  ", Label: "Blank"},
+		)
+		for index := range 50 {
+			values = append(values, acp.SessionConfigOptionValue{
+				Value: fmt.Sprintf("agy-scale-%03d", index),
+				Label: fmt.Sprintf("Scale %03d", index),
+			})
+		}
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID:     "model",
+			Kind:   acp.SessionConfigOptionKindSelect,
+			Values: values,
+		}}}
+		builtin := compozyconfig.BuiltinProviders()[liveSourcesAgyKey]
+		if builtin.Models.Default != "" || len(builtin.Models.Curated) != 0 {
+			t.Fatalf("builtin agy models = %#v, want no static seed", builtin.Models)
+		}
+		if strings.TrimSpace(builtin.RuntimeProvider) != "" {
+			t.Fatalf("builtin agy runtime provider = %q, want no cross-provider merge", builtin.RuntimeProvider)
+		}
+		source := newLiveSourceForTest(t, liveSourcesAgyKey, builtin, &LiveProviderSourcesConfig{
+			BaseEnv: []string{
+				"PATH=/bin",
+				"HOME=/tmp/operator-home",
+				"OPENAI_API_KEY=ambient-secret",
+				"GEMINI_API_KEY=ambient-gemini",
+			},
+			ACPProbe:   probe,
+			WorkingDir: t.TempDir(),
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: liveSourcesAgyKey,
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(Agy ACP) error = %v", err)
+		}
+		wantIDs := []string{
+			"gemini-3.8-flash-high",
+			"gemini-3.8-flash-low",
+			"gemini-3.8-flash-medium",
+			"gemini-4-argon-high",
+			"gemini-4-argon-low",
+			"gemini-4-argon-medium",
+		}
+		for index := range 50 {
+			wantIDs = append(wantIDs, fmt.Sprintf("agy-scale-%03d", index))
+		}
+		slices.Sort(wantIDs)
+		if got := rowModelIDs(rows); !slices.Equal(got, wantIDs) {
+			t.Fatalf("row ids = %#v, want exact deduplicated %#v", got, wantIDs)
+		}
+		for _, row := range rows {
+			if row.ProviderID != liveSourcesAgyKey || row.SourceID != SourceKindProviderLiveID(liveSourcesAgyKey) {
+				t.Fatalf("row identity = %#v, want agy/provider_live:agy", row)
+			}
+			if row.Available == nil || !*row.Available {
+				t.Fatalf("row %q Available = %v, want true", row.ModelID, row.Available)
+			}
+			if row.CostInputPerMillion != nil || row.CostOutputPerMillion != nil ||
+				row.CostCacheReadPerMillion != nil || row.CostCacheWritePerMillion != nil ||
+				row.CostReasoningPerMillion != nil || row.ContextWindow != nil ||
+				row.MaxInputTokens != nil || row.MaxOutputTokens != nil ||
+				row.SupportsReasoning != nil || len(row.ReasoningEfforts) != 0 ||
+				row.DefaultReasoningEffort != nil || row.SupportsTools != nil ||
+				len(row.ConfigOptions) != 0 || len(row.TransportBindings) != 0 {
+				t.Fatalf("row %q carries inferred capability metadata: %#v", row.ModelID, row)
+			}
+		}
+		if got := requireModelRow(t, rows, "gemini-3.8-flash-high").DisplayName; got != "Flash High" {
+			t.Fatalf("Flash High display name = %q, want live label", got)
+		}
+		if !source.BootstrapOnList() {
+			t.Fatal("BootstrapOnList() = false, want true")
+		}
+		req := probe.singleRequest(t)
+		if req.ProviderID != liveSourcesAgyKey || req.Command != strings.TrimSpace(builtin.Command) ||
+			req.Cwd != source.workingDir {
+			t.Fatalf("Agy execution = %#v, want final provider command and working dir", req)
+		}
+		if firstEnvValue(req.Env, "COMPOZY_PROVIDER") != liveSourcesAgyKey ||
+			envValue(req.Env, "OPENAI_API_KEY") != "" || envValue(req.Env, "GEMINI_API_KEY") != "" ||
+			envValue(req.Env, "HOME") != "/tmp/operator-home" {
+			t.Fatalf("Agy environment leaks or drops operator home: %#v", req.Env)
+		}
+		// The discovery seam exposes only command/cwd/env/timeout: no prompt,
+		// authenticate, tool, or MCP surface exists on the probe request.
+		emptyProbe := &fakeACPModelProbe{}
+		emptySource := newLiveSourceForTest(t, liveSourcesAgyKey, builtin, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"}, ACPProbe: emptyProbe,
+		})
+		if _, err := emptySource.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: liveSourcesAgyKey,
+			Now:        testTime(1),
+		}); err == nil || !strings.Contains(err.Error(), "did not advertise") {
+			t.Fatalf("ListModels(empty Agy) error = %v, want missing model option", err)
+		}
+
+		disabled := false
+		disabledProvider := builtin
+		disabledProvider.Models.Discovery.Enabled = &disabled
+		disabledSource := newLiveSourceForTest(t, liveSourcesAgyKey, disabledProvider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
+		})
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{disabledSource})
+		statuses, err := service.Refresh(
+			testutil.Context(t),
+			RefreshOptions{ProviderID: liveSourcesAgyKey, Force: true, Now: testTime(2)},
+		)
+		if err != nil {
+			t.Fatalf("Refresh(disabled) error = %v", err)
+		}
+		if status := requireStatus(
+			t,
+			statuses,
+			SourceKindProviderLiveID(liveSourcesAgyKey),
+		); status.RefreshState != RefreshStateDisabled {
+			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
+		}
+		if got := probe.requestCount(); got != 1 {
+			t.Fatalf("ACP probe calls = %d, want 1 after disabled refresh", got)
+		}
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: liveSourcesAgyKey,
+			View:       CatalogViewAll,
+			Now:        testTime(3),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(disabled) error = %v", err)
+		}
+		if len(models) != 0 {
+			t.Fatalf("disabled source published %d synthetic rows, want none", len(models))
+		}
+	})
+
 	t.Run("Should use configured Pi endpoint only when enabled", func(t *testing.T) {
 		t.Parallel()
 
@@ -1302,6 +1457,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 			sourceIDs = append(sourceIDs, source.ID())
 		}
 		for _, want := range []string{
+			"provider_live:agy",
 			"provider_live:codex",
 			"provider_live:cursor",
 			"provider_live:claude",

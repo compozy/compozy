@@ -33,16 +33,57 @@ func DescribeProviderLogin(
 	classification Classification,
 ) ProviderLoginDescriptor {
 	command := strings.TrimSpace(provider.AuthLoginCmd)
+	if command == "" {
+		return describeACPMethodLogin(provider, nativeCLI, classification)
+	}
 	descriptor := ProviderLoginDescriptor{
-		Configured:        command != "",
+		Configured:        true,
 		Presence:          ProviderLoginPresenceUnknown,
 		RecommendedAction: actionForClassification(classification),
 	}
-	if command == "" {
-		return descriptor
-	}
 	descriptor.Source = providerauth.NativeCLISourceAuthLogin
 	parsed, err := providerauth.ParseCommand(command)
+	if err != nil {
+		if descriptor.RecommendedAction == ProviderFailureActionNone &&
+			classification.State != ProviderAuthStateAuthenticated &&
+			classification.State != ProviderAuthStateNone {
+			descriptor.RecommendedAction = ProviderFailureActionInspect
+		}
+		return descriptor
+	}
+	descriptor.Executable = providerLoginExecutableBase(parsed.Executable)
+	if nativeCLI == nil || providerLoginExecutableBase(nativeCLI.Command) != descriptor.Executable {
+		return descriptor
+	}
+	if strings.TrimSpace(nativeCLI.Error) != "" {
+		return descriptor
+	}
+	if nativeCLI.Present {
+		descriptor.Presence = ProviderLoginPresencePresent
+	} else {
+		descriptor.Presence = ProviderLoginPresenceMissing
+	}
+	return descriptor
+}
+
+// describeACPMethodLogin derives the safe descriptor for protocol-owned login:
+// only the launch executable basename and its presence, never arguments,
+// paths, environment, or account identity.
+func describeACPMethodLogin(
+	provider compozyconfig.ProviderConfig,
+	nativeCLI *providerauth.NativeCLIStatus,
+	classification Classification,
+) ProviderLoginDescriptor {
+	descriptor := ProviderLoginDescriptor{
+		Presence:          ProviderLoginPresenceUnknown,
+		RecommendedAction: actionForClassification(classification),
+	}
+	if strings.TrimSpace(provider.AuthACPMethod) == "" {
+		return descriptor
+	}
+	descriptor.Configured = true
+	descriptor.Source = providerauth.NativeCLISourceAuthACPMethod
+	parsed, err := providerauth.ParseCommand(strings.TrimSpace(provider.Command))
 	if err != nil {
 		if descriptor.RecommendedAction == ProviderFailureActionNone &&
 			classification.State != ProviderAuthStateAuthenticated &&

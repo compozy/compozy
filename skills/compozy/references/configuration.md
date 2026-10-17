@@ -61,6 +61,13 @@ Non-default profiles use `vault:profiles/<name>/...`; `--from-env` fails with
 metadata with `provider inspect`. For a non-default profile, `secret rm` falls back to the user
 credential and requires `--yes` for non-interactive removal when the profile owns work.
 
+Protocol-authenticated providers (`native_cli` with `auth_acp_method`, such as the `agy` built-in)
+declare no credential slots and accept no secrets: their login state lives in the operator home the
+provider owns, shared across profiles by design. Isolate clean-room logins with an explicitly
+authorized separate home, never by copying saved authentication. In Settings → Providers their
+native-auth editor offers an optional `Sign-in method` instead of key fields: empty uses the
+built-in default, and clearing a custom value removes the local override to reveal it.
+
 For a declared extension environment name, use `compozy --profile <name> extension secrets set
 <extension> --env <ENV_NAME> --value-stdin`. This stores the value and creates the instance/profile-owned
 binding; verify redacted presence with `extension secrets list <extension>` and remove it with

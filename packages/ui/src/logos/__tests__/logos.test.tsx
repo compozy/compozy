@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AntigravityLogo } from "../antigravity";
 import { ClaudeLogo } from "../claude";
 import { GeminiLogo } from "../gemini";
 import { GithubLogo } from "../github";
@@ -10,6 +11,18 @@ import { OpenAILogo } from "../openai";
 function getIds(container: HTMLElement, selector: string) {
   return Array.from(container.querySelectorAll<SVGElement>(selector), element => element.id);
 }
+
+describe("AntigravityLogo", () => {
+  it("preserves the official registry geometry with theme-aware ink", () => {
+    const { container } = render(<AntigravityLogo className="size-6" />);
+
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 16 16");
+    expect(svg?.getAttribute("class")).toContain("size-6");
+    expect(svg?.querySelector("title")).toHaveTextContent("Antigravity");
+    expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+  });
+});
 
 describe("ClaudeLogo", () => {
   it("applies the provided className", () => {

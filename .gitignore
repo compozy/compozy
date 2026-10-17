@@ -92,3 +92,6 @@ docs/qa/state.csv
 docs/qa/evidence/**
 docs/tweets/**
 # <<< skeeper ignored specs <<<
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

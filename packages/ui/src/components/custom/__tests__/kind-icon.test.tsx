@@ -6,6 +6,7 @@ import { KindIcon } from "../kind-icon";
 import { providerKindIconRegistry } from "../kind-icon-registry";
 
 const providerKeys = [
+  "agy",
   "blackbox",
   "claude",
   "cline",

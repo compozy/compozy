@@ -27,4 +27,10 @@ describe("deriveProviderStateLabel", () => {
   it("keeps unresolved required credentials unconfigured", () => {
     expect(deriveProviderStateLabel(settingsProviderFixtures[2]!)).toBe("unconfigured");
   });
+
+  it("keeps a present-but-unverified protocol login out of ready", () => {
+    const agy = settingsProviderFixtures.find(entry => entry.name === "agy")!;
+    expect(agy.auth_status?.login?.presence).toBe("present");
+    expect(deriveProviderStateLabel(agy)).toBe("auth-unknown");
+  });
 });

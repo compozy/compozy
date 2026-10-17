@@ -138,6 +138,10 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultKind:     liveDiscoveryACP,
 		bootstrapOnList: true,
 	},
+	liveSourcesAgyKey: {
+		defaultKind:     liveDiscoveryACP,
+		bootstrapOnList: true,
+	},
 	"pi": {
 		defaultKind: liveDiscoveryNone,
 	},

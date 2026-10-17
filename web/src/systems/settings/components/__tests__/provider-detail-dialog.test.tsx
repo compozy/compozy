@@ -83,6 +83,43 @@ const boundSecretProvider: SettingsProviderEntry = {
   },
 };
 
+const nativeACPProvider: SettingsProviderEntry = {
+  name: "agy",
+  default: false,
+  command_available: true,
+  settings: {
+    command: "agy_acp_server.par --uid=",
+    display_name: "Google Antigravity",
+    models: { default: "", curated: [] },
+    harness: "acp",
+    auth_mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    auth_status_command: "",
+    auth_acp_method: "oauth-personal",
+  },
+  auth_status: {
+    mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "unknown",
+    code: "provider_classification_unknown",
+    message:
+      "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
+    login: {
+      configured: true,
+      executable: "agy_acp_server.par",
+      presence: "present",
+      recommended_action: "inspect",
+      source: "auth_acp_method",
+    },
+  },
+  source_metadata: {
+    available_targets: ["global-config"],
+    effective_source: { kind: "builtin-provider", scope: "user" },
+  },
+};
+
 interface HarnessProps {
   mode: "inspect" | "edit" | "create";
   entry?: SettingsProviderEntry | null;
@@ -362,5 +399,68 @@ describe("ProviderDetailDialog", () => {
 
     expect(screen.getByTestId("settings-providers-editor-basics")).toBeVisible();
     expect(screen.getByTestId("provider-detail-save")).toHaveTextContent("Save provider");
+  });
+
+  it("Should edit the protocol sign-in method without credential controls", async () => {
+    const user = userEvent.setup();
+    renderDialog({
+      mode: "edit",
+      entry: nativeACPProvider,
+      initialDraft: providerDraftFromEntry(nativeACPProvider),
+    });
+
+    const method = screen.getByTestId("settings-providers-editor-auth-acp-method-input");
+    expect(method).toBeVisible();
+    expect(method).toHaveValue("oauth-personal");
+    expect(screen.getByLabelText(/Sign-in method/)).toBe(method);
+
+    // Native auth mounts no secret, key, ref, or rotation controls.
+    expect(
+      screen.queryByTestId("settings-providers-editor-credential-slots")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Credential value")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rotate")).not.toBeInTheDocument();
+
+    // Presence is availability truth, not sign-in truth; the protocol source
+    // never carries the command-only write-only-config badge.
+    const descriptor = screen.getByTestId("settings-providers-editor-auth-login-descriptor");
+    expect(
+      within(descriptor).getByTestId("settings-providers-editor-auth-login-descriptor-executable")
+    ).toHaveTextContent("agy_acp_server.par");
+    expect(within(descriptor).queryByText("write-only config")).not.toBeInTheDocument();
+
+    await user.clear(method);
+    await user.type(method, "oauth-device");
+    expect(method).toHaveValue("oauth-device");
+  });
+
+  it("Should badge only the command-owned login source as write-only config", () => {
+    renderDialog({
+      mode: "edit",
+      entry: nativeACPProvider,
+      initialDraft: providerDraftFromEntry(nativeACPProvider),
+    });
+    expect(
+      within(screen.getByTestId("settings-providers-editor-auth-login-descriptor")).queryByText(
+        "write-only config"
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should hide the sign-in method when the harness cannot use it", async () => {
+    const user = userEvent.setup();
+    renderDialog({ mode: "create" });
+
+    expect(screen.getByTestId("settings-providers-editor-auth-acp-method-input")).toBeVisible();
+
+    await user.click(screen.getByTestId("settings-providers-editor-mode-advanced"));
+    await user.selectOptions(
+      screen.getByTestId("settings-providers-editor-harness-input"),
+      "pi_acp"
+    );
+
+    expect(
+      screen.queryByTestId("settings-providers-editor-auth-acp-method-input")
+    ).not.toBeInTheDocument();
   });
 });

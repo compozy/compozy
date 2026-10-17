@@ -21,6 +21,7 @@ type SettingsProviderSettingsPayload struct {
 	EnvPolicy       string                                  `json:"env_policy,omitempty"`
 	HomePolicy      string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthACPMethod   string                                  `json:"auth_acp_method,omitempty"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
@@ -39,6 +40,7 @@ type SettingsProviderWritePayload struct {
 	HomePolicy      string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
 	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
+	AuthACPMethod   *string                                 `json:"auth_acp_method,omitzero"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 

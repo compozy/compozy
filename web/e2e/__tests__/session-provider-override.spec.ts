@@ -12,6 +12,7 @@ import {
   sessionWindow,
   switchWorkspace,
 } from "../fixtures/os-navigation";
+import { reloadDaemonServedPage } from "../fixtures/navigation";
 import {
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
@@ -321,6 +322,156 @@ test("operator can create a provider/model override session and attach without l
 
   await sessionUi.stopButton.click();
   await expect(sessionUi.resumeButton).not.toBeVisible();
+});
+
+test("operator selects an exact AGY catalog model and keeps agy session attribution", async ({
+  appPage,
+  browserArtifacts,
+  providerCatalog,
+  runtime,
+}) => {
+  test.setTimeout(300_000);
+  if (!runtime.paths) {
+    throw new Error("provider override browser test requires launch-mode runtime paths");
+  }
+
+  const agyModel = "qa-browser-model-alt";
+  // The overlay points the built-in `agy` at the deterministic peer and curates
+  // one exact peer-advertised ID. Provider overlays apply on restart, so the
+  // test restarts the daemon once, then drives the real picker-to-session path
+  // with no Google account.
+  const agySeed = await seedBrowserSettingsFixtures(runtime, {
+    providers: [
+      {
+        name: "agy",
+        settings: {
+          command: providerCatalog.overrideCommand,
+          auth_acp_method: "oauth-personal",
+          models: {
+            curated: [{ id: agyModel, display_name: "QA Browser Model Alt" }],
+          },
+        },
+      },
+    ],
+  });
+  try {
+    const restartResponse = await runtime.requestJSON<{ operation_id: string }>(
+      "/api/settings/actions/restart",
+      { method: "POST", body: JSON.stringify({}) }
+    );
+    await expect
+      .poll(
+        async () => {
+          try {
+            const payload = await runtime.requestJSON<{ status: string }>(
+              `/api/settings/actions/restart/${encodeURIComponent(restartResponse.operation_id)}`
+            );
+            return payload.status;
+          } catch {
+            return "unavailable";
+          }
+        },
+        { timeout: 120_000 }
+      )
+      .toBe("ready");
+    await reloadDaemonServedPage(appPage, runtime, "/", {});
+
+    await expect
+      .poll(
+        async () => {
+          const catalog = await runtime.requestJSON<{
+            models: Array<{ provider_id: string; model_id: string }>;
+          }>("/api/model-catalog/models?view=all&include_stale=true");
+          return catalog.models
+            .filter(row => row.provider_id === "agy")
+            .map(row => row.model_id)
+            .join(",");
+        },
+        { timeout: 60_000 }
+      )
+      .toContain(agyModel);
+
+    const ui = sessionLifecycleSelectors(appPage);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-agy-override-workspace-"));
+    await writeWorkspaceConfig({
+      rootDir: workspaceRoot,
+      defaultProvider: mockAgentProvider,
+      overrideCommand: providerCatalog.overrideCommand,
+      includeOverride: false,
+    });
+
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
+
+    await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+    await completeOnboardingIfPrompted(ui);
+    await expect(ui.osDesktop).toBeVisible();
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+    const agentsWin = await openAppWindow(appPage, "Agents", "agents");
+    const fleet = sessionLifecycleSelectors(agentsWin);
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
+    await expect(fleet.agentRow(browserLifecycleAgent)).toBeVisible();
+
+    await fleet.agentRow(browserLifecycleAgent).click();
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe(`/agents/${browserLifecycleAgent}`);
+    await fleet.agentPageNewSession.click();
+    await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
+    const createResponsePromise = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/sessions"
+    );
+    await appPage.getByTestId("session-create-submit").click();
+    const createdSession = (await (await createResponsePromise).json()) as SessionEnvelope;
+    expect(createdSession.session.runtime.status).toBe("unbound");
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe(browserLifecycleSessionPath(createdSession.session.id));
+    const sessionWin = sessionWindow(appPage, createdSession.session.id);
+    const sessionUi = sessionWindowSelectors(sessionWin, appPage);
+    await expect(sessionWin).toBeVisible();
+
+    const runtimeTrigger = sessionWin.getByTestId("session-prompt-runtime-select");
+    await runtimeTrigger.click();
+    await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+    await appPage.locator('[data-rail="agy"]').click();
+    const agyRow = appPage.locator(`[data-provider="agy"][data-model="${agyModel}"]`);
+    await expect(agyRow).toBeVisible({ timeout: 30_000 });
+    await agyRow.click();
+    await appPage.keyboard.press("Escape");
+    await expect(appPage.getByTestId("runtime-selector-popup")).toBeHidden();
+
+    await sessionUi.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+    const promptRequestPromise = appPage.waitForRequest(
+      request => request.method() === "POST" && request.url().endsWith("/prompt")
+    );
+    await sessionUi.composerTextarea.press("Enter");
+    expect((await promptRequestPromise).postDataJSON()).toMatchObject({
+      message: SESSION_CREATE_FIRST_MESSAGE,
+      runtime: { model: agyModel, provider: "agy" },
+    });
+
+    await waitForSeedSessionActive(runtime, createdSession.session.id);
+    await expect(sessionWin.getByTestId("session-status-provider")).toHaveText("agy");
+    await expect(
+      sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
+    ).toBeVisible();
+    await assertSessionParity(
+      runtime,
+      createdSession.session.workspace_id,
+      createdSession.session.id,
+      "agy"
+    );
+    await browserArtifacts.captureScreenshot("session-provider-agy-attribution", appPage);
+
+    if (await sessionUi.stopButton.isVisible().catch(() => false)) {
+      await sessionUi.stopButton.click();
+      await expect(sessionUi.resumeButton).not.toBeVisible();
+    }
+  } finally {
+    await cleanupBrowserSettingsFixtures(runtime, agySeed);
+  }
 });
 
 test("operator persists an advertised model and non-empty reasoning effort on the created session", async ({

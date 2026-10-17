@@ -1,5 +1,79 @@
 # Compozy Change Impact
 
+## AGY ACP provider (2026-10-16)
+
+**Status:** specification approved by the owner on 2026-10-16 ("aceito"); not
+implemented or verified. Owning contract:
+`.compozy/tasks/agy-acp/_spec.md`; behavior, public surface, UI, tests, and design
+evidence live in its companion files. Downstream tasks cite this section and
+record their own deltas. The earlier custom-provider experiment is evidence of
+basic ACP interoperability, not acceptance of this built-in/login implementation.
+
+| Surface / boundary | Planned impact | Verification owner |
+| --- | --- | --- |
+| Provider registry and config | Add built-in `agy` / `Google Antigravity` with official per-OS server command, native auth, filtered env, operator home, no model seed/default. Add optional `providers.<id>.auth_acp_method`, per-operation native-command precedence, clone/overlay/validation/Settings-presence support. Do not alias existing `antigravity` providers or change defaults. | Spec UT-001/002/003, IT-006. `internal/config/provider_builtin.go`, `provider.go`, merge/resolve/validation helpers. |
+| ACP and provider auth | Shared bounded disposable auth/probe operations in `internal/acp`; classify through `internal/providers`. Only explicit local login calls advertised agent-method `authenticate`; reads/probes/discovery/session startup never open interactive login. No Google token parsing/store or new harness/sidecar. | IT-001–IT-005, real E2E-001/002; `start_process.go`, `session_inspection.go`, `control_request.go`, `providers/login_descriptor.go`, classifier/probe seams. |
+| CLI / HTTP / UDS | Existing provider auth login/status/inspect and provider/model inventories accept `agy`. Remote probe no longer requires a status command when protocol auth is configured. Reuse `BaseHandlers`; no interactive API route or new verb. Add safe `login.source=auth_acp_method`; ACP probes omit command-result `probe`. Existing unavailable-probe 422 and native-command contracts remain. | IT-005/006, CLI/API suites; `internal/cli/provider*.go`, `internal/api/core/providers.go`, `contract/providers.go`, Settings payloads, `spec/providers.go`. |
+| Model catalog and read boundaries | Register `provider_live:agy` through existing ACP discovery. Keep exact provider/model identity, context-scoped snapshots, atomic source publication, stale failure handling, unknown capabilities, and opt-out. No Gemini API source/account/price substitution. | UT-005, IT-007, E2E-001/003; `internal/modelcatalog/live_sources_adapters.go`, `live_sources_acp.go`, daemon catalog context/rebind owners. |
+| Permissions / lifecycle / workspace isolation | Reuse host authority, MCP wiring, cancellation, accepted-route restoration. Extend existing explicit full-access preference with `agy → yolo`; narrower permissions retain unrestricted-mode denial. Login/probe/discovery obey actual final env/home; operator-home Google state is intentionally shared across profiles, not copied. Work/event/catalog partitions remain scoped. | UT-004, IT-003/006/007, E2E-004/005; config mode checks, session provider-runtime conversions, existing permission/recovery suites. |
+| Web / shared UI | Add official Antigravity mark to `packages/ui/src/logos/` and shared `kind-icon-registry.ts`, not a Gemini alias or app-local asset. Extend existing native-auth form/draft with the non-secret method field and safe protocol descriptor. Reuse current provider list, Settings, runtime picker, and session mark; no OAuth modal/account-key fields/auth cache/redesign. | UT-006, E2E-003; `web/src/systems/settings/{types.ts,lib/provider-draft.ts,components/provider-edit-form-auth-fields.tsx,components/provider-login-descriptor.tsx}` and existing runtime consumers/stories. |
+| Generated contracts and references | Add method read/write field and login-source enum at Go contract owners, then regenerate OpenAPI / `web/src/generated/` / `sdk/go/contracts/` / `sdk/typescript/src/generated/` where their owning generator emits changes. Config/help references come from source; no hand-edited generated documents. | `make codegen`, `make codegen-check`, `make cli-docs`, `make cli-docs-check`, affected root Turbo consumers. Diagnose unrelated generator drift. |
+| Native tools / agent manageability | Existing `compozy__provider_models_list|status|refresh`, config get/set, and session tools remain the structured control paths. No new tool IDs, toolset, credential-binding requirement, or OAuth-consent tool. Google consent remains an explicit local operator action; absence of an agent OAuth path is the existing native-login security boundary, not missing runtime management. | Existing native model/config/session suites plus IT-007/E2E-004; `internal/daemon/native_provider_model_tools.go`, generated descriptors only if owner generation changes. |
+| Extensions / hooks / registry / bridge / MCP | External ACP registry is an official installation/doc source only. No Compozy marketplace schema, extension manifest/provide surface, SDK method, hook event, bridge registry entry, or external MCP auth change. Hosted native tools/session MCP continue through existing delivery/permissions; actual AGY consumption must be verified, not disabled to make smoke pass. | E2E-004 and existing native-tool/ACP delivery suites; inspect `internal/providerexec/native_cli.go`, ACP/session MCP seams. |
+| Site and official skill | Update `packages/site/content/docs/agents/providers.mdx` and `agents/model-catalog.mdx` with official binary prerequisite, explicit login/probe, exact model/default behavior, native auth/home ownership, and tested platform/version limits. Update generated config/help references through owners. Co-ship `skills/compozy/references/{native-tools,runtime-operations,configuration}.md` for protocol source, local consent, scope, diagnostics, and no secret workaround. No landing/marketing redesign. | Generator/site content checks, published examples exercised in E2E-001/002; root affected site lane. |
+| QA | Add focused `docs/qa/scenarios/RT-agy-acp-provider.md`; extend `MS-web-provider-auth-gate.md` and `RT-provider-full-access-mode.md`. Keep prior unrelated scenario statuses intact. Isolated homes/ports/socket and owned-process teardown; separate clean-login provider home needs explicit authorization. | Spec E2E-001–E2E-005; scoped live/browser receipts on the implementation build. |
+
+**Compatibility (SD-013):** additive provider/config/enum semantics; no deletions,
+renames, or schema changes. Delete targets: none across user state, public
+interfaces, and internal code. Existing provider overrides/native commands and
+saved custom-provider identities remain valid. No migration, alias shim,
+deprecation window, or new persisted OAuth entity. Internal helper extraction
+updates all callers in one change, without a duplicate ACP transport or fallback
+wrapper. The spec artifacts are local under the repository's existing ignored
+`.compozy/tasks/` policy; authoring does not alter that policy or unrelated work.
+
+**Task 01 delta (2026-10-16):** implemented the additive boundary only —
+`auth_acp_method` across TOML/overlay/clone/resolve/route/Settings/DTO owners
+with presence semantics, plus disposable `internal/acp` `Authenticate` /
+`ProbeAuthentication` over the shared launch/initialize/stop ladder. No
+built-in `agy`, no operation selection, no catalog/UI wiring. Evidence:
+`.compozy/tasks/agy-acp/evidence/task_01/`.
+
+**Task 02 delta (2026-10-16):** registered built-in `agy` (per-OS server
+command via `agyACPServerCommand`, native CLI auth, filtered env, operator
+home, `oauth-personal`, no model seed/default change) with explicit
+`provider_full_access` + approve-all `agy → yolo` preference; wired shared
+selection (per-operation native-command precedence, no fallback after failure),
+safe `auth_acp_method` descriptors, CLI login/probe output, HTTP/UDS ACP probe
+(`probe` omitted), and successful-remote-probe startup-cache invalidation.
+Peer-backed public-entry check
+(`internal/daemon/agy_acp_entry_integration_test.go`, `integration` lane)
+walks discovery → real `acp.Authenticate` → real `acp.ProbeAuthentication` →
+real manager Create/Prompt through a `agy_acp_server.par` PATH shim; the raw
+JSON-RPC peer replaces only Google's server and records exactly one
+`oauth-personal` authenticate with no prompt during auth/probe. Co-shipped
+`providers.mdx` + `native-tools`/`runtime-operations`/`configuration` skill
+refs, new `RT-agy-acp-provider.md` (live walk stays blocked-verify), and
+`MS-web-provider-auth-gate` / `RT-provider-full-access-mode` deltas without
+passing unexecuted journeys. No live-Google success inferred. Evidence:
+`.compozy/tasks/agy-acp/evidence/task_02/`.
+
+**Task 03 delta (2026-10-16):** registered `agy` as `liveDiscoveryACP` with
+Hermes-style bootstrap-on-list (`live_sources_adapters.go` entry only; no
+parser, auth scheme, credentials, static seed, or runtime-provider merge),
+reusing `SessionACPModelProbe`, final command/env/home resolution,
+context-partitioned snapshots, TTL/timeout, opt-out, atomic publication, and
+stale handling with native entry points unchanged. Exact advertised IDs and
+labels (suffixes intact) publish under `provider_live:agy`; unobserved
+pricing/context/reasoning/speed stay unknown; missing login is
+`auth_required` with no browser; disabled/empty sources publish no synthetic
+rows. Co-shipped model-catalog/providers docs, native-tools/runtime-operations
+skill refs, and `RT-agy-acp-provider.md` discovery/selection expectations
+(still blocked-verify). One enabling fix: `startupToolsReferenceSectionBudget`
+72,000 → 73,000 characters (combined trimmed bundled manuals measure 72,575
+after Task 02 + Task 03 guidance; the overflow predates this task). Evidence:
+`.compozy/tasks/agy-acp/evidence/task_03/`.
+
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

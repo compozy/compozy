@@ -37,3 +37,21 @@ src: web/src/systems/settings/components/provider-edit-form-auth-fields.tsx; web
 QA 2026-09-06 — sessions-stability selected scope: The real reauthentication/cache branch remains blocked-verify. The native Claude account reports loggedIn=true and successful prompts; Compozy classifies its auth probe unknown because no auth_status_command is configured. A separate real account/session with controllable expiry or provider rate limiting is required; no operator logout or credential changes were made. Existing owning cache/API evidence is reused, not substituted for that live branch. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
 
 The adjacent editor canary passed: Native CLI exposes no credential slot; switching only the unsaved draft to Bound secret reveals the declared slot fields, and switching back removes them. Cancel discarded changes. Root inspected provider-canary-{native-editor,bound-editor,restored-editor}.png and their DOM records. This does not close the real reauthentication branch.
+
+## Protocol-owned login renders no credential controls
+
+The `agy` built-in (Native CLI with `auth_acp_method = "oauth-personal"`, no native login
+command) must render the same Native CLI card with provider-owned login only: no credential slot,
+key field, or secret ref anywhere, and the login descriptor shows `source: auth_acp_method` with
+the server executable basename and presence.
+
+2026-10-16 Task 04 browser check (E2E-003 Test A, deterministic Settings seed,
+no Google account): `web/e2e/__tests__/settings.spec.ts` → "operator can inspect and edit the
+Antigravity sign-in method without credential controls" passes. Observed: `Google Antigravity`
+card reads `Sign-in unverified` (never Ready); keyboard Enter opens the inspector; the editor
+shows `Sign-in method = oauth-personal` with zero credential slots and no `write-only config`
+badge; an unrelated display-name edit preserves the method across save and reopen; focus returns
+to the card; the 375px viewport keeps the method input reachable with no horizontal overflow.
+Captures: `.compozy/tasks/agy-acp/evidence/task_04/captures/agy-settings-{card-unverified,method-preserved,method-narrow}.png`.
+Unit/integration ownership stays UT-003/IT-005/IT-006, and the deterministic peer-backed
+public-entry walk lives in `internal/daemon/agy_acp_entry_integration_test.go`.
