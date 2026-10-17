@@ -7,27 +7,24 @@
  * means the snapshot either erases them or lands interleaved with them, so they
  * are held here by absolute sequence and reconciled once the snapshot is on
  * screen.
- *
- * Flow-control credit is the other half of the job. The daemon counted every
- * held byte against this viewer's window, so credit is returned for all of them
- * — written or discarded — or the window stalls and the terminal freezes on top
- * of a failed catch-up.
  */
+
+import {
+  TERMINAL_RENDER_BUFFER_BYTES,
+  TERMINAL_RENDER_BUFFER_FRAMES,
+} from "./terminal-emulator-queue";
 
 /** One frame held back while the screen is being rebuilt. */
 interface HeldFrame {
   seq: bigint;
   end: bigint;
   bytes: Uint8Array;
-  credit: number;
   splittable: boolean;
 }
 
 export interface TerminalGapBufferOptions {
   /** Writes bytes and resolves once the emulator has parsed them. */
   write: (bytes: Uint8Array) => Promise<void>;
-  /** Returns flow-control credit for bytes the daemon already counted. */
-  returnCredit: (bytes: number) => void;
   /**
    * Records that everything up to this sequence is now on screen.
    *
@@ -42,6 +39,8 @@ export interface TerminalGapBufferOptions {
 
 export class TerminalGapBuffer {
   private readonly frames: HeldFrame[] = [];
+  private bufferedBytes = 0;
+  private droppedThrough = 0n;
 
   constructor(private readonly options: TerminalGapBufferOptions) {}
 
@@ -50,17 +49,35 @@ export class TerminalGapBuffer {
   }
 
   hold(seq: bigint, bytes: Uint8Array): void {
-    this.frames.push({
+    this.holdFrame({
       seq,
       end: seq + BigInt(bytes.byteLength),
       bytes,
-      credit: bytes.byteLength,
       splittable: true,
     });
   }
 
   holdMarker(seq: bigint, bytes: Uint8Array): void {
-    this.frames.push({ seq, end: seq + 1n, bytes, credit: 0, splittable: false });
+    this.holdFrame({ seq, end: seq + 1n, bytes, splittable: false });
+  }
+
+  /** Recovery must cover every discarded byte before the live tail may resume. */
+  requireSnapshot(through: bigint): void {
+    if (through > this.droppedThrough) this.droppedThrough = through;
+  }
+
+  private holdFrame(frame: HeldFrame): void {
+    if (
+      this.bufferedBytes + frame.bytes.byteLength > TERMINAL_RENDER_BUFFER_BYTES ||
+      this.frames.length >= TERMINAL_RENDER_BUFFER_FRAMES
+    ) {
+      this.frames.length = 0;
+      this.bufferedBytes = 0;
+      this.requireSnapshot(frame.end);
+      return;
+    }
+    this.frames.push(frame);
+    this.bufferedBytes += frame.bytes.byteLength;
   }
 
   /**
@@ -79,9 +96,11 @@ export class TerminalGapBuffer {
   async reconcile(snapshotSeq: bigint): Promise<boolean> {
     let covered = snapshotSeq;
     while (this.frames.length > 0) {
+      if (covered < this.droppedThrough) return false;
       const held = this.frames[0];
       if (held.seq > covered) return false;
       this.frames.shift();
+      this.bufferedBytes -= held.bytes.byteLength;
       const end = held.end;
       if (end > covered) {
         // Checked before the write starts, never after it resolves. Bytes that
@@ -95,23 +114,14 @@ export class TerminalGapBuffer {
       }
       covered = end > covered ? end : covered;
       this.options.commit(end);
-      // Credit is a courtesy to a socket that may already be gone; it no-ops.
-      this.options.returnCredit(held.credit);
     }
-    return true;
-  }
-
-  /** Gives up on the held tail but still pays back what the daemon counted. */
-  discard(): void {
-    let bytes = 0;
-    while (this.frames.length > 0) {
-      bytes += this.frames.shift()?.credit ?? 0;
-    }
-    if (bytes > 0) this.options.returnCredit(bytes);
+    return covered >= this.droppedThrough;
   }
 
   /** Drops the held tail outright: the connection it belonged to is gone. */
-  drop(): void {
+  discard(): void {
     this.frames.length = 0;
+    this.bufferedBytes = 0;
+    this.droppedThrough = 0n;
   }
 }

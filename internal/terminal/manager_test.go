@@ -1132,6 +1132,74 @@ func TestSessionTailReadContract(t *testing.T) {
 func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 	t.Parallel()
 
+	for _, mode := range []string{"read", "write"} {
+		t.Run("Should drain process output while an attached "+mode+" viewer stops consuming", func(t *testing.T) {
+			t.Parallel()
+			manager, starter, _ := newTestManager(t, DefaultSettings())
+			handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+			actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			viewer, err := handle.Attach(t.Context(), AttachOptions{Mode: mode, Flow: "ack", Actor: actor})
+			if err != nil {
+				t.Fatalf("Attach() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := viewer.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+			assertAttachedFrame(t, receiveSubscriptionFrame(t, viewer), 0, false)
+			payload := bytes.Repeat([]byte("progress\r\n"), 128*1024)
+			emitted := make(chan error, 1)
+			go func() { emitted <- starter.latest().emit(payload) }()
+			select {
+			case err := <-emitted:
+				if err != nil {
+					t.Fatalf("emit() error = %v", err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("process output stalled behind an attached viewer without ACKs")
+			}
+			waitForTerminalTail(t, handle, "reader did not observe background progress", func(tail *ReadResult) bool {
+				return tail.Seq == uint64(len(payload))
+			})
+			if err := viewer.Close(); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+			// A fresh ACK subscription must also survive demotion during a large replay.
+			reconnected, err := handle.Attach(t.Context(), AttachOptions{Mode: mode, Flow: "ack", Actor: actor})
+			if err != nil {
+				t.Fatalf("Attach() after background output error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := reconnected.Close(); err != nil {
+					t.Errorf("Close() reconnected viewer error = %v", err)
+				}
+			})
+			if err := starter.latest().emit([]byte("after reattach\r\n")); err != nil {
+				t.Fatalf("emit() after reattach error = %v", err)
+			}
+			waitForTerminalTail(t, handle, "reader stalled after reattach", func(tail *ReadResult) bool {
+				return tail.Seq == uint64(len(payload)+len("after reattach\r\n"))
+			})
+			// Only consume after proving that this fresh viewer cannot stall the PTY.
+			assertAttachedFrame(t, receiveSubscriptionFrame(t, reconnected), uint64(len(payload)), true)
+			var liveOutput []byte
+			sawGap := false
+			for len(liveOutput) < len("after reattach\r\n") {
+				frame := receiveSubscriptionFrame(t, reconnected)
+				if frame.Op == terminalwire.ServerOpGap {
+					sawGap = true
+				}
+				if frame.Op == terminalwire.ServerOpOutput && frame.Seq >= uint64(len(payload)) {
+					liveOutput = append(liveOutput, frame.Payload...)
+				}
+			}
+			if !sawGap || string(liveOutput) != "after reattach\r\n" {
+				t.Fatalf("reattached gap/output = %v/%q, want replay GAP followed by live output", sawGap, liveOutput)
+			}
+		})
+	}
+
 	t.Run(
 		"Should allow concurrent writable attachments and serialize complete submissions [UT-018]",
 		func(t *testing.T) {

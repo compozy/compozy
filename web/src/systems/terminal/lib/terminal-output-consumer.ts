@@ -12,13 +12,12 @@ type TerminalOutputConsumerOptions = {
   currentEpoch: () => number;
   isStopped: () => boolean;
   commit: (seqEnd: bigint) => void;
-  returnCredit: (bytes: number) => void;
   onReplayComplete: () => void;
   reportError: (cause: unknown) => void;
   reconnect: () => void;
 };
 
-/** Draws PTY bytes and advances flow credit only after the emulator parses them. */
+/** Commits PTY bytes only after the emulator parses them. */
 export class TerminalOutputConsumer {
   constructor(private readonly options: TerminalOutputConsumerOptions) {}
 
@@ -30,7 +29,6 @@ export class TerminalOutputConsumer {
     const replayComplete = replayTarget !== null && end >= replayTarget;
     if (replayComplete) this.options.finishReplay();
     if (discarding) {
-      this.options.returnCredit(size);
       return;
     }
     if (this.options.isResyncing()) {
@@ -39,15 +37,18 @@ export class TerminalOutputConsumer {
     }
     const epoch = this.options.currentEpoch();
     void this.options.emulator
-      .run(async () => {
-        if (epoch !== this.options.currentEpoch()) return;
-        await this.options.write(bytes);
-        this.options.commit(end);
-        this.options.returnCredit(size);
-        if (replayComplete && epoch === this.options.currentEpoch()) {
-          this.options.onReplayComplete();
-        }
-      })
+      .run(
+        async () => {
+          if (epoch !== this.options.currentEpoch()) return;
+          await this.options.write(bytes);
+          this.options.commit(end);
+          if (replayComplete && epoch === this.options.currentEpoch()) {
+            this.options.onReplayComplete();
+          }
+        },
+        size,
+        end
+      )
       .catch(cause => {
         if (this.options.isStopped() || epoch !== this.options.currentEpoch()) return;
         this.options.reportError(cause);

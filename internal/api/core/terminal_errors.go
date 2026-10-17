@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -66,7 +67,7 @@ func (h *BaseHandlers) respondTerminalMappedError(
 	status int,
 	err error,
 ) {
-	_, payload := projectTerminalError(err, status, h.MaskInternalErrors, false)
+	status, payload := projectTerminalError(err, status, h.MaskInternalErrors, false)
 	c.AbortWithStatusJSON(status, payload)
 }
 
@@ -76,6 +77,9 @@ func projectTerminalError(
 	maskInternal bool,
 	preserveDomain bool,
 ) (int, contract.TerminalErrorResponse) {
+	if errors.Is(err, context.Canceled) {
+		return statusClientClosedRequest, terminalErrorResponse(terminalTransportAPIError, err)
+	}
 	derivedStatus, domainCode, domain := terminalErrorStatusCode(err)
 	useDomain := preserveDomain && domain
 	if status <= 0 || useDomain {
@@ -122,6 +126,8 @@ func terminalErrorResponse(code string, err error) contract.TerminalErrorRespons
 
 func terminalErrorStatusCode(err error) (int, string, bool) {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return statusClientClosedRequest, terminalTransportAPIError, false
 	case errors.Is(err, errTerminalRequestInvalid):
 		return http.StatusBadRequest, terminalTransportInvalidRequest, false
 	case errors.Is(err, errTerminalUnavailable):
