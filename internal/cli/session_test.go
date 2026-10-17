@@ -737,6 +737,27 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should forward the target session folder", func(t *testing.T) {
+		t.Parallel()
+
+		var got CreateSessionRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+				got = request
+				return SessionRecord{ID: "sess-foldered", State: session.StateActive}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t, deps, "session", "new", "--workspace", "ws_abc", "--folder", "sfold-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --folder) error = %v", err)
+		}
+		if got.FolderID != "sfold-1" {
+			t.Fatalf("CreateSession() request = %#v, want folder sfold-1", got)
+		}
+	})
+
 	t.Run("Should reject a lineage kind without a parent", func(t *testing.T) {
 		t.Parallel()
 

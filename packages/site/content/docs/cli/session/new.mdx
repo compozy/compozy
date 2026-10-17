@@ -23,6 +23,9 @@ compozy session new [flags]
   # Auto-register an absolute workspace path before creating the session
   compozy session new --cwd "$PWD" --agent reviewer
 
+  # Start a session inside a session folder
+  compozy session new --agent reviewer --folder sfold-1234
+
   # Start a recovery session for a failed parent session
   compozy session new --agent codex --parent sess_01J9R2K7M4T1 --lineage-kind recovery
 ```
@@ -32,6 +35,7 @@ compozy session new [flags]
 ```
       --agent string                               Agent definition name (defaults to config default)
       --cwd string                                 Absolute workspace directory to auto-register
+      --folder string                              Create the session at the end of this session folder
   -h, --help                                       help for new
       --lineage-kind string                        Relation to --parent: provenance (default) or recovery
       --name string                                Optional session label
