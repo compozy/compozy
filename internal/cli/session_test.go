@@ -4818,3 +4818,125 @@ func TestSessionReplyWatchOutput(t *testing.T) {
 		}
 	})
 }
+
+type sessionLayoutStubClient struct {
+	*stubClient
+	calls []string
+}
+
+func (s *sessionLayoutStubClient) record(call string) contract.SessionFoldersResponse {
+	s.calls = append(s.calls, call)
+	return contract.SessionFoldersResponse{Folders: []contract.SessionFolderPayload{
+		{ID: "sfold-1", Name: "Release", SessionCount: 1},
+	}}
+}
+
+func (s *sessionLayoutStubClient) ListSessionFolders(
+	_ context.Context,
+	workspace string,
+) (contract.SessionFoldersResponse, error) {
+	return s.record("list " + workspace), nil
+}
+
+func (s *sessionLayoutStubClient) CreateSessionFolder(
+	_ context.Context,
+	workspace string,
+	name string,
+) (contract.SessionFolderResponse, error) {
+	s.record("create " + workspace + " " + name)
+	return contract.SessionFolderResponse{Folder: contract.SessionFolderPayload{ID: "sfold-1", Name: name}}, nil
+}
+
+func (s *sessionLayoutStubClient) RenameSessionFolder(
+	_ context.Context,
+	workspace string,
+	folderID string,
+	name string,
+) (contract.SessionFolderResponse, error) {
+	s.record("rename " + workspace + " " + folderID + " " + name)
+	return contract.SessionFolderResponse{Folder: contract.SessionFolderPayload{ID: folderID, Name: name}}, nil
+}
+
+func (s *sessionLayoutStubClient) DeleteSessionFolder(
+	_ context.Context,
+	workspace string,
+	folderID string,
+) (contract.SessionFoldersResponse, error) {
+	return s.record("delete " + workspace + " " + folderID), nil
+}
+
+func (s *sessionLayoutStubClient) ReorderSessionFolders(
+	_ context.Context,
+	workspace string,
+	folderIDs []string,
+) (contract.SessionFoldersResponse, error) {
+	return s.record("reorder-folders " + workspace + " " + strings.Join(folderIDs, ",")), nil
+}
+
+func (s *sessionLayoutStubClient) MoveSession(
+	_ context.Context,
+	sessionID string,
+	folderID string,
+) (contract.SessionFoldersResponse, error) {
+	return s.record("move " + sessionID + " " + folderID), nil
+}
+
+func (s *sessionLayoutStubClient) ReorderSessions(
+	_ context.Context,
+	workspace string,
+	request contract.ReorderSessionsRequest,
+) (contract.SessionFoldersResponse, error) {
+	return s.record(
+		"reorder-sessions " + workspace + " " + request.FolderID + " " + strings.Join(request.SessionIDs, ","),
+	), nil
+}
+
+func TestSessionLayoutCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should route folder, move, and reorder commands to the workspace layout API", func(t *testing.T) {
+		t.Parallel()
+		stub := &stubClient{}
+		withWorkspaceResolution(stub)
+		client := &sessionLayoutStubClient{stubClient: stub}
+		deps := newTestDeps(t, client)
+		commands := [][]string{
+			{"session", "folder", "create", "Release", "--workspace", "ws-1"},
+			{"session", "folder", "rename", "sfold-1", "Shipped", "--workspace", "ws-1"},
+			{"session", "folder", "reorder", "sfold-2", "sfold-1", "--workspace", "ws-1"},
+			{"session", "move", "sess-1", "--folder", "sfold-1"},
+			{"session", "move", "sess-1"},
+			{"session", "reorder", "sess-2", "sess-1", "--folder", "sfold-1", "--workspace", "ws-1"},
+			{"session", "folder", "delete", "sfold-1", "--workspace", "ws-1"},
+			{"session", "folder", "list", "--workspace", "ws-1", "-o", "json"},
+		}
+		var stdout string
+		for _, args := range commands {
+			out, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatalf("%v error = %v", args, err)
+			}
+			stdout = out
+		}
+		want := []string{
+			"create ws-1 Release",
+			"rename ws-1 sfold-1 Shipped",
+			"reorder-folders ws-1 sfold-2,sfold-1",
+			"move sess-1 sfold-1",
+			"move sess-1 ",
+			"reorder-sessions ws-1 sfold-1 sess-2,sess-1",
+			"delete ws-1 sfold-1",
+			"list ws-1",
+		}
+		if !slices.Equal(client.calls, want) {
+			t.Fatalf("layout calls = %#v, want %#v", client.calls, want)
+		}
+		var listed contract.SessionFoldersResponse
+		if err := json.Unmarshal([]byte(stdout), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(folder list) error = %v; stdout=%s", err, stdout)
+		}
+		if len(listed.Folders) != 1 || listed.Folders[0].SessionCount != 1 {
+			t.Fatalf("folder list output = %#v", listed)
+		}
+	})
+}

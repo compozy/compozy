@@ -16,7 +16,7 @@ export interface SessionSidebarProps {
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 

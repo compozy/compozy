@@ -388,6 +388,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"name",
 			"attention",
 			"last_activity",
+			"manual",
 		)
 		assertEnumValues(
 			t,

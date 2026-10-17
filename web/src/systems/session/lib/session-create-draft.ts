@@ -9,6 +9,8 @@ export interface SessionCreateDialogDraft {
   sessionName: string;
   /** Where the session will run. Worktrees belong to one workspace, so this resets with it. */
   environment: SessionEnvironmentTarget;
+  /** Session folder the new session files into; empty for the workspace root. */
+  folderId: string;
 }
 
 /** Runtime's canonical built-in agent for a new session. */
@@ -23,6 +25,7 @@ export const EMPTY_SESSION_CREATE_DRAFT: SessionCreateDialogDraft = {
   agentName: DEFAULT_SESSION_AGENT_NAME,
   workspaceId: "",
   sessionName: "",
+  folderId: "",
   ...ADVANCED_DEFAULTS,
 };
 

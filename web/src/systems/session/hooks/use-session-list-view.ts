@@ -11,6 +11,7 @@ import {
   type WorkspaceSessionGroup,
 } from "./use-workspace-session-groups";
 import { useSessionCatalog } from "./use-session-catalog";
+import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   sessionListSortParam,
   sessionListSubagentsParam,
@@ -43,6 +44,11 @@ export interface SessionListViewModel {
   scopeLabel: string | null;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
+  /**
+   * Folders and manual order of this workspace for the acting profile. Absent in
+   * the widest scope and under the profile aggregate, where rows stay flat.
+   */
+  layout?: SessionListLayout;
 }
 
 /**
@@ -93,7 +99,14 @@ export function useSessionListView(
       (scope === "global" || workspaceId !== null)
   );
 
+  const layout = useSessionFolders({
+    workspaceId,
+    profile: profile.destination,
+    enabled: (options.enabled ?? true) && preferences.scope === "workspace" && !profile.aggregate,
+  });
+
   return {
+    layout,
     catalog: {
       ...catalog,
       paging: catalog.paging || search !== remoteSearch,

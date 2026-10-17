@@ -1,0 +1,171 @@
+import { useState, type FormEvent } from "react";
+import { FolderPlus, Pencil, Trash2 } from "lucide-react";
+
+import {
+  Button,
+  ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+  Spinner,
+} from "@compozy/ui";
+
+import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
+
+/** Mirrors the daemon's folder name bound (bytes; ASCII-dominant names stay well inside). */
+const FOLDER_NAME_MAX_CHARACTERS = 120;
+
+export interface SessionFolderDialogsProps {
+  state: SessionFolderDialogState;
+  onClose: () => void;
+  onCreate: (name: string) => Promise<unknown>;
+  onRename: (folderId: string, name: string) => Promise<unknown>;
+  onDelete: (folderId: string) => Promise<unknown>;
+}
+
+/** New folder, rename folder, and the delete confirmation for the session list. */
+export function SessionFolderDialogs({
+  state,
+  onClose,
+  onCreate,
+  onRename,
+  onDelete,
+}: SessionFolderDialogsProps) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = (work: () => Promise<unknown>) => {
+    setPending(true);
+    setError(null);
+    work()
+      .then(onClose)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+      .finally(() => setPending(false));
+  };
+  const close = (open: boolean) => {
+    if (open || pending) return;
+    setError(null);
+    onClose();
+  };
+
+  if (state?.kind === "delete") {
+    return (
+      <ConfirmDialog
+        open
+        onOpenChange={close}
+        tone="danger"
+        icon={Trash2}
+        title="Delete folder?"
+        description="Sessions in this folder move back to the list. No sessions are deleted."
+        confirmLabel="Delete folder"
+        cancelLabel="Cancel"
+        isPending={pending}
+        error={error}
+        onConfirm={() => run(() => onDelete(state.folder.id))}
+        contentProps={{ "data-testid": "session-folder-delete-dialog" }}
+        confirmButtonProps={{ "data-testid": "session-folder-delete-confirm" }}
+      />
+    );
+  }
+
+  const rename = state?.kind === "rename" ? state.folder : null;
+  return (
+    <Dialog open={state !== null} onOpenChange={close}>
+      <DialogContent
+        showCloseButton={!pending}
+        className="max-w-md"
+        data-testid="session-folder-name-dialog"
+      >
+        {state !== null ? (
+          <SessionFolderNameForm
+            key={rename?.id ?? "create"}
+            title={rename ? "Rename folder" : "New folder"}
+            confirmLabel={rename ? "Rename folder" : "Create folder"}
+            confirmIcon={rename ? Pencil : FolderPlus}
+            initialName={rename?.name ?? ""}
+            pending={pending}
+            requestError={error}
+            onCancel={() => close(false)}
+            onConfirm={name => run(() => (rename ? onRename(rename.id, name) : onCreate(name)))}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SessionFolderNameForm({
+  title,
+  confirmLabel,
+  confirmIcon: ConfirmIcon,
+  initialName,
+  pending,
+  requestError,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  confirmLabel: string;
+  confirmIcon: typeof Pencil;
+  initialName: string;
+  pending: boolean;
+  requestError: string | null;
+  onCancel: () => void;
+  onConfirm: (name: string) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const normalized = name.trim();
+  const validationError =
+    normalized.length === 0
+      ? "Enter a folder name."
+      : Array.from(normalized).length > FOLDER_NAME_MAX_CHARACTERS
+        ? `Use ${FOLDER_NAME_MAX_CHARACTERS} characters or fewer.`
+        : null;
+  // An empty field is the starting state, not a mistake worth flagging.
+  const shownError = (normalized.length > 0 ? validationError : null) ?? requestError;
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pending || validationError) return;
+    onConfirm(normalized);
+  };
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <Field data-invalid={Boolean(shownError)}>
+        <FieldLabel htmlFor="session-folder-name">Name</FieldLabel>
+        <Input
+          id="session-folder-name"
+          value={name}
+          onChange={event => setName(event.target.value)}
+          disabled={pending}
+          aria-invalid={Boolean(shownError)}
+          autoFocus
+          data-testid="session-folder-name"
+        />
+        {shownError ? (
+          <FieldError data-testid="session-folder-name-error">{shownError}</FieldError>
+        ) : null}
+      </Field>
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={pending || Boolean(validationError)}
+          data-testid="session-folder-name-confirm"
+        >
+          {pending ? <Spinner className="size-3" /> : <ConfirmIcon className="size-3" />}
+          {confirmLabel}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}

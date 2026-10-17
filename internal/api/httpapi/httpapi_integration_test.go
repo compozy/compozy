@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -4444,4 +4445,98 @@ func integrationRegistryHasStopReason(
 		}
 	}
 	return false
+}
+
+func TestHTTPSessionLayoutRoundTripWithRealSessionManager(t *testing.T) {
+	t.Run("Should persist folders, moves, and manual order through the real catalog", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
+		call := func(method string, path string, body string, wantStatus int, target any) {
+			t.Helper()
+			var payload []byte
+			if body != "" {
+				payload = []byte(body)
+			}
+			resp := mustHTTPRequest(t, runtime.client, method, mustURL(runtime.host, runtime.port, path), payload,
+				map[string]string{"Origin": origin})
+			if resp.StatusCode != wantStatus {
+				t.Fatalf("%s %s status = %d, want %d; body=%s", method, path, resp.StatusCode, wantStatus,
+					readAndCloseHTTPBody(t, resp))
+			}
+			if target == nil {
+				closeHTTPBody(t, resp.Body)
+				return
+			}
+			decodeHTTPJSON(t, resp, target)
+		}
+		createSession := func(name string, folderID string) contract.SessionPayload {
+			t.Helper()
+			body := `{"agent_name":"coder","name":"` + name + `","workspace_path":"` + runtime.workspace + `"`
+			if folderID != "" {
+				body += `,"folder_id":"` + folderID + `"`
+			}
+			var created contract.SessionResponse
+			call(http.MethodPost, "/api/sessions", body+`}`, http.StatusCreated, &created)
+			return created.Session
+		}
+
+		first := createSession("first", "")
+		second := createSession("second", "")
+		layoutPath := "/api/workspaces/" + first.WorkspaceID
+		var folder contract.SessionFolderResponse
+		call(http.MethodPost, layoutPath+"/session-folders", `{"name":"Release"}`, http.StatusCreated, &folder)
+		if folder.Folder.ID == "" || folder.Folder.Name != "Release" {
+			t.Fatalf("created folder = %#v", folder.Folder)
+		}
+
+		var folders contract.SessionFoldersResponse
+		call(http.MethodPost, layoutPath+"/sessions/"+first.ID+"/move",
+			`{"folder_id":"`+folder.Folder.ID+`"}`, http.StatusOK, &folders)
+		if len(folders.Folders) != 1 || folders.Folders[0].SessionCount != 1 {
+			t.Fatalf("folders after move = %#v, want one folder with one session", folders.Folders)
+		}
+		inFolder := createSession("third", folder.Folder.ID)
+		if inFolder.FolderID != folder.Folder.ID {
+			t.Fatalf("created session folder_id = %q, want %q", inFolder.FolderID, folder.Folder.ID)
+		}
+		call(http.MethodPost, "/api/sessions",
+			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","folder_id":"sfold-missing"}`,
+			http.StatusNotFound, nil)
+		call(http.MethodPut, layoutPath+"/session-order/sessions",
+			`{"folder_id":"`+folder.Folder.ID+`","session_ids":["`+inFolder.ID+`","`+first.ID+`"]}`,
+			http.StatusOK, nil)
+		call(http.MethodPut, layoutPath+"/session-order/sessions",
+			`{"session_ids":["`+second.ID+`"]}`, http.StatusOK, nil)
+
+		var catalog contract.SessionCatalogResponse
+		call(http.MethodGet, layoutPath+"/sessions?sort=manual", "", http.StatusOK, &catalog)
+		gotOrder := make([]string, 0, len(catalog.Sessions))
+		gotFolders := map[string]string{}
+		for _, item := range catalog.Sessions {
+			gotOrder = append(gotOrder, item.ID)
+			gotFolders[item.ID] = item.FolderID
+		}
+		wantOrder := []string{inFolder.ID, first.ID, second.ID}
+		if !slices.Equal(gotOrder, wantOrder) {
+			t.Fatalf("manual catalog order = %v, want %v", gotOrder, wantOrder)
+		}
+		if gotFolders[first.ID] != folder.Folder.ID || gotFolders[second.ID] != "" {
+			t.Fatalf("catalog folder ids = %v", gotFolders)
+		}
+
+		call(http.MethodDelete, layoutPath+"/session-folders/"+folder.Folder.ID, "", http.StatusOK, &folders)
+		if len(folders.Folders) != 0 {
+			t.Fatalf("folders after delete = %#v, want none", folders.Folders)
+		}
+		var afterDelete contract.SessionCatalogResponse
+		call(http.MethodGet, layoutPath+"/sessions?sort=manual", "", http.StatusOK, &afterDelete)
+		if len(afterDelete.Sessions) != 3 {
+			t.Fatalf("sessions after folder delete = %d, want all 3 kept", len(afterDelete.Sessions))
+		}
+		for _, item := range afterDelete.Sessions {
+			if item.FolderID != "" {
+				t.Fatalf("session %s folder_id = %q after folder delete, want root", item.ID, item.FolderID)
+			}
+		}
+	})
 }

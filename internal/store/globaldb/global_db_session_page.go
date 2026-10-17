@@ -309,6 +309,8 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 		return " ORDER BY COALESCE(last_update_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC", nil
 	case sessionCatalogSortAttention:
 		return sessionCatalogAttentionOrderClause, nil
+	case sessionCatalogSortManual:
+		return sessionCatalogManualOrderClause, nil
 	default:
 		return "", fmt.Errorf("store: unsupported session catalog sort %q", sortKey)
 	}
@@ -323,6 +325,9 @@ func sessionCatalogCursorClause(
 	created := store.FormatTimestamp(position.CreatedAt)
 	if strings.TrimSpace(sortKey) == sessionCatalogSortNavigator {
 		return sessionCatalogNavigatorCursorClause(position, primary)
+	}
+	if strings.TrimSpace(sortKey) == sessionCatalogSortManual {
+		return sessionCatalogManualCursorClause(position, created)
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortName {
 		return `(` + sessionCatalogNameExpression + ` > ? OR (` + sessionCatalogNameExpression + ` = ? AND

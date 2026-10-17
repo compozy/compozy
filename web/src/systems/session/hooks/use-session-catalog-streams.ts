@@ -60,6 +60,12 @@ function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | un
   if (!(event instanceof MessageEvent) || typeof event.data !== "string") return undefined;
   try {
     const payload = JSON.parse(event.data) as Partial<SessionCatalogEventPayload>;
+    // A folder or manual-order change names its workspace but no session.
+    if (payload.kind === "layout") {
+      return typeof payload.workspace_id === "string" && payload.workspace_id.trim() !== ""
+        ? (payload as SessionCatalogEventPayload)
+        : undefined;
+    }
     if (
       (payload.kind !== "upserted" && payload.kind !== "deleted") ||
       typeof payload.workspace_id !== "string" ||
@@ -278,6 +284,7 @@ function openSessionCatalogStream(
     if (!payload) return;
     markLive();
     reconciler.wake(payload.workspace_id);
+    if (payload.kind === "layout") return;
     void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });

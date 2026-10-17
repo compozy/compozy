@@ -1850,6 +1850,71 @@
     "output_schema_digest": "772c3e0c1875a21af024e134c5a96ecce8afce1d4634ff6fba55b3dc43a47367"
   },
   {
+    "tool_id": "compozy__session_folder_create",
+    "native_name": "session_folder_create",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6ea1983f4b61c169f1425aeee9cf0699cfb169679a8dbe5436bbc38b87eb1849",
+    "output_schema_digest": "3e7a5cb547921be8b03f64d85092efb3d632354282c9041fce4a2e5e13e48860"
+  },
+  {
+    "tool_id": "compozy__session_folder_delete",
+    "native_name": "session_folder_delete",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "375f0d66c07f4eb283f77143771cfcbb8aa5b8a38c7939cefc79b3310631c51d",
+    "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818"
+  },
+  {
+    "tool_id": "compozy__session_folder_list",
+    "native_name": "session_folder_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2eb2a2ce74f9818d512ed8d36f3ee2410ab27da83b5f325e28ff974ed070cbd6",
+    "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818"
+  },
+  {
+    "tool_id": "compozy__session_folder_rename",
+    "native_name": "session_folder_rename",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9e896e150659739d79fb5aa1c5bea6409869a31823a22b2ba37d385ced09a98e",
+    "output_schema_digest": "3e7a5cb547921be8b03f64d85092efb3d632354282c9041fce4a2e5e13e48860"
+  },
+  {
+    "tool_id": "compozy__session_folder_reorder",
+    "native_name": "session_folder_reorder",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "601a78bdb4b033171929a07282a10ba9e199f87055fd2a64f60e0194ad9aba08",
+    "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818"
+  },
+  {
     "tool_id": "compozy__session_fork",
     "native_name": "session_fork",
     "toolsets": [
@@ -1964,8 +2029,21 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "aa7c995bfde0c9f6c07377a26661e0ff5bc04f3c80255891074b1fb4fe828c90",
+    "input_schema_digest": "ffcab08749d184af5b174d3f97ca34151320136baf2c6c007a985fb3161d0271",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
+  },
+  {
+    "tool_id": "compozy__session_move",
+    "native_name": "session_move",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ffe1416ff4b671808d0c824504b3c904d6cc32f2be0279e1f256ba2d54a95688",
+    "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818"
   },
   {
     "tool_id": "compozy__session_outline",
@@ -2018,6 +2096,19 @@
     "open_world": false,
     "input_schema_digest": "75fc8f99cefd0c271f7da0841b51b84e9f7d79c163d909b1c2d01138a5980711",
     "output_schema_digest": "e167a5ee30de059abba8215fa3ba42b8005ab454172186f3f8580b36e7a89edf"
+  },
+  {
+    "tool_id": "compozy__session_reorder",
+    "native_name": "session_reorder",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "57436ad1446917b0de7b5e016bfe8f8313a1022498c63a3876efb59f01cc0046",
+    "output_schema_digest": "468051fe332693c0f406829e383a438a1a906a56a45495087df39e115d894818"
   },
   {
     "tool_id": "compozy__session_rewind",

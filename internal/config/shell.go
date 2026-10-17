@@ -16,6 +16,7 @@ const (
 	ShellSessionSortName         ShellSessionSort = "name"
 	ShellSessionSortLastActivity ShellSessionSort = "last_activity"
 	ShellSessionSortAttention    ShellSessionSort = "attention"
+	ShellSessionSortManual       ShellSessionSort = "manual"
 )
 
 // ShellSessionScope identifies the operator's preferred session list breadth.
@@ -48,16 +49,18 @@ func DefaultShellConfig() ShellConfig {
 // Validate rejects unsupported shell preference values.
 func (c ShellConfig) Validate() error {
 	switch c.Sessions.Sort {
-	case ShellSessionSortCreated, ShellSessionSortName, ShellSessionSortLastActivity, ShellSessionSortAttention:
+	case ShellSessionSortCreated, ShellSessionSortName, ShellSessionSortLastActivity, ShellSessionSortAttention,
+		ShellSessionSortManual:
 	default:
 		return shellValidationError(
 			shellSessionsSortPath,
 			fmt.Sprintf(
-				"must be one of %q, %q, %q or %q: %q",
+				"must be one of %q, %q, %q, %q or %q: %q",
 				ShellSessionSortCreated,
 				ShellSessionSortName,
 				ShellSessionSortLastActivity,
 				ShellSessionSortAttention,
+				ShellSessionSortManual,
 				c.Sessions.Sort,
 			),
 		)

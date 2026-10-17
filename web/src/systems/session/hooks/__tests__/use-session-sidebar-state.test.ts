@@ -70,4 +70,22 @@ describe("useSessionSidebarState", () => {
     expect(afterReload.current.open).toBe(false);
     expect(afterReload.current.collapsedThreadIds).toEqual(["sess_root"]);
   });
+
+  it("Should start folders expanded and remember a collapsed folder across a reload", async () => {
+    const first = await loadFreshSidebarState();
+    const { result } = renderHook(() => first.useSessionSidebarState());
+    expect(result.current.collapsedFolderIds).toEqual([]);
+    act(() => {
+      result.current.toggleFolder("sfold-a");
+    });
+    expect(result.current.collapsedFolderIds).toEqual(["sfold-a"]);
+
+    const reloaded = await loadFreshSidebarState();
+    const { result: afterReload } = renderHook(() => reloaded.useSessionSidebarState());
+    expect(afterReload.current.collapsedFolderIds).toEqual(["sfold-a"]);
+    act(() => {
+      afterReload.current.toggleFolder("sfold-a");
+    });
+    expect(afterReload.current.collapsedFolderIds).toEqual([]);
+  });
 });

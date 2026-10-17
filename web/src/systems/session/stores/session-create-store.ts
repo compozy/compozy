@@ -71,6 +71,8 @@ type SessionCreateStoreEvents = {
     pendingPrompt?: string;
     /** Preselects where the session will run; omitted opens at the workspace root. */
     environment?: SessionEnvironmentTarget;
+    /** Files the new session into this folder; omitted creates it in the workspace root. */
+    folderId?: string;
   };
   dialogOpenChanged: { open: boolean };
   modeSelected: { mode: EntityMode };
@@ -128,6 +130,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         draft: {
           ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
           ...(event.environment ? { environment: event.environment } : {}),
+          folderId: event.folderId?.trim() ?? "",
         },
         operation: { status: "idle" },
         submitError: null,
@@ -160,6 +163,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
           event.workspaceId
         ),
         sessionName: context.draft.sessionName,
+        folderId: context.draft.folderId,
       },
       submitError: null,
     }),

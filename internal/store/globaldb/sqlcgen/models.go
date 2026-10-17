@@ -1432,6 +1432,16 @@ type SessionDerivation struct {
 	ChildDeletedAt     sql.NullString `json:"child_deleted_at"`
 }
 
+type SessionFolder struct {
+	ID          string `json:"id"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
+	Position    int64  `json:"position"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
 type SessionHealth struct {
 	SessionID           string         `json:"session_id"`
 	WorkspaceID         string         `json:"workspace_id"`
@@ -1536,6 +1546,15 @@ type SessionPendingInteraction struct {
 	ResolvedAt        sql.NullString `json:"resolved_at"`
 	Resolution        string         `json:"resolution"`
 	ResolvedBy        string         `json:"resolved_by"`
+}
+
+type SessionPlacement struct {
+	SessionID   string         `json:"session_id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID string         `json:"workspace_id"`
+	FolderID    sql.NullString `json:"folder_id"`
+	Position    int64          `json:"position"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 type SessionPromptAdmission struct {

@@ -14,7 +14,7 @@ export interface DesktopSessionDialogsProps {
   disconnected: boolean;
   /** Breadth, order, catalog, and widened workspace groups — owned by the shell. */
   view: SessionListViewModel;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
 }
 
 /**

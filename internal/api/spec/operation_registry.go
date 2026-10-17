@@ -20,6 +20,7 @@ func buildOperationRegistry() []OperationSpec {
 		registryLogOperations(),
 		registrySupportOperations(),
 		registrySessionOperations(),
+		registrySessionLayoutOperations(),
 		registrySubagentOperations(),
 		registryTaskManagementOperations(),
 		registryTaskLifecycleOperations(),

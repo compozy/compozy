@@ -27,6 +27,7 @@ const (
 	ListSortNavigator    = "navigator"
 	ListSortLastActivity = "last_activity"
 	ListSortAttention    = "attention"
+	ListSortManual       = "manual"
 
 	ArchiveExclude = store.SessionArchiveExclude
 	ArchiveOnly    = store.SessionArchiveOnly
@@ -74,6 +75,8 @@ type ListPage struct {
 	HasMore    bool
 	Total      int
 	Limit      int
+	// Placements carries folder membership for page sessions that have one.
+	Placements map[string]store.SessionPlacement
 }
 
 type sessionListFingerprint struct {
@@ -127,19 +130,24 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
 	}
 
+	placements, err := m.sessionCatalogPlacements(ctx, durable.Sessions, activeMatches)
+	if err != nil {
+		return ListPage{}, err
+	}
+	position := func(info *store.SessionInfo) store.SessionCatalogPosition {
+		return sessionCatalogPlacedPosition(info, normalized.Sort, placements)
+	}
+
 	candidates := make([]store.SessionInfo, 0, len(durable.Sessions)+len(activeMatches))
 	candidates = append(candidates, durable.Sessions...)
 	for index := range activeMatches {
 		info := &activeMatches[index]
-		if after == nil || compareSessionCatalogPosition(sessionCatalogPosition(info, normalized.Sort), *after) > 0 {
+		if after == nil || compareSessionCatalogPosition(position(info), *after) > 0 {
 			candidates = append(candidates, *info)
 		}
 	}
 	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
-		return compareSessionCatalogPosition(
-			sessionCatalogPosition(&a, normalized.Sort),
-			sessionCatalogPosition(&b, normalized.Sort),
-		)
+		return compareSessionCatalogPosition(position(&a), position(&b))
 	})
 
 	page := ListPage{
@@ -151,10 +159,11 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
+	page.Placements = pageSessionPlacements(candidates, placements)
 	if page.HasMore && len(candidates) > 0 {
 		page.NextCursor, err = encodeSessionListCursor(
 			fingerprint,
-			sessionCatalogPosition(&candidates[len(candidates)-1], normalized.Sort),
+			position(&candidates[len(candidates)-1]),
 		)
 		if err != nil {
 			return ListPage{}, err
@@ -278,7 +287,8 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
 	}
 	switch query.Sort {
-	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention:
+	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention,
+		ListSortManual:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}

@@ -55,8 +55,8 @@ the daemon or database itself, use Operations after you identify the affected se
 ## Browse the session catalog
 
 `compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
-agent, state, or session type; filter by resumability or a text query; choose `recent` or
-`last_activity` ordering; and add `--include-health` only when the caller needs the metadata-only
+agent, state, or session type; filter by resumability or a text query; choose `recent`,
+`last_activity`, or `manual` ordering; and add `--include-health` only when the caller needs the metadata-only
 health projection. For example, `--type user --state active --sort last_activity` returns active
 operator-created sessions ordered by their latest runtime activity. The response keeps rows under
 `sessions` and reports exact `total`, applied `limit`, `has_more`, and `next_cursor` values under
@@ -69,6 +69,34 @@ visibility, not the runtime state, and preserves the complete session record.
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.
+
+## Organize sessions into folders
+
+Group sessions into named folders and keep them in your own order. Folders and order belong to your
+profile inside one workspace, persist in the daemon, and appear in every open window and client.
+
+1. In the sessions sidebar, open the **+** menu and choose **New folder**, then name it.
+2. Right-click a session and choose **Move to folder**, or drag the session onto the folder header.
+3. Open the sort menu and choose **Manual**, then drag sessions to reorder them. From the keyboard,
+   open the row menu with **Shift+F10** and use **Move up** or **Move down**.
+
+Right-click a folder header to start a **New session in folder**, rename the folder, move it, or
+delete it. Deleting a folder moves its sessions back to the list; no session is deleted.
+
+The same operations are available to agents and scripts:
+
+```bash
+compozy session folder create "Release" -o json
+# {"id":"sfold-…","name":"Release","position":0,"session_count":0,…}
+compozy session move sess_1234 --folder sfold-…
+compozy session reorder sess_b sess_a          # pin the root order
+compozy session list --sort manual -o json      # folders first, each row has folder_id
+```
+
+Native tools mirror the CLI: `compozy__session_folder_list`, `compozy__session_folder_create`,
+`compozy__session_folder_rename`, `compozy__session_folder_delete`, `compozy__session_folder_reorder`,
+`compozy__session_move`, and `compozy__session_reorder`. Subagent sessions always stay under their
+parent and cannot be moved on their own. Archived sessions keep their folder when unarchived.
 
 ## Find sessions that need attention
 

@@ -1,5 +1,25 @@
 # Compozy Change Impact
 
+## Session folders and manual order — 2026-10-17
+
+Issue #781 adds daemon-owned session folders and manual session order. Persisted state: global
+SQLite tables `session_folders` and `session_placements` (append-only migration 00139, additive, no
+backfill; existing users see no folders and their current sort). Public surfaces, all additive
+(SD-013): HTTP/UDS `GET|POST /api/workspaces/{workspace_id}/session-folders`,
+`PATCH|DELETE …/session-folders/{folder_id}`, `PUT …/session-order/{folders,sessions}`,
+`POST …/sessions/{session_id}/move`; `folder_id` on catalog rows and on `createSession`; catalog
+sort and `shell.sessions.sort` gain `manual`; the catalog stream adds kind `layout` (no session id)
+to `session_catalog_changed`. CLI: `compozy session folder list|create|rename|delete|reorder`,
+`compozy session move`, `compozy session reorder`, `session list --sort manual`. Native tools:
+`compozy__session_folder_{list,create,rename,delete,reorder}`, `compozy__session_move`,
+`compozy__session_reorder`, and `manual` in `compozy__session_list`. Workspace/profile isolation:
+folders and placements are keyed by profile and workspace; composite foreign keys prevent a session
+from joining another workspace's folder; foreign sessions read as not found; subagents follow their
+parent. Deleting a folder cascades only placements; session delete cascades its placement. Hooks and
+extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
+`docs/sessions/index.mdx`, generated CLI docs, and QA scenario
+`ET-web-session-folders-manual-order` record the contract.
+
 ## Long-tail built-in provider removal — 2026-10-17
 
 Owner: branch `fix/issue-761-remove-longtail-providers`; issue #761.

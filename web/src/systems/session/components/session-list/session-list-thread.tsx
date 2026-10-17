@@ -13,7 +13,13 @@ import {
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
-import { SessionListRow } from "./session-list-row";
+import { SessionListRow, type SessionListRowProps } from "./session-list-row";
+
+/** Folder, order, and drag wiring that only a thread's root row carries. */
+export type SessionThreadRootLayout = Pick<
+  SessionListRowProps,
+  "layoutMenu" | "drag" | "dropEdge" | "dragging"
+>;
 
 export interface SessionListThreadProps {
   session: SessionPayload;
@@ -29,6 +35,7 @@ export interface SessionListThreadProps {
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
+  rootLayout?: SessionThreadRootLayout;
 }
 
 /**
@@ -48,6 +55,7 @@ export function SessionListThread({
   selection,
   sessionActions,
   testIdPrefix,
+  rootLayout,
 }: SessionListThreadProps) {
   // A revealed subagent session is not a plain child: it adds no toggle count and
   // never folds away while the operator is viewing it (nav VC-02).
@@ -55,6 +63,7 @@ export function SessionListThread({
   const folded = collapsed && foldable.length > 0;
   const rootRow = (
     <SessionListRow
+      {...rootLayout}
       session={session}
       // Context rules make a subagent a root only when its ancestry was deleted.
       orphanedSubagent={isSubagentSession(session)}

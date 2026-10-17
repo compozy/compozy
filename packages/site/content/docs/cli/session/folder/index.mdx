@@ -1,0 +1,47 @@
+---
+title: "compozy session folder"
+description: "Organize sessions into folders"
+---
+
+## compozy session folder
+
+Organize sessions into folders
+
+### Synopsis
+
+Manage the session folders of the current workspace and profile. Deleting a folder returns its sessions to the workspace root; no session is deleted.
+
+### Options
+
+```
+  -h, --help   help for folder
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                            | Description                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [compozy session folder create](/docs/cli/session/folder/create)   | Create a session folder                                            |
+| [compozy session folder delete](/docs/cli/session/folder/delete)   | Delete a session folder; its sessions return to the workspace root |
+| [compozy session folder list](/docs/cli/session/folder/list)       | List session folders in manual order                               |
+| [compozy session folder rename](/docs/cli/session/folder/rename)   | Rename a session folder                                            |
+| [compozy session folder reorder](/docs/cli/session/folder/reorder) | Set the complete folder order                                      |

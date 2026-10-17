@@ -13409,3 +13409,150 @@ func TestNativeSessionPromptMessageGuards(t *testing.T) {
 		})
 	}
 }
+
+type nativeLayoutSessions struct {
+	apitest.StubSessionManager
+	calls []string
+	scope store.SessionLayoutScope
+}
+
+func (s *nativeLayoutSessions) folders(call string, scope store.SessionLayoutScope) []store.SessionFolder {
+	s.calls = append(s.calls, call)
+	s.scope = scope
+	return []store.SessionFolder{{ID: "sfold-1", Name: "Release", SessionCount: 2}}
+}
+
+func (s *nativeLayoutSessions) ListSessionFolders(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+) ([]store.SessionFolder, error) {
+	return s.folders("list", scope), nil
+}
+
+func (s *nativeLayoutSessions) CreateSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	name string,
+) (store.SessionFolder, error) {
+	return s.folders("create "+name, scope)[0], nil
+}
+
+func (s *nativeLayoutSessions) RenameSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+	name string,
+) (store.SessionFolder, error) {
+	return s.folders("rename "+folderID+" "+name, scope)[0], nil
+}
+
+func (s *nativeLayoutSessions) DeleteSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+) error {
+	s.folders("delete "+folderID, scope)
+	return nil
+}
+
+func (s *nativeLayoutSessions) ReorderSessionFolders(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderIDs []string,
+) ([]store.SessionFolder, error) {
+	return s.folders("reorder-folders "+strings.Join(folderIDs, ","), scope), nil
+}
+
+func (s *nativeLayoutSessions) MoveSession(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	sessionID string,
+	folderID string,
+) error {
+	s.folders("move "+sessionID+" "+folderID, scope)
+	return nil
+}
+
+func (s *nativeLayoutSessions) ReorderSessions(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+	sessionIDs []string,
+) error {
+	if len(sessionIDs) == 0 {
+		return fmt.Errorf("%w: session order is empty", store.ErrSessionLayoutInvalid)
+	}
+	s.folders("reorder-sessions "+folderID+" "+strings.Join(sessionIDs, ","), scope)
+	return nil
+}
+
+func TestNativeSessionLayoutTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should manage folders and manual order in the caller profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		workspace := workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace/compozy", Name: "compozy"}
+		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspace, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{Workspace: workspace, WorkspaceID: "ws-1"}, nil
+			},
+		}
+		sessions := &nativeLayoutSessions{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+			want  string
+		}{
+			{toolspkg.ToolIDSessionFolderCreate, `{"workspace":"ws-1","name":"Release"}`, `"folder":{`},
+			{toolspkg.ToolIDSessionFolderRename, `{"workspace":"ws-1","folder_id":"sfold-1","name":"Shipped"}`,
+				`"folder":{`},
+			{toolspkg.ToolIDSessionFolderReorder, `{"workspace":"ws-1","folder_ids":["sfold-1"]}`, `"folders":[`},
+			{toolspkg.ToolIDSessionMove, `{"workspace":"ws-1","session_id":"sess-1","folder_id":"sfold-1"}`,
+				`"session_count":2`},
+			{toolspkg.ToolIDSessionReorder, `{"workspace":"ws-1","folder_id":"sfold-1","session_ids":["sess-2","sess-1"]}`,
+				`"folders":[`},
+			{toolspkg.ToolIDSessionFolderDelete, `{"workspace":"ws-1","folder_id":"sfold-1"}`, `"folders":[`},
+			{toolspkg.ToolIDSessionFolderList, `{"workspace":"ws-1"}`, `"name":"Release"`},
+		} {
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+			}
+			requireNativeStructuredContains(t, result, []byte(tc.want))
+		}
+		if sessions.scope.WorkspaceID != "ws-1" || sessions.scope.ProfileID != store.DefaultProfileID {
+			t.Fatalf("layout scope = %#v, want ws-1 in the default profile", sessions.scope)
+		}
+		for _, want := range []string{
+			"create Release", "rename sfold-1 Shipped", "reorder-folders sfold-1", "move sess-1 sfold-1",
+			"reorder-sessions sfold-1 sess-2,sess-1", "delete sfold-1",
+		} {
+			if !slices.Contains(sessions.calls, want) {
+				t.Fatalf("layout calls = %#v, missing %q", sessions.calls, want)
+			}
+		}
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMove,
+			Input:  json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
+		})
+		if err == nil {
+			t.Fatal("session_move into an unknown workspace succeeded, want denial")
+		}
+	})
+}

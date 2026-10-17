@@ -15,6 +15,8 @@ import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row-context-menu";
+import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
@@ -37,6 +39,14 @@ export interface SessionListRowProps {
   /** Trailing controls rendered beside the row actions (e.g. a thread toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
+  /** Folder moves and manual-order verbs for a root row in the workspace list. */
+  layoutMenu?: SessionRowLayoutMenu;
+  /** Drag source/target wiring for a root row in the workspace list. */
+  drag?: SessionDragHandlers;
+  /** The pending drop lands on this edge of the row. */
+  dropEdge?: SessionDropPosition | null;
+  /** This row is the one being dragged. */
+  dragging?: boolean;
 }
 
 /** Share the navigation row with selection gestures without nesting interactive controls. */
@@ -51,6 +61,10 @@ export function SessionListRow({
   trailing,
   selection,
   orphanedSubagent = false,
+  layoutMenu,
+  drag,
+  dropEdge = null,
+  dragging = false,
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -58,8 +72,25 @@ export function SessionListRow({
   // Each keyboard focus gets its own id; pointer focus reveals nothing.
   const focusCount = useRef(0);
   const [keyboardFocus, setKeyboardFocus] = useState<number | null>(null);
-  return (
-    <div className="group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
+  const row = (
+    <div
+      {...drag}
+      data-dragging={dragging || undefined}
+      className={cn(
+        "group/session-row relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1",
+        dragging && "opacity-50"
+      )}
+    >
+      {dropEdge !== null ? (
+        <span
+          aria-hidden="true"
+          data-testid={`${testIdPrefix}-drop-${dropEdge}-${session.id}`}
+          className={cn(
+            "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+            dropEdge === "before" ? "-top-px" : "-bottom-px"
+          )}
+        />
+      ) : null}
       <button
         type="button"
         className={cn(
@@ -135,6 +166,15 @@ export function SessionListRow({
         ) : null}
       </div>
     </div>
+  );
+  if (!showActions) return row;
+  return (
+    <SessionRowContextMenu
+      session={session}
+      actions={sessionActions}
+      layout={layoutMenu}
+      render={row}
+    />
   );
 }
 

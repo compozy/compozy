@@ -31,6 +31,9 @@ func decodeSessionListCursor(raw string, fingerprint string, sortKey string) (*s
 	if sortKey == ListSortNavigator && position.NavigatorBand == nil {
 		return nil, fmt.Errorf("%w: navigator cursor band is required", ErrListCursorInvalid)
 	}
+	if sortKey == ListSortManual && (position.ManualFolderRank == nil || position.ManualPosition == nil) {
+		return nil, fmt.Errorf("%w: manual cursor keys are required", ErrListCursorInvalid)
+	}
 	position.PrimaryAt = position.PrimaryAt.UTC()
 	position.SecondaryAt = position.SecondaryAt.UTC()
 	position.CreatedAt = position.CreatedAt.UTC()

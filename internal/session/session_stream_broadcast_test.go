@@ -174,6 +174,46 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should publish session-less layout changes only to the owning workspace and profile", func(t *testing.T) {
+		t.Parallel()
+		catalog := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(catalog))
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		ctx := testutil.Context(t)
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID}
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		other, cancelOther, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-other",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancelOther()
+
+		folder, err := h.manager.CreateSessionFolder(ctx, scope, "Release")
+		if err != nil {
+			t.Fatalf("CreateSessionFolder() error = %v", err)
+		}
+		if !strings.HasPrefix(folder.ID, sessionFolderIDPrefix+"-") {
+			t.Fatalf("folder id = %q, want %s- prefix", folder.ID, sessionFolderIDPrefix)
+		}
+		event := assertCatalogEventName(t, events, CatalogEventNameChanged)
+		if event.Kind != CatalogEventLayout || event.SessionID != "" || event.WorkspaceID != h.workspaceID {
+			t.Fatalf("layout event = %#v", event)
+		}
+		select {
+		case leaked := <-other:
+			t.Fatalf("other workspace received layout event %#v", leaked)
+		default:
+		}
+	})
+
 	t.Run("Should preserve operator attention for actionable system sessions", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

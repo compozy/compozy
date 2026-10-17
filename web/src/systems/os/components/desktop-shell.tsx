@@ -365,7 +365,7 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
         disconnected={attention.sessionsDisconnected || Boolean(sessionListView.catalog?.failed)}
         view={sessionListView}
-        onNewSession={openNewSession}
+        onNewSession={options => sessionCreate.openForAgent("", options)}
       />
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
