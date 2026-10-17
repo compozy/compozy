@@ -49,6 +49,7 @@ function row(id: string, status: string): SubagentPayload {
   };
 }
 
+/** Isolates interval polling from query retries so terminal and transient failures are observable. */
 function setup(enabled: boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>

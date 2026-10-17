@@ -340,6 +340,7 @@ func validRegistryOperation() OperationSpec {
 	}
 }
 
+// TestDocumentTracksRequiredFieldsAndEnums checks public schemas and route selectors against their contracts.
 func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	t.Parallel()
 

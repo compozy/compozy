@@ -130,6 +130,7 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 }
 
+// TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
 

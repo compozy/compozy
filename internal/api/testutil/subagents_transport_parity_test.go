@@ -159,6 +159,8 @@ func (s *subagentParityService) Get(_ context.Context, workspaceID, id string) (
 	}
 	return session.Subagent{SessionSubagent: row}, nil
 }
+
+// List checks forwarded roster scope and filters at the service boundary for both transports.
 func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
 	if q.Cursor == "bad" {
 		return store.SubagentPage{}, listcursor.ErrInvalid
@@ -200,6 +202,7 @@ func (s *subagentParityService) Summaries(_ context.Context, ids []string) (map[
 	return map[string]store.SubagentSummary{"parent": {Total: 30, Live: 3}}, nil
 }
 
+// subagentParityRouters gives HTTP and UDS the same workspace and profile authorization fixtures.
 func subagentParityRouters(t *testing.T, service *subagentParityService) (http.Handler, http.Handler) {
 	t.Helper()
 	manager := testutil.StubSessionManager{
