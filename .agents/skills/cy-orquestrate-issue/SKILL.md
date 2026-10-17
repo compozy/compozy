@@ -72,7 +72,7 @@ Perform these dependent operations in order:
 4. Load [assets/executor-prompt.md](assets/executor-prompt.md), fill every field (including
    `<ORCHESTRATOR_SESSION_ID>`, your own session ID, so the executor can report back), and send the
    full briefing with the native `compozy__session_prompt` tool, never `compozy session prompt`
-   (the CLI carries no sender identity unless run inside a managed session). Set runtime explicitly on this first prompt:
+   (the CLI carries no sender identity unless you pass `--from-session auto` or `--from-session <id>`). Set runtime explicitly on this first prompt:
    `{"provider":"codex","model":"gpt-6-astra","reasoning_effort":"high"}` unless overridden.
    Use unique stable `message_id` and `idempotency_key`; use `wait:false` for background dispatch.
 5. `compozy__session_status`: confirm the prompt is accepted, runtime ready with the requested

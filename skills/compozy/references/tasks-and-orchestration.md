@@ -36,7 +36,8 @@ existing session. Save `reply_watch.id`, finish your current turn, and let the r
 work. The watch follows the message through queued or steered delivery, not an unrelated turn.
 Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
-you wait. A stopped target keeps queued messages and their watches. If CompozyOS stopped you
+you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
+the `expired` outcome. A stopped target keeps queued messages and their watches. If CompozyOS stopped you
 (inactivity, restart, crash), the reply resumes you; an operator stop waits for the operator's resume.
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.

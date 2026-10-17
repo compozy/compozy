@@ -168,8 +168,9 @@ never accumulates; forwarding to another session adds one. The ninth hop returns
 operator to continue. Each sender to target pair also has a budget of
 `session.messaging.rate_limit_messages` (default 30) per `session.messaging.rate_limit_window` (default
 10m); `-1` disables it. A send past it returns `message_rate_limited` on that send only: batch
-updates instead of retrying. `session.messaging.reply_watch_ttl` is opt-in (default `0s`, never
-expires); when set, an unanswered watch wakes the sender with an `expired` outcome.
+updates instead of retrying; the error message names the limit, window and retry delay.
+`session.messaging.reply_watch_ttl` (default `24h`, `0s` never expires) bounds a watch: an unanswered
+watch then wakes the sender once with an `expired` outcome and stops keeping it awake.
 
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace

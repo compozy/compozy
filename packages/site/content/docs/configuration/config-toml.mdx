@@ -295,9 +295,9 @@ max_text_bytes = 65536
 # -1 disables the budget.
 rate_limit_messages = 30
 rate_limit_window = "10m"
-# Opt-in: an armed reply watch with no answer after this long wakes its sender once with an `expired`
-# outcome. "0s" (the default) never expires a watch, so a sender waiting on a long-running target stays awake.
-reply_watch_ttl = "0s"
+# An armed reply watch with no answer after this long wakes its sender once with an `expired` outcome.
+# "24h" is the default; "0s" never expires a watch, so a sender waiting on a long-running target stays awake.
+reply_watch_ttl = "24h"
 # A queued message from another session waiting on a turn that has run this long is injected into the live
 # turn when the provider supports steering. "0s" disables promotion.
 queue_promote_after = "2m"
@@ -2421,7 +2421,7 @@ for removal in v0.5.0. Interrupt remains an explicit per-send action.
 The count comes from durable admissions, so retries of an admitted message are not counted twice. A send
 past the budget is refused with `message_rate_limited` (HTTP 429), and the error details carry `limit`,
 `window`, and `retry_after_seconds`. The refusal affects only that send; neither session is stopped or
-canceled. `session.messaging.reply_watch_ttl` is opt-in (default `0s`, which never expires a watch;
+canceled. `session.messaging.reply_watch_ttl` (default `24h`; `0s` never expires a watch;
 otherwise 1m–30d): it releases a `notify_on_complete` reply watch that never fired, waking the sender once
 with the `expired` outcome so the watch stops keeping the sender awake. `session.messaging.queue_promote_after` (default `2m`, `0s` or
 10s–24h) delivers a `queue` message from another session into a long-running target: once the target has

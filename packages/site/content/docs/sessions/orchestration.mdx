@@ -64,8 +64,8 @@ stays queued.
 CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
 include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,
 `title_at_send`, `notify_on_complete`, `reply_watch_id`, and `in_reply_to`. The origin survives all
-delivery modes and daemon restarts. It cannot be supplied through a request body. HTTP and operator
-prompts remain unattributed operator input.
+delivery modes and daemon restarts. It cannot be supplied through a request body. HTTP prompts
+without daemon-validated agent identity headers remain unattributed operator input.
 
 `compozy session prompt` sends operator input unless you opt in. Pass `--from-session auto` inside a
 managed session to send with the daemon-issued `COMPOZY_SESSION_ID` and `COMPOZY_AGENT` identity, so
@@ -76,7 +76,9 @@ session becomes the default in a later release. The daemon validates the named s
 identity, but the identity is a local, trusted session-ID header: it does not protect against a local
 operator who names another session. An origin-stamped CLI prompt follows the same self-target, hop,
 rate, and workspace rules as the native tool, and loses operator-only behavior (interrupt, slash
-commands, operator priority). `--steer` keeps sending operator input.
+commands, operator priority). `--steer` keeps sending operator input. `--in-reply-to` and
+`--supersede` require a sending session: without `--from-session` the CLI refuses them, and HTTP and
+the native tool return `invalid_request` for a caller without an agent session.
 
 The receiving provider sees a one-line sender header followed by the message. The header does not
 become stored message text. Without a reply watch, it tells the recipient to answer by calling
@@ -89,9 +91,9 @@ To answer a specific message, pass its message ID as `in_reply_to` (`--in-reply-
 carried in the origin, so the receiver's card can link the answer to the original. An explicit answer
 never releases the original sender's reply watch: an early "ack, starting" must not cancel the
 completion wake, so a sender that asked for `notify_on_complete` still gets the final answer when your
-turn ends. An armed watch waits for as long as the target works;
-set `session.messaging.reply_watch_ttl` to expire unanswered watches with the `expired` outcome
-(disabled by default).
+turn ends. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24 hours by
+default) with the `expired` outcome and stops keeping the sender awake; set it to `"0s"` to let a watch
+wait for as long as the target works.
 
 An operator can cancel an agent-authored queued message or promote it to steer (**Steer** on its queue
 row in the Web UI), but cannot replace its text: that returns HTTP 409 `input_agent_authored`.
@@ -128,7 +130,7 @@ minutes) and its provider supports steering, waiting agent messages are injected
 instead of waiting for it to end.
 
 Native self-targeting returns `invalid_request`. To continue work in the same session, end the turn;
-to schedule work, use a subagent or `compozy session prompt` from the operator. This approved
+to schedule work, use a subagent or send `compozy__session_prompt` to another session. This approved
 compatibility exception applies immediately. Existing v4 admission receipts still replay without
 origin or a new reply watch; their boundary compatibility shim is scheduled for removal in v0.5.0.
 
@@ -196,9 +198,9 @@ current turn.
 
 Waiting is long-running work, not silence. While the asked session is live, the sender's open watch
 counts as an `awaiting_reply` work signal, so inactivity supervision does not stop an orchestrator
-that is waiting for an answer, however long the target works. If the sender was stopped anyway (the
-target stopped with the message queued and the sender went quiet, a daemon restart, or an agent
-crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
+that is waiting for an answer until the watch expires (`reply_watch_ttl`, 24 hours by default). If
+the sender was stopped anyway (the target stopped with the message queued and the sender went quiet,
+a daemon restart, or an agent crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
 stays stopped and receives the wake when you resume it.
 
 `compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
@@ -209,7 +211,8 @@ Delivered and abandoned watches disappear from this list.
 Replies contain the last non-empty assistant message of the consuming turn, bounded to 12000 Unicode
 characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
 `(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
-(removed before execution), or `unknown` (delivery was uncertain; inspect the target session).
+(removed before execution), `expired` (no reply arrived within `reply_watch_ttl`), or `unknown`
+(delivery was uncertain; inspect the target session).
 
 Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
 from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native
