@@ -56,13 +56,18 @@ describe("useDocumentTitleBadge (UT-054)", () => {
       });
       expect(document.title).toBe("(2) CompozyOS");
       count = 3;
+      // Hidden, the bell keeps only the title current, on its slow cadence.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_001);
+      });
+      expect(document.title).toBe("(2) CompozyOS");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(25_000);
       });
       expect(document.title).toBe("(3) CompozyOS");
       count = 0;
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_001);
+        await vi.advanceTimersByTimeAsync(30_001);
       });
       expect(document.title).toBe(BASE_TITLE);
     } finally {

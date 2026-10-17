@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { primarySessionFixture, sessionTranscriptFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../../lib/session-query-invalidation";
+import { isSessionStreamLive } from "../../lib/session-stream-liveness";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
   NormalizedSessionTranscriptResponse,
@@ -1307,6 +1308,42 @@ describe("useSessionLiveTail", () => {
     expect(sources.at(-1)?.url).toBe(`${STREAM_URL}&after_sequence=1&epoch=1&generation=1`);
     expect(result.current.transport.phase).toBe("connecting");
     expect(result.current.transport.failure).toBeNull();
+  });
+
+  // Invariant: the session's stream-backed reads see its stream as live exactly while this
+  // tail holds the live edge, so a dropped or closed stream returns them to fallback polling.
+  it("Should mark the session stream live only while the transport is on the live edge", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources, unmount } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    expect(isSessionStreamLive(SESSION_ID)).toBe(false);
+
+    act(() =>
+      sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.phase).toBe("live"));
+    });
+    expect(isSessionStreamLive(SESSION_ID)).toBe(true);
+
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    expect(result.current.transport.phase).toBe("waiting-reconnect");
+    expect(isSessionStreamLive(SESSION_ID)).toBe(false);
+
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    act(() =>
+      sources[1]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-2", "two")), "3")
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.phase).toBe("live"));
+    });
+    expect(isSessionStreamLive(SESSION_ID)).toBe(true);
+    unmount();
+    expect(isSessionStreamLive(SESSION_ID)).toBe(false);
   });
 
   // Invariant: a reopen after a drop reads "catching up" until the replayed frames drain,

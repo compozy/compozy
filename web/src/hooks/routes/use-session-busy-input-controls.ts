@@ -37,6 +37,7 @@ import {
 interface UseSessionBusyInputControlsOptions {
   activeTurnId: string;
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
+  liveDataEnabled: boolean;
   promptControlsAvailable: boolean;
   sessionId: string;
   sessionState: SessionState;
@@ -47,6 +48,7 @@ interface UseSessionBusyInputControlsOptions {
 export function useSessionBusyInputControls({
   activeTurnId,
   getRuntimeSnapshot,
+  liveDataEnabled,
   promptControlsAvailable,
   sessionId,
   sessionState,
@@ -54,7 +56,10 @@ export function useSessionBusyInputControls({
   workspaceId,
 }: UseSessionBusyInputControlsOptions) {
   const sendMutation = useSendSessionPrompt({ workspaceId });
-  const inputs = useSessionInputs(workspaceId, sessionId, { sessionState });
+  const inputs = useSessionInputs(workspaceId, sessionId, {
+    enabled: liveDataEnabled,
+    sessionState,
+  });
   const cancelInput = useCancelSessionInput(workspaceId, sessionId);
   const replaceInput = useReplaceSessionInput(workspaceId, sessionId);
   const promoteInput = usePromoteSessionInput(workspaceId, sessionId);

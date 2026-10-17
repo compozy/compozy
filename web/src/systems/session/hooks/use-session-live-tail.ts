@@ -11,6 +11,7 @@ import {
   sessionTranscriptOptions,
 } from "../lib/query-options";
 import { toReadonlyThreadMessages } from "../lib/session-thread-repository";
+import { retainSessionStreamLiveness } from "../lib/session-stream-liveness";
 import type { SessionTransportSnapshot } from "../lib/session-transport";
 import { createSessionLiveTailRuntime } from "./session-live-tail-runtime";
 import { sessionLiveTailLogic } from "./session-live-tail-store";
@@ -86,6 +87,13 @@ export function useSessionLiveTail({
     snapshot => transportSnapshot(snapshot.context),
     shallowEqual
   );
+  const streamLive = transport.phase === "live";
+  // A live stream invalidates this session's control reads as they change, so they
+  // drop to the safety cadence while this tail holds the live edge.
+  useEffect(() => {
+    if (!streamLive) return;
+    return retainSessionStreamLiveness(sessionId);
+  }, [sessionId, streamLive]);
   const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"
