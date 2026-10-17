@@ -4931,6 +4931,58 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		})
 	})
 
+	t.Run("Should return a promotion whose pending injection later fails to after-turn delivery", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		completion := make(chan error, 1)
+		f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
+			steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+				f.steered <- text
+				return acp.SteerAttemptPendingInjection, nil
+			},
+		}
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not offered for injection")
+		}
+		waitForCondition(t, "promotion pending injection", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.SteerDelivery == store.SteerDeliveryPendingInjection
+		})
+		completion <- errors.New("tool never finished")
+		waitForCondition(t, "failed pending promotion reverted", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue
+		})
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+			entry.Delivery != store.SessionInputDeliveryAfterTurn || entry.SteerDelivery != "" ||
+			f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("reverted entry = %#v, %v; want plain queued after-turn delivery without interrupting %s",
+				entry, err, turnID)
+		}
+		// The sender's next steer must not cancel the reverted message as a superseded steer.
+		steer := agentOpts("next", "sess-a", false)
+		steer.Mode = BusyInputModeSteer
+		steer.ExpectedTurnID = turnID
+		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer); err != nil {
+			t.Fatal(err)
+		}
+		completion <- nil
+		entry, err = f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status == store.SessionInputQueueStatusCanceled {
+			t.Fatalf("reverted entry = %#v, %v; want it kept after the sender's next steer", entry, err)
+		}
+		drain(t, f)
+	})
+
 	t.Run("Should never promote an agent message while operator input waits", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

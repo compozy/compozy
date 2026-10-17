@@ -1196,20 +1196,21 @@ func TestSessionDeriveConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
-// Invariant: agent messaging guards never stop long-running work by default: reply watches never expire,
-// promotion only injects, and the rate budget can be switched off. Owner: canonical config suite (#760).
+// Invariant: agent messaging guards never stop long-running work by default: an unanswered reply watch is
+// released after 24h (explicit 0 keeps it forever), promotion only injects, and the rate budget can be switched off. Owner: canonical config suite (#760).
 func TestSessionMessagingConfigDefaultsAndValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should default to non-expiring watches, a 30/10m budget, and 2m promotion", func(t *testing.T) {
+	t.Run("Should default to a 24h watch TTL, a 30/10m budget, and 2m promotion", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{}).Session.Messaging
-		if cfg.ReplyWatchTTL != 0 || cfg.RateLimitMessages != 30 || cfg.RateLimitWindow != 10*time.Minute ||
+		if cfg.ReplyWatchTTL != 24*time.Hour || cfg.RateLimitMessages != 30 || cfg.RateLimitWindow != 10*time.Minute ||
 			cfg.QueuePromoteAfter != 2*time.Minute {
 			t.Fatalf("default Session.Messaging = %#v", cfg)
 		}
+		cfg.ReplyWatchTTL = 0
 		if got := cfg.Normalize(); got.ReplyWatchTTL != 0 {
-			t.Fatalf("Normalize() ReplyWatchTTL = %s, want 0 (never expire)", got.ReplyWatchTTL)
+			t.Fatalf("Normalize() ReplyWatchTTL = %s, want an explicit 0 (never expire) kept", got.ReplyWatchTTL)
 		}
 		if err := cfg.Validate(); err != nil {
 			t.Fatalf("default Session.Messaging.Validate() error = %v", err)
@@ -1222,7 +1223,7 @@ func TestSessionMessagingConfigDefaultsAndValidation(t *testing.T) {
 		wantErr string
 	}{
 		{name: "Should accept a disabled rate budget", cfg: SessionMessagingConfig{RateLimitMessages: -1}},
-		{name: "Should accept an opt-in reply watch TTL", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Hour}},
+		{name: "Should accept a custom reply watch TTL", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Hour}},
 		{
 			name: "Should reject a reply watch TTL below one minute", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Second},
 			wantErr: "session.messaging.reply_watch_ttl must be 0 (never expire) or between 1m0s and 720h0m0s: 1s",

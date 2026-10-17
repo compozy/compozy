@@ -278,8 +278,8 @@ const sessionPromptInputSchema = `{
 	`When omitted or false, nobody is woken when the receiver finishes. Requires an agent session."},
 		"in_reply_to":{"type":"string","minLength":1,"maxLength":200,"pattern":"^\\S+$",
  "description":"Message id this message answers (shown on the received message). ` +
-	`A reply keeps the hop instead of adding one, and answering a message that requested ` +
-	`notify_on_complete releases that reply watch so the sender is woken once. Requires an agent session."},
+	`A reply keeps the hop instead of adding one. It never releases the sender's reply watch: ` +
+	`a notify_on_complete wake still fires when your turn completes. Requires an agent session."},
 		"supersede":{"type":"boolean","default":false,
  "description":"Cancel your own older messages still queued for the same target, in the same step ` +
 	`that queues this one, so the target receives only the latest. Never touches operator input or other ` +

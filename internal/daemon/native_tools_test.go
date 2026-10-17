@@ -13332,7 +13332,7 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 }
 
 // Invariant: the native send maps the session message budget to message_rate_limited, carries in_reply_to
-// into the stamped origin and supersede into admission, and refuses in_reply_to from operator scope.
+// into the stamped origin and supersede into admission, and refuses in_reply_to and supersede from operator scope.
 // Owner: native session_prompt suite.
 func TestNativeSessionPromptMessageGuards(t *testing.T) {
 	t.Parallel()
@@ -13340,12 +13340,15 @@ func TestNativeSessionPromptMessageGuards(t *testing.T) {
 		name        string
 		operator    bool
 		rateLimited bool
+		omitReply   bool
 		code        toolspkg.ErrorCode
 	}{
 		{name: "Should refuse an exhausted sender budget with message_rate_limited", rateLimited: true,
 			code: toolspkg.ErrorCodeSessionMessageRateLimited},
 		{name: "Should carry in_reply_to and supersede through admission"},
 		{name: "Should refuse in_reply_to from operator scope", operator: true,
+			code: toolspkg.ErrorCodeInvalidRequest},
+		{name: "Should refuse supersede from operator scope", operator: true, omitReply: true,
 			code: toolspkg.ErrorCodeInvalidRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -13372,10 +13375,14 @@ func TestNativeSessionPromptMessageGuards(t *testing.T) {
 				},
 				nativeApproveAllPolicyInputs(),
 			)
-			input, err := json.Marshal(map[string]any{
+			fields := map[string]any{
 				"workspace": "ws-origin", "session_id": "target", "message": "Approved.",
 				"message_id": "msg", "idempotency_key": "key", "in_reply_to": "msg-plan", "supersede": true,
-			})
+			}
+			if tc.omitReply {
+				delete(fields, "in_reply_to")
+			}
+			input, err := json.Marshal(fields)
 			if err != nil {
 				t.Fatal(err)
 			}

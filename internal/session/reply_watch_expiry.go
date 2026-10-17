@@ -8,8 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// replyWatchTTL is how long an armed watch may wait for the target before it expires. Zero, the
-// default, never expires a watch: a sender waiting on a long-running target stays awake.
+// replyWatchTTL is how long an armed watch may wait for the target before it expires (24h by default).
+// An explicit zero never expires a watch: a sender waiting on a long-running target stays awake.
 func (s *replyWatchService) replyWatchTTL() time.Duration {
 	return s.manager.messagingConfig().ReplyWatchTTL
 }

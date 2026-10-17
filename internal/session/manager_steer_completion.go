@@ -9,6 +9,7 @@ import (
 func (m *Manager) watchSteerCompletion(session *Session, entryID, targetTurnID string, completion <-chan error) {
 	m.startTrackedPromptTask(func() {
 		deliveryErr, open := <-completion
+		_, promoted := session.promotedSteers.LoadAndDelete(entryID)
 		if !open {
 			deliveryErr = errors.New("session: steer completed without a result")
 		}
@@ -54,6 +55,13 @@ func (m *Manager) watchSteerCompletion(session *Session, entryID, targetTurnID s
 		}
 		m.sessionLogger(session).Warn("session: pending steer failed; falling back",
 			"entry_id", entryID, "error", deliveryErr)
+		if promoted {
+			// A long-turn promotion never holds the sender's queued-steer slot: return it to the queue.
+			if _, err := m.inputQueue.RevertPromotedAgent(ctx, session.ID, entryID); err != nil {
+				m.sessionLogger(session).
+					Error("session: revert promoted queued input failed", "entry_id", entryID, "error", err)
+			}
+		}
 		if steerFallbackWaitsForTurn(&resolved) || session.CurrentTurnID() != targetTurnID {
 			m.startNextQueuedInputPrompt(session.ID)
 			return

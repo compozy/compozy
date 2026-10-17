@@ -1128,6 +1128,81 @@ func TestReplyWatchBatchedDispatch(t *testing.T) {
 			t.Fatalf("turn inputs = %v, want one attributed input per batched message", inputs)
 		}
 	})
+	t.Run("Should answer a queued agent message and a reply wake together in one turn", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w := replyWatchFixture(t)
+		h.manager.SetReplyWatchService(service)
+		release := make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		dispatched := make(chan acp.PromptRequest, 4)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				if req.Message == "hold" {
+					<-release
+				} else {
+					dispatched <- req
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		held, err := h.manager.SendPrompt(t.Context(), sender.ID, SendPromptOpts{Message: "hold"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		message, err := h.manager.SendPrompt(t.Context(), sender.ID, SendPromptOpts{
+			Message: "status from peer", MessageID: "peer-status", IdempotencyKey: "peer-status-key",
+			Mode: BusyInputModeQueue,
+			Origin: &acp.PromptOriginMeta{
+				Kind: "session", SessionID: target.ID, WorkspaceID: h.workspaceID, Hop: 1,
+			},
+		})
+		if err != nil || message.QueueEntryID == "" {
+			t.Fatalf("queued agent message = %#v, %v", message, err)
+		}
+		if _, err := db.FireReplyWatch(
+			t.Context(), w.ID, store.ReplyWatchFire{Outcome: store.ReplyOutcomeCompleted, Text: "per job"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Deliver(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := db.ListPendingSessionInputs(t.Context(), sender.ID)
+		if err != nil || len(pending) != 2 {
+			t.Fatalf("pending = %#v, %v; want the agent message and the reply wake", pending, err)
+		}
+		once.Do(func() { close(release) })
+		for range held.Events {
+			continue
+		}
+		var req acp.PromptRequest
+		select {
+		case req = <-dispatched:
+		case <-time.After(5 * time.Second):
+			t.Fatal("batched turn did not dispatch")
+		}
+		if !strings.Contains(req.Message, "status from peer") || !strings.Contains(req.Message, "per job") {
+			t.Fatalf("batched prompt lacks the agent message or the reply wake:\n%s", req.Message)
+		}
+		for index := range pending {
+			waitForCondition(t, "batched entry sent", func() bool {
+				entry, err := db.GetSessionInputQueueEntry(t.Context(), sender.ID, pending[index].ID)
+				return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID == req.TurnID
+			})
+		}
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchDelivered {
+			t.Fatalf("watch = %+v, %v; want delivered by the batched turn", got, err)
+		}
+		select {
+		case extra := <-dispatched:
+			t.Fatalf("the reply wake produced another turn: %#v", extra)
+		default:
+		}
+	})
 	t.Run("Should dispatch a released follower on its own after the batched head fails to start", func(t *testing.T) {
 		t.Parallel()
 		h, db, _, sender, target, _ := replyWatchFixture(t)
@@ -1864,8 +1939,8 @@ func TestReplyWatchWakesStoppedSender(t *testing.T) {
 	}
 }
 
-// Invariant: an armed watch past an opt-in session.messaging.reply_watch_ttl fires once with the expired
-// outcome and stops counting as awaited work; a younger watch, or any watch under the default (0), is untouched. Owner: session reply-watch suite (#760).
+// Invariant: an armed watch past session.messaging.reply_watch_ttl (default 24h) fires once with the expired
+// outcome and stops counting as awaited work; a younger watch, or any watch under an explicit 0, is untouched. Owner: session reply-watch suite (#760).
 func TestReplyWatchTTLExpiry(t *testing.T) {
 	t.Parallel()
 	t.Run("Should expire a stale armed watch and wake the sender once", func(t *testing.T) {
@@ -1913,7 +1988,7 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 			t.Fatalf("second sweep = %+v, %v; want the single delivered wake", again, err)
 		}
 	})
-	t.Run("Should never expire an armed watch under the default config", func(t *testing.T) {
+	t.Run("Should expire an armed watch after the default TTL", func(t *testing.T) {
 		t.Parallel()
 		var nowMu sync.Mutex
 		now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
@@ -1921,6 +1996,32 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 		h, db, service, sender, _, w := replyWatchFixtureWith(
 			t,
 			[]Option{WithNow(clock), WithSessionMessagingConfig(compozyconfig.DefaultSessionMessagingConfig())},
+		)
+		h.manager.SetReplyWatchService(service)
+		advance := func(d time.Duration) { nowMu.Lock(); now = now.Add(d); nowMu.Unlock() }
+		advance(23 * time.Hour)
+		service.(*replyWatchService).expireStale(t.Context())
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.State != store.ReplyWatchArmed {
+			t.Fatalf("watch after 23h = %+v, %v; want armed under the 24h default", got, err)
+		}
+		advance(2 * time.Hour)
+		service.(*replyWatchService).expireStale(t.Context())
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.Outcome != store.ReplyOutcomeExpired {
+			t.Fatalf("watch after 25h = %+v, %v; want expired under the 24h default", got, err)
+		}
+		if signals := mustAwaitingReplySignals(t, service, sender.ID, clock()); len(signals) != 0 {
+			t.Fatalf("expired default-config watch still keeps its sender awake: %+v", signals)
+		}
+	})
+	t.Run("Should never expire an armed watch when the TTL is explicitly zero", func(t *testing.T) {
+		t.Parallel()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		cfg := compozyconfig.DefaultSessionMessagingConfig()
+		cfg.ReplyWatchTTL = 0
+		h, db, service, sender, _, w := replyWatchFixtureWith(
+			t, []Option{WithNow(clock), WithSessionMessagingConfig(cfg)},
 		)
 		h.manager.SetReplyWatchService(service)
 		nowMu.Lock()
@@ -1931,7 +2032,7 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 			t.Fatalf("watch after 60 days = %+v, %v; want armed", got, err)
 		}
 		if signals := mustAwaitingReplySignals(t, service, sender.ID, clock()); len(signals) == 0 {
-			t.Fatal("default-config watch stopped keeping its sender awake")
+			t.Fatal("never-expire watch stopped keeping its sender awake")
 		}
 	})
 }

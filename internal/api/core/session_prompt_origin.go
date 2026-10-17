@@ -21,7 +21,10 @@ type sessionPromptReplayReader interface {
 	PromptAdmissionReplayOrigin(context.Context, string, string, string, string) (bool, *acp.PromptOriginMeta, error)
 }
 
-var errPromptReplyRequiresAgentSession = errors.New("in_reply_to requires a calling agent session")
+var (
+	errPromptReplyRequiresAgentSession     = errors.New("in_reply_to requires a calling agent session")
+	errPromptSupersedeRequiresAgentSession = errors.New("supersede requires a calling agent session")
+)
 
 // sessionPromptOrigin stamps a session origin for prompts sent from inside a managed agent session.
 //
@@ -42,6 +45,9 @@ func (h *BaseHandlers) sessionPromptOrigin(
 	if !hasAgentCallerIdentityCredentials(credentials) {
 		if inReplyTo != "" {
 			return nil, invalidPromptRequestError{cause: errPromptReplyRequiresAgentSession}
+		}
+		if request.Supersede {
+			return nil, invalidPromptRequestError{cause: errPromptSupersedeRequiresAgentSession}
 		}
 		return nil, nil
 	}
