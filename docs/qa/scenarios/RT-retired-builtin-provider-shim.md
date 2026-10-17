@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-merge-20261017-224016-688770-lab/qa-artifacts/qa/retired-provider-merge-evidence.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-auth-20261017-225721-034868-lab/qa-artifacts/qa/retired-provider-auth-evidence.md
 last_report:
 overlaps: MS-028; RT-081
 ---
@@ -61,3 +61,10 @@ with no `[REDACTED]` marker and no occurrence of `raw-login-secret` or `codestra
 `env` / `MISTRAL_API_KEY` secret_ref. After following both, the daemon restarted with no retired
 warnings. The merged Mistral entry kept `codestral-latest` and the login command, and `provider
 inspect mistral` showed `bound_secret` with `env:MISTRAL_API_KEY`.
+
+2026-10-17 re-walk with auth-aware merge guidance: PASS. When an existing `[providers.mistral]` sets
+`auth_mode = "native_cli"`, the logged replacement adds no `credential_slots` and the `action` asks
+for no `secret_ref`. Following it restarted the daemon with no retired warnings, and `provider
+inspect mistral` showed `native_cli` with no credentials. The login-command plus model override case
+was re-walked on the same binary: still no operator values in the log, and `bound_secret` with
+`env:MISTRAL_API_KEY` after the merge.

@@ -516,9 +516,11 @@ definition. That covers `defaults.provider`, a partial `[providers.<id>]` overri
 `provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that
 holds the former `[providers.<id>]` entry. The warning never echoes values you wrote. Its `action`
 field says to add the entry, or, when `config.toml` already has `[providers.<id>]` tables, to merge
-it into them: add each missing key or table and keep every value you already set. Log redaction masks
+it into them: add each missing key or table and keep every value you already set. When your table
+already sets `auth_mode` or its own `credential_slots`, the replacement leaves credentials to that
+choice and adds none. Log redaction masks
 secret references, so for `mistral`, `groq`, and `minimax` the logged entry omits each
-`credential_slots` `secret_ref` line and the warning's `action` field names the value to add back
+`credential_slots` `secret_ref` line and the warning's `action` field names the value to add to each slot it adds
 (for example `secret_ref = "env:MISTRAL_API_KEY"`, as in the Mistral example above):
 
 ```bash

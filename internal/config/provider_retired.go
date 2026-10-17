@@ -169,7 +169,7 @@ func (c *Config) WarnRetiredProviderReferences() {
 // warnRetiredBuiltinProvider reports the former definition only. Logging the effective provider
 // would echo operator-authored values, such as commands with inline credentials, so an existing
 // override is merged by instruction instead.
-func warnRetiredBuiltinProvider(name string, overridden bool) {
+func warnRetiredBuiltinProvider(name string, override ProviderConfig, overridden bool) {
 	retiredProviderWarnings.mu.Lock()
 	if _, seen := retiredProviderWarnings.seen[name]; seen {
 		retiredProviderWarnings.mu.Unlock()
@@ -181,7 +181,7 @@ func warnRetiredBuiltinProvider(name string, overridden bool) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	retired := retiredBuiltinProviders[name]
+	retired := retiredProviderAdditions(retiredBuiltinProviders[name], override, overridden)
 	table := fmt.Sprintf("[%s.%s]", providersConfigKey, name)
 	action := "add replacement to config.toml"
 	if overridden {
@@ -199,8 +199,11 @@ func warnRetiredBuiltinProvider(name string, overridden bool) {
 			scheme, ref, _ := strings.Cut(slot.SecretRef, ":")
 			refs = append(refs, fmt.Sprintf("%s uses scheme %q and name %q", slot.Name, scheme, ref))
 		}
-		action += ", then add a secret_ref line to each credential_slots table set to scheme, a colon, and name (" +
-			strings.Join(refs, "; ") + ")"
+		action += ", then add a secret_ref line to each credential_slots table it adds, set to scheme, a colon, and name (" +
+			strings.Join(
+				refs,
+				"; ",
+			) + ")"
 	}
 	logger.Warn(
 		"provider.retired_builtin",
@@ -209,6 +212,21 @@ func warnRetiredBuiltinProvider(name string, overridden bool) {
 		"action", action,
 		"replacement", withoutSecretRefLines(retiredBuiltinProviderReplacement(name, retired)),
 	)
+}
+
+// retiredProviderAdditions drops the former fields an existing override's authentication choice
+// owns, so adding the missing keys reproduces the effective provider instead of conflicting with it.
+func retiredProviderAdditions(retired ProviderConfig, override ProviderConfig, overridden bool) ProviderConfig {
+	additions := cloneProvider(retired)
+	if !overridden {
+		return additions
+	}
+	applyProviderAuthModeOverride(&additions, ProviderConfig{AuthMode: override.AuthMode})
+	additions.AuthMode = ""
+	if len(override.CredentialSlots) > 0 {
+		additions.CredentialSlots = nil
+	}
+	return additions
 }
 
 func withoutSecretRefLines(replacement string) string {

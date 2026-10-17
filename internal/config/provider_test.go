@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3073,84 +3074,164 @@ func TestRetiredBuiltinProviders(t *testing.T) {
 }
 
 func TestRetiredBuiltinProviderWarnings(t *testing.T) {
-	t.Run("Should warn through the routed logger without echoing operator values", func(t *testing.T) {
-		var logs bytes.Buffer
-		RouteRetiredProviderWarnings(compozylogger.WithRedaction(slog.New(slog.NewJSONHandler(&logs, nil))))
-		t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
+	tests := []struct {
+		name      string
+		override  string
+		private   []string
+		ownsSlots bool
+	}{
+		{
+			name: "Should guide a partial model and login override",
+			override: `[providers.mistral]
+auth_login_command = "provider login raw-login-secret"
+[providers.mistral.models]
+default = "codestral-latest"`,
+			private: []string{"raw-login-secret", "codestral-latest"},
+		},
+		{
+			name: "Should guide an override that chose native CLI authentication",
+			override: `[providers.mistral]
+auth_mode = "native_cli"`,
+			ownsSlots: true,
+		},
+		{
+			name: "Should guide an override with its own vault credential slot",
+			override: `[[providers.mistral.credential_slots]]
+name = "api_key"
+target_env = "MISTRAL_API_KEY"
+secret_ref = "vault:providers/mistral/api_key"
+kind = "api_key"
+required = true`,
+			private:   []string{"providers/mistral/api_key"},
+			ownsSlots: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			RouteRetiredProviderWarnings(compozylogger.WithRedaction(slog.New(slog.NewJSONHandler(&logs, nil))))
+			t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
 
-		cfg := DefaultWithHome(HomePaths{})
-		cfg.Defaults.Provider = "hermes-agent"
-		override := ProviderConfig{
-			Models:       ProviderModelsConfig{Default: "codestral-latest"},
-			AuthLoginCmd: "provider login raw-login-secret",
-		}
-		cfg.Providers["mistral"] = override
-		cfg.WarnRetiredProviderReferences()
-		cfg.WarnRetiredProviderReferences()
+			cfg := DefaultWithHome(HomePaths{})
+			cfg.Defaults.Provider = "hermes-agent"
+			cfg.Providers = decodeRetiredTestProviders(t, tc.override)
+			cfg.WarnRetiredProviderReferences()
+			cfg.WarnRetiredProviderReferences()
 
-		records := map[string]map[string]any{}
-		for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
-			var record map[string]any
-			if err := json.Unmarshal([]byte(line), &record); err != nil {
-				t.Fatalf("decode warning %q: %v", line, err)
+			records := retiredWarningRecords(t, logs.String())
+			if len(records) != 2 || records["hermes"] == nil || records["mistral"] == nil {
+				t.Fatalf("warnings = %s, want one each for hermes and mistral", logs.String())
 			}
-			if record["msg"] != "provider.retired_builtin" || record["removed_in"] != "v0.5.0" {
-				t.Fatalf("warning = %#v, want provider.retired_builtin removed_in v0.5.0", record)
+			for _, private := range append([]string{"[REDACTED]"}, tc.private...) {
+				if strings.Contains(logs.String(), private) {
+					t.Fatalf("warning log contains %q:\n%s", private, logs.String())
+				}
 			}
-			provider, _ := record["provider"].(string)
-			if _, dup := records[provider]; dup {
-				t.Fatalf("provider %q warned twice: %s", provider, logs.String())
+			if action, _ := records["hermes"]["action"].(string); action != "add replacement to config.toml" {
+				t.Fatalf("hermes action = %q, want add instruction for an undeclared reference", action)
 			}
-			records[provider] = record
-		}
-		if len(records) != 2 || records["hermes"] == nil || records["mistral"] == nil {
-			t.Fatalf("warnings = %s, want one each for hermes and mistral", logs.String())
-		}
+			action, _ := records["mistral"]["action"].(string)
+			if !strings.Contains(action, "merge replacement into the existing [providers.mistral] tables") {
+				t.Fatalf("mistral action = %q, want merge instructions for an existing override", action)
+			}
 
-		var document struct {
-			Providers map[string]ProviderConfig `toml:"providers"`
+			replacement, _ := records["mistral"]["replacement"].(string)
+			if tc.ownsSlots &&
+				(strings.Contains(action, "secret_ref") || strings.Contains(replacement, "credential_slots")) {
+				t.Fatalf("guidance adds credentials the override owns: action=%q replacement=%q", action, replacement)
+			}
+			edited := applyRetiredWarningToTOML(t, tc.override, records["mistral"])
+			declared := DefaultWithHome(HomePaths{})
+			declared.Providers = decodeRetiredTestProviders(t, edited)
+			got, err := declared.ResolveProvider("mistral")
+			if err != nil {
+				t.Fatalf("ResolveProvider(edited mistral) error = %v\n%s", err, edited)
+			}
+			want, err := cfg.ResolveProvider("mistral")
+			if err != nil {
+				t.Fatalf("ResolveProvider(original mistral) error = %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("edited config resolves to %#v, want effective %#v\n%s", got, want, edited)
+			}
+		})
+	}
+}
+
+func decodeRetiredTestProviders(t *testing.T, contents string) map[string]ProviderConfig {
+	t.Helper()
+	var document struct {
+		Providers map[string]ProviderConfig `toml:"providers"`
+	}
+	if _, err := toml.Decode(contents, &document); err != nil {
+		t.Fatalf("decode providers error = %v\n%s", err, contents)
+	}
+	return document.Providers
+}
+
+func retiredWarningRecords(t *testing.T, output string) map[string]map[string]any {
+	t.Helper()
+	records := map[string]map[string]any{}
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode warning %q: %v", line, err)
 		}
-		replacement, _ := records["mistral"]["replacement"].(string)
-		if strings.Contains(logs.String(), "[REDACTED]") {
-			t.Fatalf("redacting logger masked the migration guidance:\n%s", logs.String())
+		if record["msg"] != "provider.retired_builtin" || record["removed_in"] != "v0.5.0" {
+			t.Fatalf("warning = %#v, want provider.retired_builtin removed_in v0.5.0", record)
 		}
-		for _, operatorValue := range []string{"raw-login-secret", "codestral-latest"} {
-			if strings.Contains(logs.String(), operatorValue) {
-				t.Fatalf("warning echoed operator-authored value %q:\n%s", operatorValue, logs.String())
+		provider, _ := record["provider"].(string)
+		if _, dup := records[provider]; dup {
+			t.Fatalf("provider %q warned twice:\n%s", provider, output)
+		}
+		records[provider] = record
+	}
+	return records
+}
+
+// applyRetiredWarningToTOML performs the operator edit the warning describes on real TOML: merge
+// the replacement into the existing tables keeping set values, then fill the added secret_refs.
+func applyRetiredWarningToTOML(t *testing.T, existing string, record map[string]any) string {
+	t.Helper()
+	replacement, _ := record["replacement"].(string)
+	action, _ := record["action"].(string)
+	var current, added map[string]any
+	if _, err := toml.Decode(existing, &current); err != nil {
+		t.Fatalf("decode existing TOML error = %v", err)
+	}
+	if _, err := toml.Decode(replacement, &added); err != nil {
+		t.Fatalf("decode replacement error = %v\n%s", err, replacement)
+	}
+	fills := regexp.MustCompile(`(\w+) uses scheme "([a-z]+)" and name "([A-Z_]+)"`).FindAllStringSubmatch(action, -1)
+	addedProvider, _ := added["providers"].(map[string]any)["mistral"].(map[string]any)
+	if slots, ok := addedProvider["credential_slots"].([]map[string]any); ok {
+		for _, slot := range slots {
+			for _, fill := range fills {
+				if slot["name"] == fill[1] {
+					slot["secret_ref"] = fill[2] + ":" + fill[3]
+				}
 			}
 		}
-		if action, _ := records["hermes"]["action"].(string); action != "add replacement to config.toml" {
-			t.Fatalf("hermes action = %q, want add instruction for an undeclared reference", action)
+	}
+	merged := mergeRetiredTestTables(added, current)
+	var buffer bytes.Buffer
+	if err := toml.NewEncoder(&buffer).Encode(merged); err != nil {
+		t.Fatalf("encode edited TOML error = %v", err)
+	}
+	return buffer.String()
+}
+
+func mergeRetiredTestTables(base, kept map[string]any) map[string]any {
+	merged := make(map[string]any, len(base)+len(kept))
+	maps.Copy(merged, base)
+	for key, value := range kept {
+		baseTable, baseIsTable := merged[key].(map[string]any)
+		keptTable, keptIsTable := value.(map[string]any)
+		if baseIsTable && keptIsTable {
+			merged[key] = mergeRetiredTestTables(baseTable, keptTable)
+			continue
 		}
-		if _, err := toml.Decode(replacement, &document); err != nil {
-			t.Fatalf("decode mistral replacement error = %v\n%s", err, replacement)
-		}
-		action, _ := records["mistral"]["action"].(string)
-		if !strings.Contains(action, "merge replacement into the existing [providers.mistral] tables") {
-			t.Fatalf("mistral action = %q, want merge instructions for an existing override", action)
-		}
-		fill := regexp.MustCompile(`api_key uses scheme "([a-z]+)" and name "([A-Z_]+)"`).FindStringSubmatch(action)
-		if fill == nil {
-			t.Fatalf("action = %q, want secret_ref fill instructions", action)
-		}
-		slots := document.Providers["mistral"].CredentialSlots
-		if len(slots) != 1 || slots[0].SecretRef != "" {
-			t.Fatalf("replacement slots = %#v, want one slot without secret_ref", slots)
-		}
-		slots[0].SecretRef = fill[1] + ":" + fill[2]
-		want, err := cfg.ResolveProvider("mistral")
-		if err != nil {
-			t.Fatalf("ResolveProvider(mistral) error = %v", err)
-		}
-		// Following the merge action keeps every value already set and adds the missing ones.
-		declared := DefaultWithHome(HomePaths{})
-		declared.Providers["mistral"] = mergeProvider(document.Providers["mistral"], override)
-		got, err := declared.ResolveProvider("mistral")
-		if err != nil {
-			t.Fatalf("ResolveProvider(merged mistral) error = %v", err)
-		}
-		if !reflect.DeepEqual(got, want) || got.Models.Default != "codestral-latest" {
-			t.Fatalf("merged replacement resolves to %#v, want effective %#v", got, want)
-		}
-	})
+		merged[key] = value
+	}
+	return merged
 }
