@@ -322,10 +322,7 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 	})
 
 	t.Run("Should verify readiness with a remote probe", func(t *testing.T) {
-		before := 0
-		if data, err := os.ReadFile(filepath.Join(fixture.stateDir, "peer.log")); err == nil {
-			before = countAgyEntryLog(strings.Split(string(data), "\n"), "authenticate")
-		}
+		before := countAgyEntryLog(readAgyEntryPeerLog(t, fixture.stateDir), "authenticate")
 		if err := acp.ProbeAuthentication(ctx, fixture.inspection()); err != nil {
 			t.Fatalf("ProbeAuthentication() error = %v", err)
 		}

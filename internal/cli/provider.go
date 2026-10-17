@@ -360,7 +360,8 @@ func providerAuthLoginTarget(
 	if err != nil {
 		return providerAuthLoginTargetRecord{}, err
 	}
-	if strings.TrimSpace(provider.AuthLoginCmd) == "" {
+	loginCommand := strings.TrimSpace(provider.AuthLoginCmd)
+	if loginCommand == "" {
 		if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI &&
 			authproviders.UsesACPLogin(provider) {
 			return providerACPLoginTarget(ctx, runtime, deps, providerName, provider)
@@ -374,7 +375,6 @@ func providerAuthLoginTarget(
 			provider.EffectiveAuthMode(),
 		)
 	}
-	loginCommand := strings.TrimSpace(provider.AuthLoginCmd)
 	nativeCLI, err := providerNativeCLIStatusForCommand(
 		loginCommand,
 		providerauth.NativeCLISourceAuthLogin,
@@ -384,16 +384,7 @@ func providerAuthLoginTarget(
 		return providerAuthLoginTargetRecord{}, err
 	}
 	if nativeCLI != nil && !nativeCLI.Present {
-		executable := authproviders.DescribeProviderLogin(
-			provider,
-			nativeCLI,
-			authproviders.Classification{},
-		).Executable
-		return providerAuthLoginTargetRecord{}, fmt.Errorf(
-			"cli: provider %q native CLI %q was not found on PATH; install it before retrying login",
-			providerName,
-			executable,
-		)
+		return providerAuthLoginTargetRecord{}, providerMissingNativeCLIError(providerName, provider, nativeCLI)
 	}
 	loginEnv, err := providerNativeCLILoginEnv(runtime.HomePaths, providerName, provider)
 	if err != nil {
@@ -406,6 +397,20 @@ func providerAuthLoginTarget(
 		LoginEnv:     loginEnv,
 		nativeCLI:    nativeCLI,
 	}, nil
+}
+
+// providerMissingNativeCLIError owns the stable missing-CLI message for both login paths.
+func providerMissingNativeCLIError(providerName string, provider compozyconfig.ProviderConfig, nativeCLI *providerNativeCLIStatusRecord) error {
+	executable := authproviders.DescribeProviderLogin(
+		provider,
+		nativeCLI,
+		authproviders.Classification{},
+	).Executable
+	return fmt.Errorf(
+		"cli: provider %q native CLI %q was not found on PATH; install it before retrying login",
+		providerName,
+		executable,
+	)
 }
 
 // providerACPLoginTarget resolves the effective launch command, environment,
@@ -438,16 +443,7 @@ func providerACPLoginTarget(
 	}
 	if _, err := resolve(ctx, parsed.Executable, probeEnv.CommandEnv, probeEnv.CommandDir); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			executable := authproviders.DescribeProviderLogin(
-				provider,
-				&providerNativeCLIStatusRecord{Command: parsed.Executable},
-				authproviders.Classification{},
-			).Executable
-			return providerAuthLoginTargetRecord{}, fmt.Errorf(
-				"cli: provider %q native CLI %q was not found on PATH; install it before retrying login",
-				providerName,
-				executable,
-			)
+			return providerAuthLoginTargetRecord{}, providerMissingNativeCLIError(providerName, provider, &providerNativeCLIStatusRecord{Command: parsed.Executable})
 		}
 		return providerAuthLoginTargetRecord{}, fmt.Errorf(
 			"cli: resolve provider %q executable: %w",

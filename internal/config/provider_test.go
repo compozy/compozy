@@ -3096,33 +3096,18 @@ func TestProviderACPMethodValidation(t *testing.T) {
 		t.Parallel()
 
 		for _, mode := range []ProviderAuthMode{ProviderAuthModeNone, ProviderAuthModeBoundSecret} {
-			cfg := Config{
-				Providers: map[string]ProviderConfig{
-					"custom": {
-						Command:       "custom-agent --acp",
-						Harness:       ProviderHarnessACP,
-						AuthMode:      mode,
-						AuthACPMethod: "oauth-personal",
-					},
-				},
+			provider := ProviderConfig{
+				Command:       "custom-agent --acp",
+				Harness:       ProviderHarnessACP,
+				AuthMode:      mode,
+				AuthACPMethod: "oauth-personal",
 			}
 			if mode == ProviderAuthModeBoundSecret {
-				cfg.Providers["custom"] = ProviderConfig{
-					Command:         "custom-agent --acp",
-					Harness:         ProviderHarnessACP,
-					AuthMode:        mode,
-					AuthACPMethod:   "oauth-personal",
-					CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("CUSTOM_API_KEY")},
-				}
+				provider.CredentialSlots = []ProviderCredentialSlot{apiKeyCredentialSlot("CUSTOM_API_KEY")}
 			} else {
-				cfg.Providers["custom"] = ProviderConfig{
-					Command:       "custom-agent --acp",
-					Harness:       ProviderHarnessACP,
-					AuthMode:      mode,
-					AuthACPMethod: "oauth-personal",
-					NoneSecurity:  ProviderNoneSecurityLocalTransport,
-				}
+				provider.NoneSecurity = ProviderNoneSecurityLocalTransport
 			}
+			cfg := Config{Providers: map[string]ProviderConfig{"custom": provider}}
 
 			_, err := cfg.ResolveProvider("custom")
 			if err == nil {

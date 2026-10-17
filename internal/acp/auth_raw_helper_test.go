@@ -76,13 +76,10 @@ func runRawAuthHelperProcess(scenario, recordPath, capturePath string) {
 }
 
 func (h *rawAuthHelper) markers() map[string]string {
-	markers := make(map[string]string)
-	for _, entry := range os.Environ() {
-		if value, ok := strings.CutPrefix(entry, "COMPOZY_TEST_AUTH_MARKER="); ok {
-			markers["COMPOZY_TEST_AUTH_MARKER"] = value
-		}
+	if value, ok := os.LookupEnv("COMPOZY_TEST_AUTH_MARKER"); ok {
+		return map[string]string{"COMPOZY_TEST_AUTH_MARKER": value}
 	}
-	return markers
+	return map[string]string{}
 }
 
 func (h *rawAuthHelper) note(line string) {

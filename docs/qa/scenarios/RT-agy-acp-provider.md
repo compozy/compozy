@@ -132,9 +132,9 @@ the `.par` on PATH. Login→repair, first prompt, tools/`yolo`,
 cancellation, and restoration remain unexecuted (no consenting
 account/browser/callback, no approve-all consent). Full receipts:
 `.compozy/tasks/agy-acp/evidence/task_07/` (`observations-1.4.0.md`).
-Report: `docs/qa/reports/2026-10-16-agy-acp.md` (§1.4.0 run).
+Report: `docs/qa/reports/2026-10-16-agy-acp.md` (§1.4.0 re-baseline + W-2 logged-out legs).
 
-## 1.4.0 consented note (2026-10-17, exercised verdicts only)
+## 1.4.0 consented run (2026-10-17, exercised verdicts only)
 
 Same implementation build + real 1.4.0 server in a consented isolated lab
 (operator HOME/daemon untouched; teardown clean). Full receipts:

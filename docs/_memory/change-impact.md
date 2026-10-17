@@ -2,8 +2,7 @@
 
 ## AGY ACP provider (2026-10-16)
 
-**Status:** specification approved by the owner on 2026-10-16 ("aceito"); not
-implemented or verified. Owning contract:
+**Status:** specification approved by the owner on 2026-10-16 ("aceito"; implementation progress is tracked in the Task deltas below). Owning contract:
 `.compozy/tasks/agy-acp/_spec.md`; behavior, public surface, UI, tests, and design
 evidence live in its companion files. Downstream tasks cite this section and
 record their own deltas. The earlier custom-provider experiment is evidence of

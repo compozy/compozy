@@ -51,19 +51,7 @@ func DescribeProviderLogin(
 		}
 		return descriptor
 	}
-	descriptor.Executable = providerLoginExecutableBase(parsed.Executable)
-	if nativeCLI == nil || providerLoginExecutableBase(nativeCLI.Command) != descriptor.Executable {
-		return descriptor
-	}
-	if strings.TrimSpace(nativeCLI.Error) != "" {
-		return descriptor
-	}
-	if nativeCLI.Present {
-		descriptor.Presence = ProviderLoginPresencePresent
-	} else {
-		descriptor.Presence = ProviderLoginPresenceMissing
-	}
-	return descriptor
+	return finishLoginDescriptor(descriptor, parsed.Executable, nativeCLI)
 }
 
 // describeACPMethodLogin derives the safe descriptor for protocol-owned login:
@@ -92,7 +80,11 @@ func describeACPMethodLogin(
 		}
 		return descriptor
 	}
-	descriptor.Executable = providerLoginExecutableBase(parsed.Executable)
+	return finishLoginDescriptor(descriptor, parsed.Executable, nativeCLI)
+}
+
+func finishLoginDescriptor(descriptor ProviderLoginDescriptor, executable string, nativeCLI *providerauth.NativeCLIStatus) ProviderLoginDescriptor {
+	descriptor.Executable = providerLoginExecutableBase(executable)
 	if nativeCLI == nil || providerLoginExecutableBase(nativeCLI.Command) != descriptor.Executable {
 		return descriptor
 	}
