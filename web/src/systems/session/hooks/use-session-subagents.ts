@@ -110,9 +110,10 @@ export function useSessionSubagents(
     failed: live === null && query.isError,
     retry: () => void refetch(),
     stop: async subagent => {
-      const parent = await queryClient.ensureQueryData(
-        sessionDetailOptions(workspaceId, sessionId)
-      );
+      const parent = await queryClient.fetchQuery({
+        ...sessionDetailOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
       await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
       // A live roster settles through the stream; a cold read re-reads the list.
       if (live === null) {

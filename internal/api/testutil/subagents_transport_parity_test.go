@@ -170,7 +170,8 @@ func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuer
 		}
 		return store.SubagentPage{Items: []store.SessionSubagent{}, NextCursor: "next"}, nil
 	}
-	if (q.ParentSessionID != "parent" && q.ParentSessionID != "private") || q.WorkspaceID != "ws-registry" || q.Limit != 50 {
+	if (q.ParentSessionID != "parent" && q.ParentSessionID != "private") ||
+		q.WorkspaceID != "ws-registry" || q.Limit != 50 {
 		return store.SubagentPage{}, errors.New("unexpected query")
 	}
 	return store.SubagentPage{

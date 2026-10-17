@@ -264,6 +264,10 @@ describe("roster updates re-render only the card they change (m19)", () => {
 
 describe("composer waiting banner (UT-W13 wiring)", () => {
   it("Should show live delegated subagents of an idle parent and stop each through the cancel route", async () => {
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "design-renamed",
+    });
     vi.mocked(cancelSubagent).mockResolvedValue({ subagent_id: "x", status: "cancel_requested" });
     const rows = [
       view("sub-a"),
@@ -276,8 +280,8 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(cancelSubagent).toHaveBeenCalledTimes(2));
     expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 3))).toEqual([
-      [WORKSPACE_ID, "sub-a", "design"],
-      [WORKSPACE_ID, "sub-b", "design"],
+      [WORKSPACE_ID, "sub-a", "design-renamed"],
+      [WORKSPACE_ID, "sub-b", "design-renamed"],
     ]);
   });
 
@@ -311,6 +315,37 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
 });
 
 describe("composer subagents control (issue #766 wiring)", () => {
+  it("Should refresh a renamed parent owner before stopping a roster row", async () => {
+    // Invariant: the immutable owner may have a new name; cancellation must resolve it at dispatch.
+    // Owner: roster action hook; canonical suite: this session/subagent wiring suite.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+      ...primarySessionFixture,
+      profile_name: "old-name",
+    });
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "new-name",
+    });
+    vi.mocked(cancelSubagent).mockResolvedValue({
+      subagent_id: "sub-a",
+      status: "cancel_requested",
+    });
+    const { result } = renderHook(
+      () => useSessionSubagents(WORKSPACE_ID, SESSION_ID, { coldRead: false }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await act(async () => {
+      await result.current.stop(view("sub-a"));
+    });
+    expect(cancelSubagent).toHaveBeenCalledExactlyOnceWith(WORKSPACE_ID, "sub-a", "new-name");
+    client.clear();
+  });
+
   const parent = (summary: SessionPayload["subagent_summary"] = null): SessionPayload => ({
     ...primarySessionFixture,
     id: SESSION_ID,

@@ -43,6 +43,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  fetchSession: vi.fn(),
   fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
@@ -69,6 +70,7 @@ import {
   clearSessionInputs,
   createSession,
   deleteSession,
+  fetchSession,
   fetchSessionInputs,
   repairSession,
   renameSession,
@@ -348,10 +350,12 @@ describe("session actions", () => {
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
-  it("useSessionRewind sends the current durable fence and refreshes the transcript", async () => {
+  it("useSessionRewind refreshes a renamed profile owner and sends the current durable fence", async () => {
+    const owner = { ...createdSession, profile_name: "design-renamed" };
+    vi.mocked(fetchSession).mockResolvedValue(owner);
     vi.mocked(rewindSession).mockResolvedValue({
       rewind: { draft_text: "Return to this request." },
-      session: createdSession,
+      session: owner,
     });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -391,7 +395,7 @@ describe("session actions", () => {
     expect(rewindSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
-      createdSession.profile_name,
+      owner.profile_name,
       {
         expected_epoch: 3,
         expected_generation: 7,
@@ -402,7 +406,7 @@ describe("session actions", () => {
       controller.signal
     );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
-      createdSession
+      owner
     );
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))

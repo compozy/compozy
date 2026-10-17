@@ -79,8 +79,8 @@ heavy final validation is CI-owned by explicit user instruction. Deferred-featur
 
 Owner: issue #783, branch `fix/issue-783-profile-session-404`.
 Evidence and route-by-route audit: `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
-Web lifecycle mutations carry the selected row's immutable profile and workspace; rewind
-and subagent cancellation reuse the canonical session detail owner. Roster reads use the
+Web lifecycle mutations carry the selected row's profile and workspace; rewind
+and subagent cancellation refresh the current owner name through the canonical session detail query. Roster reads use the
 existing authorized aggregate read scope, and terminal 404/410 control polls stop. Failed
 cold-page walks require explicit retry. Existing workspace and profile authorization remains
 unchanged. OpenAPI additively documents already-supported profile selectors for archive,

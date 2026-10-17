@@ -34,9 +34,10 @@ export function SessionSubagentBanner({ parentTurnRunning }: { parentTurnRunning
       onOpen={onOpen ? subagent => onOpen(subagent, { newWindow: false }) : undefined}
       onShowAll={navigation?.showSubagents}
       onStop={async () => {
-        const parent = await queryClient.ensureQueryData(
-          sessionDetailOptions(workspaceId, sessionId)
-        );
+        const parent = await queryClient.fetchQuery({
+          ...sessionDetailOptions(workspaceId, sessionId),
+          staleTime: 0,
+        });
         return Promise.all(
           waiting.map(subagent => cancelSubagent(workspaceId, subagent.id, parent.profile_name))
         );

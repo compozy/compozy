@@ -2,9 +2,9 @@
 
 - **Scope:** Issue #783; owner-scoped session actions and bounded subagent polling.
 - **Cadence tier:** targeted.
-- **Build:** `fix/issue-783-profile-session-404`, working tree based on `6de9011b6`.
+- **Build:** `fix/issue-783-profile-session-404`, working tree initially based on `6de9011b6`, rebased on `3b8302475`.
 - **Environment:** isolated bootstrap lab, fresh home, loopback API and Web; no host sessions.
-- **Started:** 2026-10-17T23:00:19Z · **Status:** in-progress (delivery checks pending).
+- **Started:** 2026-10-17T23:00:19Z · **Status:** closed (targeted QA; PR delivery tracked separately).
 
 ## Persona and flows
 
@@ -34,7 +34,7 @@ effect could repeatedly request a failed next page.
 | Detail; subagent list/detail | Explicit profile or authorized aggregate read plus workspace | Preserve aggregate detail reads; use aggregate roster reads for the identified parent. |
 | Archive/unarchive, rename | Explicit mutation profile plus workspace | Send captured row owner and workspace; publish the existing selector in OpenAPI. |
 | Stop/delete | Explicit mutation profile plus workspace | Existing row-owner propagation retained. |
-| Rewind; subagent cancel | Explicit mutation profile plus workspace | Resolve immutable owner through canonical detail cache; cancel selector documented in OpenAPI. |
+| Rewind; subagent cancel | Explicit mutation profile plus workspace | Refresh current owner name through canonical detail query; cancel selector documented in OpenAPI. |
 | Prompt/cancel, attach, compact, repair, clear, presence, queue, usage, clarifications, interactions, runtime, attachments, derive, transcript/search/outline/stream | Identified session plus workspace; bound session supplies execution context | No default-profile lookup to repair in these routes. Preserve existing handlers. |
 
 The reported presence and third-session detail 404s are not independently reproduced by
@@ -43,7 +43,7 @@ the confirmed selector defect. No broad authorization bypass or retry suppressio
 ## Automated evidence
 
 - Targeted Go handler and HTTP/UDS parity suites pass with the race detector.
-- Targeted Web adapter, action, control-poll, and subagent wiring suites pass (129 tests across four existing files).
+- Targeted Web adapter, action, control-poll, and subagent wiring suites pass (130 tests across four existing files).
 - OpenAPI and TypeScript contracts regenerated through `make codegen`.
 - Global gates and full E2E are CI-owned by explicit operator instruction.
 
@@ -84,3 +84,18 @@ No provider inference is required to verify lifecycle and roster behavior for a 
 
 - Strict targeted QA audit: PASS, zero blockers and warnings.
 - Registered lab teardown: `TEARDOWN_ALL_CLEAN=true`; no host daemon/session was changed.
+
+## Review and CI follow-up
+
+- Greptile finding `discussion_r4304958675`: profile IDs are immutable, names are not.
+  Rewind, roster-row cancellation, and banner cancellation now force a fresh canonical
+  detail read before mutation. Existing hook/wiring cases seed the old cached name and
+  verify dispatch uses the renamed owner; one roster-action case covers its separate path.
+- CI formatting: split the parity service condition to satisfy the pinned `golines` rule.
+- CI exposed a pre-existing timing assumption in the stopping-transition test: asynchronous
+  cancellation may advance runtime metadata after request-stop returns. The existing fake
+  driver's cancellation hook now holds that I/O boundary until the intermediate memory,
+  metadata, catalog, and attention assertions finish. Every assertion remains intact;
+  the focused race-enabled case passes 30 repetitions. Production stop behavior is unchanged.
+- Post-rebase checks: 112 Web tests in five targeted suites and Web typecheck passed.
+  Owner-refresh follow-up: 54 tests across the two affected suites, Web typecheck, and React Doctor (100/100) passed. Final remote status is recorded in the PR.

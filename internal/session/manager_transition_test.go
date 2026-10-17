@@ -693,15 +693,19 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
-
-		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
-			t.Fatalf("RequestStopWithCause() error = %v", err)
-		}
+		// Observe the stopping snapshot before asynchronous cancellation advances runtime metadata.
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		h.driver.cancelHook = func(*fakeProcess) error { <-release; return nil }
 		t.Cleanup(func() {
+			unblock()
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() cleanup error = %v", err)
 			}
 		})
+		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
+			t.Fatalf("RequestStopWithCause() error = %v", err)
+		}
 
 		if got, want := session.Info().State, StateStopping; got != want {
 			t.Fatalf("memory state after request stop = %q, want %q", got, want)

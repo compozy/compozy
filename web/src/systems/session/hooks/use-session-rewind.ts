@@ -48,9 +48,10 @@ export function useSessionRewind(workspaceId: string) {
   return useMutation<SessionRewindResult, Error, SessionRewindVariables>({
     mutationKey: sessionKeys.rewindConversation(workspaceId),
     mutationFn: async ({ idempotencyKey, messageId, sessionId, signal }) => {
-      const parent = await queryClient.ensureQueryData(
-        sessionDetailOptions(workspaceId, sessionId)
-      );
+      const parent = await queryClient.fetchQuery({
+        ...sessionDetailOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
       return rewindSession(
         workspaceId,
         sessionId,
