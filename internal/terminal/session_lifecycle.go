@@ -14,7 +14,6 @@ const outputDrainGrace = 200 * time.Millisecond
 
 func (s *session) waitProcess(outputDone <-chan struct{}) {
 	ptyExit, waitErr := s.proc.Wait(s.ctx)
-	s.flow.ResumeProducer()
 	select {
 	case <-outputDone:
 	case <-time.After(outputDrainGrace):

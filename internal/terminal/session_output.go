@@ -15,7 +15,7 @@ const outputReadBytes = 32 * 1024
 
 func (s *session) readOutput() {
 	reads := make(chan outputRead, 1)
-	go readProcessOutput(s.ctx, s.proc.Reader(), reads, s.flow)
+	go readProcessOutput(s.ctx, s.proc.Reader(), reads)
 	coalescer := newOutputCoalescer(s.acceptOutput)
 	for {
 		select {
@@ -65,10 +65,10 @@ type outputRead struct {
 	err  error
 }
 
-func readProcessOutput(ctx context.Context, reader io.Reader, output chan<- outputRead, flow *terminalwire.Group) {
+func readProcessOutput(ctx context.Context, reader io.Reader, output chan<- outputRead) {
 	buffer := make([]byte, outputReadBytes)
 	for {
-		if err := flow.WaitProducer(ctx); err != nil {
+		if err := ctx.Err(); err != nil {
 			output <- outputRead{err: err}
 			return
 		}

@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-controller-after-flood.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-watcher-recovered.png; /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/web-reconnect.png; docs/qa/reports/2026-09-04-terminal-shared-control.md
-last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
 
@@ -41,8 +41,12 @@ Walk:
 2. Stall one viewer while output floods and confirm the other viewers and the running program
    keep up; confirm the stalled viewer is either given a stated gap or disconnected with a stated
    reason, never silently fed stale bytes.
-3. Confirm a slow acknowledging viewer can apply bounded flow control, while a viewer that stops
-   acknowledging is demoted with the gap made visible rather than allowed to grow without bound.
+3. Confirm that neither acknowledging nor dropping viewers can stall the running process. A viewer
+   that stops consuming remains bounded and receives a GAP or an explicit disconnect; it cannot
+   prevent public terminal reads from advancing. Slow browser parsing under a sustained flood
+   must also bound the client render backlog and held snapshot tail by bytes and frame count. Confirm snapshot recovery
+   replaces discarded work, keeps input gated through replay completion, and renders current
+   output once the viewer catches up. Consecutive server trims must preserve cumulative GAP metadata.
 4. Drop and restore the network for one viewer mid-command; confirm it resumes from where it left off
    with no duplicated and no missing acknowledged output.
 5. Resize from two interactive viewers and confirm the last accepted size converges everywhere while
@@ -55,6 +59,20 @@ Walk:
    exit before the attachment completes; confirm the retained output and exit bar appear, and a late
    catalog response cannot restore the running state. Repeat in the all-profiles catalog without
    changing another profile's rows or another workspace's cache.
+
+9. Start a long-running command that continuously writes output in workspace A. Switch to workspace B
+   for at least 30 seconds and observe increasing output sequence through `terminal get` or native
+   `terminal_read`/`terminal_wait` in A. Return to A and confirm current output renders through the
+   existing replay/GAP/snapshot path. Repeat with the terminal minimized and the browser backgrounded.
+   Repeat switches while attachment is opening; canceled requests must not become HTTP 500, and the
+   final active view must reconnect. No slow-consumer timeout may hold the PTY on any reattach.
+
+QA impact 2026-10-17: issue #774 removes PTY backpressure from viewer ACKs and uses drop-mode Web
+attachments. Targeted isolated re-walk passed: 33 seconds in another workspace with advancing public
+read sequences, minimized/backgrounded views, current output on return, and repeated no-ACK full
+replays. Overflow preserves ATTACHED before GAP; replay demotion cannot re-enter the session lock.
+See the current report for receipts and platform/evidence-publication limits. Unchanged historical
+evidence below remains historical only.
 
 2026-09-04 targeted re-walk: passed for the changed shared-control surface. Two browser viewers and two
 CLI viewers received the same live output while writing independently. Detaching one CLI left the peer

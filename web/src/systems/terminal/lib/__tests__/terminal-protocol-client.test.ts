@@ -19,8 +19,7 @@ import {
  *
  * Invariant: a fresh attach pass per attempt, `ATTACHED` then `OUTPUT` rendered
  * in order, input held closed across a `GAP` until the replayed snapshot has
- * been parsed, and ack credit returned only from the parse callback, in 16 KiB
- * grains.
+ * been parsed, and browser attachments never backpressure the producer.
  */
 
 const ACK_GRAIN_BYTES = 16 * 1024;
@@ -134,7 +133,7 @@ describe("TerminalProtocolClient", () => {
     expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
     expect(socket.path).toContain("ticket=tkt-1");
     expect(socket.path).toContain("mode=write");
-    expect(socket.path).toContain("flow=ack");
+    expect(socket.path).toContain("flow=drop");
     // The daemon's size lands from the first frame; nothing else set it.
     expect(sink.dimensions).toEqual([{ cols: 96, rows: 28 }]);
     client.stop();
@@ -365,7 +364,7 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
-  it("Should return credit only after the parse, in 16 KiB grains", async () => {
+  it("Should keep an inactive writable renderer on drop flow and recover its ordered output", async () => {
     const { client, sockets, sink } = buildClient({ autoParse: false });
     client.start();
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
@@ -384,15 +383,72 @@ describe("TerminalProtocolClient", () => {
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(0);
-    // Half a grain parsed is still below the threshold: credit is returned in
-    // grains, not per frame. Completing the first write lets the second start.
+    // Completing the first write lets the second start.
     await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
     expect(ackCredits(socket)).toEqual([]);
 
     sink.completeWrite(1);
-    await vi.waitFor(() => expect(ackCredits(socket)).toEqual([ACK_GRAIN_BYTES]));
+    await vi.waitFor(() => expect(sink.parsed).toEqual([half, half]));
+    expect(socket.path).toContain("mode=write");
+    expect(socket.path).toContain("flow=drop");
+    expect(ackCredits(socket)).toEqual([]);
     client.stop();
   });
+
+  it.each([
+    { replaying: false, chunkBytes: 32 * 1024, count: 100, staleSeq: 1024 * 1024 },
+    { replaying: true, chunkBytes: 32 * 1024, count: 100, staleSeq: 1024 * 1024 },
+    { replaying: false, chunkBytes: 1, count: 3100, staleSeq: 1024 },
+    { replaying: true, chunkBytes: 1, count: 3100, staleSeq: 1024 },
+  ])(
+    "Should recover overflowing buffers with $chunkBytes-byte frames during replay=$replaying",
+    async ({ replaying, chunkBytes, count, staleSeq }) => {
+      const { client, sockets, sink, inputEnabled, fetchStub } = buildClient({
+        autoParse: false,
+        deferScreen: true,
+      });
+      client.start();
+      await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+      const socket = sockets.last();
+      socket.open();
+      socket.deliver(attachedFrame({ seq: replaying ? "8" : "0" }));
+      socket.deliver(serverOutputFrame("0", "inflight"));
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(1));
+
+      const chunk = "x".repeat(chunkBytes);
+      let seq = 8;
+      for (let index = 0; index < count; index += 1) {
+        socket.deliver(serverOutputFrame(String(seq), chunk));
+        seq += chunk.length;
+      }
+      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
+      fetchStub.resolveScreen({ content: "stale snapshot", seq: String(staleSeq) });
+      sink.completeWrite(0);
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(2));
+      sink.completeWrite(1);
+
+      // The held tail also overflowed while the snapshot was in flight. Fetch
+      // again instead of rendering a suffix over a screen that still has a gap.
+      await vi.waitFor(() => expect(fetchStub.pendingScreenReads()).toBe(1));
+      expect(inputEnabled).toEqual(replaying ? [] : [true, false]);
+      fetchStub.resolveScreen({ content: "current snapshot", seq: String(seq) });
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(3));
+      sink.completeWrite(2);
+      await vi.waitFor(() =>
+        expect(inputEnabled).toEqual(replaying ? [true] : [true, false, true])
+      );
+      expect(sink.parsed).toEqual(["inflight", "stale snapshot", "current snapshot"]);
+
+      socket.deliver(serverOutputFrame(String(seq), "live tail"));
+      await vi.waitFor(() => expect(sink.writeCount()).toBe(4));
+      sink.completeWrite(3);
+      await vi.waitFor(() => expect(sink.parsed.at(-1)).toBe("live tail"));
+      expect(sockets.sockets).toHaveLength(1);
+      expect(ackCredits(socket)).toEqual([]);
+      client.stop();
+    }
+  );
 
   it("Should never return credit while watching", async () => {
     const { client, sockets, sink } = buildClient({ mode: "read" });

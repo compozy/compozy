@@ -64,7 +64,6 @@ func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscripti
 		Flow: terminalwire.Flow(flow), Now: s.manager.now,
 		Demoted: subscriber.demoted, Evicted: subscriber.evict,
 	})
-	s.flow.Add(subscriber.queue)
 	s.subscribers[subscriber.id] = subscriber
 	s.info.Viewers = len(s.subscribers)
 	s.lastActivity = s.manager.now()
