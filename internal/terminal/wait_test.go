@@ -53,9 +53,30 @@ func TestWaitEngineContract(t *testing.T) {
 		if err := starter.latest().emit(bytes.Repeat([]byte("x"), terminalwire.AckHighWatermark)); err != nil {
 			t.Fatalf("emit(stalled viewer setup) error = %v", err)
 		}
-		waitForTerminalTail(t, handle, "setup output did not reach the terminal", func(tail *ReadResult) bool {
-			return tail.Seq == terminalwire.AckHighWatermark
+		waitForTerminalTail(t, handle, "setup output did not fill the ACK window", func(tail *ReadResult) bool {
+			return tail.Seq == terminalwire.AckHighWatermark &&
+				viewer.(*subscription).queue.PendingBytes() >= terminalwire.AckHighWatermark
 		})
+		// Consume any read already in flight when the ACK window became full.
+		probe := []byte("settled\r\n")
+		probeDone := make(chan error, 1)
+		go func() { probeDone <- starter.latest().emit(probe) }()
+		setupCtx, cancelSetup := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelSetup()
+		waitForTerminalTail(t, handle, "setup probe or screen did not settle", func(tail *ReadResult) bool {
+			wantSeq := uint64(terminalwire.AckHighWatermark + len(probe))
+			if tail.Seq != wantSeq {
+				return false
+			}
+			screen, err := handle.Screen(setupCtx, ReadOptions{View: terminalViewScreen})
+			if err != nil {
+				t.Fatalf("Screen(stalled viewer setup) error = %v", err)
+			}
+			return !screen.Busy && screen.Seq == wantSeq
+		})
+		if err := <-probeDone; err != nil {
+			t.Fatalf("emit(setup probe) error = %v", err)
+		}
 		type waitOutcome struct {
 			result *WaitResult
 			err    error
