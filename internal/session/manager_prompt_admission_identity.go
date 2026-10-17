@@ -158,6 +158,10 @@ func promptAdmissionFingerprintVersion(
 		ExpectedTurnID   string                            `json:"expected_turn_id,omitempty"`
 		SkillInvocations []commandpkg.Invocation           `json:"skill_invocations,omitempty"`
 		AttachmentIDs    []string                          `json:"attachment_ids,omitempty"`
+		// InReplyTo and Supersede are omitted when unset, so receipts admitted before they existed keep
+		// their fingerprint.
+		InReplyTo string `json:"in_reply_to,omitempty"`
+		Supersede bool   `json:"supersede,omitempty"`
 	}{
 		Version: version, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
@@ -174,6 +178,10 @@ func promptAdmissionFingerprintVersion(
 			canonical.Actor = req.meta.Origin.Kind + ":" + req.meta.Origin.SessionID
 		}
 		canonical.NotifyOnComplete = new(req.notifyOnComplete)
+		if req.meta.Origin != nil {
+			canonical.InReplyTo = strings.TrimSpace(req.meta.Origin.InReplyTo)
+		}
+		canonical.Supersede = req.supersede
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {

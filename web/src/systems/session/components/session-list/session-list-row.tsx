@@ -10,6 +10,7 @@ import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
 import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import { maskedAttentionNote } from "../../lib/session-pending-interactions";
+import { sessionAttentionReason } from "../../lib/session-attention-reason";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -155,6 +156,7 @@ function SessionListRowDetails({
 }) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
+  const attentionReason = sessionAttentionReason(session, signal.label);
   return (
     <>
       <span
@@ -176,6 +178,14 @@ function SessionListRowDetails({
             <>
               <span aria-hidden="true"> · </span>
               <span className={sessionBadgeWordClass(session.badge)}>{signal.displayLabel}</span>
+            </>
+          ) : null}
+          {attentionReason !== null ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span data-testid="session-attention-reason" title={attentionReason.detail}>
+                {attentionReason.summary}
+              </span>
             </>
           ) : null}
           {maskedNote !== null ? (

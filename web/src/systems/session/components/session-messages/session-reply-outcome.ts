@@ -6,5 +6,6 @@ export const SESSION_REPLY_OUTCOME_WORD: Record<SessionReplyOutcome, string> = {
   failed: "Failed",
   canceled: "Canceled",
   dropped: "Dropped",
+  expired: "No reply",
   unknown: "Unknown",
 };

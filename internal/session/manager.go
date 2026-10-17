@@ -87,6 +87,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		},
 		supervision:                  compozyconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    compozyconfig.DefaultSessionBusyInputConfig(),
+		messaging:                    compozyconfig.DefaultSessionMessagingConfig(),
 		sessionHealthStaleAfter:      compozyconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		now: func() time.Time {

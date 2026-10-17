@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -228,7 +229,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			t.Fatalf("unprojected clear traces = %#v, %v", traces, err)
 		}
 	})
-	t.Run("Should fail the queue receipt and trace the entry when sent persistence fails", func(t *testing.T) {
+	t.Run("Should keep a started entry leased without failing it when sent persistence fails", func(t *testing.T) {
 		t.Parallel()
 		database := openManagerInputQueueStore(t)
 		queueStore := &queueSentFailureStore{GlobalDB: database}
@@ -250,21 +251,109 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 		m := h.manager
 		m.startNextQueuedInputPrompt(sess.ID)
-		waitForCondition(t, "failed queue receipt", func() bool {
-			stored, getErr := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
-			return getErr == nil && stored.Status == store.SessionInputQueueStatusFailed
-		})
-		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
-		if err != nil || !strings.Contains(stored.FailureSummary, "sent receipt unavailable") {
-			t.Fatalf("failed receipt = %#v, %v", stored, err)
+		waitForCondition(t, "queued input dispatch", func() bool { return len(managerPromptCalls(h)) == 1 })
+		if err := m.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
 		}
-		marker := requireTranscriptMarker(t, m, sess.ID, transcript.MarkerPromptDropped)
-		if marker.Evidence["queue_entry_id"] != entry.ID || marker.Evidence["queue_status"] != "failed" {
-			t.Fatalf("dropped marker evidence = %#v", marker.Evidence)
+		// The turn already ran: a failed row would invite a retry that duplicates it.
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || stored.Status != store.SessionInputQueueStatusDispatching {
+			t.Fatalf("started entry = %#v, %v; want still dispatching", stored, err)
+		}
+		if count := countTranscriptMarkers(t, m, sess.ID, transcript.MarkerPromptDropped); count != 0 {
+			t.Fatalf("dropped markers = %d, want none for a started turn", count)
 		}
 		m.startNextQueuedInputPrompt(sess.ID)
 		if calls := managerPromptCalls(h); len(calls) != 1 {
 			t.Fatalf("prompt dispatch count = %d, want one", len(calls))
+		}
+	})
+	t.Run("Should retry a failed sent receipt in the background while the turn runs", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		// The synchronous attempts and two background retries fail; the next background retry lands.
+		queueStore := &queueSentFailureStore{GlobalDB: database, failures: queuedInputSentAttempts + 2}
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				<-release
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		entry, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "sent-receipt-retry", SessionID: sess.ID, Text: "dispatch once", QueueCap: 3,
+			Now: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.startNextQueuedInputPrompt(sess.ID)
+		waitForCondition(t, "sent receipt landed while the turn runs", func() bool {
+			stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+			return err == nil && stored.Status == store.SessionInputQueueStatusSent && stored.TurnID != ""
+		})
+		turnID := sess.CurrentTurnID()
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || turnID == "" || stored.TurnID != turnID {
+			t.Fatalf("entry = %#v, %v; want sent in the live turn %q", stored, err, turnID)
+		}
+		unblock()
+		if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 1 {
+			t.Fatalf("prompt dispatch count = %d, want one", len(calls))
+		}
+	})
+	t.Run("Should bound retries and keep re-kicking until a disagreeing queue settles", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		// Two bounded passes disagree (the first call and the first deferred re-kick); the next agrees.
+		queueStore := &queuePeekDisagreementStore{GlobalDB: database, disagreements: 2 * maxQueuedInputSelectAttempts}
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		entry, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "claimable", SessionID: sess.ID, Text: "real", QueueCap: 3,
+			Now: time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := queueStore.peeks.Load()
+		h.manager.startNextQueuedInputPrompt(sess.ID)
+		if got := queueStore.peeks.Load() - before; got != maxQueuedInputSelectAttempts {
+			t.Fatalf("peeks = %d, want %d bounded attempts", got, maxQueuedInputSelectAttempts)
+		}
+		stored, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, entry.ID)
+		if err != nil || stored.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("entry = %#v, %v; want released back to queued", stored, err)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 0 {
+			t.Fatalf("prompt dispatch count = %d, want none", len(calls))
+		}
+		// The bound paces selection without stalling the queue: deferred passes keep selecting with backoff
+		// even after a deferred pass hits the bound again, until the entry dispatches.
+		waitForCondition(t, "queued input dispatched after repeated bounded passes", func() bool {
+			return len(managerPromptCalls(h)) == 1
+		})
+		if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := queueStore.peeks.Load() - before; got <= 2*maxQueuedInputSelectAttempts {
+			t.Fatalf("peeks = %d, want a third pass after two bounded passes", got)
 		}
 	})
 	t.Run("Should surface queue entry entropy failure before persistence", func(t *testing.T) {
@@ -316,7 +405,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, _ string, admission store.SessionPromptAdmissionRequest) error {
-					_, _, _, _, err := queue.EnqueueAdmitted(ctx, admission, 0, "")
+					_, _, _, _, err := queue.EnqueueAdmitted(ctx, admission, 0, "", false)
 					return err
 				},
 			},
@@ -3548,14 +3637,43 @@ func equalIntPointers(left *int, right *int) bool {
 	return *left == *right
 }
 
+// queueSentFailureStore fails every sent receipt, or only the first failures receipts when set.
 type queueSentFailureStore struct {
 	*globaldb.GlobalDB
+	failures int32
+	attempts atomic.Int32
 }
 
 var _ store.SessionInputQueueStore = (*queueSentFailureStore)(nil)
 
 func (s *queueSentFailureStore) MarkSessionInputSent(context.Context, string, string, time.Time) error {
 	return errors.New("sent receipt unavailable")
+}
+
+func (s *queueSentFailureStore) MarkSessionInputSentInTurn(
+	ctx context.Context, sessionID, entryID, turnID string, now time.Time,
+) error {
+	if attempt := s.attempts.Add(1); s.failures == 0 || attempt <= s.failures {
+		return errors.New("sent receipt unavailable")
+	}
+	return s.GlobalDB.MarkSessionInputSentInTurn(ctx, sessionID, entryID, turnID, now)
+}
+
+// queuePeekDisagreementStore peeks an entry that claim never returns for its first disagreements peeks.
+type queuePeekDisagreementStore struct {
+	*globaldb.GlobalDB
+	disagreements int32
+	peeks         atomic.Int32
+}
+
+func (s *queuePeekDisagreementStore) PeekNextSessionInput(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionInputQueueEntry, bool, error) {
+	if s.peeks.Add(1) > s.disagreements {
+		return s.GlobalDB.PeekNextSessionInput(ctx, sessionID)
+	}
+	return store.SessionInputQueueEntry{ID: "ghost", SessionID: sessionID}, true, nil
 }
 
 type queuePersistenceRaceStore struct {
@@ -4424,6 +4542,23 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				}
 				unblock()
 			}
+			if mode == BusyInputModeSteer || mode == BusyInputModeInterrupt {
+				// Another session's steer never interrupts: without live injection
+				// it waits for the active turn to finish. An agent interrupt is
+				// delivered as that same steer and reports the mode it used.
+				if result.Mode != BusyInputModeSteer {
+					t.Fatalf("agent %s effective mode = %q, want steer", mode, result.Mode)
+				}
+				if result.Delivery != store.SessionInputDeliveryAfterTurn {
+					t.Fatalf("agent steer delivery = %q, want after_turn", result.Delivery)
+				}
+				select {
+				case req := <-sent:
+					t.Fatalf("agent steer dispatched before the active turn ended: %#v", req)
+				case <-time.After(100 * time.Millisecond):
+				}
+				unblock()
+			}
 			if result.Events != nil {
 				collectEvents(t, result.Events)
 			}
@@ -4605,5 +4740,351 @@ func TestPromptOriginHeader(t *testing.T) {
 		if got != want {
 			t.Fatalf("header = %q", got)
 		}
+	})
+}
+
+// Invariant: agent-authored queue input never displaces the operator or cancels the target's work:
+// supersede replaces only the sender's own queued messages, and a turn past queue_promote_after
+// takes waiting agent messages as injected steering with their identity, unless operator input waits.
+// Owner: session busy-input suite (#760).
+func TestManagerAgentQueueDelivery(t *testing.T) {
+	t.Parallel()
+	agentOpts := func(id, sender string, supersede bool) SendPromptOpts {
+		return SendPromptOpts{
+			Message: "status " + id, MessageID: id, IdempotencyKey: id + "-key", Mode: BusyInputModeQueue,
+			Supersede: supersede,
+			Origin:    &acp.PromptOriginMeta{Kind: "session", SessionID: sender, WorkspaceID: "ws", Hop: 1},
+		}
+	}
+	type fixture struct {
+		h       *harness
+		db      *globaldb.GlobalDB
+		sess    *Session
+		release func()
+		held    SendPromptResult
+		steered chan string
+		advance func(time.Duration)
+	}
+	newFixtureWith := func(
+		t *testing.T, cfg compozyconfig.SessionMessagingConfig, opts []Option, steerErr ...error,
+	) fixture {
+		t.Helper()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 16, 14, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		db := openManagerInputQueueStore(t)
+		h := newHarness(t, append([]Option{
+			WithSessionInputQueueStore(db), WithNow(clock), WithSessionMessagingConfig(cfg),
+		}, opts...)...)
+		registerManagerInputQueueWorkspace(t, db, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, db, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		sess.processHandle().caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+		steered := make(chan string, 4)
+		h.manager.driver = &steeringTestDriver{fakeDriver: h.driver,
+			steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+				steered <- text
+				if len(steerErr) > 0 {
+					return "", steerErr[0]
+				}
+				return acp.SteerAttemptInjected, nil
+			},
+		}
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				if req.Message == "hold" {
+					<-release
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		held, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "hold"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fixture{h: h, db: db, sess: sess, release: unblock, held: held, steered: steered,
+			advance: func(d time.Duration) { nowMu.Lock(); now = now.Add(d); nowMu.Unlock() }}
+	}
+	newFixture := func(t *testing.T, cfg compozyconfig.SessionMessagingConfig, steerErr ...error) fixture {
+		t.Helper()
+		return newFixtureWith(t, cfg, nil, steerErr...)
+	}
+	drain := func(t *testing.T, f fixture) {
+		t.Helper()
+		f.release()
+		for range f.held.Events {
+			continue
+		}
+		if err := f.h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("Should replace only the sender's own queued messages and mark each removal", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+		ids := map[string]string{}
+		for _, opts := range []SendPromptOpts{
+			agentOpts("a1", "sess-a", false), agentOpts("a2", "sess-a", false), agentOpts("b1", "sess-b", false),
+			{Message: "operator note", Mode: BusyInputModeQueue},
+		} {
+			f.advance(time.Second)
+			result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[opts.Message] = result.QueueEntryID
+		}
+		f.advance(time.Second)
+		latest, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("a3", "sess-a", true))
+		if err != nil || latest.CanceledQueuedEntries != 2 {
+			t.Fatalf("supersede = %#v, %v; want two replaced messages", latest, err)
+		}
+		replay, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("a3", "sess-a", true))
+		if err != nil || !replay.Replayed || replay.QueueEntryID != latest.QueueEntryID {
+			t.Fatalf("replay = %#v, %v; want the same admission", replay, err)
+		}
+		pending, err := f.db.ListPendingSessionInputs(t.Context(), f.sess.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, 0, len(pending))
+		for index := range pending {
+			got = append(got, pending[index].Text)
+		}
+		if want := []string{"operator note", "status b1", "status a3"}; !slices.Equal(got, want) {
+			t.Fatalf("pending = %v, want %v", got, want)
+		}
+		if count := countTranscriptMarkers(t, f.h.manager, f.sess.ID, transcript.MarkerPromptDropped); count != 2 {
+			t.Fatalf("dropped markers = %d, want one per superseded message", count)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should inject a waiting agent message into a long turn and keep its identity", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case text := <-f.steered:
+			if !strings.Contains(text, "status late") {
+				t.Fatalf("injected text = %q", text)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not injected")
+		}
+		waitForCondition(t, "promoted message injected", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.SteerDelivery == store.SteerDeliveryInjected
+		})
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.MessageID != "late" || entry.TurnID != turnID ||
+			entry.Status != store.SessionInputQueueStatusSent || f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("promoted entry = %#v, %v; want sent into the live turn %s without interrupting it",
+				entry, err, turnID)
+		}
+		found := false
+		for _, event := range managerUserPromptEvents(t, f.h, f.sess.ID) {
+			found = found || (event.MessageIDValue() == "late" && event.TurnID == turnID)
+		}
+		if !found {
+			t.Fatal("promoted message has no input event in the live turn")
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should return a fallen-back promoted message to plain after-turn delivery", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(
+			t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, errors.New("injection refused"),
+		)
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not offered for injection")
+		}
+		waitForCondition(t, "fallen-back promotion reverted", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue
+		})
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+			entry.Delivery != store.SessionInputDeliveryAfterTurn || entry.SteerDelivery != "" ||
+			!entry.Dispatchable || f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("reverted entry = %#v, %v; want plain queued after-turn delivery without interrupting %s",
+				entry, err, turnID)
+		}
+		drain(t, f)
+		waitForCondition(t, "reverted message dispatched after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
+	})
+
+	t.Run("Should return a promotion whose pending injection later fails to after-turn delivery", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		completion := make(chan error, 1)
+		f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
+			steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+				f.steered <- text
+				return acp.SteerAttemptPendingInjection, nil
+			},
+		}
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not offered for injection")
+		}
+		waitForCondition(t, "promotion pending injection", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.SteerDelivery == store.SteerDeliveryPendingInjection
+		})
+		completion <- errors.New("tool never finished")
+		waitForCondition(t, "failed pending promotion reverted", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue
+		})
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+			entry.Delivery != store.SessionInputDeliveryAfterTurn || entry.SteerDelivery != "" ||
+			f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("reverted entry = %#v, %v; want plain queued after-turn delivery without interrupting %s",
+				entry, err, turnID)
+		}
+		// The sender's next steer must not cancel the reverted message as a superseded steer.
+		steer := agentOpts("next", "sess-a", false)
+		steer.Mode = BusyInputModeSteer
+		steer.ExpectedTurnID = turnID
+		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer); err != nil {
+			t.Fatal(err)
+		}
+		completion <- nil
+		entry, err = f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status == store.SessionInputQueueStatusCanceled {
+			t.Fatalf("reverted entry = %#v, %v; want it kept after the sender's next steer", entry, err)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should inject the input hook's rewrite and never promote a message the hook refuses", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{}
+		dispatcher.dispatchInputPreSubmitFn = func(
+			_ context.Context, payload hookspkg.InputPreSubmitPayload,
+		) (hookspkg.InputPreSubmitPayload, error) {
+			switch payload.Message {
+			case "status refused":
+				return payload, errors.New("policy refused")
+			case "status rewrite":
+				payload.Message = "status rewritten by policy"
+			}
+			return payload, nil
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute},
+			[]Option{WithHookSet(fullHookSet(dispatcher))})
+		f.advance(2 * time.Minute)
+		refused, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("refused", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("rewrite", "sess-b", false)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case text := <-f.steered:
+			if !strings.Contains(text, "status rewritten by policy") || strings.Contains(text, "refused") {
+				t.Fatalf("injected text = %q, want only the hook's rewrite", text)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the allowed message was not injected")
+		}
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a refused message was injected on a later pass: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, refused.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue ||
+			entry.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("refused entry = %#v, %v; want it left queued for ordinary dispatch", entry, err)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should leave a message that asked for another runtime queued", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		f.advance(2 * time.Minute)
+		live := f.sess.runtimeBindingSnapshot().selection
+		opts := agentOpts("other-runtime", "sess-a", false)
+		opts.Runtime = &RuntimeSelection{Provider: live.Provider, Model: "another-model"}
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a message for another runtime was injected into the live turn: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue {
+			t.Fatalf("entry = %#v, %v; want it queued for its own turn", entry, err)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should never promote an agent message while operator input waits", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		f.advance(2 * time.Minute)
+		if _, err := f.h.manager.SendPrompt(
+			t.Context(), f.sess.ID, SendPromptOpts{Message: "operator first", Mode: BusyInputModeQueue},
+		); err != nil {
+			t.Fatal(err)
+		}
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("waiting", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("agent message injected past operator input: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue ||
+			entry.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("agent entry = %#v, %v; want still queued behind the operator", entry, err)
+		}
+		drain(t, f)
 	})
 }

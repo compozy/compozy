@@ -74,6 +74,7 @@ type sessionOverlay struct {
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
+	Messaging   sessionMessagingOverlay   `toml:"messaging"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
 	Derive      sessionDeriveOverlay      `toml:"derive"`
 }

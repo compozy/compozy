@@ -110,7 +110,9 @@ CREATE TABLE session_health (
 			updated_at TEXT NOT NULL
 		, loop_run_id TEXT, owner_kind TEXT, owner_epoch INTEGER, binding_epoch INTEGER, prompt_id TEXT, prompt_kind TEXT, operation_usage_base_tokens INTEGER, prompt_attempt INTEGER NOT NULL DEFAULT 0 CHECK (prompt_attempt >= 0), dispatchable INTEGER NOT NULL DEFAULT 1 CHECK (dispatchable IN (0,1)), activated_at TIMESTAMP, dispatch_token_hash TEXT, fence_kind TEXT, fence_disposition TEXT, fence_reason_code TEXT, fenced_at TIMESTAMP, terminal_event_start_seq INTEGER, terminal_event_end_seq INTEGER, terminal_kind TEXT, terminal_stop_reason TEXT, terminal_disposition TEXT, terminal_reason_code TEXT, terminal_tokens_reported INTEGER NOT NULL DEFAULT 0
 				CHECK (terminal_tokens_reported IN (0,1)), terminal_tokens_used INTEGER
-				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP, priority INTEGER NOT NULL DEFAULT 0);
+				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP, priority INTEGER NOT NULL DEFAULT 0,
+			origin_class TEXT NOT NULL DEFAULT 'human' CHECK (origin_class IN ('human', 'agent', 'synthetic')),
+			origin_session_id TEXT NOT NULL DEFAULT '');
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
@@ -265,7 +267,7 @@ CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
 	CREATE INDEX idx_session_input_queue_pending
-			ON session_input_queue(session_id, status, delivery DESC, priority DESC, enqueued_at ASC, id ASC);
+			ON session_input_queue(session_id, status, origin_class, delivery DESC, priority DESC, enqueued_at ASC, id ASC);
 
 	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
 			ON session_input_queue(prompt_admission_id)
@@ -422,7 +424,7 @@ CREATE UNIQUE INDEX idx_token_stats_session_agent ON token_stats(session_id, age
 CREATE INDEX idx_token_usage_daily_workspace ON token_usage_daily(workspace_id, day);
 
 CREATE UNIQUE INDEX uq_session_input_queue_active_steer
-			ON session_input_queue(session_id)
+			ON session_input_queue(session_id, origin_session_id)
 			WHERE mode = 'steer' AND status = 'queued';
 
 CREATE UNIQUE INDEX uq_session_input_queue_goal_prompt

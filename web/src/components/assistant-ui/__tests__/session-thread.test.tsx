@@ -6553,4 +6553,105 @@ describe("SessionThread session messages", () => {
     expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
     expect(screen.getAllByTestId("session-sent-message-row")).toHaveLength(1);
   });
+
+  function inboundMessage(
+    id: string,
+    text: string,
+    { from = senderId, inReplyTo }: { from?: string; inReplyTo?: string } = {}
+  ): SessionMessage {
+    return {
+      id,
+      role: "user",
+      metadata: {
+        turn_id: `turn-${id}`,
+        message_id: id,
+        origin: {
+          kind: "session",
+          session_id: from,
+          workspace_id: fixtureWorkspaceId(),
+          hop: 1,
+          ...(inReplyTo ? { in_reply_to: inReplyTo } : {}),
+        },
+      },
+      parts: [{ type: "text", text }],
+    } as SessionMessage;
+  }
+
+  it("Should fold consecutive messages from one sender behind their latest card (#760)", async () => {
+    const user = userEvent.setup();
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          inboundMessage("msg-update-1", "Plan drafted."),
+          inboundMessage("msg-update-2", "Tests written."),
+          inboundMessage("msg-update-3", "PR opened."),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    const toggle = await screen.findByTestId("session-inbound-group-toggle");
+    expect(toggle).toHaveTextContent("Refactor billing · 3 messages");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(1);
+    expect(screen.getByText("PR opened.")).toBeVisible();
+    expect(screen.queryByText("Plan drafted.")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(3);
+    expect(screen.getByTestId("session-inbound-group-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+  });
+
+  it("Should link an explicit reply to its Sent card and read the send as replied (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          inboundMessage("msg-approval", "Approved.", { from: targetId, inReplyTo: "msg-plan" }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    // The explicit answer reads replied while the armed watch keeps waiting for the turn to settle.
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
+    const card = await screen.findByRole("article", { name: "Message from Billing reviewer" });
+    expect(
+      within(card).getByRole("button", { name: "In reply: show the original message" })
+    ).toHaveAttribute("data-target-message-id", "msg-sender-turn");
+  });
 });

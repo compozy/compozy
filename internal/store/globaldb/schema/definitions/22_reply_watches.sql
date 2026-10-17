@@ -12,7 +12,7 @@ CREATE TABLE session_prompt_reply_watches (
     abandon_reason TEXT CHECK (abandon_reason IN ('sender_gone', 'send_failed')),
     hop INTEGER NOT NULL,
     state TEXT NOT NULL CHECK (state IN ('armed', 'fired', 'delivered', 'abandoned')),
-    outcome TEXT CHECK (outcome IN ('completed', 'failed', 'canceled', 'dropped', 'unknown')),
+    outcome TEXT CHECK (outcome IN ('completed', 'failed', 'canceled', 'dropped', 'unknown', 'expired')),
     reply_text TEXT,
     reply_truncated INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,

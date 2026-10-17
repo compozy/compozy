@@ -130,11 +130,11 @@ Keep the same `message_id` and `idempotency_key` when retrying. Another sender o
 v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed
 in v0.5.0.
 
-Agent-authored queue entries cannot be edited or promoted to steer: `input_agent_authored` directs
-the operator to cancel instead. Self-targeting returns `invalid_request`. To continue work in the
-same session, end the turn; to schedule work, use a subagent or `compozy session prompt` from the
-operator. Message chains allow eight hops, including steering received during the active turn;
-`message_hop_limit` requires operator intervention to start a fresh chain.
+Agent-authored queue entries cannot be edited (`input_agent_authored`). Self-targeting returns
+`invalid_request`. Message other sessions with this tool, never the CLI. An agent `interrupt` becomes
+`steer`; prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
+status; answer with `in_reply_to` (keeps the hop). On `message_hop_limit` or `message_rate_limited`,
+stop and batch. Queue order, promotion, hops and replies: `references/runtime-operations.md`.
 
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace

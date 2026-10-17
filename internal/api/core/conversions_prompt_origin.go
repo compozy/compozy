@@ -17,6 +17,7 @@ func promptOriginPayload(origin *acp.PromptOriginMeta) *contract.PromptOriginMet
 		Kind: redacted.Kind, SessionID: redacted.SessionID, WorkspaceID: redacted.WorkspaceID,
 		AgentName: redacted.AgentName, TitleAtSend: redacted.TitleAtSend, Hop: redacted.Hop,
 		NotifyOnComplete: redacted.NotifyOnComplete, ReplyWatchID: redacted.ReplyWatchID,
+		InReplyTo: redacted.InReplyTo,
 	}
 }
 

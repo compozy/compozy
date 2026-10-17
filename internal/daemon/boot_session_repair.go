@@ -40,6 +40,7 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			return fmt.Errorf("daemon: recover pending session stops: %w", err)
 		}
 	}
+	recoverBootStaleInputDispatches(ctx, state)
 
 	infos, err := state.sessions.ListAll(ctx)
 	if err != nil {
@@ -192,6 +193,19 @@ func reconcileBootDerivedSessionEvents(ctx context.Context, state *bootState, in
 	return nil
 }
 
+// recoverBootStaleInputDispatches settles queue leases from the previous
+// process before any session claims input. A row that cannot settle stays
+// visible as dispatching; it must not block boot.
+func recoverBootStaleInputDispatches(ctx context.Context, state *bootState) {
+	recoverer, ok := state.sessions.(sessionStaleInputDispatchRecoverer)
+	if !ok {
+		return
+	}
+	if _, err := recoverer.RecoverStaleInputDispatches(ctx); err != nil {
+		state.logger.Warn("daemon: stale input dispatch recovery incomplete", "error", err)
+	}
+}
+
 func recoverBootSessionHealth(ctx context.Context, state *bootState) error {
 	recoverer, ok := state.sessions.(sessionHealthRecoverer)
 	if !ok {
@@ -229,6 +243,12 @@ var _ sessionDerivedEventReconciler = (*session.Manager)(nil)
 type sessionPendingStopRecoverer interface {
 	RecoverPendingStops(context.Context) error
 }
+
+type sessionStaleInputDispatchRecoverer interface {
+	RecoverStaleInputDispatches(context.Context) (int, error)
+}
+
+var _ sessionStaleInputDispatchRecoverer = (*session.Manager)(nil)
 
 type sessionRestartInteractionExpirer interface {
 	ExpireRestartInteractions(ctx context.Context, sessionID string) (int, error)

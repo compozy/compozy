@@ -1,5 +1,6 @@
 import { ArrowUpRight, CornerDownRight, Scissors } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
+import type { ReactNode } from "react";
 
 import type {
   SessionMessageMode,
@@ -35,6 +36,7 @@ const REPLY_WORD: Record<SessionReplyOutcome, string> = {
   failed: "Failed",
   canceled: "Canceled",
   dropped: "Dropped",
+  expired: "No reply",
   unknown: "Unknown",
 };
 
@@ -43,6 +45,7 @@ const REPLY_TONE: Record<SessionReplyOutcome, StatusDotTone> = {
   failed: "danger",
   canceled: "faint",
   dropped: "faint",
+  expired: "faint",
   unknown: "faint",
 };
 
@@ -92,6 +95,8 @@ export interface SessionSentCardProps {
   firstLine: string;
   error: string | null;
   reply: SessionSentReplyState;
+  /** The `in_reply_to` correlation chip; absent when the send answers nothing. */
+  replyTo?: ReactNode;
   timestampMs: number | null;
   onOpenTarget?: SessionMessageOpen;
 }
@@ -108,6 +113,7 @@ export function SessionSentCard({
   firstLine,
   error,
   reply,
+  replyTo,
   timestampMs,
   onOpenTarget,
 }: SessionSentCardProps) {
@@ -154,6 +160,7 @@ export function SessionSentCard({
               Interrupted
             </SessionMessageChip>
           ) : null}
+          {replyTo}
         </span>
         {lineTwo ? (
           <span

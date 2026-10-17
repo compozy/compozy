@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-13-follow-a-live-run
 expected: A message one agent session sends another with compozy__session_prompt renders in the receiver's transcript as a left-aligned framed card (the sender's provider mark with no status dot, "From {current title}" as a link, a Steered / Interrupted / Superseded chip only when it arrived that way, "Reply requested" when notify_on_complete was set, the time, and the body with the operator bubble's 176px clamp and Show more), never as a right-aligned operator bubble; a deleted sender reads "From a deleted session" with no link, a renamed one shows its current title, and one in another workspace adds its folder and workspace name; while queued it shows in the queue strip as "From {title}" with the provider mark and Remove only (no Steer or edit); in the sender's transcript the call renders as a "Sent to {title}" card outside the work group (Sending… → Waiting for reply with a pulsing success dot → Replied / Failed / Canceled / Dropped / Unknown, or no reply state when none was requested, or "Could not send to {title}" with the error) and the reply lands as a left-aligned "Reply from {title}" card with the target's mark, an outcome dot and word, and the answer, a fixed sentence for dropped / unknown, "No reply text." when the turn left none, and "Reply truncated · Read the full turn" when cut at 12,000 characters; every surface matches its VC in docs/design/opendesign/agent-collaboration/.
 entry_points: web session window transcript (SessionMessageCard, SessionReplyCard, SessionSentCard); composer queue strip (SessionQueueEntryRow); docs/design/opendesign/agent-collaboration/agent-collaboration-transcript.html (VC-01…VC-04) and agent-collaboration-composer.html (VC-05)
-qa_status: untested
+qa_status: pass
 bug_ids: compozy/compozy#742
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: branch fix/issue-742-session-message-cards
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-17-issue-760-session-messaging.md
 overlaps: RT-session-message-origin; RT-session-message-reply; ET-web-session-transcript-calm-grammar; ET-web-subagent-card
 ---
 
@@ -33,10 +33,9 @@ is the real-provider walk with visual parity against the boards.
    from a session in another workspace (folder glyph + workspace name); send with attachments. Each
    matches `agent-collaboration-transcript.html#tr-card`.
 3. **Queue row (VC-05).** While B is busy, send a queued message from A: the strip row shows the
-   Claude mark and `From Refactor billing`, Remove only (aria `Remove message from Refactor
-   billing`). Remove it: the row leaves, and A's sent card resolves to `Dropped`. A deleted sender
-   reads `From a deleted session`. Operator rows keep Steer / edit / Remove; other actors' rows keep
-   none.
+   Claude mark and `From Refactor billing`, Steer (aria `Steer message from Refactor billing`) and
+   Remove (aria `Remove message from Refactor billing`), never edit. Steer moves it into the live turn. Remove it: the row leaves, and A's sent card resolves to `Dropped`. A deleted sender
+   reads `From a deleted session`. Operator rows keep Steer / edit / Remove.
 4. **Sender side (VC-04/VC-03).** In A, the call reads `Sending to Billing reviewer` with `Sending…`,
    then `Sent to Billing reviewer` · `Waiting for reply` (pulsing dot), never a "Used session
    prompt" tool row. When B's turn ends, `Reply from Billing reviewer` lands with `Completed` and the
@@ -69,5 +68,11 @@ existing transcripts are reprojected on open (projection version 3). Automated o
 `TestSessionMessageUIProjection` (recorded Claude and Codex shapes, live tracker parity),
 `TestTranscriptProjectionUpgrade` (version 2 → 3), `TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks`,
 and the Web timeline and thread suites. The real-provider walk in steps 7–8 remains to be run.
+
+7. **Replies and groups (#760).** A message sent with `in_reply_to` shows the `In reply` chip; clicking it
+   scrolls to the original when loaded. Three consecutive messages from one sender render as one group
+   `Refactor billing · 3 messages` (latest shown, toggle expands). An expired watch reads `No reply` on
+   the sent card, with the body `No reply arrived in time. The message may still be pending; check the
+   target session.` A session marked Needs attention shows its reason in the list row.
 
 QA impact 2026-10-09 (agent-collaboration tasks 03/05): new in this change; no prior verdict.

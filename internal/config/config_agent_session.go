@@ -44,6 +44,7 @@ type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
+	Messaging   SessionMessagingConfig   `toml:"messaging"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
 	Derive      SessionDeriveConfig      `toml:"derive"`
 }

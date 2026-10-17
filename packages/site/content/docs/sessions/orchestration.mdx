@@ -54,27 +54,83 @@ exits `0` after a cancel and `66` when there was nothing to cancel.
 
 Agents use `compozy__session_prompt` to address another session. Supply `session_id`, `message_id`,
 `idempotency_key`, and the message or attachments. Choose `mode: "queue"`, `"steer"`, or
-`"interrupt"` when the target is busy. Retry with the same message and idempotency IDs.
+`"interrupt"` when the target is busy; without `mode`, `session.busy_input.default_mode` applies
+(`steer` by default). Retry with the same message and idempotency IDs. Every message costs the
+receiver a full turn, so send at milestones instead of streaming status updates.
+For a long-running receiver, prefer `steer` for anything it must see soon; `queue` only waits for the end
+of its current turn, which can be long. Set `supersede: true` on a status update so only your latest one
+stays queued.
 
 CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
 include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,
-`title_at_send`, `notify_on_complete`, and `reply_watch_id`. The origin survives all delivery modes
-and daemon restarts. It cannot be supplied through a request body. CLI, HTTP and operator prompts
-remain unattributed operator input.
+`title_at_send`, `notify_on_complete`, `reply_watch_id`, and `in_reply_to`. The origin survives all
+delivery modes and daemon restarts. It cannot be supplied through a request body. HTTP prompts
+without daemon-validated agent identity headers remain unattributed operator input.
+
+`compozy session prompt` sends operator input unless you opt in. Pass `--from-session auto` inside a
+managed session to send with the daemon-issued `COMPOZY_SESSION_ID` and `COMPOZY_AGENT` identity, so
+the message carries that session's origin exactly like the native tool: the receiver sees who sent it
+and can reply. Pass `--from-session <id>` to name a session explicitly. Without the flag, a prompt run
+inside a managed session stays operator input and prints a one-line hint on stderr; sending as the
+session becomes the default in a later release. The daemon validates the named session like any agent
+identity, but the identity is a local, trusted session-ID header: it does not protect against a local
+operator who names another session. An origin-stamped CLI prompt follows the same self-target, hop,
+rate, and workspace rules as the native tool, and loses operator-only behavior (interrupt, slash
+commands, operator priority). `--steer` keeps sending operator input. `--in-reply-to` and
+`--supersede` require a sending session: without `--from-session` the CLI refuses them, and HTTP and
+the native tool return `invalid_request` for a caller without an agent session.
 
 The receiving provider sees a one-line sender header followed by the message. The header does not
 become stored message text. Without a reply watch, it tells the recipient to answer by calling
 `compozy__session_prompt` with the sender's session ID. Set `notify_on_complete: true` to request the
-reply-watch flow from an agent session. Changing that flag on a retry conflicts, as does retrying
-another sender's message identity. A sender rename preserves the original admission.
+reply-watch flow from an agent session. Without it, nobody is woken when the receiver finishes.
+Changing that flag on a retry conflicts, as does retrying another sender's message identity. A sender
+rename preserves the original admission.
 
-An operator can cancel an agent-authored queued message, but cannot replace or promote its text.
-Those mutations return HTTP 409 `input_agent_authored`. Each message increases the active turn's
-highest accepted hop; steer also raises that value before provider delivery. A ninth hop returns
-`message_hop_limit`: ask the operator to continue in a fresh turn.
+To answer a specific message, pass its message ID as `in_reply_to` (`--in-reply-to` on the CLI). It is
+carried in the origin, so the receiver's card can link the answer to the original. An explicit answer
+never releases the original sender's reply watch: an early "ack, starting" must not cancel the
+completion wake, so a sender that asked for `notify_on_complete` still gets the final answer when your
+turn ends. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24 hours by
+default) with the `expired` outcome and stops keeping the sender awake; set it to `"0s"` to let a watch
+wait for as long as the target works.
+
+An operator can cancel an agent-authored queued message or promote it to steer (**Steer** on its queue
+row in the Web UI), but cannot replace its text: that returns HTTP 409 `input_agent_authored`.
+
+When the receiver is busy, the order is operator input, then messages from other sessions, then reply
+and subagent wakes, and enqueue time within each group. The queue cap counts operator and agent entries
+separately, so agents cannot fill the operator's slots, and `queue_position` is the real dispatch rank.
+An agent's `steer` never interrupts the receiver: if the provider cannot take an injection, it waits in
+the queue. Steer replacement is per sender, so an agent cannot cancel another sender's or the
+operator's steer.
+
+The hop counts forwarding depth. A message forwarded to a session that is not driving your current
+turn takes the turn's highest accepted hop plus one; steer also raises that value before provider
+delivery. A message answering the session that started or joined your current turn (its message or
+its reply wake), or one sent with an `in_reply_to` that names a message that session sent you, keeps
+the turn's hop. A reply wake carries the hop you had when you sent the message, so an orchestrator
+that dispatches the next child after each completion stays at hop 1 however many stages it runs. A
+plain conversation between two sessions therefore stays at hop 1. A ninth forwarding
+hop returns `message_hop_limit`: ask the operator to continue in a fresh turn.
+
+Each sender→target pair has a rate budget, `session.messaging.rate_limit_messages` per
+`session.messaging.rate_limit_window` (30 per 10 minutes by default), counted from durable admissions.
+A send past it returns `message_rate_limited` (HTTP 429) with `limit`, `window`, and
+`retry_after_seconds` details. Only that send is refused; neither session stops. Batch updates into
+fewer messages rather than retrying immediately. Set `rate_limit_messages = -1` to disable the budget.
+
+Messages from other sessions never cancel the receiver's work. An agent's `mode: "interrupt"` is
+delivered as `steer` (or queued when it carries attachments), and the result reports the mode used.
+Consecutive queued messages from other sessions and reply wakes run as one turn (up to 8), each kept as
+its own message in the transcript with its own reply watch; operator input is never merged and always
+goes first. Send `supersede: true` to replace your own older message still queued for the same target.
+When the target has been in one turn longer than `session.messaging.queue_promote_after` (default 2
+minutes) and its provider supports steering, waiting agent messages are injected into the live turn
+instead of waiting for it to end.
 
 Native self-targeting returns `invalid_request`. To continue work in the same session, end the turn;
-to schedule work, use a subagent or `compozy session prompt` from the operator. This approved
+to schedule work, use a subagent or send `compozy__session_prompt` to another session. This approved
 compatibility exception applies immediately. Existing v4 admission receipts still replay without
 origin or a new reply watch; their boundary compatibility shim is scheduled for removal in v0.5.0.
 
@@ -142,9 +198,9 @@ current turn.
 
 Waiting is long-running work, not silence. While the asked session is live, the sender's open watch
 counts as an `awaiting_reply` work signal, so inactivity supervision does not stop an orchestrator
-that is waiting for an answer, however long the target works. If the sender was stopped anyway (the
-target stopped with the message queued and the sender went quiet, a daemon restart, or an agent
-crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
+that is waiting for an answer until the watch expires (`reply_watch_ttl`, 24 hours by default). If
+the sender was stopped anyway (the target stopped with the message queued and the sender went quiet,
+a daemon restart, or an agent crash), the reply resumes the sender and delivers the wake once. A sender you stopped yourself
 stays stopped and receives the wake when you resume it.
 
 `compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
@@ -155,10 +211,19 @@ Delivered and abandoned watches disappear from this list.
 Replies contain the last non-empty assistant message of the consuming turn, bounded to 12000 Unicode
 characters. Truncated replies include a pointer to `compozy__session_history`; empty replies use
 `(no reply text)`. Outcomes are `completed`, `failed` (with an error summary), `canceled`, `dropped`
-(removed before execution), or `unknown` (delivery was uncertain; inspect the target session).
+(removed before execution), `expired` (no reply arrived within `reply_watch_ttl`), or `unknown`
+(delivery was uncertain; inspect the target session).
 
 Archiving or deleting the sender abandons its outstanding watches. Canceling or clearing a reply wake
 from the sender's queue does not send it again. `notify_on_complete` belongs to the agent-facing native
 tool; HTTP operator prompts have no equivalent option. Operator-scoped native calls with this
 option return `invalid_request`: `notify_on_complete requires an agent session`. Archiving or deleting
 an unconsumed target settles its outstanding watches as `unknown` without waiting for a restart.
+
+## What the Web UI shows
+
+A received message shows an **In reply** chip when it answers an earlier message; click it to jump to the
+original. Several consecutive messages from the same sender collapse into one group labeled
+"`{title} · N messages`", showing the latest and expanding to all. An expired reply watch appears as
+**No reply** on the sender's card. In the session list, a session marked **Needs attention** says why,
+for example "Stop not confirmed" or "Loop run went stale", with every cause in the hover text.

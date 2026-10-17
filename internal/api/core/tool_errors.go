@@ -71,6 +71,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeCompactionUnsupported,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return http.StatusTooManyRequests
 	case toolspkg.ErrorCodeUnavailable,
 		toolspkg.ErrorCodeResultTooLarge,
 		toolspkg.ErrorCodeModelNotFound,
@@ -121,7 +123,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
-		if toolErr.Code == toolspkg.ErrorCodeInvalidRequest {
+		if toolErr.Code == toolspkg.ErrorCodeInvalidRequest ||
+			(toolErr.Code == toolspkg.ErrorCodeSessionMessageRateLimited && strings.TrimSpace(toolErr.Message) != "") {
+			// The daemon composes both messages; the rate limit names the budget and when to retry.
 			payload.Message = toolErr.Message
 		}
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
@@ -268,6 +272,8 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "session is busy"
 	case toolspkg.ErrorCodeSessionMessageHopLimit:
 		return "Message chain limit reached (8 hops). Ask the operator to continue."
+	case toolspkg.ErrorCodeSessionMessageRateLimited:
+		return "Message rate limit reached. Send fewer, milestone-level messages."
 	case toolspkg.ErrorCodeCompactionUnsupported:
 		return "session compaction is unsupported"
 	}

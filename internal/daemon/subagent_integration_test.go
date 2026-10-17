@@ -3238,12 +3238,13 @@ func writeSessionOriginFixture(t *testing.T, path string, fixture acpmock.Fixtur
 	}
 }
 
-// IT-020: the public native registry and two real ACP turns enforce a shared chain budget.
-// IT-020: successive native steers accumulate the active turn hop budget.
+// IT-020: the public native registry and real ACP turns bound forwarding depth, not conversation length.
+// Invariant: a send forwarded to a session outside the turn's drivers adds a hop until the ninth is refused,
+// while an answer back to the driving session keeps the hop (issue #760 item 4).
 func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
-	t.Run("Should refuse the ninth send between two active operator turns", func(t *testing.T) {
-		d, m, ws := newSubagentDaemonIntegration(t, "injected")
-		var peers [2]*session.Session
+	startPeers := func(t *testing.T, m *session.Manager, ws string, count int) []*session.Session {
+		t.Helper()
+		peers := make([]*session.Session, count)
 		for i := range peers {
 			peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
 			if err != nil {
@@ -3260,37 +3261,33 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 				}
 			}()
 		}
-		turns := [2]string{peers[0].CurrentTurnID(), peers[1].CurrentTurnID()}
+		return peers
+	}
+	steer := func(t *testing.T, d *Daemon, ws string, sender, target *session.Session, id string) error {
+		t.Helper()
+		input, err := json.Marshal(map[string]any{
+			"session_id": target.ID, "message": "chain guidance", "mode": "steer",
+			"message_id": id, "idempotency_key": id,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.toolRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: sender.ID, WorkspaceID: ws, AgentName: "subagent-test", ProfileID: sender.ProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt, ToolCallID: id, TurnID: sender.CurrentTurnID(), Input: input,
+			},
+		)
+		return err
+	}
+	t.Run("Should refuse the ninth forward around a ring of three active turns", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "injected")
+		peers := startPeers(t, m, ws, 3)
+		turns := []string{peers[0].CurrentTurnID(), peers[1].CurrentTurnID(), peers[2].CurrentTurnID()}
 		for hop := 1; hop <= 9; hop++ {
-			sender, target := peers[(hop-1)%2], peers[hop%2]
-			id := fmt.Sprintf("chain-%d", hop)
-			input, err := json.Marshal(
-				map[string]any{
-					"session_id":      target.ID,
-					"message":         "chain guidance",
-					"mode":            "steer",
-					"message_id":      id,
-					"idempotency_key": id,
-				},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err = d.toolRegistry.Call(
-				t.Context(),
-				toolspkg.Scope{
-					SessionID:   sender.ID,
-					WorkspaceID: ws,
-					AgentName:   "subagent-test",
-					ProfileID:   sender.ProfileID,
-				},
-				toolspkg.CallRequest{
-					ToolID:     toolspkg.ToolIDSessionPrompt,
-					ToolCallID: id,
-					TurnID:     sender.CurrentTurnID(),
-					Input:      input,
-				},
-			)
+			sender, target := peers[(hop-1)%3], peers[hop%3]
+			err := steer(t, d, ws, sender, target, fmt.Sprintf("chain-%d", hop))
 			if hop == 9 {
 				requireToolCode(t, err, toolspkg.ErrorCodeSessionMessageHopLimit)
 				continue
@@ -3302,17 +3299,32 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 			if err != nil || effective != hop {
 				t.Fatal(hop, effective, err)
 			}
-			if peers[0].CurrentTurnID() != turns[0] || peers[1].CurrentTurnID() != turns[1] {
-				t.Fatal("steer ended an operator turn")
+			for i, peer := range peers {
+				if peer.CurrentTurnID() != turns[i] {
+					t.Fatal("steer ended an operator turn")
+				}
 			}
 		}
-		for _, peer := range peers {
-			rows, err := m.Events(t.Context(), peer.ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
+		for i, want := range []int{3, 4, 4} {
+			rows, err := m.Events(t.Context(), peers[i].ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(rows) != 5 {
-				t.Fatalf("inputs = %d, want one operator input plus four steers", len(rows))
+			if len(rows) != want {
+				t.Fatalf("peer %d inputs = %d, want one operator input plus %d steers", i, len(rows), want-1)
+			}
+		}
+	})
+	t.Run("Should keep a two-session conversation at hop one", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "injected")
+		peers := startPeers(t, m, ws, 2)
+		for round := 1; round <= 12; round++ {
+			sender, target := peers[(round-1)%2], peers[round%2]
+			if err := steer(t, d, ws, sender, target, fmt.Sprintf("talk-%d", round)); err != nil {
+				t.Fatal(round, err)
+			}
+			if hop, err := m.CurrentTurnEffectiveHop(t.Context(), target.ID); err != nil || hop != 1 {
+				t.Fatalf("round %d hop = %d, %v; want answers to keep hop 1", round, hop, err)
 			}
 		}
 	})
@@ -4045,5 +4057,52 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			)
 			return err == nil && len(rows) == 1
 		})
+	})
+}
+
+// Invariant: a queue lease a previous daemon process left in dispatching settles as failed with the
+// unknown-outcome summary on boot, so it stops holding capacity, while queued input is untouched and
+// boot proceeds. Owner: daemon boot repair integration (#760).
+func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
+	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		target, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		queue, ok := d.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", d.registry)
+		}
+		now := time.Now().UTC()
+		for index, id := range []string{"inq-stranded", "inq-waiting"} {
+			if _, _, err := queue.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+				ID: id, SessionID: target.ID, Text: id, QueueCap: 10, Now: now.Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		claimed, ok, err := queue.ClaimNextSessionInput(t.Context(), target.ID, now)
+		if err != nil || !ok || claimed.ID != "inq-stranded" {
+			t.Fatalf("claim = %q/%v/%v, want the stranded lease", claimed.ID, ok, err)
+		}
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		reopened, ok := restarted.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", restarted.registry)
+		}
+		stranded, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-stranded")
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed ||
+			stranded.FailureSummary != store.SessionInputStaleDispatchSummary {
+			t.Fatalf("stranded = %q/%q, %v; want failed by boot recovery", stranded.Status, stranded.FailureSummary, err)
+		}
+		waiting, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-waiting")
+		if err != nil || waiting.Status == store.SessionInputQueueStatusFailed {
+			t.Fatalf("waiting = %q, %v; want queued input untouched by the sweep", waiting.Status, err)
+		}
 	})
 }

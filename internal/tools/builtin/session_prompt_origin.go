@@ -8,6 +8,7 @@ const sessionPromptOriginSchema = `{
  "session_id":{"type":"string"},"workspace_id":{"type":"string"},
  "agent_name":{"type":"string"},"title_at_send":{"type":"string"},
  "hop":{"type":"integer","minimum":1,"maximum":8},
- "notify_on_complete":{"type":"boolean"},"reply_watch_id":{"type":"string"}
+ "notify_on_complete":{"type":"boolean"},"reply_watch_id":{"type":"string"},
+ "in_reply_to":{"type":"string"}
  },"additionalProperties":false
 }`

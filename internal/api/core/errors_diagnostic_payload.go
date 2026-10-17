@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -44,6 +45,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = "input_agent_authored"
 	case errors.Is(err, session.ErrSessionMessageHopLimit):
 		payload.Code = "message_hop_limit"
+	case errors.Is(err, session.ErrSessionMessageRateLimited):
+		payload.Code = "message_rate_limited"
+		payload.Details = sessionMessageRateLimitDetails(err)
 	case errors.Is(err, store.ErrSessionInputSteerTextOnly):
 		payload.Code = "steer_attachments_unsupported"
 	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),
@@ -152,4 +156,18 @@ func diagnosticCodeFromError(err error) string {
 		return ""
 	}
 	return strings.TrimSpace(carrier.DiagnosticCode())
+}
+
+// sessionMessageRateLimitDetails exposes the refused budget so callers can back off without parsing text.
+func sessionMessageRateLimitDetails(err error) map[string]string {
+	limit, ok := errors.AsType[*session.MessageRateLimitError](err)
+	if !ok {
+		return nil
+	}
+	return map[string]string{
+		"target_session_id":   limit.TargetSessionID,
+		"limit":               strconv.Itoa(limit.Limit),
+		"window":              limit.Window.String(),
+		"retry_after_seconds": strconv.FormatInt(int64(limit.RetryAfter.Seconds()), 10),
+	}
 }
