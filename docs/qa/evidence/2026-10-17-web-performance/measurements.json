@@ -1,0 +1,185 @@
+{
+  "base_commit": "6de9011b6c34a39f4e0cadf7f44fd06caede54da",
+  "runtime": "1.4.0",
+  "method": {
+    "messages": 1200,
+    "parts": 13816,
+    "pages": 6,
+    "warmups": 50,
+    "samples": 200,
+    "calls_per_sample": 10,
+    "units": "milliseconds per call"
+  },
+  "limitations": [
+    "Shared development machine; scheduling and GC affect tails.",
+    "Warm immutable-history transformation benchmark; not browser INP, FPS, or startup latency.",
+    "Bundle figures were captured after the initial code split, before later route and query refinements."
+  ],
+  "transcript": [
+    {
+      "name": "flatten",
+      "baseline": {
+        "p50": 0.12728750000001127,
+        "p95": 0.21198340000000826,
+        "p99": 0.3455124999999953
+      },
+      "optimized": {
+        "p50": 0.0753500000000031,
+        "p95": 0.2547874999999976,
+        "p99": 0.9274166999999807
+      }
+    },
+    {
+      "name": "convert",
+      "baseline": {
+        "p50": 0.009695899999996982,
+        "p95": 0.012470799999982773,
+        "p99": 0.019833299999982047
+      },
+      "optimized": {
+        "p50": 0.012070900000003349,
+        "p95": 0.02401670000001559,
+        "p99": 0.05214169999999285
+      }
+    },
+    {
+      "name": "merge",
+      "baseline": {
+        "p50": 0.13861669999996593,
+        "p95": 0.32395000000001345,
+        "p99": 0.46027909999997974
+      },
+      "optimized": {
+        "p50": 0.06212080000000242,
+        "p95": 0.10956670000000486,
+        "p99": 0.3180207999999993
+      }
+    },
+    {
+      "name": "permissions",
+      "baseline": {
+        "p50": 0.08705830000003516,
+        "p95": 0.11352499999998145,
+        "p99": 0.14108750000000328
+      },
+      "optimized": {
+        "p50": 0.017387500000018007,
+        "p95": 0.034674999999992906,
+        "p99": 0.053095799999982776
+      }
+    },
+    {
+      "name": "decisions",
+      "baseline": {
+        "p50": 0.08745420000000195,
+        "p95": 0.11675000000000182,
+        "p99": 0.1582249999999931
+      },
+      "optimized": {
+        "p50": 0.018458299999997506,
+        "p95": 0.019633399999997893,
+        "p99": 0.03533749999999145
+      }
+    },
+    {
+      "name": "outcomes",
+      "baseline": {
+        "p50": 0.12514999999998508,
+        "p95": 0.18020839999999225,
+        "p99": 0.3257791999999881
+      },
+      "optimized": {
+        "p50": 0.042574999999988,
+        "p95": 0.11081249999999727,
+        "p99": 0.340991699999995
+      }
+    },
+    {
+      "name": "timeline",
+      "baseline": {
+        "p50": 0.02642919999998412,
+        "p95": 0.05085829999998168,
+        "p99": 0.11489999999998872
+      },
+      "optimized": {
+        "p50": 0.023250000000007275,
+        "p95": 0.11420830000001843,
+        "p99": 0.4405875000000151
+      }
+    },
+    {
+      "name": "delta",
+      "baseline": {
+        "p50": 0.008554199999980482,
+        "p95": 0.014404100000001563,
+        "p99": 0.02394579999995585
+      },
+      "optimized": {
+        "p50": 0.007987500000012915,
+        "p95": 0.013454200000001037,
+        "p99": 0.10159590000000662
+      }
+    }
+  ],
+  "golden": {
+    "baseline_sha256": {
+      "flatten": "b6434c4ae956a1fe8b41f0fbc9c63dc57ce5002604a342ed487c8ef0a3f0a05c",
+      "convert": "5eb6dcac216dddfe098dfd1226abcec800adc2cc231ade7a7998932503541bf0",
+      "merge": "f8ec3ec71f0b2fd21f1f92d3b5c6807a818ab0dcb58a3b0b666d6617111e6290",
+      "permissions": "be1d0696aae24f3977831fa8281221e0fe72e267d3cc1eb62a9998e85ca6fe44",
+      "decisions": "8aedbc4358c5489c5499f25728f5c8fc205b853cb757a3d1771858346982c757",
+      "outcomes": "aa28cff900eff11267958031b97a1ce933c65828588445da5231b66c7c099290",
+      "timeline": "b715464461a519fe0f21ca0592041b838117aa83689f23ecec08a85762650068",
+      "delta": "4612a7f1df6bbfb8d5d7c29bf62fa941013a94ae574dc1203926730e2bcaee48"
+    },
+    "optimized_sha256": {
+      "flatten": "b6434c4ae956a1fe8b41f0fbc9c63dc57ce5002604a342ed487c8ef0a3f0a05c",
+      "convert": "5eb6dcac216dddfe098dfd1226abcec800adc2cc231ade7a7998932503541bf0",
+      "merge": "f8ec3ec71f0b2fd21f1f92d3b5c6807a818ab0dcb58a3b0b666d6617111e6290",
+      "permissions": "be1d0696aae24f3977831fa8281221e0fe72e267d3cc1eb62a9998e85ca6fe44",
+      "decisions": "8aedbc4358c5489c5499f25728f5c8fc205b853cb757a3d1771858346982c757",
+      "outcomes": "aa28cff900eff11267958031b97a1ce933c65828588445da5231b66c7c099290",
+      "timeline": "b715464461a519fe0f21ca0592041b838117aa83689f23ecec08a85762650068",
+      "delta": "4612a7f1df6bbfb8d5d7c29bf62fa941013a94ae574dc1203926730e2bcaee48"
+    },
+    "equivalent": true,
+    "clock_normalization": "assistant-ui materialization createdAt only; recorded event timestamps retained"
+  },
+  "adversarial": {
+    "cases": 2000,
+    "comparisons": 40000,
+    "seed": "0x102026",
+    "sha256": "0150c05716418db8f797d100d8dbdd48cafad866efb10e66b95b6104b02fe67c",
+    "equivalent": true
+  },
+  "roster": {
+    "method": {
+      "cached_queries": 1005,
+      "disabled_consumers": 5,
+      "unrelated_cache_writes": 1000
+    },
+    "baseline": {
+      "elapsed_ms": 14362.883,
+      "cache_find_calls": 10000
+    },
+    "optimized": {
+      "elapsed_ms": 1.9745,
+      "cache_find_calls": 0
+    },
+    "limitation": "Synthetic unrelated-write diagnostic; not an end-user interaction latency claim."
+  },
+  "shell_bundle": {
+    "baseline": {
+      "asset": "_app-Cs32wpcl.js",
+      "bytes": 1895620,
+      "gzip_bytes": 596254
+    },
+    "optimized_initial_split": {
+      "asset": "_app-BXw7D2DH.js",
+      "bytes": 1348535,
+      "gzip_bytes": 426856
+    },
+    "gzip_method": "Python gzip of the production JavaScript file",
+    "scope": "Desktop shell chunk only; deferred chunks still download when opened. Aggregate cold-route totals were not comparable and are excluded."
+  }
+}

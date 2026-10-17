@@ -16,6 +16,30 @@ are unchanged; no migration or compatibility adapter is needed. Workspace/profil
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
 
+## Web runtime performance — 2026-10-17
+
+Owner: branch `perf/web-performance`. Evidence and limits:
+`docs/qa/reports/2026-10-17-web-performance.md`.
+
+Web-only internal changes defer the empty-desktop composer and worktree dialog
+modules, remove unconsumed attention queries, pause closed workspace-setup reads,
+filter subagent cache subscriptions by their existing workspace/session key, and
+reuse sparse facts from immutable transcript content. Message ordering, permission
+and failure precedence, bounded paging, stream fences, stale handling, aggregate
+counts, and existing Query keys remain authoritative. WeakMap entries follow the
+lifetime of their source arrays; replacement/removal and workspace isolation stay
+with the existing query/runtime owners.
+
+Native tools and `compozy__*` IDs, CLI, HTTP/UDS DTOs and routes, hooks, extension
+SDKs, configuration, user state, schemas, and official `skills/compozy/` are
+unchanged. No compatibility adapter, migration, code generation, or site docs
+change is needed. QA impact is flagged in `RT-047`,
+`RT-visible-session-streaming`, `ET-hidden-window-live-resources`,
+`RT-web-attention-title-count`, `LP-web-bell-loop-requests`,
+`MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
+Focused canonical suites and differential probes provide local slice evidence;
+heavy final validation is CI-owned by explicit user instruction.
+
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

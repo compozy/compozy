@@ -53,3 +53,8 @@ read; stream frames and `session_usage_changed` still invalidate them as changes
 background tab (window without live data) no longer polls its queue and rereads it on
 activation. Lab walk: a CLI prompt to the focused session reached the UI 172 ms after the prompt
 returned; activating a background tab reread its queue immediately.
+
+
+QA impact 2026-10-17 (web performance): Permission and turn-outcome projections now reuse facts from immutable message content; subagent roster readers filter unrelated cache events. Re-walk streamed text, permission resolution, stopped/verified turns, and roster-owner detach/reconnect. No live-provider re-walk is claimed in this change.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
