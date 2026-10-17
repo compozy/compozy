@@ -33,6 +33,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		NoneSecurity:    src.NoneSecurity,
 		AuthStatusCmd:   src.AuthStatusCmd,
 		AuthLoginCmd:    src.AuthLoginCmd,
+		AuthACPMethod:   src.AuthACPMethod,
 		SessionMCP:      cloneBoolRef(src.SessionMCP),
 		CredentialSlots: cloneProviderCredentialSlots(src.CredentialSlots),
 		MCPServers:      cloneMCPServers(src.MCPServers),

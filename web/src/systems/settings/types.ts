@@ -84,6 +84,11 @@ export type ProviderDraft = {
   home_policy: string;
   auth_status_command: string;
   /**
+   * Protocol-owned ACP sign-in method (`auth_acp_method`). Native ACP providers
+   * only; the daemon rejects it under any other harness or auth mode.
+   */
+  auth_acp_method: string;
+  /**
    * Declared credential bindings. Only `auth_mode = bound_secret` may carry
    * them — the daemon rejects slots under any other mode.
    */

@@ -1,3 +1,4 @@
+export { AntigravityLogo } from "./antigravity";
 export { SlackLogo } from "./slack";
 export { DiscordLogo } from "./discord";
 export { TelegramLogo } from "./telegram";

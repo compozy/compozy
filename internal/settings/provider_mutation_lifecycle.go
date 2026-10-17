@@ -76,6 +76,8 @@ func providerWriteSettingsFromConfig(
 	settings := providerSettingsBaseFromConfig(name, provider)
 	settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
 	settings.AuthLoginCmdSet = true
+	settings.AuthACPMethod = strings.TrimSpace(provider.AuthACPMethod)
+	settings.AuthACPMethodSet = true
 	return settings
 }
 

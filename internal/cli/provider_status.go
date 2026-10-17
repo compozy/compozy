@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -81,8 +82,14 @@ func buildProviderAuthStatus(
 	if err != nil || !nativeReady {
 		return record, err
 	}
-	if !options.probe || strings.TrimSpace(provider.AuthStatusCmd) == "" {
+	if !options.probe {
 		return record, nil
+	}
+	if strings.TrimSpace(provider.AuthStatusCmd) == "" {
+		if !authproviders.UsesACPProbe(provider) {
+			return record, nil
+		}
+		return populateACPProviderAuthProbe(ctx, deps, providerName, provider, &probeEnv, record)
 	}
 	commandSpec, err := authproviders.PrepareAuthStatusCommand(ctx, provider, &probeEnv)
 	if err != nil {
@@ -211,6 +218,43 @@ func populateProviderAuthProbe(
 		record.Login.RecommendedAction = classification.Action
 	}
 	return nil
+}
+
+// populateACPProviderAuthProbe runs one non-interactive disposable ACP probe
+// for providers without a native status command. It never sends authenticate,
+// never attaches account output, and leaves Probe unset: no native status
+// command result exists.
+func populateACPProviderAuthProbe(
+	ctx context.Context,
+	deps commandDeps,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	probeEnv *authproviders.ProbeEnv,
+	record providerAuthStatusRecord,
+) (providerAuthStatusRecord, error) {
+	if probeEnv == nil {
+		return providerAuthStatusRecord{}, errors.New("cli: provider auth probe env is required")
+	}
+	normalized := probeEnv.Normalize()
+	probe := deps.runACPProbe
+	if probe == nil {
+		probe = acp.ProbeAuthentication
+	}
+	err := probe(ctx, acp.SessionInspectionRequest{
+		AgentName: providerName,
+		Command:   strings.TrimSpace(provider.Command),
+		Cwd:       normalized.CommandDir,
+		Env:       append([]string(nil), normalized.CommandEnv...),
+	})
+	if ctx.Err() != nil {
+		return providerAuthStatusRecord{}, ctx.Err()
+	}
+	classification := acp.ClassifyProbeError(providerName, err)
+	record.State = string(classification.State)
+	record.Code = classification.Code
+	record.Message = classification.Message
+	record.Login.RecommendedAction = classification.Action
+	return record, nil
 }
 
 func resolveProviderAuthTarget(

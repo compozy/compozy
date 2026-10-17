@@ -10,6 +10,7 @@ func applyProviderAuthModeOverride(merged *ProviderConfig, override ProviderConf
 	case ProviderAuthModeNone, ProviderAuthModeBoundSecret:
 		merged.AuthStatusCmd = ""
 		merged.AuthLoginCmd = ""
+		merged.AuthACPMethod = ""
 		merged.CredentialSlots = nil
 	case ProviderAuthModeNativeCLI:
 		merged.CredentialSlots = nil

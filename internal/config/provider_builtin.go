@@ -1,8 +1,36 @@
 package config
 
-import "strings"
+import (
+	"runtime"
+	"strings"
+)
+
+// agyACPServerCommand selects the official Antigravity ACP server executable
+// for one GOOS. Linux needs the empty --uid= launch argument; macOS uses the
+// same archive basename without it; Windows uses the .exe. Unknown targets
+// keep the Linux command so they report a missing executable instead of an
+// unsupported provider claim.
+func agyACPServerCommand(goos string) string {
+	switch goos {
+	case "windows":
+		return "agy_acp_server.exe"
+	case "darwin":
+		return "agy_acp_server.par"
+	default:
+		return "agy_acp_server.par --uid="
+	}
+}
 
 var builtinProviders = map[string]ProviderConfig{
+	providerAgyKey: {
+		Command:       agyACPServerCommand(runtime.GOOS),
+		DisplayName:   "Google Antigravity",
+		Harness:       ProviderHarnessACP,
+		AuthMode:      ProviderAuthModeNativeCLI,
+		EnvPolicy:     ProviderEnvPolicyFiltered,
+		HomePolicy:    ProviderHomePolicyOperator,
+		AuthACPMethod: "oauth-personal",
+	},
 	providerClaudeKey: {
 		Command:      claudeProviderCommand,
 		DisplayName:  "Claude Code",

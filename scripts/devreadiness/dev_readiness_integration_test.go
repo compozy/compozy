@@ -43,18 +43,41 @@ func TestDevDaemonReadiness(t *testing.T) {
 			t.Fatalf("read Air build script: %v", err)
 		}
 		write("scripts/build-air.sh", string(script))
-		write("go.mod", "module example.com/dev-build\n\ngo 1.26.0\n")
+		write("go.mod", "module github.com/compozy/compozy\n\ngo 1.26.0\n")
+		write(".gitignore", "/build/\n")
+		write("package.json", `{"version":"0.3.0"}`)
+		write("internal/version/version.go", "package version\nvar Version = \"dev\"\n")
 		const mainSource = `package main
 import (
   _ "embed"
   "fmt"
+  "os"
+  "github.com/compozy/compozy/internal/version"
 )
 //go:embed message.txt
 var message string
-func main() { fmt.Print(message) }
+func main() {
+  if len(os.Args) > 1 && os.Args[1] == "--version" {
+    fmt.Print(version.Version)
+    return
+  }
+  fmt.Print(message)
+}
 `
 		write("cmd/compozy/main.go", mainSource)
 		write("cmd/compozy/message.txt", "original")
+		for _, args := range [][]string{
+			{"init", "--quiet"},
+			{"add", "."},
+			{"-c", "user.name=Dev Test", "-c", "user.email=dev@example.com", "commit", "--quiet", "--no-gpg-sign", "-m", "fixture"},
+			{"tag", "v0.1.1"},
+		} {
+			command := exec.CommandContext(t.Context(), "git", args...)
+			command.Dir = root
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("prepare old release tag: %v; output=%s", err, output)
+			}
+		}
 		buildDir := filepath.Join(root, "build")
 		binary := filepath.Join(buildDir, "compozy")
 		build := func(wantSuccess bool) {
@@ -77,6 +100,10 @@ func main() { fmt.Print(message) }
 
 		build(true)
 		assertOutput("original")
+		buildVersion, err := exec.CommandContext(t.Context(), binary, "--version").CombinedOutput()
+		if err != nil || !strings.HasPrefix(string(buildVersion), "v0.3.0+dev.") {
+			t.Fatalf("build version = %q, want checkout version with development metadata: %v", buildVersion, err)
+		}
 		original, err := os.ReadFile(binary)
 		if err != nil {
 			t.Fatalf("read original binary: %v", err)
@@ -98,6 +125,13 @@ func main() { fmt.Print(message) }
 		)
 		build(true)
 		assertOutput("changed source: changed embed")
+		write("package.json", `{"version":"0.3.1-beta.2"}`)
+		build(true)
+		buildVersion, err = exec.CommandContext(t.Context(), binary, "--version").CombinedOutput()
+		if err != nil || !strings.HasPrefix(string(buildVersion), "v0.3.1-beta.2+dev.") ||
+			!strings.HasSuffix(string(buildVersion), "-dirty") {
+			t.Fatalf("build version = %q, want changed prerelease version with dirty metadata: %v", buildVersion, err)
+		}
 		write("cmd/compozy/main.go", "package main\nthis is invalid Go\n")
 		build(false)
 		assertOutput("changed source: changed embed")

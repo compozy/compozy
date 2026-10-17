@@ -1047,6 +1047,18 @@ When a session behaves unexpectedly:
 
 Do not treat stale UI state or chat messages as runtime authority.
 
+For the `agy` built-in, authentication is protocol-owned: sign in explicitly with
+`compozy provider auth login agy`, verify with `compozy provider auth status agy --remote`,
+and retry the failed session without a daemon restart. `needs_login` means run the explicit
+login; `missing_cli` means install `agy_acp_server` for the OS — never substitute the
+interactive `agy` CLI and never collect a secret. A successful remote probe clears a cached
+startup failure; failed or canceled probes change nothing. Agy models come only from live
+`provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
+concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
+secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
+live probe succeeds, and the runtime picker plus session attribution carry the exact selected
+model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
+
 ## Status, Doctor, Logs, And Support
 
 `compozy observe overview -o json` reads the selected profile by default. Use `--profile <name>` for

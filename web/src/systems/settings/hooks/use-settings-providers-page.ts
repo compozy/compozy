@@ -114,7 +114,9 @@ export function useSettingsProvidersPage() {
     const inspector = inspectorFlow.inspector;
     if ((inspector.mode !== "edit" && inspector.mode !== "create") || !inspectorIsValid) return;
     const name = inspector.draft.name.trim();
-    const body = providerDraftToRequest(inspector.draft);
+    const baselineMethod =
+      inspector.mode === "edit" ? (inspector.entry.settings.auth_acp_method ?? "") : "";
+    const body = providerDraftToRequest(inspector.draft, baselineMethod);
     inspectorStore.trigger.saveRequested({
       execute: () => putMutation.mutateAsync({ name, body }),
       name,

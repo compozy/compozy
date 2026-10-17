@@ -874,6 +874,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			t,
 			propertySchema(t, loginSchema, "source"),
 			string(contract.ProviderLoginSourceAuthLoginCommand),
+			string(contract.ProviderLoginSourceAuthACPMethod),
 		)
 		assertEnumValues(
 			t,

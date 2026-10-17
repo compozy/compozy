@@ -40179,7 +40179,7 @@ export interface operations {
                     | "inspect"
                     | "no_retry";
                   /** @enum {string} */
-                  source?: "auth_login_command";
+                  source?: "auth_login_command" | "auth_acp_method";
                 };
                 message?: string;
                 mode: string;
@@ -40266,7 +40266,7 @@ export interface operations {
                   | "inspect"
                   | "no_retry";
                 /** @enum {string} */
-                source?: "auth_login_command";
+                source?: "auth_login_command" | "auth_acp_method";
               };
               message?: string;
               mode: string;
@@ -40382,7 +40382,7 @@ export interface operations {
                   | "inspect"
                   | "no_retry";
                 /** @enum {string} */
-                source?: "auth_login_command";
+                source?: "auth_login_command" | "auth_acp_method";
               };
               message?: string;
               mode: string;
@@ -55368,7 +55368,7 @@ export interface operations {
                     | "inspect"
                     | "no_retry";
                   /** @enum {string} */
-                  source?: "auth_login_command";
+                  source?: "auth_login_command" | "auth_acp_method";
                 };
                 message?: string;
                 mode: string;
@@ -55388,6 +55388,7 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
+                  auth_acp_method?: string;
                   auth_mode?: string;
                   auth_status_command?: string;
                   base_url?: string;
@@ -55476,6 +55477,7 @@ export interface operations {
               /** @enum {string} */
               runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
               settings: {
+                auth_acp_method?: string;
                 auth_mode?: string;
                 auth_status_command?: string;
                 base_url?: string;
@@ -55668,7 +55670,7 @@ export interface operations {
                     | "inspect"
                     | "no_retry";
                   /** @enum {string} */
-                  source?: "auth_login_command";
+                  source?: "auth_login_command" | "auth_acp_method";
                 };
                 message?: string;
                 mode: string;
@@ -55688,6 +55690,7 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
+                  auth_acp_method?: string;
                   auth_mode?: string;
                   auth_status_command?: string;
                   base_url?: string;
@@ -55776,6 +55779,7 @@ export interface operations {
               /** @enum {string} */
               runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
               settings: {
+                auth_acp_method?: string;
                 auth_mode?: string;
                 auth_status_command?: string;
                 base_url?: string;
@@ -55988,6 +55992,7 @@ export interface operations {
             value: string;
           }[];
           settings: {
+            auth_acp_method?: string | null;
             auth_login_command?: string | null;
             auth_mode?: string;
             auth_status_command?: string;
@@ -60852,7 +60857,7 @@ export interface operations {
                   | "inspect"
                   | "no_retry";
                 /** @enum {string} */
-                source?: "auth_login_command";
+                source?: "auth_login_command" | "auth_acp_method";
               };
               message?: string;
               mode?: string;

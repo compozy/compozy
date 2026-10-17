@@ -1,6 +1,7 @@
 import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "lucide-react";
 import { createElement, type ComponentType, type ReactNode, type SVGProps } from "react";
 
+import { AntigravityLogo } from "../../logos/antigravity";
 import { BlackboxLogo } from "../../logos/blackbox";
 import { ClaudeLogo } from "../../logos/claude";
 import { ClineLogo } from "../../logos/cline";
@@ -44,6 +45,7 @@ function renderOpenAIKindLogo(props: KindIconGlyphProps) {
 }
 
 const providerKindIconRegistry = {
+  agy: { brand: AntigravityLogo, fallback: Sparkles },
   blackbox: { brand: BlackboxLogo, fallback: Bot },
   claude: { brand: ClaudeLogo, fallback: BrainCircuit },
   cline: { brand: ClineLogo, fallback: Code },

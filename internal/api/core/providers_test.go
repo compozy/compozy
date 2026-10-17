@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"slices"
 	"strings"
@@ -314,6 +315,10 @@ func TestProviderAuthHandlers(t *testing.T) {
 		t.Parallel()
 
 		cfg := providerAuthTestConfig(t)
+		wantDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("os.Getwd() error = %v", err)
+		}
 		var resolveCalls int
 		var resolvedEnv []string
 		resolver := func(_ context.Context, command string, env []string, dir string) (string, error) {
@@ -321,8 +326,8 @@ func TestProviderAuthHandlers(t *testing.T) {
 			if command != "provider-cli" {
 				t.Fatalf("resolver command = %q, want provider-cli", command)
 			}
-			if dir != "" {
-				t.Fatalf("resolver dir = %q, want empty", dir)
+			if dir != wantDir {
+				t.Fatalf("resolver dir = %q, want daemon working directory %q", dir, wantDir)
 			}
 			resolvedEnv = append([]string(nil), env...)
 			if resolveCalls > 1 {
@@ -340,8 +345,8 @@ func TestProviderAuthHandlers(t *testing.T) {
 			if !slices.Equal(spec.Args, []string{"auth", "status"}) {
 				t.Fatalf("Args = %#v, want auth status", spec.Args)
 			}
-			if spec.Dir != "" {
-				t.Fatalf("Dir = %q, want empty", spec.Dir)
+			if spec.Dir != wantDir {
+				t.Fatalf("Dir = %q, want daemon working directory %q", spec.Dir, wantDir)
 			}
 			if !slices.Equal(spec.Env, resolvedEnv) {
 				t.Fatalf("Env = %#v, want resolver env %#v", spec.Env, resolvedEnv)
