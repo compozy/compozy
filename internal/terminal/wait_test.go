@@ -5,10 +5,13 @@ package terminal
 // Boundary IN: process/output state changes. Boundary OUT: WaitResult reasons.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 func TestWaitEngineContract(t *testing.T) {
@@ -33,6 +36,26 @@ func TestWaitEngineContract(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		viewer, err := handle.Attach(t.Context(), AttachOptions{
+			Mode: "read", Flow: "ack",
+			Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := viewer.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		assertAttachedFrame(t, receiveSubscriptionFrame(t, viewer), 0, false)
+		// Fill the ACK window before timing Wait; leave every output frame unacknowledged.
+		if err := starter.latest().emit(bytes.Repeat([]byte("x"), terminalwire.AckHighWatermark)); err != nil {
+			t.Fatalf("emit(stalled viewer setup) error = %v", err)
+		}
+		waitForTerminalTail(t, handle, "setup output did not reach the terminal", func(tail *ReadResult) bool {
+			return tail.Seq == terminalwire.AckHighWatermark
+		})
 		type waitOutcome struct {
 			result *WaitResult
 			err    error
@@ -47,13 +70,15 @@ func TestWaitEngineContract(t *testing.T) {
 			resultDone <- waitOutcome{result: result, err: err}
 		}()
 		<-waitStarted
-		if err := starter.latest().emit([]byte("ready-42\r\n")); err != nil {
-			t.Fatalf("emit() error = %v", err)
-		}
+		emitDone := make(chan error, 1)
+		go func() { emitDone <- starter.latest().emit([]byte("ready-42\r\n")) }()
 		select {
 		case outcome := <-resultDone:
 			if outcome.err != nil || outcome.result.Reason != "match" {
 				t.Fatalf("Wait(match) = %#v error=%v", outcome.result, outcome.err)
+			}
+			if err := <-emitDone; err != nil {
+				t.Fatalf("emit() error = %v", err)
 			}
 		case <-time.After(200 * time.Millisecond):
 			t.Fatal("matching output did not wake wait")
