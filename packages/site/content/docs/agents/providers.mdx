@@ -515,7 +515,10 @@ definition. That covers `defaults.provider`, a partial `[providers.<id>]` overri
 `provider:`, Loop and automation runtime defaults, and persisted sessions. The daemon logs one
 `provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that
 holds the exact `[providers.<id>]` entry, including any partial override you already set. Replace
-every existing `[providers.<id>]` table for that ID in `config.toml` with it:
+every existing `[providers.<id>]` table for that ID in `config.toml` with it. Log redaction masks
+secret references, so for `mistral`, `groq`, and `minimax` the logged entry omits each
+`credential_slots` `secret_ref` line and the warning's `action` field names the value to add back
+(for example `secret_ref = "env:MISTRAL_API_KEY"`, as in the Mistral example above):
 
 ```bash
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
