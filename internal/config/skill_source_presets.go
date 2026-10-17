@@ -34,8 +34,8 @@ func SkillSourcePresets() []SkillSourcePreset {
 			Label:                  "Agents",
 			WorkspaceRel:           ".agents/skills",
 			GlobalPath:             agentsGlobalSkillPath,
-			WorkspaceNativeReaders: []string{providerOpenclawKey, providerHermesKey},
-			GlobalNativeReaders:    []string{providerOpenclawKey},
+			WorkspaceNativeReaders: []string{},
+			GlobalNativeReaders:    []string{},
 			DefaultOn:              true,
 		},
 		{

@@ -460,8 +460,8 @@ func TestSkillSourcePresetPolicy(t *testing.T) {
 			},
 			{
 				Slug: SkillSourceAgents, Label: "Agents", WorkspaceRel: ".agents/skills",
-				GlobalPath: "~/.agents/skills", WorkspaceNativeReaders: []string{"openclaw", "hermes"},
-				GlobalNativeReaders: []string{"openclaw"}, DefaultOn: true,
+				GlobalPath: "~/.agents/skills", WorkspaceNativeReaders: []string{},
+				GlobalNativeReaders: []string{}, DefaultOn: true,
 			},
 			{
 				Slug: SkillSourceClaude, Label: "Claude", WorkspaceRel: ".claude/skills",

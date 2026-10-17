@@ -82,9 +82,9 @@ or `compozy roles show <role>` before diagnosing provider or model behavior.
 
 ## Providers And MCP
 
-Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
+Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kimi-cli, qwen-code, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers. Any other ACP CLI runs as a custom `[providers.<id>]` entry with its own `command`. The retired built-ins hermes, openclaw, blackbox, cline, goose, junie, kiro, openhands, qoder, mistral, groq, and minimax still resolve until v0.5.0 with a `provider.retired_builtin` daemon-log warning whose `replacement` field holds the exact `[providers.<id>]` entry; declaring that entry silences it.
 
-For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. OpenClaw is provider-managed and rejects model, Reasoning, Fast, and ACP-option overrides. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
+For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 

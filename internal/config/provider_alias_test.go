@@ -31,6 +31,19 @@ func TestProviderAliasResolution(t *testing.T) {
 		}
 	})
 
+	t.Run("Should canonicalize retired aliases until the shim is removed", func(t *testing.T) {
+		t.Parallel()
+
+		if got := CanonicalProviderName("Hermes-Agent"); got != "hermes" {
+			t.Fatalf("CanonicalProviderName(Hermes-Agent) = %q, want hermes", got)
+		}
+		for alias, want := range retiredBuiltinProviderAliases {
+			if got := CanonicalProviderName(alias); got != want {
+				t.Fatalf("CanonicalProviderName(%q) = %q, want %q", alias, got, want)
+			}
+		}
+	})
+
 	t.Run("Should preserve exact model ids while resolving provider aliases", func(t *testing.T) {
 		t.Parallel()
 

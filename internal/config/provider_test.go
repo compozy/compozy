@@ -37,24 +37,12 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		required        bool
 	}{
 		{
-			name:     "blackbox",
-			command:  "blackbox --experimental-acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
-		},
-		{
 			name:         "claude",
 			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: modelClaudeSonnet5ID,
 			loginCommand: "claude auth login",
-		},
-		{
-			name:     "cline",
-			command:  "npx -y cline@latest --acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "codex",
@@ -78,42 +66,18 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "gemini-3.1-pro-preview",
 		},
-		{name: "goose", command: "goose acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
-		{
-			name:          "hermes",
-			command:       "hermes acp",
-			harness:       ProviderHarnessACP,
-			authMode:      ProviderAuthModeNativeCLI,
-			statusCommand: "hermes acp --check",
-		},
-		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:     "kimi-cli",
 			command:  "kimi acp",
 			harness:  ProviderHarnessACP,
 			authMode: ProviderAuthModeNativeCLI,
 		},
-		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:         "opencode",
 			command:      "npx -y opencode-ai@latest acp",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			loginCommand: "opencode auth login",
-		},
-		{
-			name:         "openclaw",
-			command:      "openclaw acp",
-			harness:      ProviderHarnessACP,
-			authMode:     ProviderAuthModeNativeCLI,
-			noSessionMCP: true,
-		},
-		{name: "openhands", command: "openhands acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
-		{
-			name:     "qoder",
-			command:  "npx -y @qoder-ai/qodercli@latest --acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "qwen-code",
@@ -179,36 +143,6 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			runtimeProvider: "xai",
 			defaultModel:    "grok-4-fast-non-reasoning",
 			apiKeyEnv:       "XAI_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "minimax",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "minimax",
-			defaultModel:    "MiniMax-M2.1",
-			apiKeyEnv:       "MINIMAX_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "mistral",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "mistral",
-			defaultModel:    "devstral-medium-latest",
-			apiKeyEnv:       "MISTRAL_API_KEY",
-			required:        true,
-		},
-		{
-			name:            "groq",
-			command:         "npx -y pi-acp@latest",
-			harness:         ProviderHarnessPiACP,
-			authMode:        ProviderAuthModeBoundSecret,
-			runtimeProvider: "groq",
-			defaultModel:    "openai/gpt-oss-120b",
-			apiKeyEnv:       "GROQ_API_KEY",
 			required:        true,
 		},
 	}
@@ -519,17 +453,9 @@ func TestCanonicalProviderNameResolvesNewDriverAliases(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "blackbox-ai", want: "blackbox"},
-		{name: "cline-cli", want: "cline"},
-		{name: "goose-cli", want: "goose"},
-		{name: "hermes-agent", want: "hermes"},
-		{name: "junie-cli", want: "junie"},
 		{name: "kimi", want: "moonshot"},
 		{name: "kimi cli", want: "kimi-cli"},
 		{name: "kimi-code", want: "kimi-cli"},
-		{name: "open-hands", want: "openhands"},
-		{name: "openclaw-cli", want: "openclaw"},
-		{name: "qoder-cli", want: "qoder"},
 		{name: "qwen", want: "qwen-code"},
 		{name: "qwen code", want: "qwen-code"},
 	}
@@ -1472,7 +1398,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 	t.Parallel()
 
-	tests := []string{"blackbox", "cline"}
+	tests := []string{"copilot", "kimi-cli"}
 	for _, provider := range tests {
 		t.Run("Should allow "+provider+" without resolved model", func(t *testing.T) {
 			t.Parallel()
@@ -3022,6 +2948,123 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 		overlay.Apply(&provider)
 		if provider.SteerCapability != SteerCapabilityNone {
 			t.Fatalf("steer capability = %q", provider.SteerCapability)
+		}
+	})
+}
+
+func TestRetiredBuiltinProviders(t *testing.T) {
+	t.Parallel()
+
+	retired := []string{
+		"hermes", "openclaw", "blackbox", "cline", "goose", "junie",
+		"kiro", "openhands", "qoder", "mistral", "groq", "minimax",
+	}
+
+	t.Run("Should not expose retired providers as builtins", func(t *testing.T) {
+		t.Parallel()
+
+		builtins := BuiltinProviders()
+		for _, name := range retired {
+			if _, ok := builtins[name]; ok {
+				t.Fatalf("BuiltinProviders() contains retired provider %q", name)
+			}
+		}
+	})
+
+	t.Run("Should keep resolving an undeclared retired reference through the deprecation window", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		for _, name := range retired {
+			got, err := cfg.ResolveProvider(name)
+			if err != nil {
+				t.Fatalf("ResolveProvider(%q) error = %v", name, err)
+			}
+			if want := retiredBuiltinProviders[name]; !reflect.DeepEqual(got, want) {
+				t.Fatalf("ResolveProvider(%q) = %#v, want former builtin %#v", name, got, want)
+			}
+		}
+		mistral, err := cfg.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral) error = %v", err)
+		}
+		if mistral.EffectiveHarness() != ProviderHarnessPiACP ||
+			mistral.EffectiveAuthMode() != ProviderAuthModeBoundSecret ||
+			mistral.RuntimeProviderName("mistral") != "mistral" {
+			t.Fatalf("ResolveProvider(mistral) = %#v, want pi_acp bound-secret runtime mistral", mistral)
+		}
+	})
+
+	t.Run("Should resolve agents and defaults that reference a retired provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Defaults.Provider = "hermes-agent"
+		if err := cfg.validateProviders(); err != nil {
+			t.Fatalf("validateProviders() error = %v", err)
+		}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "openclaw", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent(openclaw) error = %v", err)
+		}
+		if resolved.Provider != "openclaw" || resolved.Command != "openclaw acp" || resolved.SessionMCP {
+			t.Fatalf("ResolveAgent(openclaw) = %#v, want former openclaw launch", resolved)
+		}
+	})
+
+	t.Run("Should merge a partial override onto the former builtin definition", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Providers["mistral"] = ProviderConfig{Models: ProviderModelsConfig{Default: "codestral-latest"}}
+		got, err := cfg.ResolveProvider("mistral")
+		if err != nil {
+			t.Fatalf("ResolveProvider(mistral) error = %v", err)
+		}
+		if got.Command != piACPCommand || got.Models.Default != "codestral-latest" ||
+			len(got.CredentialSlots) != 1 || got.CredentialSlots[0].TargetEnv != "MISTRAL_API_KEY" {
+			t.Fatalf("ResolveProvider(mistral) = %#v, want former definition with overridden default model", got)
+		}
+	})
+
+	t.Run("Should resolve the printed replacement as an equivalent custom provider", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range retired {
+			var document struct {
+				Providers map[string]ProviderConfig `toml:"providers"`
+			}
+			replacement := retiredBuiltinProviderReplacement(name, retiredBuiltinProviders[name])
+			if _, err := toml.Decode(replacement, &document); err != nil {
+				t.Fatalf("decode %q replacement error = %v\n%s", name, err, replacement)
+			}
+			declared := document.Providers[name]
+			if _, retiredBase := retiredProviderBase(name, declared, true); retiredBase {
+				t.Fatalf("replacement for %q still depends on the retired definition:\n%s", name, replacement)
+			}
+			cfg := DefaultWithHome(HomePaths{})
+			cfg.Providers[name] = declared
+			got, err := cfg.ResolveProvider(name)
+			if err != nil {
+				t.Fatalf("ResolveProvider(%q) with replacement error = %v", name, err)
+			}
+			if want := retiredBuiltinProviders[name]; !reflect.DeepEqual(got, want) {
+				t.Fatalf("ResolveProvider(%q) with replacement = %#v, want %#v", name, got, want)
+			}
+		}
+	})
+
+	t.Run("Should resolve a self-declared custom provider without the retired definition", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Providers["hermes"] = ProviderConfig{Command: "hermes acp --profile work"}
+		got, err := cfg.ResolveProvider("hermes")
+		if err != nil {
+			t.Fatalf("ResolveProvider(hermes) error = %v", err)
+		}
+		if got.Command != "hermes acp --profile work" || got.DisplayName != "" || got.AuthStatusCmd != "" {
+			t.Fatalf("ResolveProvider(hermes) = %#v, want only the declared custom provider", got)
 		}
 	})
 }

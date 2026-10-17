@@ -152,17 +152,17 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 			return installWizardSelection{}, nil
 		}
 
-		stdout, _, err := executeRootCommand(t, deps, "install", "--provider", "blackbox", "-o", "json")
+		stdout, _, err := executeRootCommand(t, deps, "install", "--provider", "copilot", "-o", "json")
 		if err != nil {
-			t.Fatalf("executeRootCommand(install blackbox) error = %v", err)
+			t.Fatalf("executeRootCommand(install copilot) error = %v", err)
 		}
 
 		var decoded installRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(install) error = %v", err)
 		}
-		if decoded.Provider != "blackbox" {
-			t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "blackbox")
+		if decoded.Provider != "copilot" {
+			t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "copilot")
 		}
 		if decoded.Model != "" {
 			t.Fatalf("decoded.Model = %q, want empty provider-managed model", decoded.Model)
@@ -172,11 +172,11 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
-		if cfg.Defaults.Provider != "blackbox" {
-			t.Fatalf("cfg.Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
+		if cfg.Defaults.Provider != "copilot" {
+			t.Fatalf("cfg.Defaults.Provider = %q, want copilot", cfg.Defaults.Provider)
 		}
-		if got := cfg.Providers["blackbox"].Models.Default; got != "" {
-			t.Fatalf("cfg.Providers[blackbox].Models.Default = %q, want empty", got)
+		if got := cfg.Providers["copilot"].Models.Default; got != "" {
+			t.Fatalf("cfg.Providers[copilot].Models.Default = %q, want empty", got)
 		}
 	})
 
@@ -433,10 +433,10 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		t.Parallel()
 
 		model := newInstallWizardModel(installWizardInput{
-			Providers:        []string{"blackbox"},
-			SelectedProvider: "blackbox",
-			SuggestedModels:  map[string]string{"blackbox": ""},
-			ModelRequired:    map[string]bool{"blackbox": false},
+			Providers:        []string{"copilot"},
+			SelectedProvider: "copilot",
+			SuggestedModels:  map[string]string{"copilot": ""},
+			ModelRequired:    map[string]bool{"copilot": false},
 		})
 
 		var cmd tea.Cmd

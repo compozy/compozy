@@ -921,45 +921,45 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Run("Should record live source status when optional dependency is missing", func(t *testing.T) {
 		t.Parallel()
 
-		missingHermes := filepath.Join(t.TempDir(), "missing-hermes")
+		missingOpenCode := filepath.Join(t.TempDir(), "missing-opencode")
 		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, func(cfg *compozyconfig.Config) {
-			provider, err := cfg.ResolveProvider("hermes")
+			provider, err := cfg.ResolveProvider("opencode")
 			if err != nil {
-				t.Fatalf("ResolveProvider(hermes) error = %v", err)
+				t.Fatalf("ResolveProvider(opencode) error = %v", err)
 			}
-			provider.Command = missingHermes
-			cfg.Providers["hermes"] = provider
+			provider.Models.Discovery.Command = missingOpenCode + " models --verbose"
+			cfg.Providers["opencode"] = provider
 		})
 		ctx := testutil.Context(t)
 		refreshStatuses, err := daemonInstance.modelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
-			ProviderID: "hermes",
-			SourceID:   modelcatalog.SourceKindProviderLiveID("hermes"),
+			ProviderID: "opencode",
+			SourceID:   modelcatalog.SourceKindProviderLiveID("opencode"),
 			Force:      true,
 		})
 		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
 			t.Fatalf(
-				"ModelCatalog.Refresh(hermes live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
+				"ModelCatalog.Refresh(opencode live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
 				refreshStatuses,
 				err,
 			)
 		}
 		if _, ok := findSourceStatus(
 			refreshStatuses,
-			modelcatalog.SourceKindProviderLiveID("hermes"),
+			modelcatalog.SourceKindProviderLiveID("opencode"),
 		); !ok {
-			t.Fatalf("ModelCatalog.Refresh(hermes live) statuses = %#v, want provider_live status", refreshStatuses)
+			t.Fatalf("ModelCatalog.Refresh(opencode live) statuses = %#v, want provider_live status", refreshStatuses)
 		}
 
 		statuses, err := daemonInstance.modelCatalog.ListSourceStatus(
 			ctx,
-			modelcatalog.StatusOptions{ProviderID: "hermes"},
+			modelcatalog.StatusOptions{ProviderID: "opencode"},
 		)
 		if err != nil {
-			t.Fatalf("ModelCatalog.ListSourceStatus(hermes) error = %v", err)
+			t.Fatalf("ModelCatalog.ListSourceStatus(opencode) error = %v", err)
 		}
-		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("hermes"))
+		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("opencode"))
 		if !ok {
-			t.Fatalf("ListSourceStatus(hermes) missing provider_live status: %#v", statuses)
+			t.Fatalf("ListSourceStatus(opencode) missing provider_live status: %#v", statuses)
 		}
 		if got, want := status.RefreshState, modelcatalog.RefreshStateFailed; got != want {
 			t.Fatalf("provider_live refresh state = %q, want %q", got, want)

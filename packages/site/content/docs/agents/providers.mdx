@@ -37,16 +37,7 @@ The built-in registry lives in `internal/config/provider.go`.
 | `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                  | none                        | `native_cli`   | provider login       |
 | `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | `native_cli`   | provider login       |
 | `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                               | none                        | `native_cli`   | provider login       |
-| `kiro`              | `acp`    | `kiro`              | `kiro-cli-chat acp`                                              | none                        | `native_cli`   | provider login       |
-| `blackbox`          | `acp`    | `blackbox`          | `blackbox --experimental-acp`                                    | none                        | `native_cli`   | provider login       |
-| `cline`             | `acp`    | `cline`             | `npx -y cline@latest --acp`                                      | none                        | `native_cli`   | provider login       |
-| `goose`             | `acp`    | `goose`             | `goose acp`                                                      | none                        | `native_cli`   | provider login       |
-| `hermes`            | `acp`    | `hermes`            | `hermes acp`                                                     | none                        | `native_cli`   | provider login       |
-| `junie`             | `acp`    | `junie`             | `junie --acp true`                                               | none                        | `native_cli`   | provider login       |
 | `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                       | none                        | `native_cli`   | provider login       |
-| `openclaw`          | `acp`    | `openclaw`          | `openclaw acp`                                                   | none                        | `native_cli`   | provider login       |
-| `openhands`         | `acp`    | `openhands`         | `openhands acp`                                                  | none                        | `native_cli`   | provider login       |
-| `qoder`             | `acp`    | `qoder`             | `npx -y @qoder-ai/qodercli@latest --acp`                         | none                        | `native_cli`   | provider login       |
 | `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | `native_cli`   | provider login       |
 | `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
 | `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
@@ -54,15 +45,12 @@ The built-in registry lives in `internal/config/provider.go`.
 | `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                           | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
 | `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                           | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
 | `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                           | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
-| `minimax`           | `pi_acp` | `minimax`           | `npx -y pi-acp@latest`                                           | `MiniMax-M2.1`              | `bound_secret` | `MINIMAX_API_KEY`    |
-| `mistral`           | `pi_acp` | `mistral`           | `npx -y pi-acp@latest`                                           | `devstral-medium-latest`    | `bound_secret` | `MISTRAL_API_KEY`    |
-| `groq`              | `pi_acp` | `groq`              | `npx -y pi-acp@latest`                                           | `openai/gpt-oss-120b`       | `bound_secret` | `GROQ_API_KEY`       |
 
 <OperatorNote>
   `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
-  OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are wrapped
-  providers: CompozyOS exposes them as first-class providers, launches Pi under the hood, and
-  injects the provider key through a session-local Pi config.
+  OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI are wrapped providers: CompozyOS
+  exposes them as first-class providers, launches Pi under the hood, and injects the provider key
+  through a session-local Pi config.
 </OperatorNote>
 
 ## Authentication modes
@@ -202,7 +190,7 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
-Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Hermes inspect a
+Discovery uses the resolved provider auth, env, and home policy. Claude and Codex inspect a
 short-lived ACP session. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
@@ -233,9 +221,7 @@ Negotiation order is deterministic: session mode, model, the refreshed config-op
 by that model change, reasoning effort, speed, then remaining ACP options in stable ID order. CompozyOS
 refreshes and revalidates after every ACP response. Empty effort sends no RPC; explicit `none` does. The
 live ACP snapshot is authoritative even when its effort set is empty. Missing or unsupported controls
-fail before the first prompt with stable diagnostics. OpenClaw is different: its Gateway owns runtime
-selection, so CompozyOS rejects model, Reasoning, Fast, and ACP-option overrides instead of dropping them.
-Speed V1 writes only an unambiguous ACP select/value-ID option; boolean speed options remain
+fail before the first prompt with stable diagnostics. Speed V1 writes only an unambiguous ACP select/value-ID option; boolean speed options remain
 unsupported until the released ACP capability contract can advertise boolean writes. Missing or
 ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns
 `speed_rejected` before the first prompt.
@@ -374,8 +360,7 @@ Only non-empty scalar fields replace the built-in values. MCP servers merge by `
 
 ## Configure wrapped API-key providers
 
-OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are built-in
-wrapped providers. Operators select them directly, and CompozyOS uses Pi only as the underlying ACP
+OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI are built-in wrapped providers. Operators select them directly, and CompozyOS uses Pi only as the underlying ACP
 adapter. These built-ins default to `auth_mode = "bound_secret"` with required provider-key slots.
 Override the slot when you want CompozyOS Vault, rather than the daemon environment, to own the
 launch-time credential.
@@ -484,6 +469,89 @@ kind = "api_key"
 required = true
 ```
 
+### Run another ACP CLI
+
+Any agent CLI that speaks ACP over stdio runs as a custom provider, built-in or not. Declare its
+launch command under `[providers.<id>]` and reference that ID from `defaults.provider`, an agent's
+`provider:`, or a session override. For example, Hermes:
+
+```toml
+[providers.hermes]
+display_name = "Hermes"
+command = "hermes acp"
+```
+
+A CLI that launches through the Pi adapter also declares `harness = "pi_acp"`, its
+`runtime_provider`, and the credential slot that carries its API key:
+
+```toml
+[providers.mistral]
+display_name = "Mistral"
+command = "npx -y pi-acp@latest"
+harness = "pi_acp"
+runtime_provider = "mistral"
+
+[providers.mistral.models]
+default = "devstral-medium-latest"
+
+[[providers.mistral.credential_slots]]
+name = "api_key"
+target_env = "MISTRAL_API_KEY"
+secret_ref = "env:MISTRAL_API_KEY"
+kind = "api_key"
+required = true
+```
+
+## Retired built-in providers
+
+These provider IDs are no longer built in: `hermes`, `openclaw`, `blackbox`, `cline`, `goose`,
+`junie`, `kiro`, `openhands`, `qoder`, `mistral`, `groq`, and `minimax`. Their aliases are retired
+with them: `blackbox-ai`, `blackboxai`, `cline-cli`, `goose-cli`, `hermes-agent`, `junie-cli`,
+`open-hands`, `openhands-cli`, `openclaw-cli`, `qoder-cli`, `minimax-ai`, `minimax-cn`, `mistralai`,
+and `mistral-ai`.
+
+Until v0.5.0, a reference to one of these IDs or aliases keeps resolving with the former built-in
+definition. That covers `defaults.provider`, a partial `[providers.<id>]` override, an agent's
+`provider:`, Loop and automation runtime defaults, and persisted sessions. The daemon logs one
+`provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that
+holds the exact `[providers.<id>]` entry to add to `config.toml`:
+
+```bash
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+grep provider.retired_builtin "$COMPOZY_HOME/logs/compozy.log"
+```
+
+Declaring `[providers.<id>]` with its own `command` makes the ID a plain custom provider and
+silences the warning. The Pi-backed IDs (`mistral`, `groq`, `minimax`) also need
+`harness = "pi_acp"`. In v0.5.0 the fallback is removed, and an undeclared reference fails like any
+unknown provider (provider unavailable). Sessions and transcripts recorded with a retired provider
+stay readable either way.
+
+The former definitions are:
+
+| Provider ID | `command`                                | Notes                                                                                |
+| ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| `hermes`    | `hermes acp`                             |                                                                                      |
+| `openclaw`  | `openclaw acp`                           | `session_mcp = false`                                                                |
+| `blackbox`  | `blackbox --experimental-acp`            |                                                                                      |
+| `cline`     | `npx -y cline@latest --acp`              |                                                                                      |
+| `goose`     | `goose acp`                              |                                                                                      |
+| `junie`     | `junie --acp true`                       |                                                                                      |
+| `kiro`      | `kiro-cli-chat acp`                      |                                                                                      |
+| `openhands` | `openhands acp`                          |                                                                                      |
+| `qoder`     | `npx -y @qoder-ai/qodercli@latest --acp` |                                                                                      |
+| `mistral`   | `npx -y pi-acp@latest`                   | `harness = "pi_acp"`, `MISTRAL_API_KEY`, `models.default = "devstral-medium-latest"` |
+| `groq`      | `npx -y pi-acp@latest`                   | `harness = "pi_acp"`, `GROQ_API_KEY`, `models.default = "openai/gpt-oss-120b"`       |
+| `minimax`   | `npx -y pi-acp@latest`                   | `harness = "pi_acp"`, `MINIMAX_API_KEY`, `models.default = "MiniMax-M2.1"`           |
+
+For the Pi-backed IDs, `runtime_provider` equals the provider ID and the credential slot follows the
+Mistral example above.
+
+Hermes and OpenClaw also lose their dedicated behavior. CompozyOS no longer treats them as native
+readers of `.agents/skills`, so it injects those skills into their sessions like any other provider.
+It no longer manages `HERMES_HOME` or `OPENCLAW_STATE_DIR` for isolated provider homes, no longer runs
+live Hermes model discovery, and no longer applies the provider-managed runtime strategy to OpenClaw.
+
 ## Command parsing
 
 Provider commands are parsed with shell-style quoting, then launched without a shell. That means:
@@ -516,7 +584,7 @@ receive the normal ACP startup flow. Native `pi` sessions receive the resolved
 `runtime_provider/model` through ACP model selection. Wrapped Pi-backed API-key providers receive
 session-local Pi `settings.json` and `models.json` so Pi can run with the CompozyOS-selected provider,
 model, and injected credential while the operator-facing provider remains OpenRouter, z.ai,
-Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, or Groq.
+Moonshot/Kimi, Vercel AI Gateway, or xAI.
 
 The practical rule is:
 
@@ -555,16 +623,7 @@ Use the provider that already owns your credentials and preferred operating path
 | OpenCode                    | `opencode`          |
 | GitHub Copilot CLI          | `copilot`           |
 | Cursor Agent                | `cursor`            |
-| Kiro CLI                    | `kiro`              |
-| BLACKBOX AI                 | `blackbox`          |
-| Cline                       | `cline`             |
-| Goose                       | `goose`             |
-| Hermes                      | `hermes`            |
-| Junie                       | `junie`             |
 | Kimi CLI                    | `kimi-cli`          |
-| OpenClaw                    | `openclaw`          |
-| OpenHands                   | `openhands`         |
-| Qoder CLI                   | `qoder`             |
 | Qwen Code                   | `qwen-code`         |
 | Pi                          | `pi`                |
 | OpenRouter                  | `openrouter`        |
@@ -572,9 +631,6 @@ Use the provider that already owns your credentials and preferred operating path
 | Moonshot / Kimi API         | `moonshot`          |
 | Vercel AI Gateway           | `vercel-ai-gateway` |
 | xAI                         | `xai`               |
-| MiniMax                     | `minimax`           |
-| Mistral                     | `mistral`           |
-| Groq                        | `groq`              |
 | A local or team ACP wrapper | a custom provider   |
 
 Then keep provider-specific behavior in the provider command or provider config, and keep the

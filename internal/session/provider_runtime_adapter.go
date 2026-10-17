@@ -8,11 +8,8 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	shellquote "github.com/kballard/go-shellquote"
 )
-
-const openClawRuntimeProvider = "openclaw"
 
 type providerRuntimeAdapter struct {
 	strategy acp.RuntimeApplicationStrategy
@@ -23,10 +20,6 @@ var providerRuntimeAdapters = map[string]providerRuntimeAdapter{
 	cursorRuntimeProvider: {
 		strategy: acp.RuntimeApplicationLaunchArg,
 		compile:  compileCursorRuntime,
-	},
-	openClawRuntimeProvider: {
-		strategy: acp.RuntimeApplicationProviderManaged,
-		compile:  compileProviderManagedRuntime,
 	},
 }
 
@@ -79,39 +72,6 @@ func compileCursorRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
 	opts.LaunchModelID = transportModel
 	opts.ReasoningEffort = ""
 	opts.Speed = ""
-	return opts, nil
-}
-
-func compileProviderManagedRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
-	if strings.TrimSpace(opts.PreferredModel) != "" {
-		return acp.StartOpts{}, errors.New(
-			"session: provider-managed runtime does not support model selection",
-		)
-	}
-	if strings.TrimSpace(opts.ReasoningEffort) != "" {
-		return acp.StartOpts{}, errors.New(
-			"session: provider-managed runtime does not support reasoning effort",
-		)
-	}
-	if opts.Speed != "" && opts.Speed != speedpkg.SpeedNormal {
-		return acp.StartOpts{}, errors.New(
-			"session: provider-managed runtime does not support Fast mode",
-		)
-	}
-	if len(opts.ACPOptions) > 0 {
-		return acp.StartOpts{}, errors.New(
-			"session: provider-managed runtime does not support ACP options",
-		)
-	}
-	if strings.TrimSpace(opts.LaunchModelID) != "" {
-		return acp.StartOpts{}, errors.New(
-			"session: provider-managed runtime cannot use a transport model binding",
-		)
-	}
-	opts.PreferredModel = ""
-	opts.ReasoningEffort = ""
-	opts.Speed = ""
-	opts.LaunchModelID = ""
 	return opts, nil
 }
 

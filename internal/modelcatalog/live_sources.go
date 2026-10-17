@@ -22,7 +22,6 @@ const (
 	liveSourcesClaudeKey            = "claude"
 	liveSourcesCodexKey             = "codex"
 	liveSourcesCursorKey            = "cursor"
-	liveSourcesHermesKey            = "hermes"
 	liveSourcesOllamaKey            = "ollama"
 	liveSourcesOpenaiKey            = "openai"
 	liveSourcesOpencodeKey          = "opencode"

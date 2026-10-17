@@ -1,5 +1,40 @@
 # Compozy Change Impact
 
+## Long-tail built-in provider removal — 2026-10-17
+
+Owner: branch `fix/issue-761-remove-longtail-providers`; issue #761.
+
+The built-in registry drops `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`,
+`openhands`, `qoder`, `mistral`, `groq`, and `minimax` plus their 14 aliases. Kept: `claude`,
+`codex`, `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp`
+harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`.
+
+- **Native tools:** provider, model-catalog, and session tools lose the removed IDs from their
+  projections; no tool ID, input, or output shape changes.
+- **Extensibility/hooks/config:** provider IDs in `config.toml` (`defaults.provider`,
+  `[providers.<id>]`), agent `provider:`, and Loop/automation runtime defaults are public surface.
+  SD-013 deprecation window: a boundary shim in `internal/config/provider_retired.go` keeps
+  removed IDs and aliases resolving with their former definition and logs one
+  `provider.retired_builtin` warning per ID (`removed_in=v0.5.0`, `replacement` = exact
+  `[providers.<id>]` TOML). Delete target in v0.5.0: the shim (public-surface regime); afterwards
+  an undeclared reference fails as provider unavailable. A declared `[providers.<id>]` with its own
+  `command` (and `harness = "pi_acp"` for pi IDs) is a plain custom provider. Hermes/OpenClaw
+  special-casing (native `.agents/skills` readers, `HERMES_HOME`/`OPENCLAW_STATE_DIR` homes, Hermes
+  live discovery, OpenClaw provider-managed strategy, auth-probe needle) is deleted (internal
+  regime). Hooks and extension SDKs are unchanged.
+- **Workspace data isolation:** no schema change or migration; persisted sessions and transcripts
+  that name a removed provider stay readable. The Agents skill source now has no native readers,
+  so `.agents/skills` is injected for every provider within the same workspace/profile scope.
+- **Official skill:** `skills/compozy/references/{agent-definitions,extensions,native-tools,
+  runtime-operations,tools-and-skills}.md` describe only kept built-ins, the custom-provider path,
+  and the deprecation window.
+- **Web/Docs:** Settings and pickers drop the removed providers and their logos; site docs
+  (`agents/providers.mdx` gains "Run another ACP CLI" and "Retired built-in providers"), the bug
+  template, `MIGRATION_GUIDE.md` (`kiro` → `unsupported_destination_value`), and the canonical copy
+  trio (now Claude Code, Codex, and Cursor) are updated. QA: `RT-retired-builtin-provider-shim`
+  added; `RT-hermes-live-model-readiness` and `RT-openclaw-provider-managed-runtime` retired.
+  Release note: `.release-notes/twelve-long-tail-providers-leave-the-built-in-registry-1792269885.md`.
+
 ## Issue 764 — Idle UI polling and attention cost — 2026-10-17
 
 `GET /api/notifications/attention` reads task attention once for every registered population
@@ -16,6 +51,7 @@ are unchanged; no migration or compatibility adapter is needed. Workspace/profil
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
 
+||||||| parent of c789fd0e8 (refactor: remove 12 long-tail builtin providers with a one-release shim)
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible

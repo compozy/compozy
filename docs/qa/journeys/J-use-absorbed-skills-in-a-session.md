@@ -24,13 +24,11 @@ flowchart TD
   Q1 --> S
   S{Does this session's provider read the winning root natively?}
   S -->|provider is claude and the skill won from a claude-native folder| S1["Omitted from prompt sections A and B only"]
-  S -->|provider is openclaw or hermes and the folder matches at that exact level| S2["Omitted at per-folder granularity — a provider that reads only the workspace-level folder does not suppress the global one"]
   S -->|the skill won from a Compozy root instead| S3[Injected normally — suppression keys on the winning root, never on the name]
   S -->|provider home relocated or isolated| S4[The operator-home folders are no longer native to this session, so those skills are injected normally]
   S -->|provider unknown or unset| S5[Nothing is suppressed — fail open to inclusion]
   S -->|no enabled source is native to this provider| S5
   S1 --> T
-  S2 --> T
   S3 --> C
   S4 --> C
   S5 --> C

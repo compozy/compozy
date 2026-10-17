@@ -6,7 +6,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
-// wireSessionSetupResponse includes the Hermes model extension that the
+// wireSessionSetupResponse includes the ACP session `models` state that the
 // generated ACP SDK does not model yet. The standard fields remain typed by
 // the SDK so modern config options keep their full union representation.
 type wireSessionSetupResponse struct {

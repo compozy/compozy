@@ -188,15 +188,15 @@ func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	cfg, err := SaveBootstrapConfig(homePaths, "blackbox", "")
+	cfg, err := SaveBootstrapConfig(homePaths, "copilot", "")
 	if err != nil {
 		t.Fatalf("SaveBootstrapConfig() error = %v", err)
 	}
-	if cfg.Defaults.Provider != "blackbox" {
-		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
+	if cfg.Defaults.Provider != "copilot" {
+		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want copilot", cfg.Defaults.Provider)
 	}
-	if got := cfg.Providers["blackbox"].Models.Default; got != "" {
-		t.Fatalf("SaveBootstrapConfig() Providers[blackbox].Models.Default = %q, want empty", got)
+	if got := cfg.Providers["copilot"].Models.Default; got != "" {
+		t.Fatalf("SaveBootstrapConfig() Providers[copilot].Models.Default = %q, want empty", got)
 	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)

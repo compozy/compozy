@@ -22,7 +22,7 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 		{name: "Should require approval for Codex full access", mode: "agent-full-access"},
 		{name: "Should require approval for Claude bypass permissions", mode: "bypassPermissions"},
 		{name: "Should require approval for YOLO mode", mode: "yolo"},
-		{name: "Should require approval for Goose auto mode", mode: "auto"},
+		{name: "Should require approval for auto mode", mode: "auto"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
