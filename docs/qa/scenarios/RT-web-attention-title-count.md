@@ -34,3 +34,11 @@ QA re-walk 2026-09-30: PASS for the repaired background-title contract on actual
 
 
 QA impact 2026-10-11 (verification in progress): Read attention across registered workspaces and profiles with approval and failed-run items. Confirm identical visible items, acknowledgment behavior, and complete pagination; internal item reads must skip unused totals/facets while the public inbox still returns exact metadata. Evidence and exact verification scope: [startup/cache/notification report](../reports/2026-10-11-startup-cache-notifications.md).
+
+QA impact 2026-10-17 issue 764: the bell (which feeds the title) now polls every 30 s while the
+document is hidden instead of every 5 s; the visible cadence stays 5 s. The daemon reads task
+attention for every registered workspace in one all-population read instead of a global plus
+per-workspace fan-out, with identical notification identities. Walked in an isolated lab daemon
+(7 workspaces, 5 active mock sessions): the attention payload matched the pre-change build byte for
+byte apart from the snapshot token, and a hidden headless tab issued 2 bell reads/min. The hidden
+transition used synthetic `visibilitychange`, not a real Electron hide.

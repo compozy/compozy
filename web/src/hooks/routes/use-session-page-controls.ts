@@ -36,6 +36,8 @@ import { useSessionBusyInputControls } from "./use-session-busy-input-controls";
 
 interface UseSessionPageControlsOptions {
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
+  /** Whether the hosting window owns live data; a background window reads its queue on return. */
+  liveDataEnabled?: boolean;
   onDeleteSuccess?: () => void;
   workspaceId?: string;
 }
@@ -94,6 +96,7 @@ export function useSessionPageControls(
   const busyInput = useSessionBusyInputControls({
     activeTurnId,
     getRuntimeSnapshot,
+    liveDataEnabled: options.liveDataEnabled ?? true,
     promptControlsAvailable,
     sessionState,
     sessionId,

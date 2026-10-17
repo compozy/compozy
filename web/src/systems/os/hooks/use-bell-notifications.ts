@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { dashboardKeys } from "@/systems/dashboard";
 import {
   acknowledgeAttentionNotifications,
@@ -11,13 +13,21 @@ import { useProfileReadScope } from "@/systems/profiles";
 import { getSessionDisplayTitle, toSessionBadge } from "@/systems/session";
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
 
+const BELL_REFETCH_INTERVAL_MS = 5_000;
+const BELL_HIDDEN_OR_ERROR_REFETCH_INTERVAL_MS = 30_000;
+
 export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const { destination } = useProfileReadScope();
   const queryClient = useQueryClient();
+  const documentVisible = useDocumentVisible();
   const query = useQuery({
     ...attentionNotificationsOptions(destination),
-    // The notification count also owns the tab title while the document is hidden.
-    refetchInterval: query => (query.state.status === "error" ? 30_000 : 5_000),
+    // The notification count also owns the tab title while the document is hidden,
+    // where nobody reads the bell itself, so the hidden cadence only keeps that title.
+    refetchInterval: query =>
+      query.state.status === "error" || !documentVisible
+        ? BELL_HIDDEN_OR_ERROR_REFETCH_INTERVAL_MS
+        : BELL_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: false,
     retry: false,
