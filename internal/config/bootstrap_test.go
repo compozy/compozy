@@ -183,30 +183,33 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("Should save a provider-managed model without a default", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	cfg, err := SaveBootstrapConfig(homePaths, "copilot", "")
-	if err != nil {
-		t.Fatalf("SaveBootstrapConfig() error = %v", err)
-	}
-	if cfg.Defaults.Provider != "copilot" {
-		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want copilot", cfg.Defaults.Provider)
-	}
-	if got := cfg.Providers["copilot"].Models.Default; got != "" {
-		t.Fatalf("SaveBootstrapConfig() Providers[copilot].Models.Default = %q, want empty", got)
-	}
+		cfg, err := SaveBootstrapConfig(homePaths, "copilot", "")
+		if err != nil {
+			t.Fatalf("SaveBootstrapConfig() error = %v", err)
+		}
+		if cfg.Defaults.Provider != "copilot" {
+			t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want copilot", cfg.Defaults.Provider)
+		}
+		if got := cfg.Providers["copilot"].Models.Default; got != "" {
+			t.Fatalf("SaveBootstrapConfig() Providers[copilot].Models.Default = %q, want empty", got)
+		}
 
-	contents, err := os.ReadFile(homePaths.ConfigFile)
-	if err != nil {
-		t.Fatalf("ReadFile(config) error = %v", err)
-	}
-	text := string(contents)
-	if strings.Contains(text, `default_model =`) {
-		t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
-	}
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config) error = %v", err)
+		}
+		text := string(contents)
+		if strings.Contains(text, `default_model =`) {
+			t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
+		}
+	})
 }
 
 func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {

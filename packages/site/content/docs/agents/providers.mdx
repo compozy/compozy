@@ -514,7 +514,8 @@ Until v0.5.0, a reference to one of these IDs or aliases keeps resolving with th
 definition. That covers `defaults.provider`, a partial `[providers.<id>]` override, an agent's
 `provider:`, Loop and automation runtime defaults, and persisted sessions. The daemon logs one
 `provider.retired_builtin` warning per ID with `removed_in=v0.5.0` and a `replacement` field that
-holds the exact `[providers.<id>]` entry to add to `config.toml`:
+holds the exact `[providers.<id>]` entry, including any partial override you already set. Replace
+every existing `[providers.<id>]` table for that ID in `config.toml` with it:
 
 ```bash
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"

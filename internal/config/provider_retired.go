@@ -92,7 +92,11 @@ var retiredBuiltinProviderAliases = map[string]string{
 	"mistral-ai":    retiredProviderMistral,
 }
 
-var retiredBuiltinProviderWarnings sync.Map
+var retiredProviderWarnings = struct {
+	mu     sync.Mutex
+	logger *slog.Logger
+	seen   map[string]struct{}
+}{seen: make(map[string]struct{})}
 
 func retiredPiACPProvider(displayName, runtimeProvider, credentialEnv, model, modelName string) ProviderConfig {
 	return ProviderConfig{
@@ -129,19 +133,68 @@ func retiredProviderBase(name string, override ProviderConfig, overridden bool) 
 		(retired.Harness != ProviderHarnessPiACP || override.Harness != "") {
 		return ProviderConfig{}, false
 	}
-	warnRetiredBuiltinProvider(name, retired)
 	return cloneProvider(retired), true
 }
 
-func warnRetiredBuiltinProvider(name string, retired ProviderConfig) {
-	if _, loaded := retiredBuiltinProviderWarnings.LoadOrStore(name, struct{}{}); loaded {
+// RouteRetiredProviderWarnings sends later retired-provider warnings to logger and re-arms the
+// once-per-ID dedup, so the daemon log records the retired references it resolves after boot.
+func RouteRetiredProviderWarnings(logger *slog.Logger) {
+	retiredProviderWarnings.mu.Lock()
+	defer retiredProviderWarnings.mu.Unlock()
+	retiredProviderWarnings.logger = logger
+	clear(retiredProviderWarnings.seen)
+}
+
+// WarnRetiredProviderReferences resolves the configured default and declared providers so every
+// retired reference in this config reports its deprecation warning.
+func (c *Config) WarnRetiredProviderReferences() {
+	if c == nil {
 		return
 	}
-	slog.Warn(
+	names := []string{c.Defaults.Provider}
+	for name := range c.Providers {
+		names = append(names, name)
+	}
+	for _, name := range names {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		// Validation owns resolution errors; this pass only emits retired-provider warnings.
+		if _, err := c.ResolveProvider(name); err != nil {
+			continue
+		}
+	}
+}
+
+// warnRetiredBuiltinProvider reports the effective definition, including partial overrides, so
+// the replacement keeps the user's existing choices.
+func warnRetiredBuiltinProvider(name string, effective ProviderConfig) {
+	retiredProviderWarnings.mu.Lock()
+	if _, seen := retiredProviderWarnings.seen[name]; seen {
+		retiredProviderWarnings.mu.Unlock()
+		return
+	}
+	retiredProviderWarnings.seen[name] = struct{}{}
+	logger := retiredProviderWarnings.logger
+	retiredProviderWarnings.mu.Unlock()
+	if logger == nil {
+		logger = slog.Default()
+	}
+	action := fmt.Sprintf("replace every [%s.%s] table in config.toml with replacement", providersConfigKey, name)
+	if len(effective.CredentialSlots) > 0 {
+		// Redacting log handlers mask secret_ref values, so name the env refs to restore.
+		refs := make([]string, 0, len(effective.CredentialSlots))
+		for _, slot := range effective.CredentialSlots {
+			refs = append(refs, slot.TargetEnv+" uses secret_ref "+strings.ReplaceAll(slot.SecretRef, ":", " "))
+		}
+		action += "; credential slots: " + strings.Join(refs, ", ")
+	}
+	logger.Warn(
 		"provider.retired_builtin",
 		"provider", name,
 		"removed_in", retiredBuiltinProviderRemovalRelease,
-		"replacement", retiredBuiltinProviderReplacement(name, retired),
+		"action", action,
+		"replacement", retiredBuiltinProviderReplacement(name, effective),
 	)
 }
 

@@ -39,13 +39,18 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	if c != nil {
 		override, overridden = c.Providers[providerName]
 	}
+	retiredBase := false
 	if hasBuiltin {
 		resolved = cloneProvider(resolved)
 	} else {
-		resolved, hasBuiltin = retiredProviderBase(providerName, override, overridden)
+		resolved, retiredBase = retiredProviderBase(providerName, override, overridden)
+		hasBuiltin = retiredBase
 	}
 	if overridden {
 		resolved = mergeProvider(resolved, override)
+	}
+	if retiredBase {
+		warnRetiredBuiltinProvider(providerName, resolved)
 	}
 
 	if !hasBuiltin {
