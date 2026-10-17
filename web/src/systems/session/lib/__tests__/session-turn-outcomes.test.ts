@@ -12,6 +12,32 @@ function event(data: Record<string, unknown>) {
 }
 
 describe("turn outcomes", () => {
+  // Invariant: immutable content replacements and history removal recompute
+  // the current thread; cached facts never keep a removed or superseded end.
+  // Owning layer: pure turn projection; canonical suite: this file.
+  it("Should follow replaced content and release outcomes removed from the thread", () => {
+    const content = [event({ type: "session_stopped", turn_id: "turn-a" })];
+    const original = { role: "assistant", content };
+    expect(deriveTurnOutcomes([original]).get("turn-a")?.kind).toBe("stopped");
+
+    const replacement = {
+      ...original,
+      content: [
+        event({
+          type: "session.turn_quiesced",
+          turn_id: "turn-b",
+          timestamp: "2026-10-17T12:00:00Z",
+          raw: { scope: "turn", verified: true },
+        }),
+      ],
+    };
+    const outcomes = deriveTurnOutcomes([replacement, original]);
+    expect([...outcomes.keys()]).toEqual(["turn-b", "turn-a"]);
+    expect(deriveTurnOutcomes([replacement]).has("turn-a")).toBe(false);
+    expect(deriveTurnOutcomes([{ role: "user", content }]).size).toBe(0);
+    expect(deriveTurnOutcomes([]).size).toBe(0);
+  });
+
   it("Should read a turn's end from a later projected message and prefer the verified receipt", () => {
     const outcomes = deriveTurnOutcomes([
       {
