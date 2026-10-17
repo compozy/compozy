@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-builtin-providers-20261017-211440-188126-lab/qa-artifacts/qa/retired-provider-evidence.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-final-20261017-222608-137965-lab/qa-artifacts/qa/retired-provider-final-evidence.md
 last_report:
 overlaps: MS-028; RT-081
 ---
@@ -42,3 +42,12 @@ listed 26 built-ins; the branch listed 14. With `defaults.provider = "hermes"` a
 `provider inspect mistral` matched the pre-change bound-secret shape. Declaring `[providers.hermes]`
 listed Hermes as a custom provider and silenced its warning. Alias canonicalization (`hermes-agent`)
 is covered by `internal/config` unit tests, not by this walk.
+
+2026-10-17 final-head re-walk (ca72b2405, after the daemon-logger and redaction fixes): PASS for
+steps 1-4. A clean config listed the 14 kept built-ins. With `defaults.provider = "hermes-agent"` and
+a partial `[providers.mistral.models]`, `compozy.log` held exactly one `provider.retired_builtin`
+record per ID with no `[REDACTED]` markers. The `mistral` replacement kept `codestral-latest`, and its
+`action` spelled out the `env` / `MISTRAL_API_KEY` secret reference. Applying both logged replacements as
+instructed restarted the daemon with no retired warnings. `hermes` and `mistral` were then listed as
+declared providers, and `provider inspect mistral` showed `bound_secret` with
+`env:MISTRAL_API_KEY`.
