@@ -46,6 +46,9 @@ var (
 	errPromptReplyRequiresSession = errors.New(
 		"cli: --in-reply-to requires a calling agent session (--from-session auto or --from-session <id>)",
 	)
+	errPromptSupersedeRequiresSession = errors.New(
+		"cli: --supersede requires a calling agent session (--from-session auto or --from-session <id>)",
+	)
 	errFromSessionAutoOutsideSession = errors.New(
 		"cli: --from-session auto requires a managed session (" + agentidentity.EnvSessionID + " is not set)",
 	)
@@ -70,7 +73,7 @@ func bindSessionPromptOriginFlags(cmd *cobra.Command, flags *sessionPromptComman
 		&flags.supersede,
 		"supersede",
 		false,
-		"Replace your own older queued prompt to the same session",
+		"Replace your own older queued prompt to the same session; requires a calling agent session",
 	)
 }
 
@@ -118,6 +121,9 @@ func (flags *sessionPromptCommandFlags) originCredentials(
 func (flags *sessionPromptCommandFlags) requireNoReply() error {
 	if strings.TrimSpace(flags.inReplyTo) != "" {
 		return errPromptReplyRequiresSession
+	}
+	if flags.supersede {
+		return errPromptSupersedeRequiresSession
 	}
 	return nil
 }

@@ -74,7 +74,11 @@ func (m *Manager) promoteQueuedInput(
 	if !promoted {
 		return "", false
 	}
+	session.promotedSteers.Store(entryID, struct{}{})
 	err = m.activateSteeringInput(ctx, session, &staged)
+	if err != nil || staged.SteerDelivery != store.SteerDeliveryPendingInjection {
+		session.promotedSteers.Delete(entryID)
+	}
 	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return staged.SteerDelivery, true
 	}

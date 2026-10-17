@@ -39,6 +39,14 @@ func (n *daemonNativeTools) sessionPromptOrigin(
 				toolspkg.ErrToolInvalidInput,
 			)
 		}
+		if input.Supersede {
+			return nil, toolspkg.NewToolError(
+				toolspkg.ErrorCodeInvalidRequest,
+				toolID,
+				"supersede requires an agent session",
+				toolspkg.ErrToolInvalidInput,
+			)
+		}
 		return nil, nil
 	}
 	builder, ok := n.deps.Sessions.(nativeSessionMessageOriginBuilder)

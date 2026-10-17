@@ -243,6 +243,9 @@ type Session struct {
 	providerRedactions      []func()
 	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
 	inputPromotionActive atomic.Bool
+	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
+	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
+	promotedSteers sync.Map
 }
 
 func (s *Session) processHandle() *AgentProcess {

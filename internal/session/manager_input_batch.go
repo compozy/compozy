@@ -28,11 +28,13 @@ func (m *Manager) claimQueuedInputBatch(
 	if !batchableQueuedInput(head) {
 		return nil
 	}
+	effective := effectiveQueuedInputRuntime(session)
+	headRuntime := effective(head.Runtime)
 	accept := func(candidate *store.SessionInputQueueEntry) bool {
 		return batchableQueuedInput(candidate) &&
 			len(candidate.Attachments) == 0 &&
 			candidate.SessionGeneration == head.SessionGeneration &&
-			sameSessionInputRuntime(candidate.Runtime, head.Runtime)
+			sameSessionInputRuntime(effective(candidate.Runtime), headRuntime)
 	}
 	claimed, err := m.inputQueue.ClaimBatch(m.fallbackLifecycleContext(), target, maxQueuedInputBatch-1, accept)
 	if err != nil {
@@ -69,6 +71,19 @@ func batchableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 		return meta.Kind == acp.PromptSyntheticKindSessionReply
 	default:
 		return false
+	}
+}
+
+// effectiveQueuedInputRuntime resolves the runtime an entry dispatches on: an entry without a runtime
+// selection (a reply wake) runs on the session's current runtime, so it batches with messages stamped
+// with that same runtime.
+func effectiveQueuedInputRuntime(session *Session) func(store.SessionInputRuntime) store.SessionInputRuntime {
+	inherited, err := normalizePromptRuntimeSelection(session, nil)
+	return func(runtime store.SessionInputRuntime) store.SessionInputRuntime {
+		if err != nil || runtimeSelectionFromStore(runtime) != nil {
+			return runtime
+		}
+		return storeRuntimeSelection(inherited)
 	}
 }
 

@@ -9,7 +9,7 @@ CREATE TABLE session_prompt_reply_watches (
     turn_id TEXT,
     queue_entry_id TEXT,
     delivered_input_id TEXT,
-    abandon_reason TEXT CHECK (abandon_reason IN ('sender_gone', 'send_failed', 'answered')),
+    abandon_reason TEXT CHECK (abandon_reason IN ('sender_gone', 'send_failed')),
     hop INTEGER NOT NULL,
     state TEXT NOT NULL CHECK (state IN ('armed', 'fired', 'delivered', 'abandoned')),
     outcome TEXT CHECK (outcome IN ('completed', 'failed', 'canceled', 'dropped', 'unknown', 'expired')),

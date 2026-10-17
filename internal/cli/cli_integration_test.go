@@ -4865,6 +4865,10 @@ func TestSessionPromptOriginIntegration(t *testing.T) {
 				want: "--in-reply-to requires a calling agent session",
 			},
 			{
+				deps: inside, args: []string{"--supersede"},
+				want: "--supersede requires a calling agent session",
+			},
+			{
 				deps: h.deps, args: []string{"--from-session", "auto"},
 				want: "--from-session auto requires a managed session",
 			},

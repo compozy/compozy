@@ -518,6 +518,20 @@ func TestToolErrorResponses(t *testing.T) {
 	})
 	t.Parallel()
 
+	t.Run("Should keep the daemon's message rate limit text with its budget and retry time", func(t *testing.T) {
+		t.Parallel()
+		message := "Message rate limit reached: 30 messages to session sess-target within 10m0s. " +
+			"Retry after 4m0s, and send fewer, milestone-level messages."
+		err := toolspkg.NewToolError(toolspkg.ErrorCodeSessionMessageRateLimited, toolspkg.ToolIDSessionPrompt,
+			message, errors.New("session message rate limit reached"))
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+		if status != http.StatusTooManyRequests ||
+			payload.Error.Code != toolspkg.ErrorCodeSessionMessageRateLimited || payload.Error.Message != message {
+			t.Fatalf("status=%d payload=%#v, want 429 with the budget and retry time", status, payload)
+		}
+	})
+
 	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {
 		t.Parallel()
 
