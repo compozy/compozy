@@ -1,14 +1,35 @@
+import { lazy, Suspense } from "react";
+
 import { useWorktrees, WorktreeBulkRemoveDialog } from "@/systems/workspace";
 
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
-import {
-  WorktreeAdoptDialogBoundary,
-  WorktreeContextDialogBoundary,
-  WorktreeCreateDialogBoundary,
-  WorktreeMissingDialogBoundary,
-  WorktreeRemoveDialogBoundary,
-} from "./worktree-dialog-boundaries";
+
+const WorktreeAdoptDialogBoundary = lazy(() =>
+  import("./worktree-dialog-boundaries").then(module => ({
+    default: module.WorktreeAdoptDialogBoundary,
+  }))
+);
+const WorktreeContextDialogBoundary = lazy(() =>
+  import("./worktree-dialog-boundaries").then(module => ({
+    default: module.WorktreeContextDialogBoundary,
+  }))
+);
+const WorktreeCreateDialogBoundary = lazy(() =>
+  import("./worktree-dialog-boundaries").then(module => ({
+    default: module.WorktreeCreateDialogBoundary,
+  }))
+);
+const WorktreeMissingDialogBoundary = lazy(() =>
+  import("./worktree-dialog-boundaries").then(module => ({
+    default: module.WorktreeMissingDialogBoundary,
+  }))
+);
+const WorktreeRemoveDialogBoundary = lazy(() =>
+  import("./worktree-dialog-boundaries").then(module => ({
+    default: module.WorktreeRemoveDialogBoundary,
+  }))
+);
 
 interface DesktopWorktreeDialogsProps {
   model: DesktopShellModel;
@@ -28,7 +49,7 @@ export function DesktopWorktreeDialogs({
   });
 
   return (
-    <>
+    <Suspense fallback={null}>
       {worktreeDialogs.removalBatch ? (
         <WorktreeBulkRemoveDialog
           batch={worktreeDialogs.removalBatch}
@@ -79,6 +100,6 @@ export function DesktopWorktreeDialogs({
           onClose={worktreeDialogs.closeContext}
         />
       ) : null}
-    </>
+    </Suspense>
   );
 }
