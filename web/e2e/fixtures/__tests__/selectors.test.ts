@@ -51,7 +51,6 @@ describe("session window selectors", () => {
     expect(selectors.processingIndicator).toBe(
       `win-locator:${sessionWindowTestIds.processingIndicator}`
     );
-    expect(selectors.resumeButton).toBe(`win-locator:${sessionWindowTestIds.resumeButton}`);
     expect(selectors.stopButton).toBe(`win-locator:${sessionWindowTestIds.stopButton}`);
     expect(selectors.topbarOverflow).toBe(`win-locator:${sessionWindowTestIds.topbarOverflow}`);
   });

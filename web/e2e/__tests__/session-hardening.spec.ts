@@ -474,7 +474,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   await ui.composerTextarea.fill("trigger crash mid-stream");
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("partial before crash", { timeout: 15_000 });
-  await expect(ui.resumeButton).not.toBeVisible({ timeout: 20_000 });
+  await expect(ui.stopButton).not.toBeVisible({ timeout: 20_000 });
   await expect
     .poll(async () => {
       const payload = await runtime.requestJSON<SessionEnvelope>(
@@ -513,7 +513,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.chatView).toContainText("partial before crash");
-  await expect(ui.resumeButton).not.toBeVisible();
+  await expect(ui.stopButton).not.toBeVisible();
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     after_repair: afterRepair,

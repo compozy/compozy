@@ -14,18 +14,7 @@ import {
   type SessionState,
   type UnconfirmedSend,
 } from "@/systems/session";
-import { enqueueBusyInput, enqueueResume, enqueueStop } from "./session-page-controls-effects";
-
-export interface ResumeProviderUnavailableDetail {
-  agentName?: string;
-  missingProvider: string;
-  sessionId: string;
-}
-
-export interface SessionResumeFailure {
-  message: string;
-  providerUnavailable: ResumeProviderUnavailableDetail | null;
-}
+import { enqueueBusyInput, enqueueStop } from "./session-page-controls-effects";
 
 export type SessionBusyInputKind = SessionSendAction;
 
@@ -116,11 +105,6 @@ export interface SessionPageControlsState {
   nextRequestId: number;
   /** The cap the daemon last named in a `queue_full` refusal; unknown until then. */
   queueCap: number | null;
-  resume: {
-    failure: SessionResumeFailure | null;
-    phase: "idle" | "pending";
-    requestId: number;
-  };
   /**
    * Sends whose acknowledgment was lost, held in memory with their identity
    * until a replay observes an outcome or the operator discards them. Never a
@@ -156,10 +140,6 @@ export type SessionPageControlsEventPayloadMap = {
   stopSucceeded: { requestId: number; result?: unknown };
   /** The completion note's time is up. */
   stopCompletionExpired: { requestId: number };
-  resumeFailed: { failure: SessionResumeFailure; requestId: number };
-  resumeFailureDismissed: Record<string, never>;
-  resumeRequested: { resumeSession: () => Promise<unknown>; sessionId: string };
-  resumeSucceeded: { requestId: number };
   /** A streaming prompt POST lost its acknowledgment mid-turn: retain its identity as unconfirmed. */
   sendUnconfirmedObserved: { send: SessionSendEnvelope };
   unconfirmedSendDiscarded: { id: string };
@@ -187,7 +167,6 @@ export function createSessionPageControlsLogic() {
       stopCompletion: null,
       nextRequestId: 0,
       queueCap: null,
-      resume: { failure: null, phase: "idle", requestId: 0 },
       unconfirmedSends: [],
     },
     on: {
@@ -277,7 +256,7 @@ export function createSessionPageControlsLogic() {
         // still landing is dropped (US-009.EC-1). A stop the daemon could not
         // verify has already landed as `stopping`, so the phase is idle and the
         // explicit retry passes this same guard as a fresh request.
-        if (context.stop.phase !== "idle" || context.resume.phase === "pending") return;
+        if (context.stop.phase !== "idle") return;
         const requestId = context.stop.requestId + 1;
         enqueueStop(event.execute, enqueue, requestId, event.failureMessage);
         return {
@@ -328,34 +307,6 @@ export function createSessionPageControlsLogic() {
           return;
         }
         return { ...context, stopCompletion: null };
-      },
-      resumeFailed: (context, event, enqueue) => {
-        if (context.resume.phase !== "pending" || context.resume.requestId !== event.requestId) {
-          return;
-        }
-        if (event.failure.providerUnavailable === null) {
-          enqueue.effect(() => notifyUser({ message: event.failure.message, tone: "error" }));
-        }
-        return { ...context, resume: { ...context.resume, failure: event.failure, phase: "idle" } };
-      },
-      resumeFailureDismissed: context => {
-        if (context.resume.failure === null) return;
-        return { ...context, resume: { ...context.resume, failure: null } };
-      },
-      resumeRequested: (context, event, enqueue) => {
-        if (context.resume.phase === "pending" || context.stop.phase !== "idle") return;
-        const requestId = context.resume.requestId + 1;
-        enqueueResume(event.resumeSession, enqueue, requestId, event.sessionId);
-        return {
-          ...context,
-          resume: { failure: null, phase: "pending", requestId },
-        };
-      },
-      resumeSucceeded: (context, event) => {
-        if (context.resume.phase !== "pending" || context.resume.requestId !== event.requestId) {
-          return;
-        }
-        return { ...context, resume: { ...context.resume, failure: null, phase: "idle" } };
       },
       sendUnconfirmedObserved: (context, event) => ({
         ...context,

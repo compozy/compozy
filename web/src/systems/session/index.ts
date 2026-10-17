@@ -127,7 +127,6 @@ export {
   renameSession,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   SessionApiError,

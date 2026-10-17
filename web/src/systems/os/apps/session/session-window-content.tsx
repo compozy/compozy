@@ -140,19 +140,6 @@ function SessionWindowNoticeContent({
       />
     );
   }
-  if (controls.resumeFailure) {
-    return (
-      <SessionResumeFailure
-        agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
-        isRetrying={controls.isResuming}
-        message={controls.resumeFailure.message}
-        missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
-        onDismiss={controls.handleDismissResumeFailure}
-        onRetry={controls.handleResume}
-        sessionId={sessionId}
-      />
-    );
-  }
   if (hasUnrecoverableRuntime(session)) {
     return (
       <SessionResumeFailure

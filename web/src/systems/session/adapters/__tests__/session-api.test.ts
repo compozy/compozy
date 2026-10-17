@@ -31,7 +31,6 @@ import {
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   stopSession,
@@ -943,28 +942,6 @@ describe("session input queue operations", () => {
       method: "DELETE",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001",
     });
-  });
-});
-
-describe("resumeSession", () => {
-  it("calls POST attach endpoint", async () => {
-    mockJsonResponse({ session: { ...mockSession, state: "active" } });
-
-    const result = await resumeSession(WORKSPACE_ID, "sess-001");
-
-    expect(result.state).toBe("active");
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/attach",
-    });
-  });
-
-  it("throws 404 error for unknown session", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(resumeSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
-      "Session not found: unknown"
-    );
   });
 });
 

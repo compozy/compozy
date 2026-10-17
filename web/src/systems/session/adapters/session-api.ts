@@ -274,24 +274,6 @@ export async function sendSessionPrompt(
   return result.prompt.goal ?? result.prompt;
 }
 
-export async function resumeSession(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
-}
-
 export async function setSessionRuntime(
   workspaceId: string,
   id: string,

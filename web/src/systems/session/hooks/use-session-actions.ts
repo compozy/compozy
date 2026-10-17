@@ -10,7 +10,6 @@ import {
   deleteSession,
   repairSession,
   renameSession,
-  resumeSession,
   SessionApiError,
   SessionGoalCommandError,
   sendSessionPrompt,
@@ -186,34 +185,6 @@ export function useUnarchiveSession() {
       request(signal => unarchiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
     onSettled: (_data, _error, { id, workspace_id }) => {
       if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
-    },
-  });
-}
-
-export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation({
-    mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
-    onMutate: async id => {
-      const resumeWorkspaceId = requireWorkspace(workspaceId);
-      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: sessionKeys.detail(resumeWorkspaceId, id) }),
-        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
-      ]);
-    },
-    onSettled: (_data, _error, id) => {
-      if (!workspaceId) {
-        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-        return;
-      }
-
-      return invalidateSessionMutationQueries(queryClient, workspaceId, id).finally(() => {
-        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-      });
     },
   });
 }

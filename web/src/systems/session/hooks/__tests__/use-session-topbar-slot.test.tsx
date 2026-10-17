@@ -51,7 +51,6 @@ function SessionPublisher({
     isDeleting: false,
     isRenaming: false,
     isStopping: false,
-    isResuming: false,
     isUnarchiving: false,
     isClearing: false,
     canClear: true,
@@ -62,7 +61,6 @@ function SessionPublisher({
     onDelete: vi.fn(),
     onRename,
     onStop,
-    onResume: vi.fn(),
     onUnarchive: vi.fn(),
     onClear: vi.fn(),
     onContinue,
@@ -197,7 +195,7 @@ describe("useSessionTopbarSlot", () => {
     expect(onSidebarToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("Should keep an idle attachable session to one immediate action plus overflow", () => {
+  it("Should keep an idle session to Stop as its one immediate action plus overflow", () => {
     const onStop = vi.fn();
 
     function IdlePublisher() {
@@ -206,7 +204,6 @@ describe("useSessionTopbarSlot", () => {
         isDeleting: false,
         isRenaming: false,
         isStopping: false,
-        isResuming: false,
         isUnarchiving: false,
         isClearing: false,
         canClear: true,
@@ -217,7 +214,6 @@ describe("useSessionTopbarSlot", () => {
         onDelete: vi.fn(),
         onRename: vi.fn(),
         onStop,
-        onResume: vi.fn(),
         onUnarchive: vi.fn(),
         onClear: vi.fn(),
       });
@@ -226,12 +222,11 @@ describe("useSessionTopbarSlot", () => {
 
     renderWithTopbar(<IdlePublisher />);
 
-    expect(screen.getByRole("button", { name: "Resume session" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Stop session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Stop session" })).not.toBeInTheDocument();
   });
 
   // Invariant: an idle session whose agent process the daemon released
@@ -255,14 +250,13 @@ describe("useSessionTopbarSlot", () => {
       );
 
       expect(screen.getByText("Session status: Idle")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Resume session" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Stop session" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-      expect(screen.getByRole("menuitem", { name: "Stop session" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Stop session" })).not.toBeInTheDocument();
     }
   );
 
-  it("Should offer unarchive without attach or resume controls for an archived session", () => {
+  it("Should offer unarchive as the only primary action for an archived session", () => {
     const onUnarchive = vi.fn();
 
     function ArchivedPublisher() {
@@ -277,7 +271,6 @@ describe("useSessionTopbarSlot", () => {
         isDeleting: false,
         isRenaming: false,
         isStopping: false,
-        isResuming: false,
         isUnarchiving: false,
         isClearing: false,
         canClear: true,
@@ -288,7 +281,6 @@ describe("useSessionTopbarSlot", () => {
         onDelete: vi.fn(),
         onRename: vi.fn(),
         onStop: vi.fn(),
-        onResume: vi.fn(),
         onUnarchive,
         onClear: vi.fn(),
       });
@@ -299,8 +291,7 @@ describe("useSessionTopbarSlot", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Unarchive session" }));
     expect(onUnarchive).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop session" })).toBeNull();
   });
 
   it("Should close overflow before opening rename so one Escape dismisses the dialog", async () => {
