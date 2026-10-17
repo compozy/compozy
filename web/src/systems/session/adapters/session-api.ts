@@ -127,6 +127,7 @@ export async function deleteSession(
   }
 }
 
+/** Renames a session within its captured workspace and owning profile. */
 export async function renameSession(
   workspaceId: string,
   id: string,

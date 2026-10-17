@@ -40,6 +40,8 @@ func registrySessionOperations() []OperationSpec {
 		approveSessionOperationSpec(),
 	}
 }
+
+// renameSessionOperationSpec describes renaming within the selected session owner profile.
 func renameSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,

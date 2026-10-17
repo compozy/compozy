@@ -55,6 +55,7 @@ export interface RenameSessionParams extends SessionActionTarget {
   name: string;
 }
 
+/** Renames the supplied row and invalidates its owning workspace after settlement. */
 export function useRenameSession() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
@@ -161,6 +162,7 @@ export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {})
   });
 }
 
+/** Archives the supplied row without depending on the currently selected workspace. */
 export function useArchiveSession() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
@@ -174,6 +176,7 @@ export function useArchiveSession() {
   });
 }
 
+/** Restores the supplied row and refreshes the catalog in its owning workspace. */
 export function useUnarchiveSession() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();

@@ -2,6 +2,7 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+// registrySubagentOperations describes roster reads and profile-scoped delegated cancellation.
 func registrySubagentOperations() []OperationSpec {
 	const subagentPath = "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
 	return []OperationSpec{

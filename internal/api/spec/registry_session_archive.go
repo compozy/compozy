@@ -16,6 +16,7 @@ func unarchiveSessionOperationSpec() OperationSpec {
 	return sessionArchiveOperationSpec("unarchive", "unarchiveSession", "Restore an archived session")
 }
 
+// sessionArchiveOperationSpec shares the explicit owner selector across archive and restore.
 func sessionArchiveOperationSpec(action string, operationID string, summary string) OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,

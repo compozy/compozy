@@ -1405,6 +1405,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 }
 
 // Lifecycle mutations must select the session owner before reaching the manager.
+// TestSessionLifecycleProfileScope verifies owner access and wrong-profile mutation refusal.
 func TestSessionLifecycleProfileScope(t *testing.T) {
 	t.Parallel()
 	for _, action := range []string{"archive", "unarchive", "rename"} {

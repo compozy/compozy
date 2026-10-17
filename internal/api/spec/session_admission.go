@@ -9,6 +9,7 @@ func sessionAdmissionOperations() []OperationSpec {
 	return append(sessionConversationAdmissionOperations(), sessionDeriveOperations()...)
 }
 
+// sessionConversationAdmissionOperations describes clear and owner-scoped rewind admission.
 func sessionConversationAdmissionOperations() []OperationSpec {
 	return []OperationSpec{
 		{

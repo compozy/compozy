@@ -695,16 +695,24 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		session := createSession(t, h)
 		// Observe the stopping snapshot before asynchronous cancellation advances runtime metadata.
 		release := make(chan struct{})
+		cancelStarted := make(chan struct{})
+		signalStarted := sync.OnceFunc(func() { close(cancelStarted) })
 		unblock := sync.OnceFunc(func() { close(release) })
-		h.driver.cancelHook = func(*fakeProcess) error { <-release; return nil }
+		h.driver.cancelHook = func(*fakeProcess) error { signalStarted(); <-release; return nil }
 		t.Cleanup(func() {
 			unblock()
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() cleanup error = %v", err)
 			}
 		})
-		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
+		ctx := testutil.Context(t)
+		if err := h.manager.RequestStopWithCause(ctx, session.ID, CauseUserRequested, ""); err != nil {
 			t.Fatalf("RequestStopWithCause() error = %v", err)
+		}
+		select {
+		case <-cancelStarted:
+		case <-ctx.Done():
+			t.Fatal("cancellation hook did not start:", ctx.Err())
 		}
 
 		if got, want := session.Info().State, StateStopping; got != want {

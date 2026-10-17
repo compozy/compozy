@@ -27,6 +27,7 @@ function isSessionRewindResult(value: unknown): value is SessionRewindResult {
   return typeof value.session.id === "string" && typeof value.rewind.draft_text === "string";
 }
 
+/** Rewinds an owner-scoped session using a daemon-issued transcript fence. */
 export async function rewindSession(
   workspaceId: string,
   id: string,

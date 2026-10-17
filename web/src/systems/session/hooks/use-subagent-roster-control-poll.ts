@@ -11,7 +11,8 @@ import { applySubagentsSnapshot, type SubagentRoster } from "../lib/subagent-ros
  * closed (`use-session-runtime-extensions`), so the bounded control poll also
  * reads the parent's subagents and writes them into the roster as a snapshot:
  * cards, the banner and "N agents running" stay current mid-turn. The live
- * tail's own snapshot replaces it when the stream reopens on settle.
+ * tail's own snapshot replaces it when the stream reopens on settle. Missing or
+ * gone parents stop interval polling; transient failures retain recovery polls.
  */
 export function useSubagentRosterControlPoll({
   workspaceId,

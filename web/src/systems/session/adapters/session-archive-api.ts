@@ -3,6 +3,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type { SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
 
+/** Archives a stopped session using its explicit owner profile. */
 export async function archiveSession(
   workspaceId: string,
   id: string,
@@ -22,6 +23,7 @@ export async function archiveSession(
   return requireResponseData(data, response, `Failed to archive session "${id}"`).session;
 }
 
+/** Restores an archived session within its owning workspace and profile. */
 export async function unarchiveSession(
   workspaceId: string,
   id: string,

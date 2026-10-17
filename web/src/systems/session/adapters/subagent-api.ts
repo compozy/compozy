@@ -13,7 +13,7 @@ export type SubagentPayload = SubagentListResponse["subagents"][number];
 export type SubagentWorktreePayload = NonNullable<SubagentPayload["worktree"]>;
 export type SubagentCancelResponse = OperationResponse<"cancelSubagent", 202>;
 
-/** One page of a parent session's direct subagents, newest first. */
+/** Reads one page of direct subagents across authorized profiles, newest first. */
 export async function fetchSessionSubagents(
   workspaceId: string,
   sessionId: string,
@@ -36,7 +36,7 @@ export async function fetchSessionSubagents(
   return requireResponseData(data, response, "Failed to fetch subagents");
 }
 
-/** Requests cancellation of one delegated subagent; the daemon settles it asynchronously. */
+/** Cancels a delegated subagent in its parent's profile; the daemon settles it asynchronously. */
 export async function cancelSubagent(
   workspaceId: string,
   subagentId: string,

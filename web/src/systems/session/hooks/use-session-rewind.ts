@@ -40,7 +40,8 @@ function rewindFence(
 /**
  * Rewinds one workspace-scoped session from a durable transcript message. The
  * returned transcript fence is daemon-owned; the client never derives it from
- * display order or a local runtime tail.
+ * display order or a local runtime tail. Refreshes the owner before mutation so
+ * cached profile names cannot survive a profile rename.
  */
 export function useSessionRewind(workspaceId: string) {
   const queryClient = useQueryClient();

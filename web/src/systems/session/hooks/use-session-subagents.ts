@@ -80,7 +80,8 @@ function useLiveSubagentRoster(
  * Direct subagents of one parent session (S9 preview, S10 roster). While the
  * parent's session stream is open its roster feeds the rows and no list request
  * runs; otherwise the paged list route serves a cold read. The population is
- * the parent's direct children, never the workspace.
+ * the parent's direct children, never the workspace. Failed page walks wait for
+ * explicit retry; cancellation refreshes the parent owner before dispatch.
  */
 export function useSessionSubagents(
   workspaceId: string,
