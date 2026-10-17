@@ -74,19 +74,6 @@ func (m *Manager) promoteQueuedInput(
 	turnID string,
 ) (store.SteerDeliveryMode, bool) {
 	entryID := entry.ID
-	// The same input.pre_submit review an ordinary dispatch applies; a refusal leaves the message queued
-	// for that dispatch to settle, and a rewrite is what the provider receives.
-	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, TurnSourceUser, entry.Text, nil)
-	if err != nil {
-		session.promotionDeclined.Store(entryID, turnID)
-		m.sessionLogger(session).Warn("session: input hook declined queued input promotion",
-			"entry_id", entryID, "error", err)
-		return "", false
-	}
-	providerText := ""
-	if message != entry.Text {
-		providerText = message
-	}
 	staged, promoted, err := m.inputQueue.PromoteQueuedAgentToSteer(ctx, session.ID, entryID, turnID)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: promote queued input failed", "entry_id", entryID, "error", err)
@@ -94,6 +81,21 @@ func (m *Manager) promoteQueuedInput(
 	}
 	if !promoted {
 		return "", false
+	}
+	// The same input.pre_submit review an ordinary dispatch applies, only once the promotion is staged: a
+	// refusal returns the message to the queue for that dispatch to settle, and a rewrite is what the
+	// provider receives.
+	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, TurnSourceUser, entry.Text, nil)
+	if err != nil {
+		session.promotionDeclined.Store(entryID, turnID)
+		_, revertErr := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
+		m.sessionLogger(session).Warn("session: input hook declined queued input promotion",
+			"entry_id", entryID, "error", err, "revert_error", revertErr)
+		return "", false
+	}
+	providerText := ""
+	if message != entry.Text {
+		providerText = message
 	}
 	session.promotedSteers.Store(entryID, struct{}{})
 	err = m.activateSteeringInputText(ctx, session, &staged, providerText)

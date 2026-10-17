@@ -6675,4 +6675,70 @@ describe("SessionThread session messages", () => {
       within(card).getByRole("button", { name: "In reply: show the original message" })
     ).toHaveAttribute("data-target-message-id", "msg-sender-turn");
   });
+
+  it("Should read a send as replied when its answer arrived after the watch expired (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          {
+            id: "msg-expired-wake",
+            role: "system",
+            metadata: {
+              turn_id: "turn-wake",
+              synthetic: {
+                kind: "session_reply",
+                wake_event_id: "rw-plan",
+                child_session_id: targetId,
+                child_workspace_id: fixtureWorkspaceId(),
+                child_agent_name: "codex",
+                reason: "expired",
+                summary: "",
+                reply_truncated: false,
+                hop: 1,
+              },
+            },
+            parts: [{ type: "text", text: "No reply arrived in time.", state: "done" }],
+          } as SessionMessage,
+          inboundMessage("msg-approval", "Approved late.", {
+            from: targetId,
+            inReplyTo: "msg-plan",
+          }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
+  });
 });

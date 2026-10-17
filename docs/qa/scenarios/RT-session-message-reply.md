@@ -64,9 +64,9 @@ this worker packet prohibits QA labs and full E2E runs.
 Queue fairness regression (#750)
 
 Keep A in a Goal with a prepared prompt while its current turn is active. Send a watched question
-to B, finish B, and inspect A's pending `prompt-reply:` entry. At A's next idle boundary, the reply
-wake runs before the prepared Goal and ordinary queued inputs according to its existing priority.
-A queued agent message and operator prompt also run before the Goal. Retry the watched send and
+to B, finish B, and inspect A's pending `prompt-reply:` entry. At A's next idle boundary, a queued
+operator prompt runs first; a queued agent message and the reply wake then run together as one
+batched turn (#760), all before the prepared Goal. Retry the watched send and
 wake delivery: exactly one wake runs. The Goal then resumes with its binding and turn limit intact;
 only its own dispatched work increments its work-turn count. Repeat across restart.
 

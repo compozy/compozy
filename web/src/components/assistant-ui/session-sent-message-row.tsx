@@ -55,7 +55,8 @@ function callState(
 }
 
 // An explicit answer (`in_reply_to`) reads Replied while the watch is still armed; the watch keeps
-// running, so its outcome wins once the target's turn settles.
+// running, so its outcome wins once the target's turn settles. An answer that arrived after the watch
+// expired still reads Replied rather than No reply.
 function sentReplyState(
   part: SessionSentMessagePart,
   messages: readonly ThreadMessage[]
@@ -63,12 +64,11 @@ function sentReplyState(
   const outcome = part.replyWatchId
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;
-  if (outcome) return outcome;
   const key =
     part.messageId === null ? null : sessionReplyKey(part.targetSessionId, part.messageId);
-  if (key !== null && sessionMessageReplyIndex(messages).answered.has(key)) {
-    return "completed";
-  }
+  const answered = key !== null && sessionMessageReplyIndex(messages).answered.has(key);
+  if (outcome && !(outcome === "expired" && answered)) return outcome;
+  if (answered) return "completed";
   return part.replyWatchId ? "waiting" : "none";
 }
 
