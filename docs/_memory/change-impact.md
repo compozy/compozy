@@ -51,7 +51,6 @@ are unchanged; no migration or compatibility adapter is needed. Workspace/profil
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
 
-||||||| parent of c789fd0e8 (refactor: remove 12 long-tail builtin providers with a one-release shim)
 ## One-click product update — 2026-10-12
 
 The menubar update indicator becomes an "Update" pill that applies every eligible
