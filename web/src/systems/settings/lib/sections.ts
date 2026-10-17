@@ -81,7 +81,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Providers",
     icon: Cpu,
     group: "workspace",
-    keywords: "models catalog auth claude codex openclaw hermes sign-in",
+    keywords: "models catalog auth claude codex cursor gemini sign-in",
   },
   {
     slug: "roles",

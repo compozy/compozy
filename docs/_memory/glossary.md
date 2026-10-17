@@ -22,7 +22,7 @@ The local background runtime process. It owns state, executes work, and serves e
 
 ### ACP
 
-**Agent Client Protocol** — the standard CompozyOS uses to talk to agent CLIs, spoken over JSON-RPC/stdio to a spawned subprocess. CompozyOS is an ACP host; Claude Code, OpenClaw, and Hermes are ACP-compatible agent CLIs it drives.
+**Agent Client Protocol** — the standard CompozyOS uses to talk to agent CLIs, spoken over JSON-RPC/stdio to a spawned subprocess. CompozyOS is an ACP host; Claude Code, Codex, and Cursor are ACP-compatible agent CLIs it drives.
 
 **UI label:** none. Expand the acronym on first use in end-user prose; reference and protocol docs may use `ACP` directly.
 

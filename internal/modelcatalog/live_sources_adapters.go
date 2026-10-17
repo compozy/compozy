@@ -131,13 +131,6 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		parseCommandRows: parseCursorModelRows,
 		commandOnly:      true,
 	},
-	"openclaw": {
-		defaultKind: liveDiscoveryNone,
-	},
-	liveSourcesHermesKey: {
-		defaultKind:     liveDiscoveryACP,
-		bootstrapOnList: true,
-	},
 	"pi": {
 		defaultKind: liveDiscoveryNone,
 	},

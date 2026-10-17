@@ -2431,7 +2431,7 @@ id = "custom-model"
 		catalog := &settingsModelCatalogStub{
 			models: map[string][]modelcatalog.Model{},
 			errs: map[string]error{
-				"blackbox": modelcatalog.ErrAllSourcesFailed,
+				"copilot": modelcatalog.ErrAllSourcesFailed,
 			},
 		}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
@@ -2441,9 +2441,9 @@ id = "custom-model"
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
-		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
-		if blackbox.Settings.Models.Curated != nil {
-			t.Fatalf("blackbox curated models = %#v, want nil fallback", blackbox.Settings.Models.Curated)
+		copilot := mustFindProviderItem(t, envelope.Providers, "copilot")
+		if copilot.Settings.Models.Curated != nil {
+			t.Fatalf("copilot curated models = %#v, want nil fallback", copilot.Settings.Models.Curated)
 		}
 	})
 
@@ -2594,7 +2594,7 @@ id = "raw-model"
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
-			"blackbox": {},
+			"copilot": {},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
 		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
@@ -2603,9 +2603,9 @@ id = "raw-model"
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
-		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
-		if blackbox.Settings.Models.Curated != nil {
-			t.Fatalf("blackbox curated models = %#v, want nil projection", blackbox.Settings.Models.Curated)
+		copilot := mustFindProviderItem(t, envelope.Providers, "copilot")
+		if copilot.Settings.Models.Curated != nil {
+			t.Fatalf("copilot curated models = %#v, want nil projection", copilot.Settings.Models.Curated)
 		}
 	})
 }

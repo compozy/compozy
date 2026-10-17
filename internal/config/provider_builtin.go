@@ -35,51 +35,9 @@ var builtinProviders = map[string]ProviderConfig{
 		AuthLoginCmd: "opencode auth login",
 		Models:       ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
 	},
-	providerBlackboxKey: {
-		Command:     "blackbox --experimental-acp",
-		DisplayName: "BLACKBOX AI",
-		Harness:     ProviderHarnessACP,
-	},
-	providerClineKey: {
-		Command:     "npx -y cline@latest --acp",
-		DisplayName: "Cline",
-		Harness:     ProviderHarnessACP,
-	},
-	providerGooseKey: {
-		Command:     "goose acp",
-		DisplayName: "Goose",
-		Harness:     ProviderHarnessACP,
-	},
-	providerHermesKey: {
-		Command:       "hermes acp",
-		DisplayName:   "Hermes",
-		Harness:       ProviderHarnessACP,
-		AuthStatusCmd: "hermes acp --check",
-	},
-	providerJunieKey: {
-		Command:     "junie --acp true",
-		DisplayName: "Junie",
-		Harness:     ProviderHarnessACP,
-	},
 	providerKimiCLIValue: {
 		Command:     "kimi acp",
 		DisplayName: "Kimi CLI",
-		Harness:     ProviderHarnessACP,
-	},
-	providerOpenclawKey: {
-		Command:     "openclaw acp",
-		DisplayName: "OpenClaw",
-		Harness:     ProviderHarnessACP,
-		SessionMCP:  new(false),
-	},
-	providerOpenhandsKey: {
-		Command:     "openhands acp",
-		DisplayName: "OpenHands",
-		Harness:     ProviderHarnessACP,
-	},
-	providerQoderKey: {
-		Command:     "npx -y @qoder-ai/qodercli@latest --acp",
-		DisplayName: "Qoder CLI",
 		Harness:     ProviderHarnessACP,
 	},
 	providerQwenCodeValue: {
@@ -101,11 +59,6 @@ var builtinProviders = map[string]ProviderConfig{
 	"cursor": {
 		Command:     "cursor-agent acp",
 		DisplayName: "Cursor Agent",
-		Harness:     ProviderHarnessACP,
-	},
-	"kiro": {
-		Command:     "kiro-cli-chat acp",
-		DisplayName: "Kiro CLI",
 		Harness:     ProviderHarnessACP,
 	},
 	"pi": {
@@ -186,45 +139,6 @@ var builtinProviders = map[string]ProviderConfig{
 			},
 		},
 	},
-	providerMinimaxKey: {
-		Command:         piACPCommand,
-		DisplayName:     "MiniMax",
-		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: providerMinimaxKey,
-		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MINIMAX_API_KEY")},
-		Models: ProviderModelsConfig{
-			Default: providerMiniMaxM21Path,
-			Curated: []ProviderModelConfig{
-				{ID: providerMiniMaxM21Path, DisplayName: "MiniMax M2.1"},
-			},
-		},
-	},
-	providerMistralKey: {
-		Command:         piACPCommand,
-		DisplayName:     "Mistral",
-		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: providerMistralKey,
-		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MISTRAL_API_KEY")},
-		Models: ProviderModelsConfig{
-			Default: providerDevstralMediumLatestValue,
-			Curated: []ProviderModelConfig{
-				{ID: providerDevstralMediumLatestValue, DisplayName: "Devstral Medium Latest"},
-			},
-		},
-	},
-	providerGroqKey: {
-		Command:         piACPCommand,
-		DisplayName:     "Groq",
-		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: providerGroqKey,
-		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("GROQ_API_KEY")},
-		Models: ProviderModelsConfig{
-			Default: providerOpenaiGptOss120bPath,
-			Curated: []ProviderModelConfig{
-				{ID: providerOpenaiGptOss120bPath, DisplayName: "OpenAI GPT-OSS 120B"},
-			},
-		},
-	},
 }
 
 // BuiltinProviders returns a deep copy of the built-in provider registry.
@@ -246,6 +160,9 @@ func CanonicalProviderName(name string) string {
 		return lower
 	}
 	if canonical, ok := builtinProviderAliases[lower]; ok {
+		return canonical
+	}
+	if canonical, ok := canonicalRetiredProviderName(lower); ok {
 		return canonical
 	}
 	return trimmed

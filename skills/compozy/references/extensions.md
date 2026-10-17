@@ -134,9 +134,9 @@ servers are skipped independently. Install, status, inventory, list, HTTP/UDS, a
 carry `format` plus diagnostics. The marketplace `format` badge is display metadata only; acquired
 package detection is authoritative.
 
-Portable skill and MCP delivery is verified on managed Claude Code and Hermes sessions. OpenClaw's
-ACP bridge rejects per-session MCP configuration, so a package that requires hosted MCP fails before
-provider launch; direct Agent Plugins support inside OpenClaw is a separate path.
+Portable skill and MCP delivery is verified on managed Claude Code sessions. A provider configured
+with `session_mcp = false` receives no per-session MCP servers, so a package that requires hosted MCP
+fails before that provider launches.
 
 Recorded ingestion skips use `extension_agent_plugin_component_skipped`. Runtime availability uses
 live codes such as `extension_mcp_server_unhealthy`; reads sort ingest diagnostics before live ones so

@@ -36,9 +36,6 @@ var defaultModelsDevProviderMapping = map[string]string{
 	modelsdevMoonshotKey:   modelsdevMoonshotKey,
 	"kimi":                 modelsdevMoonshotKey,
 	"xai":                  "xai",
-	"mistral":              "mistral",
-	"groq":                 "groq",
-	"minimax":              "minimax",
 }
 
 type modelsDevCache struct {

@@ -44,10 +44,10 @@ resolves its value from either `env:NAME` or an encrypted CompozyOS secret ref s
 `vault:providers/openrouter/api-key`. CompozyOS injects only the bound value into the provider
 subprocess.
 
-Direct ACP providers such as Claude Code, OpenClaw, Hermes, Codex, Gemini CLI, OpenCode, Kimi CLI,
-Qoder, and similar CLIs use `auth_mode = "native_cli"` by default. The direct `pi` provider also
+Direct ACP providers such as Claude Code, Codex, Gemini CLI, OpenCode, Kimi CLI, and similar CLIs
+use `auth_mode = "native_cli"` by default. The direct `pi` provider also
 uses Pi's `/login` and auth file by default. Wrapped API-key providers such as OpenRouter, z.ai,
-Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq default to
+Moonshot/Kimi, Vercel AI Gateway, and xAI default to
 `auth_mode = "bound_secret"`: CompozyOS exposes them directly, launches Pi under the hood, and injects
 the configured provider key.
 
@@ -59,9 +59,6 @@ the configured provider key.
 | `KIMI_API_KEY`       | `moonshot`          | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the Moonshot/Kimi wrapper.            |
 | `AI_GATEWAY_API_KEY` | `vercel-ai-gateway` | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the Vercel AI Gateway wrapper.        |
 | `XAI_API_KEY`        | `xai`               | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the xAI wrapper.                      |
-| `MINIMAX_API_KEY`    | `minimax`           | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the MiniMax wrapper.                  |
-| `MISTRAL_API_KEY`    | `mistral`           | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the Mistral wrapper.                  |
-| `GROQ_API_KEY`       | `groq`              | unset   | Provider-specific token. | Default CompozyOS-managed credential target for the Groq wrapper.                     |
 
 `COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, CompozyOS creates
 `$COMPOZY_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a

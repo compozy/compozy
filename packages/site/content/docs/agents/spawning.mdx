@@ -141,8 +141,7 @@ existing CLI logins; `home_policy = "isolated"` creates a private provider home 
 and starts with no copied credentials.
 
 CompozyOS derives execution from the effective provider command and harness, not from a Claude/Codex
-allowlist. Built-ins such as Gemini, OpenCode, Goose, Hermes, OpenClaw, Cursor, Copilot, Kiro, Qwen
-Code, and Kimi launch their ACP-capable CLI directly. API-backed built-ins launch through their shared
+allowlist. Built-ins such as Gemini, OpenCode, Cursor, Copilot, Qwen Code, and Kimi launch their ACP-capable CLI directly. API-backed built-ins launch through their shared
 Pi ACP harness. The same provider-neutral path owns session launch and automatic runtime recovery.
 
 When the effective command is a known ACP bridge that wraps another installed CLI, CompozyOS resolves
