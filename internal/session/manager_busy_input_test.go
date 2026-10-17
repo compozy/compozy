@@ -5037,6 +5037,59 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
+	t.Run("Should dispatch a message whose promotion hook refused after the turn ended", func(t *testing.T) {
+		t.Parallel()
+		hookEntered := make(chan struct{})
+		refuse := make(chan struct{})
+		var promotionReviewed atomic.Bool
+		dispatcher := &spyHookDispatcher{}
+		dispatcher.dispatchInputPreSubmitFn = func(
+			ctx context.Context, payload hookspkg.InputPreSubmitPayload,
+		) (hookspkg.InputPreSubmitPayload, error) {
+			if payload.Message != "status late" || !promotionReviewed.CompareAndSwap(false, true) {
+				return payload, nil
+			}
+			close(hookEntered)
+			select {
+			case <-refuse:
+			case <-ctx.Done():
+			}
+			return payload, errors.New("policy refused the promotion")
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute},
+			[]Option{WithHookSet(fullHookSet(dispatcher))})
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-hookEntered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("promotion never reviewed the message")
+		}
+		// The turn ends while the promotion is staged (hidden from ordinary dispatch) and the hook is busy.
+		f.release()
+		for range f.held.Events {
+			continue
+		}
+		waitForCondition(t, "held turn settled", func() bool { return f.sess.CurrentTurnID() != turnID })
+		close(refuse)
+		waitForCondition(t, "refused promotion dispatched after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a refused promotion was injected: %q", text)
+		default:
+		}
+		if err := f.h.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should leave a message that asked for another runtime queued", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

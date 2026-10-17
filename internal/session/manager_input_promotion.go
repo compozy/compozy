@@ -88,7 +88,7 @@ func (m *Manager) promoteQueuedInput(
 	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, TurnSourceUser, entry.Text, nil)
 	if err != nil {
 		session.promotionDeclined.Store(entryID, turnID)
-		_, revertErr := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
+		_, revertErr := m.revertPromotedQueuedInput(ctx, session, entryID)
 		m.sessionLogger(session).Warn("session: input hook declined queued input promotion",
 			"entry_id", entryID, "error", err, "revert_error", revertErr)
 		return "", false
@@ -107,13 +107,23 @@ func (m *Manager) promoteQueuedInput(
 	}
 	// Never drop, cancel, or interrupt with the message: a failed or fallen-back injection returns it to
 	// plain after-turn delivery, releasing the sender's queued-steer slot.
-	reverted, revertErr := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
+	reverted, revertErr := m.revertPromotedQueuedInput(ctx, session, entryID)
 	m.sessionLogger(session).Warn(
 		"session: promoted queued input not injected; deferring to after the turn",
 		"entry_id", entryID, "error", err, "steer_delivery", staged.SteerDelivery,
 		"reverted", reverted, "revert_error", revertErr,
 	)
 	return "", true
+}
+
+// revertPromotedQueuedInput returns a staged promotion to after-turn delivery. The staged row was hidden
+// from ordinary dispatch, so a turn that ended meanwhile skipped it; dispatch restarts once it is back.
+func (m *Manager) revertPromotedQueuedInput(ctx context.Context, session *Session, entryID string) (bool, error) {
+	reverted, err := m.inputQueue.RevertPromotedAgent(context.WithoutCancel(ctx), session.ID, entryID)
+	if err == nil && reverted {
+		m.startNextQueuedInputPrompt(session.ID)
+	}
+	return reverted, err
 }
 
 // schedulePromoteLongTurnQueuedInputs runs one promotion pass outside the caller's lock order.
