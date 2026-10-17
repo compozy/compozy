@@ -25,16 +25,18 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Version and commit mirror buildLDFlags in magefiles/build.go: the desktop
-# shell's runtime handshake rejects daemons whose reported version does not
-# parse as semver, so a bare "dev" build can never attach. BuildDate uses the
-# commit date (not now) so rebuilds without code changes keep identical bytes
-# and scripts/dev-daemon.sh can skip the daemon restart.
+# Use the checkout version, not a stale release tag, for extension compatibility.
+# Development metadata keeps the version valid for the desktop handshake without
+# identifying a published SDK. The commit date keeps unchanged rebuilds identical.
 version_package="github.com/compozy/compozy/internal/version"
-version=$(git describe --tags --match 'v*' --always --dirty 2>/dev/null) || version=
-[[ -n "$version" ]] || version=dev
+git_version=$(git describe --tags --match 'v*' --always --dirty 2>/dev/null) || git_version=
 commit=$(git rev-parse --short HEAD 2>/dev/null) || commit=
 [[ -n "$commit" ]] || commit=unknown
+version=$(bun --print 'require("./package.json").version')
+version="v${version}+dev.${commit}"
+if [[ "$git_version" == *-dirty ]]; then
+  version+="-dirty"
+fi
 build_date=$(git show -s --format=%cI HEAD 2>/dev/null) || build_date=
 [[ -n "$build_date" ]] || build_date=unknown
 

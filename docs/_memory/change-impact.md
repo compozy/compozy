@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Development server IPv4 forwarding — 2026-10-17
+
+Vite explicitly binds to IPv4 loopback (`127.0.0.1`) so editor devcontainer port
+forwarding does not depend on `localhost` resolving to IPv4 rather than IPv6.
+The API proxy and production listener are unchanged; no LAN listener is added.
+Native tools, extensions/hooks/config, workspace isolation, persisted data,
+public API contracts, site, and official `skills/compozy/` are unaffected.
+`RT-dev-bootstrap-ready` records the live IPv4 probe and host-verification limit.
+
+## Development build version — 2026-10-17
+
+Air stamps the root package version plus development commit metadata instead of
+using an old release tag as the compatibility version. It watches `package.json`
+for version changes. Bundled extension minimum-version validation remains intact;
+native tools, CLI/HTTP/UDS shapes, hooks/config, workspace isolation, persisted data,
+and official `skills/compozy/` contracts are unchanged. No migration or codegen is
+needed. Web benefits from successful daemon startup without UI changes; release
+and Mage build stamping are unchanged. The existing development readiness suite
+owns regression coverage. Bounded startup evidence and verification limits are in
+`docs/qa/reports/2026-10-17-dev-checkout-version.md`; the existing
+`RT-dev-bootstrap-ready` scenario records the affected journey.
+
 ## AGY ACP provider (2026-10-16)
 
 **Status:** specification approved by the owner on 2026-10-16 ("aceito"; implementation progress is tracked in the Task deltas below). Owning contract:
