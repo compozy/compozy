@@ -116,3 +116,9 @@ All changes are internal Web implementation details. Query keys, workspace/profi
 Rollback is the owning lever commit's revert. There is no state migration to reverse. Full current-head CI and review state are recorded in the PR; local benchmark results alone do not establish delivery readiness.
 
 Lab hygiene: exact-manifest teardown completed with `clean=true`. The local behavioral lab remains incomplete for the final source; its strict audit records the missing final local gate, which is intentionally CI-owned under the user instruction. No lab-level PASS is claimed.
+
+## Review follow-up: deferred-download recovery
+
+Greptile identified that a rejected lazy import could escape Suspense and replace the whole desktop through the root boundary. The existing `OsWindowErrorBoundary` now accepts an optional fallback slot. The empty launcher and each deferred worktree dialog reuse it with existing `Empty`/`ConfirmDialog` primitives. Errors remain logged without exposing raw exception details. A failed dialog can close without affecting other windows; both feature fallbacks offer an explicit full-page Reload because React lazy retains rejected module state.
+
+Existing real-daemon `os-shell.spec.ts` and `worktrees.spec.ts` journeys now abort the corresponding module request at the network boundary, assert contained recovery, and continue after reload to the original happy-path assertions. No test file or dependency was added, and no heavy local run was started. CI owns execution of these final recovery legs.

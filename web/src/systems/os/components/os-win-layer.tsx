@@ -1,7 +1,7 @@
 import { MonitorX } from "lucide-react";
 import { lazy, Suspense, type CSSProperties } from "react";
 
-import { Empty } from "@compozy/ui";
+import { Button, Empty } from "@compozy/ui";
 
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
@@ -10,6 +10,7 @@ import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
+import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 
 // A restored desktop with windows does not need the session composer/runtime.
 const OsEmptyDesktop = lazy(() =>
@@ -140,14 +141,35 @@ function DesktopLayer({
       style={style}
     >
       {interactive && !model.anyVisible && showEmptyDesktop ? (
-        <Suspense fallback={null}>
-          <OsEmptyDesktop
-            desktopName={model.desktop.name}
-            paletteShortcutLabel={paletteShortcutLabel}
-            hasProject={hasProject}
-            onPickProject={onPickProject}
-          />
-        </Suspense>
+        <OsWindowErrorBoundary
+          title={model.desktop.name}
+          fallback={
+            <div role="alert" className="absolute inset-0 flex items-center justify-center p-6">
+              <Empty
+                title="The launcher couldn't open"
+                description="Reload CompozyOS to try again."
+                action={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => window.location.reload()}
+                  >
+                    Reload
+                  </Button>
+                }
+              />
+            </div>
+          }
+        >
+          <Suspense fallback={null}>
+            <OsEmptyDesktop
+              desktopName={model.desktop.name}
+              paletteShortcutLabel={paletteShortcutLabel}
+              hasProject={hasProject}
+              onPickProject={onPickProject}
+            />
+          </Suspense>
+        </OsWindowErrorBoundary>
       ) : null}
       {model.frames.map(frame => (
         <OsWindow key={frame.id} frame={frame} />

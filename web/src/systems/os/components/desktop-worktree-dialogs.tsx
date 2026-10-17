@@ -1,9 +1,12 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
+
+import { ConfirmDialog } from "@compozy/ui";
 
 import { useWorktrees, WorktreeBulkRemoveDialog } from "@/systems/workspace";
 
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 
 const WorktreeAdoptDialogBoundary = lazy(() =>
   import("./worktree-dialog-boundaries").then(module => ({
@@ -38,6 +41,35 @@ interface DesktopWorktreeDialogsProps {
   scopeId: string;
 }
 
+function DeferredWorktreeDialog({
+  children,
+  onClose,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <OsWindowErrorBoundary
+      title="Worktree dialog"
+      fallback={
+        <ConfirmDialog
+          open
+          title="The worktree dialog couldn't open"
+          description="Reload CompozyOS to try again."
+          cancelLabel="Close"
+          confirmLabel="Reload"
+          onConfirm={() => window.location.reload()}
+          onOpenChange={open => {
+            if (!open) onClose();
+          }}
+        />
+      }
+    >
+      <Suspense fallback={null}>{children}</Suspense>
+    </OsWindowErrorBoundary>
+  );
+}
+
 /** Mounts each worktree dialog boundary only while its target exists. */
 export function DesktopWorktreeDialogs({
   model,
@@ -49,7 +81,7 @@ export function DesktopWorktreeDialogs({
   });
 
   return (
-    <Suspense fallback={null}>
+    <>
       {worktreeDialogs.removalBatch ? (
         <WorktreeBulkRemoveDialog
           batch={worktreeDialogs.removalBatch}
@@ -57,49 +89,59 @@ export function DesktopWorktreeDialogs({
         />
       ) : null}
       {model.worktreeCreateWorkspaceId ? (
-        <WorktreeCreateDialogBoundary
-          workspaceId={model.worktreeCreateWorkspaceId}
-          workspaceName={
-            model.workspaces.find(workspace => workspace.id === model.worktreeCreateWorkspaceId)
-              ?.name ?? "workspace"
-          }
-          listing={createListing.data}
-          scopeId={scopeId}
-          onOpenChange={open =>
-            model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)
-          }
-        />
+        <DeferredWorktreeDialog onClose={() => model.setWorktreeCreateWorkspaceId(null)}>
+          <WorktreeCreateDialogBoundary
+            workspaceId={model.worktreeCreateWorkspaceId}
+            workspaceName={
+              model.workspaces.find(workspace => workspace.id === model.worktreeCreateWorkspaceId)
+                ?.name ?? "workspace"
+            }
+            listing={createListing.data}
+            scopeId={scopeId}
+            onOpenChange={open =>
+              model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)
+            }
+          />
+        </DeferredWorktreeDialog>
       ) : null}
       {worktreeDialogs.adoptTarget ? (
-        <WorktreeAdoptDialogBoundary
-          workspaceId={worktreeDialogs.adoptTarget.workspaceId}
-          discovered={worktreeDialogs.adoptTarget.discovered}
-          scopeId={scopeId}
-          onClose={worktreeDialogs.closeAdopt}
-        />
+        <DeferredWorktreeDialog onClose={worktreeDialogs.closeAdopt}>
+          <WorktreeAdoptDialogBoundary
+            workspaceId={worktreeDialogs.adoptTarget.workspaceId}
+            discovered={worktreeDialogs.adoptTarget.discovered}
+            scopeId={scopeId}
+            onClose={worktreeDialogs.closeAdopt}
+          />
+        </DeferredWorktreeDialog>
       ) : null}
       {worktreeDialogs.removeTarget ? (
-        <WorktreeRemoveDialogBoundary
-          workspaceId={worktreeDialogs.removeTarget.workspaceId}
-          worktree={worktreeDialogs.removeTarget.worktree}
-          onClose={worktreeDialogs.closeRemove}
-        />
+        <DeferredWorktreeDialog onClose={worktreeDialogs.closeRemove}>
+          <WorktreeRemoveDialogBoundary
+            workspaceId={worktreeDialogs.removeTarget.workspaceId}
+            worktree={worktreeDialogs.removeTarget.worktree}
+            onClose={worktreeDialogs.closeRemove}
+          />
+        </DeferredWorktreeDialog>
       ) : null}
       {worktreeDialogs.missingTarget ? (
-        <WorktreeMissingDialogBoundary
-          workspaceId={worktreeDialogs.missingTarget.workspaceId}
-          worktree={worktreeDialogs.missingTarget.worktree}
-          onClose={worktreeDialogs.closeMissing}
-        />
+        <DeferredWorktreeDialog onClose={worktreeDialogs.closeMissing}>
+          <WorktreeMissingDialogBoundary
+            workspaceId={worktreeDialogs.missingTarget.workspaceId}
+            worktree={worktreeDialogs.missingTarget.worktree}
+            onClose={worktreeDialogs.closeMissing}
+          />
+        </DeferredWorktreeDialog>
       ) : null}
       {worktreeDialogs.contextTarget ? (
-        <WorktreeContextDialogBoundary
-          workspaceId={worktreeDialogs.contextTarget.workspaceId}
-          worktree={worktreeDialogs.contextTarget.worktree}
-          onCleanUp={worktreeDialogs.requestContextCleanup}
-          onClose={worktreeDialogs.closeContext}
-        />
+        <DeferredWorktreeDialog onClose={worktreeDialogs.closeContext}>
+          <WorktreeContextDialogBoundary
+            workspaceId={worktreeDialogs.contextTarget.workspaceId}
+            worktree={worktreeDialogs.contextTarget.worktree}
+            onCleanUp={worktreeDialogs.requestContextCleanup}
+            onClose={worktreeDialogs.closeContext}
+          />
+        </DeferredWorktreeDialog>
       ) : null}
-    </Suspense>
+    </>
   );
 }

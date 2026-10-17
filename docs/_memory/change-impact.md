@@ -38,7 +38,7 @@ change is needed. QA impact is flagged in `RT-047`,
 `RT-web-attention-title-count`, `LP-web-bell-loop-requests`,
 `MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
 Focused canonical suites and differential probes provide local slice evidence;
-heavy final validation is CI-owned by explicit user instruction.
+heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
 
 ## One-click product update — 2026-10-12
 

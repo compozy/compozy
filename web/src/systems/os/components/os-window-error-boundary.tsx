@@ -7,6 +7,8 @@ interface OsWindowErrorBoundaryProps {
   children: ReactNode;
   /** Window identity for the alert copy (the app title). */
   title: string;
+  /** A shell feature can provide its own contained recovery surface. */
+  fallback?: ReactNode;
 }
 
 interface OsWindowErrorBoundaryState {
@@ -41,6 +43,7 @@ export class OsWindowErrorBoundary extends Component<
   render(): ReactNode {
     const { error } = this.state;
     if (error === null) return this.props.children;
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     return (
       <div
