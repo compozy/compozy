@@ -37,16 +37,23 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)
 		return
 	}
+	// Injection runs on the live binding: an entry that asked for another runtime waits for its own turn.
+	live := session.runtimeBindingSnapshot().selection
+	liveRuntime := storeRuntimeSelection(&live)
+	effective := effectiveQueuedInputRuntime(session)
 	for index := range entries {
 		entry := &entries[index]
 		if entry.OwnerKind == "" && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
 			// Operator input is ahead; promoting past it would let another session cut the line.
 			return
 		}
-		if !promotableQueuedInput(entry) {
+		if !promotableQueuedInput(entry) || !sameSessionInputRuntime(effective(entry.Runtime), liveRuntime) {
 			continue
 		}
-		delivery, promoted := m.promoteQueuedInput(ctx, session, entry.ID, turnID)
+		if declined, ok := session.promotionDeclined.Load(entry.ID); ok && declined == turnID {
+			continue
+		}
+		delivery, promoted := m.promoteQueuedInput(ctx, session, entry, turnID)
 		if promoted && delivery != store.SteerDeliveryInjected {
 			// A pending or refused injection settles first; the next pass continues.
 			return
@@ -63,9 +70,23 @@ func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 func (m *Manager) promoteQueuedInput(
 	ctx context.Context,
 	session *Session,
-	entryID string,
+	entry *store.SessionInputQueueEntry,
 	turnID string,
 ) (store.SteerDeliveryMode, bool) {
+	entryID := entry.ID
+	// The same input.pre_submit review an ordinary dispatch applies; a refusal leaves the message queued
+	// for that dispatch to settle, and a rewrite is what the provider receives.
+	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, TurnSourceUser, entry.Text, nil)
+	if err != nil {
+		session.promotionDeclined.Store(entryID, turnID)
+		m.sessionLogger(session).Warn("session: input hook declined queued input promotion",
+			"entry_id", entryID, "error", err)
+		return "", false
+	}
+	providerText := ""
+	if message != entry.Text {
+		providerText = message
+	}
 	staged, promoted, err := m.inputQueue.PromoteQueuedAgentToSteer(ctx, session.ID, entryID, turnID)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: promote queued input failed", "entry_id", entryID, "error", err)
@@ -75,7 +96,7 @@ func (m *Manager) promoteQueuedInput(
 		return "", false
 	}
 	session.promotedSteers.Store(entryID, struct{}{})
-	err = m.activateSteeringInput(ctx, session, &staged)
+	err = m.activateSteeringInputText(ctx, session, &staged, providerText)
 	if err != nil || staged.SteerDelivery != store.SteerDeliveryPendingInjection {
 		session.promotedSteers.Delete(entryID)
 	}

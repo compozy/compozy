@@ -542,7 +542,13 @@ operator can promote (Steer) an agent-authored row but not edit it. `session.mes
 `rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`) and
 `reply_watch_ttl` (default `24h`, `0s` never expires); see `references/configuration.md`.
 A long-turn promotion whose injection fails returns to ordinary after-turn queue delivery; it is never
-dropped and never interrupts.
+dropped and never interrupts. Promotion applies `input.pre_submit` and only injects a message whose
+runtime matches the live turn.
+A hop counts forwarding depth: answering the session that drives your current turn, or sending with
+`in_reply_to`, keeps the hop; a reply wake restores the hop you sent with; forwarding to another
+session adds one, and the ninth hop returns `message_hop_limit`. Each sender→target pair is also
+bounded by the rate budget; `message_rate_limited` names the limit, window and retry delay.
+`in_reply_to` never releases the sender's reply watch, so its completion wake still arrives.
 Queue list and session status include `queue: {entries, cap}`. A full queue returns `queue_full`
 with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt remain admitted.
 An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored

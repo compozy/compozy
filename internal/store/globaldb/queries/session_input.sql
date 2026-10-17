@@ -238,6 +238,19 @@ SELECT session_id, id FROM session_input_queue
 WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
 ORDER BY session_id, enqueued_at, id;
 
+-- name: RecoverStagedSessionSteers :execrows
+-- Boot recovery: a steer staged by a previous daemon process never reached its turn. Steers from other
+-- sessions (including long-turn promotions) return to after-turn delivery; operator steers become
+-- dispatchable again so the ordinary claim delivers them.
+UPDATE session_input_queue
+SET mode = CASE WHEN origin_class = 'human' THEN mode ELSE 'queue' END,
+    delivery = CASE WHEN origin_class = 'human' THEN delivery ELSE 'after_turn' END,
+    target_turn_id = CASE WHEN origin_class = 'human' THEN target_turn_id ELSE '' END,
+    dispatchable = 1, updated_at = sqlc.arg(now)
+WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
+  AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
+
 -- name: CancelSupersededAgentSessionInputs :many
 -- Supersede: one sender replaces its own older undispatched messages to this target.
 UPDATE session_input_queue

@@ -4765,13 +4765,17 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		steered chan string
 		advance func(time.Duration)
 	}
-	newFixture := func(t *testing.T, cfg compozyconfig.SessionMessagingConfig, steerErr ...error) fixture {
+	newFixtureWith := func(
+		t *testing.T, cfg compozyconfig.SessionMessagingConfig, opts []Option, steerErr ...error,
+	) fixture {
 		t.Helper()
 		var nowMu sync.Mutex
 		now := time.Date(2026, 10, 16, 14, 0, 0, 0, time.UTC)
 		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
 		db := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(db), WithNow(clock), WithSessionMessagingConfig(cfg))
+		h := newHarness(t, append([]Option{
+			WithSessionInputQueueStore(db), WithNow(clock), WithSessionMessagingConfig(cfg),
+		}, opts...)...)
 		registerManagerInputQueueWorkspace(t, db, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, db, h, sess)
@@ -4807,6 +4811,10 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 		return fixture{h: h, db: db, sess: sess, release: unblock, held: held, steered: steered,
 			advance: func(d time.Duration) { nowMu.Lock(); now = now.Add(d); nowMu.Unlock() }}
+	}
+	newFixture := func(t *testing.T, cfg compozyconfig.SessionMessagingConfig, steerErr ...error) fixture {
+		t.Helper()
+		return newFixtureWith(t, cfg, nil, steerErr...)
 	}
 	drain := func(t *testing.T, f fixture) {
 		t.Helper()
@@ -4979,6 +4987,76 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		entry, err = f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
 		if err != nil || entry.Status == store.SessionInputQueueStatusCanceled {
 			t.Fatalf("reverted entry = %#v, %v; want it kept after the sender's next steer", entry, err)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should inject the input hook's rewrite and never promote a message the hook refuses", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{}
+		dispatcher.dispatchInputPreSubmitFn = func(
+			_ context.Context, payload hookspkg.InputPreSubmitPayload,
+		) (hookspkg.InputPreSubmitPayload, error) {
+			switch payload.Message {
+			case "status refused":
+				return payload, errors.New("policy refused")
+			case "status rewrite":
+				payload.Message = "status rewritten by policy"
+			}
+			return payload, nil
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute},
+			[]Option{WithHookSet(fullHookSet(dispatcher))})
+		f.advance(2 * time.Minute)
+		refused, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("refused", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("rewrite", "sess-b", false)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case text := <-f.steered:
+			if !strings.Contains(text, "status rewritten by policy") || strings.Contains(text, "refused") {
+				t.Fatalf("injected text = %q, want only the hook's rewrite", text)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the allowed message was not injected")
+		}
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a refused message was injected on a later pass: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, refused.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue ||
+			entry.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("refused entry = %#v, %v; want it left queued for ordinary dispatch", entry, err)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should leave a message that asked for another runtime queued", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		f.advance(2 * time.Minute)
+		live := f.sess.runtimeBindingSnapshot().selection
+		opts := agentOpts("other-runtime", "sess-a", false)
+		opts.Runtime = &RuntimeSelection{Provider: live.Provider, Model: "another-model"}
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("a message for another runtime was injected into the live turn: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue {
+			t.Fatalf("entry = %#v, %v; want it queued for its own turn", entry, err)
 		}
 		drain(t, f)
 	})

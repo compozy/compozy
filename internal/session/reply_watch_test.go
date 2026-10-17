@@ -1988,6 +1988,13 @@ func TestReplyWatchTTLExpiry(t *testing.T) {
 			t.Fatalf("second sweep = %+v, %v; want the single delivered wake", again, err)
 		}
 	})
+	t.Run("Should apply the documented messaging defaults without an explicit config", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		if cfg := h.manager.messagingConfig(); cfg != compozyconfig.DefaultSessionMessagingConfig() {
+			t.Fatalf("messagingConfig() = %+v, want the documented defaults", cfg)
+		}
+	})
 	t.Run("Should expire an armed watch after the default TTL", func(t *testing.T) {
 		t.Parallel()
 		var nowMu sync.Mutex

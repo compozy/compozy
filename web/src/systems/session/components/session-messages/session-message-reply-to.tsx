@@ -17,12 +17,20 @@ const NO_MESSAGES: readonly never[] = [];
  * reply" chip that, when the original message is loaded in this transcript
  * and the viewport can scroll to it, takes the reader there.
  */
-export function SessionMessageReplyTo({ inReplyTo }: { inReplyTo: string }) {
+export function SessionMessageReplyTo({
+  inReplyTo,
+  peerSessionId,
+}: {
+  inReplyTo: string;
+  /** The other session of the exchange: the answering sender, or the target this session answered. */
+  peerSessionId: string;
+}) {
   const jump = use(SessionMessageJumpContext);
   const messages = use(SessionTranscriptMessagesContext) ?? NO_MESSAGES;
   const targetMessageId = sessionReplyTargetMessageId(
     sessionMessageReplyIndex(messages),
-    inReplyTo
+    inReplyTo,
+    peerSessionId
   );
   const chip = (
     <SessionMessageChip icon={<CornerUpLeft aria-hidden="true" />}>{LABEL}</SessionMessageChip>

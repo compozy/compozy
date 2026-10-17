@@ -3160,8 +3160,9 @@ Owner: branch `daemon-cpu-attention`.
 - **Isolation / compatibility:** all reads and rate counts are scoped to the exact sender and target
   session; no cross-workspace change. Append-only migration 00138 (with the Atlas/sqlc
   artifacts) widens the reply-watch outcome check (adds `expired`) and the session-input queue schema
-  (`origin_class`/`origin_session_id` with lossless backfill, per-sender steer index); existing rows
-  survive. SD-013: public additions only, behavior fixes inside the
+  (`origin_class`/`origin_session_id` with lossless backfill, per-sender steer index), copying `rowid`
+  so Goal batch cutoffs keep their meaning; existing rows survive. Boot recovery also returns steers
+  staged before a restart to delivery (agent steers to the queue, operator steers dispatchable). SD-013: public additions only, behavior fixes inside the
   experimental-free messaging contract; no shim.
 - **Official skill / Web / site docs:** `native-tools.md`, `runtime-operations.md` and
   `tasks-and-orchestration.md` carry the queue-vs-steer guidance and supervisor/worker protocol; the
@@ -3169,6 +3170,10 @@ Owner: branch `daemon-cpu-attention`.
   milestone-only reporting protocol. Web adds the In reply chip, No reply outcome, grouped inbound
   cards, Steer on agent queue rows and attention reasons; site orchestration, config and CLI prompt
   pages and COPY.md §Session Message Terms updated.
+- **Review remediation:** promotion runs `input.pre_submit` and only injects messages whose runtime
+  matches the live turn; the admission fingerprint includes `supersede` and `in_reply_to` (omitted when
+  unset, so older receipts replay unchanged); reverting a reserved promotion reopens its admission;
+  Web reply links are keyed by peer session plus message id.
 - **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
   ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
 

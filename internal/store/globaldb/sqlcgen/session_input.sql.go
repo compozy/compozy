@@ -1260,6 +1260,28 @@ func (q *Queries) PromoteQueuedAgentSessionInputToSteer(ctx context.Context, arg
 	return result.RowsAffected()
 }
 
+const recoverStagedSessionSteers = `-- name: RecoverStagedSessionSteers :execrows
+UPDATE session_input_queue
+SET mode = CASE WHEN origin_class = 'human' THEN mode ELSE 'queue' END,
+    delivery = CASE WHEN origin_class = 'human' THEN delivery ELSE 'after_turn' END,
+    target_turn_id = CASE WHEN origin_class = 'human' THEN target_turn_id ELSE '' END,
+    dispatchable = 1, updated_at = ?1
+WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
+  AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id)
+`
+
+// Boot recovery: a steer staged by a previous daemon process never reached its turn. Steers from other
+// sessions (including long-turn promotions) return to after-turn delivery; operator steers become
+// dispatchable again so the ordinary claim delivers them.
+func (q *Queries) RecoverStagedSessionSteers(ctx context.Context, now string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverStagedSessionSteers, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const releaseSessionInput = `-- name: ReleaseSessionInput :execrows
 UPDATE session_input_queue
 SET status = ?1, dispatch_started_at = NULL, updated_at = ?2

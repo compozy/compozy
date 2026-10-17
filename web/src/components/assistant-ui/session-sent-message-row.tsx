@@ -15,7 +15,10 @@ import {
   type SessionSentCallState,
   type SessionSentMessagePart,
 } from "@/systems/session/lib/session-message-payload";
-import { sessionMessageReplyIndex } from "@/systems/session/lib/session-message-replies";
+import {
+  sessionMessageReplyIndex,
+  sessionReplyKey,
+} from "@/systems/session/lib/session-message-replies";
 import type { SessionTimelineToolPart } from "@/systems/session/lib/session-timeline-parts";
 import { SessionTranscriptMessagesContext } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { isRecord, stringField } from "@/systems/session/lib/timeline-message-parts";
@@ -61,7 +64,9 @@ function sentReplyState(
     ? sessionReplyOutcomes(messages).get(part.replyWatchId)
     : undefined;
   if (outcome) return outcome;
-  if (part.messageId !== null && sessionMessageReplyIndex(messages).answered.has(part.messageId)) {
+  const key =
+    part.messageId === null ? null : sessionReplyKey(part.targetSessionId, part.messageId);
+  if (key !== null && sessionMessageReplyIndex(messages).answered.has(key)) {
     return "completed";
   }
   return part.replyWatchId ? "waiting" : "none";
@@ -102,7 +107,14 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         firstLine={firstLine(message)}
         error={toolError(tool)}
         reply={reply}
-        replyTo={part.inReplyTo ? <SessionMessageReplyTo inReplyTo={part.inReplyTo} /> : undefined}
+        replyTo={
+          part.inReplyTo ? (
+            <SessionMessageReplyTo
+              inReplyTo={part.inReplyTo}
+              peerSessionId={part.targetSessionId}
+            />
+          ) : undefined
+        }
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
       />

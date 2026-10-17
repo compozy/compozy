@@ -130,47 +130,11 @@ Keep the same `message_id` and `idempotency_key` when retrying. Another sender o
 v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed
 in v0.5.0.
 
-Agent-authored queue entries cannot be edited. The operator may promote one to steer (Steer on its
-queue row) or cancel it; replace still returns `input_agent_authored`. Self-targeting returns
-`invalid_request`. To continue work in the same session, end the turn; to schedule work, use a
-subagent or `compozy__session_prompt` to another session. Do not use the CLI for agent-to-agent
-messages: `compozy session prompt` sends operator input unless `--from-session auto` (or an id) opts
-in, and the native tool is the supported path (it carries the origin, `in_reply_to` and `supersede`).
-
-#### Choose queue or steer
-
-- A busy, long-running target (an executor in one multi-minute turn or a chain of Goal turns) may not
-  reach "after its current turn" for an hour. Prefer `mode: "steer"` for anything the target must see
-  soon. A `queue` message from an agent is also injected as steer once the target has been in the same
-  turn longer than `session.messaging.queue_promote_after` (default 2m, `0s` disables) when its
-  provider supports injection and no operator input waits; do not rely on it for urgent work.
-- An agent never cancels another session's turn. `mode: "interrupt"` is delivered as `steer`, or
-  queued when it has attachments. Agent steer never takes the interrupt fallback: when injection is
-  unavailable it degrades to a queued message. Read `disposition` and the reported mode.
-- Use `notify_on_complete: true` only when you need the receiver's final answer as a reply wake. To
-  answer a message you received, pass its `message_id` as `in_reply_to`; it does not add a hop. It
-  never releases the sender's reply watch, so a sender that set `notify_on_complete` still gets your
-  final answer when the turn ends. Without either, nobody is woken.
-- Send at milestones, never streaming status. For a status that supersedes the last one, set
-  `supersede: true`: it cancels your own older queued messages to the same target (steer supersede is
-  per sender) and `canceled_queued_entries` reports how many.
-- Each message costs the receiver a turn. Consecutive queued messages and reply wakes from other
-  sessions (up to 8) run as one turn, each keeping its own origin, but operator input is never merged.
-
-#### Order, hops and rate
-
-Operator input sorts before agent messages, which sort before synthetic wakes. The queue cap
-(`session.busy_input.queue_cap`) counts operator and agent/wake entries separately, so agents cannot
-fill the operator's slots, and `queue_position` is the real dispatch rank. A hop counts forwarding
-depth: answering the session driving your current turn, or sending with `in_reply_to`, keeps the
-hop; a reply wake restores the hop you sent with, so dispatching the next child after each completion
-never accumulates; forwarding to another session adds one. The ninth hop returns `message_hop_limit`; ask the
-operator to continue. Each sender to target pair also has a budget of
-`session.messaging.rate_limit_messages` (default 30) per `session.messaging.rate_limit_window` (default
-10m); `-1` disables it. A send past it returns `message_rate_limited` on that send only: batch
-updates instead of retrying; the error message names the limit, window and retry delay.
-`session.messaging.reply_watch_ttl` (default `24h`, `0s` never expires) bounds a watch: an unanswered
-watch then wakes the sender once with an `expired` outcome and stops keeping it awake.
+Agent-authored queue entries cannot be edited (`input_agent_authored`). Self-targeting returns
+`invalid_request`. Message other sessions with this tool, never the CLI. An agent `interrupt` becomes
+`steer`; prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
+status; answer with `in_reply_to` (keeps the hop). On `message_hop_limit` or `message_rate_limited`,
+stop and batch. Queue order, promotion, hops and replies: `references/runtime-operations.md`.
 
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace

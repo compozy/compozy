@@ -15,6 +15,17 @@ func (m *Manager) activateSteeringInput(
 	session *Session,
 	entry *store.SessionInputQueueEntry,
 ) error {
+	return m.activateSteeringInputText(ctx, session, entry, "")
+}
+
+// activateSteeringInputText delivers entry as steering. A non-empty providerText (an input.pre_submit
+// rewrite) replaces the text the provider receives; the authored entry text stays the durable record.
+func (m *Manager) activateSteeringInputText(
+	ctx context.Context,
+	session *Session,
+	entry *store.SessionInputQueueEntry,
+	providerText string,
+) error {
 	defer m.replyWatchSteerResolved(context.WithoutCancel(ctx), session.ID)
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
@@ -42,12 +53,11 @@ func (m *Manager) activateSteeringInput(
 			return originErr
 		}
 		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
-		attempt, steerErr := steerer.Steer(
-			steerCtx,
-			proc,
-			entry.TargetTurnID,
-			promptOriginMessage(origin, entry.Text),
-		)
+		text := entry.Text
+		if providerText != "" {
+			text = providerText
+		}
+		attempt, steerErr := steerer.Steer(steerCtx, proc, entry.TargetTurnID, promptOriginMessage(origin, text))
 		cancel()
 		if steerErr == nil {
 			completion = attempt.Completion

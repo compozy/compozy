@@ -20,6 +20,7 @@ import type { QueuedPrompt } from "@/systems/session/lib/queued-prompt";
 import { sessionInboundGroups } from "@/systems/session/lib/session-message-groups";
 import {
   sessionMessageReplyIndex,
+  sessionReplyKey,
   sessionReplyTargetMessageId,
 } from "@/systems/session/lib/session-message-replies";
 
@@ -255,14 +256,14 @@ describe("session message replies (#760)", () => {
       },
     },
   });
-  const sent = (id: string, messageId: string) => ({
+  const sent = (id: string, messageId: string, target = SENDER_ID) => ({
     id,
     role: "assistant",
     content: [
       {
         type: "data",
         name: "compozy-session-message",
-        data: { tool_call_id: "call-1", target_session_id: SENDER_ID, message_id: messageId },
+        data: { tool_call_id: `call-${id}`, target_session_id: target, message_id: messageId },
       },
     ],
   });
@@ -274,12 +275,25 @@ describe("session message replies (#760)", () => {
       inbound("msg-from-peer"),
     ]);
     // The sender's side: the answer points at the turn holding the "Sent to" card.
-    expect(sessionReplyTargetMessageId(index, "msg-ask-1")).toBe("turn-ask");
+    expect(sessionReplyTargetMessageId(index, "msg-ask-1", SENDER_ID)).toBe("turn-ask");
     // The target's side: the received prompt's thread id is its message id.
-    expect(sessionReplyTargetMessageId(index, "msg-from-peer")).toBe("msg-from-peer");
-    expect(sessionReplyTargetMessageId(index, "msg-not-loaded")).toBeNull();
-    expect(index.answered.has("msg-ask-1")).toBe(true);
-    expect(index.answered.has("msg-from-peer")).toBe(false);
+    expect(sessionReplyTargetMessageId(index, "msg-from-peer", SENDER_ID)).toBe("msg-from-peer");
+    expect(sessionReplyTargetMessageId(index, "msg-not-loaded", SENDER_ID)).toBeNull();
+    expect(index.answered.has(sessionReplyKey(SENDER_ID, "msg-ask-1"))).toBe(true);
+    expect(index.answered.has(sessionReplyKey(SENDER_ID, "msg-from-peer"))).toBe(false);
+  });
+
+  it("Should keep replies apart when one message id went to two targets", () => {
+    const index = sessionMessageReplyIndex([
+      sent("turn-plan-a", "plan", "sess-target-a"),
+      sent("turn-plan-b", "plan", SENDER_ID),
+      inbound("msg-answer", "plan"),
+    ]);
+    // Only the target that answered (SENDER_ID) is marked replied and linked.
+    expect(index.answered.has(sessionReplyKey(SENDER_ID, "plan"))).toBe(true);
+    expect(index.answered.has(sessionReplyKey("sess-target-a", "plan"))).toBe(false);
+    expect(sessionReplyTargetMessageId(index, "plan", SENDER_ID)).toBe("turn-plan-b");
+    expect(sessionReplyTargetMessageId(index, "plan", "sess-target-a")).toBe("turn-plan-a");
   });
 
   it("Should group consecutive inbound messages per sender across silent rows only", () => {
