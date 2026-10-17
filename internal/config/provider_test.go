@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/reasoning"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
@@ -3073,7 +3075,7 @@ func TestRetiredBuiltinProviders(t *testing.T) {
 func TestRetiredBuiltinProviderWarnings(t *testing.T) {
 	t.Run("Should warn through the routed logger with the effective replacement", func(t *testing.T) {
 		var logs bytes.Buffer
-		RouteRetiredProviderWarnings(slog.New(slog.NewJSONHandler(&logs, nil)))
+		RouteRetiredProviderWarnings(compozylogger.WithRedaction(slog.New(slog.NewJSONHandler(&logs, nil))))
 		t.Cleanup(func() { RouteRetiredProviderWarnings(nil) })
 
 		cfg := DefaultWithHome(HomePaths{})
@@ -3105,9 +3107,22 @@ func TestRetiredBuiltinProviderWarnings(t *testing.T) {
 			Providers map[string]ProviderConfig `toml:"providers"`
 		}
 		replacement, _ := records["mistral"]["replacement"].(string)
+		if strings.Contains(logs.String(), "[REDACTED]") {
+			t.Fatalf("redacting logger masked the migration guidance:\n%s", logs.String())
+		}
 		if _, err := toml.Decode(replacement, &document); err != nil {
 			t.Fatalf("decode mistral replacement error = %v\n%s", err, replacement)
 		}
+		action, _ := records["mistral"]["action"].(string)
+		fill := regexp.MustCompile(`api_key uses scheme "([a-z]+)" and name "([A-Z_]+)"`).FindStringSubmatch(action)
+		if fill == nil {
+			t.Fatalf("action = %q, want secret_ref fill instructions", action)
+		}
+		slots := document.Providers["mistral"].CredentialSlots
+		if len(slots) != 1 || slots[0].SecretRef != "" {
+			t.Fatalf("replacement slots = %#v, want one slot without secret_ref", slots)
+		}
+		slots[0].SecretRef = fill[1] + ":" + fill[2]
 		want, err := cfg.ResolveProvider("mistral")
 		if err != nil {
 			t.Fatalf("ResolveProvider(mistral) error = %v", err)

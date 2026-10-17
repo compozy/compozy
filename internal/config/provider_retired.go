@@ -182,20 +182,34 @@ func warnRetiredBuiltinProvider(name string, effective ProviderConfig) {
 	}
 	action := fmt.Sprintf("replace every [%s.%s] table in config.toml with replacement", providersConfigKey, name)
 	if len(effective.CredentialSlots) > 0 {
-		// Redacting log handlers mask secret_ref values, so name the env refs to restore.
+		// Log redaction masks secret_ref lines, so the replacement omits them and this action
+		// spells out each value without the redactable joined form.
 		refs := make([]string, 0, len(effective.CredentialSlots))
 		for _, slot := range effective.CredentialSlots {
-			refs = append(refs, slot.TargetEnv+" uses secret_ref "+strings.ReplaceAll(slot.SecretRef, ":", " "))
+			scheme, ref, _ := strings.Cut(slot.SecretRef, ":")
+			refs = append(refs, fmt.Sprintf("%s uses scheme %q and name %q", slot.Name, scheme, ref))
 		}
-		action += "; credential slots: " + strings.Join(refs, ", ")
+		action += ", then add a secret_ref line to each credential_slots table set to scheme, a colon, and name (" +
+			strings.Join(refs, "; ") + ")"
 	}
 	logger.Warn(
 		"provider.retired_builtin",
 		"provider", name,
 		"removed_in", retiredBuiltinProviderRemovalRelease,
 		"action", action,
-		"replacement", retiredBuiltinProviderReplacement(name, effective),
+		"replacement", withoutSecretRefLines(retiredBuiltinProviderReplacement(name, effective)),
 	)
+}
+
+func withoutSecretRefLines(replacement string) string {
+	lines := strings.Split(replacement, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "secret_ref =") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 // retiredBuiltinProviderReplacement renders the config.toml entry that keeps a retired builtin
