@@ -51,6 +51,7 @@ func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
 			toolResultErrorText(decoded.parsed.ToolResult),
 			decoded.agent.Error,
 			decoded.parsed.Text,
+			uiFallbackToolErrorText,
 		)
 	} else {
 		part.State = uiToolStateOutput

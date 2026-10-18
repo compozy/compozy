@@ -765,7 +765,7 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name a dynamic tool part whose provider never reports the tool", func(t *testing.T) {
+	t.Run("Should name and describe a dynamic tool failure whose provider reports neither", func(t *testing.T) {
 		t.Parallel()
 
 		timestamp := time.Date(2026, 10, 18, 4, 0, 0, 0, time.UTC)
@@ -797,8 +797,12 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 		if tool == nil {
 			t.Fatalf("parts = %#v, want one dynamic-tool part", messages[0].Parts)
 		}
-		if tool.ToolName != uiFallbackToolName || tool.State != uiToolStateError {
-			t.Fatalf("dynamic tool = %#v, want toolName %q in state %q", tool, uiFallbackToolName, uiToolStateError)
+		if tool.ToolName != uiFallbackToolName || tool.State != uiToolStateError ||
+			tool.ErrorText != uiFallbackToolErrorText {
+			t.Fatalf(
+				"dynamic tool = %#v, want toolName %q in state %q with errorText %q",
+				tool, uiFallbackToolName, uiToolStateError, uiFallbackToolErrorText,
+			)
 		}
 	})
 }

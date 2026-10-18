@@ -28,6 +28,8 @@ const (
 	uiToolStateOutput    = "output-available"
 	uiToolStateError     = "output-error"
 	uiFallbackToolName   = "tool"
+	// uiFallbackToolErrorText matches the web client's fallback for a failure without text.
+	uiFallbackToolErrorText = "Tool execution failed"
 )
 
 var emptyJSONObject = json.RawMessage(`{}`)
