@@ -167,7 +167,8 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		}
 		waitForSessionStopProcessExit(t, childPID, time.Second)
 		meta := readMeta(t, sess.MetaPath())
-		if meta.StopEscalated || meta.StopVerificationFailed || meta.StopReason == nil || *meta.StopReason != store.StopCompleted {
+		if meta.StopEscalated || meta.StopVerificationFailed || meta.StopReason == nil ||
+			*meta.StopReason != store.StopCompleted {
 			t.Fatalf("completed judge = %#v", meta)
 		}
 	})

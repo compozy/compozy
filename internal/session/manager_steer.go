@@ -104,7 +104,13 @@ func (m *Manager) activateSteeringInputText(
 	if completion != nil {
 		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
 	}
-	if delivery != store.SteerDeliveryInterruptFallback {
+	return m.activateSteerFallback(ctx, session, entry)
+}
+
+func (m *Manager) activateSteerFallback(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) error {
+	if entry.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return nil
 	}
 	if steerFallbackWaitsForTurn(entry) || session.CurrentTurnID() != entry.TargetTurnID {

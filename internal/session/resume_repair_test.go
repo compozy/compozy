@@ -174,10 +174,12 @@ func TestClassifyInactiveMetaForRecoveryReleasedRuntime(t *testing.T) {
 					},
 				}
 				got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
-				if !changed || got.State != string(tc.want) || got.StopVerificationFailed != (tc.want == StateStopping) {
+				if !changed || got.State != string(tc.want) ||
+					got.StopVerificationFailed != (tc.want == StateStopping) {
 					t.Fatalf("interrupted release = %s, verification failed %t", got.State, got.StopVerificationFailed)
 				}
-				if clean := got.StopReason != nil && *got.StopReason == store.StopShutdown; clean != (tc.want == StateStopped) {
+				if clean := got.StopReason != nil &&
+					*got.StopReason == store.StopShutdown; clean != (tc.want == StateStopped) {
 					t.Fatalf("interrupted release stop reason = %v, want clean shutdown %t", got.StopReason, !clean)
 				}
 				assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-releasing"))

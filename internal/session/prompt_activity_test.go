@@ -1341,7 +1341,11 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		meta := readMeta(t, target.MetaPath())
 		if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness == nil ||
 			meta.Liveness.SubprocessPID != pid || meta.Liveness.SubprocessStartedAt == nil {
-			t.Fatalf("in-progress release meta = %s/%#v, want the process identity kept", meta.RuntimeStatus, meta.Liveness)
+			t.Fatalf(
+				"in-progress release meta = %s/%#v, want the process identity kept",
+				meta.RuntimeStatus,
+				meta.Liveness,
+			)
 		}
 		close(unblock)
 		if err := <-released; err != nil {
@@ -1357,7 +1361,8 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		catalogErr := errors.New("catalog unavailable")
 		var failed atomic.Bool
 		catalog.updateHook = func(update store.SessionStateUpdate) error {
-			if update.RuntimeSet && update.RuntimeStatus == store.SessionRuntimeUnbound && failed.CompareAndSwap(false, true) {
+			if update.RuntimeSet && update.RuntimeStatus == store.SessionRuntimeUnbound &&
+				failed.CompareAndSwap(false, true) {
 				return catalogErr
 			}
 			return nil

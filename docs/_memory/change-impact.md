@@ -14,6 +14,15 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
+## Release integration repairs — 2026-10-18
+
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
+
 ## Agent CPU priority and load-aware admission — 2026-10-17
 
 Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
