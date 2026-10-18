@@ -259,6 +259,17 @@ and compaction is observed or requested through the experimental surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
+## Idle Session Settings
+
+`session.supervision.idle_release_after` (default `30m`, `0` disables) frees the agent process of an
+idle, resumable session; the session is never ended (see `references/runtime-operations.md`). Web
+Settings → General → "Pause idle agents after" edits it, and the general settings HTTP/UDS DTO
+carries it as `config.idle_release_after` (omit it on update to keep the current value). It is
+restart-required. `session.limits.timeout` and the DTO field `config.session_timeout` are deprecated
+and enforce nothing: no session ends when they elapse. They stay readable and writable through v0.4
+(a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
+`Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
+
 ## Retired Memory And Compaction Settings
 
 A `config.toml` (global, profile, or workspace) that still carries settings of the removed memory and

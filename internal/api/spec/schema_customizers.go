@@ -126,6 +126,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.CreateTriggerRequest]():           customizeTriggerAgentNameSchema,
 	reflect.TypeFor[contract.SettingsDefaultsPayload]():        customizeSettingsDefaultsSchema,
 	reflect.TypeFor[contract.SettingsRoleConfigPayload]():      customizeSettingsRoleSchema,
+	reflect.TypeFor[contract.SettingsGeneralConfigPayload]():   customizeSettingsGeneralConfigSchema,
 	reflect.TypeFor[contract.ForkSessionWorktreeRequest]():     customizeClosedObjectSchema,
 	reflect.TypeFor[contract.NewSessionWorktreeRequest]():      customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SchedulerDrainRequest]():          customizeSchedulerDrainRequestSchema,

@@ -292,7 +292,7 @@ export const settingsGeneralTestIds = {
   saveBar: "settings-page-general-save-bar",
   saveButton: "settings-page-general-save",
   resetButton: "settings-page-general-reset",
-  sessionTimeoutInput: "settings-page-general-session-timeout-input",
+  idleReleaseInput: "settings-page-general-idle-release-input",
   followUpGroup: "settings-page-general-follow-up-group",
   restartNotice: "settings-page-general-restart-notice",
   restartTrigger: "settings-page-general-restart-trigger",
@@ -390,7 +390,7 @@ interface SettingsGeneralSelectors {
   restartTrigger: Locator;
   saveBar: Locator;
   saveButton: Locator;
-  sessionTimeoutInput: Locator;
+  idleReleaseInput: Locator;
   followUpGroup: Locator;
   followUpOption(mode: "steer" | "queue"): Locator;
   updates: Locator;
@@ -1005,7 +1005,7 @@ export function settingsOperatorSelectors(
       saveBar: page.getByTestId(settingsGeneralTestIds.saveBar),
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
-      sessionTimeoutInput: page.getByTestId(settingsGeneralTestIds.sessionTimeoutInput),
+      idleReleaseInput: page.getByTestId(settingsGeneralTestIds.idleReleaseInput),
       followUpGroup: page.getByTestId(settingsGeneralTestIds.followUpGroup),
       followUpOption: (mode: "steer" | "queue") =>
         page.getByTestId(`settings-page-general-follow-up-${mode}`),

@@ -65,6 +65,10 @@ func generalSettingsFromPayload(
 	if err != nil {
 		return settingspkg.GeneralSettings{}, err
 	}
+	value.IdleReleaseAfter, err = idleReleaseAfterFromPayload(payload.IdleReleaseAfter)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, err
+	}
 
 	if terminalProvided {
 		detachedTTL, parseErr := time.ParseDuration(strings.TrimSpace(payload.Terminal.DetachedTTL))
@@ -130,4 +134,21 @@ func followUpModeFromPayload(payload *contract.SettingsBusyInputPayload) (*strin
 		return nil, NewSettingsValidationError(err)
 	}
 	return new(busy.DefaultMode), nil
+}
+
+func idleReleaseAfterFromPayload(raw string) (*time.Duration, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	after, err := time.ParseDuration(trimmed)
+	if err != nil {
+		return nil, NewSettingsValidationError(fmt.Errorf("general.config.idle_release_after: %w", err))
+	}
+	if after < 0 {
+		return nil, NewSettingsValidationError(
+			fmt.Errorf("general.config.idle_release_after must be zero or positive: %s", after),
+		)
+	}
+	return &after, nil
 }

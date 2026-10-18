@@ -387,7 +387,8 @@ An idle session keeps its agent process for `session.supervision.idle_release_af
 `30m`). After that, CompozyOS silently stops the agent process and keeps the session. This happens
 only when the session has no turn in flight, no work signal, no `unknown` signal source, no pending
 permission or clarify request, and its agent advertised ACP `session/load`. Agents without
-`session/load` keep their runtime. `idle_release_after = "0"` disables the release.
+`session/load` keep their runtime. `idle_release_after = "0"` disables the release. In the web
+app, Settings → General → **Pause idle agents after** edits this key.
 
 A released session stays `state: "active"` with `runtime.status: "unbound"`. It keeps its
 transcript and ACP session ID and shows the normal `idle` badge. The release records no supervision
@@ -420,8 +421,8 @@ Existing expiryless waits use their original creation time and pinned configurat
 An expired wait follows the existing attention path instead of keeping a session alive forever.
 
 `runtime_progress` remains a periodic progress projection. Metadata-only activity heartbeats and
-progress projections do not themselves prove fresh work. Explicit prompt/session wall-clock budgets
-remain opt-in controls separate from silence supervision.
+progress projections do not themselves prove fresh work. An explicit prompt budget
+(`session.supervision.prompt_deadline`) remains an opt-in control separate from silence supervision.
 
 ## Rewinding a conversation
 
@@ -721,7 +722,7 @@ CompozyOS has separate timeout concepts:
 
 | Timeout                                    | What it protects                                                              |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                          |
+| `session.limits.timeout`                   | Deprecated and not enforced; removed in v0.5.0. Ends no session.              |
 | `session.supervision.quiet_after`          | Silence in an in-flight turn before one warning; zero disables the watchdog.  |
 | `session.supervision.stop_grace`           | Continued turn silence after the warning before the standard stop ladder.     |
 | `session.supervision.idle_release_after`   | Idle time before the agent process is released; zero disables the release.    |
@@ -730,7 +731,7 @@ CompozyOS has separate timeout concepts:
 | `session.stop.cooperative_grace`           | Cooperative phase of the stop ladder, followed by bounded forced/kill phases. |
 | Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                            |
 
-A session may run indefinitely while fresh work exists and no explicit wall-clock budget is set.
+A session may run indefinitely while fresh work exists and no explicit prompt budget is set.
 
 ## Stop reasons
 

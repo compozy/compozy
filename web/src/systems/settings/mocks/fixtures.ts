@@ -55,6 +55,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s",
     terminal: terminalSettingsFixture,
   },
   config_paths: {

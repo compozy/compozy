@@ -1164,6 +1164,8 @@ carries the transcript like a live runtime switch. If the daemon exits uncleanly
 released, boot recovery ends the session `stopped` with `stop_reason: "shutdown"` and detail
 "daemon exited while the idle session runtime was released" (not a failure); a later prompt resumes
 it with `session/load`.
+The deprecated `session.limits.timeout` key is not enforced and ends no session; see
+`references/configuration.md`.
 
 After verified process-tree exit, the durable stop receipt settles authoritative task work before
 session reuse. Each owned run settles independently, so replay can finish remaining candidates
