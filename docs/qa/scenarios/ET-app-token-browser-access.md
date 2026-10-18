@@ -21,3 +21,8 @@ Use a real app origin and an active token for it. Observe browser preflight 204 
 QA impact 2026-10-17: App SDK implementation adds this user-visible journey. Authored planning only;
 no live execution verdict is recorded. Execute in the assigned isolated lab and attach current-head
 evidence before marking it passed.
+
+QA impact 2026-10-18: an allowed browser origin can read `/api/status/identity`, while
+operator diagnostics at `/api/status` return 403 with app_token_route_forbidden. Exercise
+per-origin rate isolation through the identity route; preserve all invalid-token, origin,
+revocation, and tokenless local-process checks.

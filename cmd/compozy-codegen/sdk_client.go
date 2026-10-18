@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/spec"
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const sdkJSONName = "json"
@@ -37,6 +38,10 @@ func generateSDKClient() (sdkgo.Result, error) {
 	return sdkgo.GenerateClient(ops, sdkgo.ClientOptions{
 		PackageName: sdkClientPackage,
 		Types:       []sdkgo.ClientType{{Name: "SendPromptResultPayload", Value: contract.SendPromptResultPayload{}}},
+		StringTypes: map[reflect.Type]bool{
+			reflect.TypeFor[taskpkg.RunStatus](): true,
+			reflect.TypeFor[taskpkg.RunKind]():   true,
+		},
 	})
 }
 

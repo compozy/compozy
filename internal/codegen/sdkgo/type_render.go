@@ -6,8 +6,6 @@ import (
 	"reflect"
 
 	"github.com/dave/jennifer/jen"
-
-	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type goField struct {
@@ -42,7 +40,7 @@ var generatedFieldComments = map[string]map[string]string{
 
 func (g *typeGenerator) renderDeclaration(name string, value reflect.Type) (*jen.Statement, error) {
 	if g.allNamed {
-		if value == reflect.TypeFor[taskpkg.RunStatus]() || value == reflect.TypeFor[taskpkg.RunKind]() {
+		if g.stringTypes[value] {
 			return jen.Type().Id(name).String(), nil
 		}
 		// Reflection exposes fields, not custom JSON methods. Preserve such wire values

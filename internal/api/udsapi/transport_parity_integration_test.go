@@ -3801,6 +3801,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 				http.StatusOK,
 			)
 			browserBody := request(false, http.MethodGet, listPath, "", browserHeaders, http.StatusOK)
+			request(false, http.MethodGet, "/api/status/identity", "", browserHeaders, http.StatusOK)
 			if !bytes.Equal(localBody, ownOriginBody) || !bytes.Equal(localBody, browserBody) {
 				t.Fatalf("session reads differ across local, own-origin and app-token requests")
 			}
@@ -3881,7 +3882,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 				},
 				http.StatusForbidden,
 			), "app_origin_not_allowed")
-			for _, endpoint := range []string{"/api/app-tokens", "/api/vault/secrets", "/api/gateway/devices", "/api/agent/me", "/api/fs/browse"} {
+			for _, endpoint := range []string{"/api/status", "/api/app-tokens", "/api/vault/secrets", "/api/gateway/devices", "/api/agent/me", "/api/fs/browse"} {
 				decodeError(
 					request(false, http.MethodGet, endpoint, "", browserHeaders, http.StatusForbidden),
 					"app_token_route_forbidden",
@@ -4044,7 +4045,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 				decodeError(request(
 					false,
 					http.MethodGet,
-					"/api/status",
+					"/api/status/identity",
 					"",
 					map[string]string{
 						"Origin":        "http://a.test",
@@ -4056,7 +4057,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			decodeError(request(
 				false,
 				http.MethodGet,
-				"/api/status",
+				"/api/status/identity",
 				"",
 				map[string]string{
 					"Origin":        "http://a.test",
@@ -4067,7 +4068,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			request(
 				false,
 				http.MethodGet,
-				"/api/status",
+				"/api/status/identity",
 				"",
 				map[string]string{
 					"Origin":        "http://b.test",

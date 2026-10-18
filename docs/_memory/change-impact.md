@@ -3635,3 +3635,16 @@ The experimental compatibility notice names this release rather than an incorrec
 No daemon wire schema, permission, native tool ID, configuration, migration, or workspace boundary
 changes; Go/Node clients, generated samples, package docs, site docs, and the source release note
 co-ship. RT-sdk-go-golden-path and RT-sdk-node-lifecycle own the added QA boundaries.
+
+SDK codegen boundary follow-through: the registry adapter supplies domain enum wire metadata
+to the leaf Go generator. Generated clients and samples remain identical; no runtime behavior,
+public contract, native tool, hook, config, data-isolation, or QA journey changes. The existing
+boundary check and Go codec suites own verification of this internal dependency correction.
+
+The terminal manager priority contract lives in its Unix-tagged suite, preserving every
+real-process assertion while keeping POSIX-only introspection out of Windows test compilation.
+
+Transport-parity follow-through: browser rate-limit probes use the app-access identity
+endpoint. The existing real HTTP/UDS credential journey explicitly retains diagnostic-route
+denial, local-process privileges, origin isolation, and revocation. No production policy is relaxed;
+ET-app-token-browser-access carries the previously documented status/identity distinction.

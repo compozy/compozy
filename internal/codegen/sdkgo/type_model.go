@@ -23,6 +23,7 @@ type typeGenerator struct {
 	declarations map[string]reflect.Type
 	preferred    map[reflect.Type]string
 	rendered     map[string]*jen.Statement
+	stringTypes  map[reflect.Type]bool
 	allNamed     bool
 }
 

@@ -60,6 +60,8 @@ type ClientOptions struct {
 	Header      string
 	Reserved    []string
 	Types       []ClientType
+	// StringTypes identifies domain enums whose JSON wire representation is a string.
+	StringTypes map[reflect.Type]bool
 }
 
 var clientRuntimeIdentifiers = []string{
@@ -97,6 +99,7 @@ func GenerateClient(operations []ClientOperation, opts ClientOptions) (Result, e
 	}
 	g := newTypeGenerator()
 	g.allNamed = true
+	g.stringTypes = opts.StringTypes
 	for _, named := range opts.Types {
 		if err := g.addClientRoot(named.Value, named.Name); err != nil {
 			return Result{}, fmt.Errorf("client type %s: %w", named.Name, err)
