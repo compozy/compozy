@@ -705,6 +705,7 @@ func newSettingsMCPTestServer() *mcp.Server {
 }
 
 type stubSettingsUpdateManager struct {
+	refreshFn  func(context.Context) (compozyupdate.MultiState, error)
 	snapshotFn func(context.Context) (compozyupdate.MultiState, error)
 	checkAllFn func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
 	planFn     func(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (compozyupdate.OperationRequest, error)
@@ -716,6 +717,13 @@ type settingsUpdateRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f settingsUpdateRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+func (s stubSettingsUpdateManager) Refresh(ctx context.Context) (compozyupdate.MultiState, error) {
+	if s.refreshFn != nil {
+		return s.refreshFn(ctx)
+	}
+	return compozyupdate.MultiState{}, errors.New("unexpected Refresh call")
 }
 
 func (s stubSettingsUpdateManager) Snapshot(ctx context.Context) (compozyupdate.MultiState, error) {
@@ -777,6 +785,22 @@ func daemonSettingsUpdateStateFixture() compozyupdate.MultiState {
 }
 
 func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
+	t.Run("Should route a manual check through the manager refresh", func(t *testing.T) {
+		t.Parallel()
+		checkedAt := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		controller := settingsUpdateController{manager: stubSettingsUpdateManager{
+			refreshFn: func(context.Context) (compozyupdate.MultiState, error) {
+				return compozyupdate.MultiState{Runtime: compozyupdate.RuntimeTrackState{
+					LatestVersion: "v1.2.0", CheckedAt: &checkedAt,
+				}}, nil
+			},
+		}}
+		got, err := controller.CheckUpdate(t.Context())
+		if err != nil || got.Runtime.LatestVersion != "v1.2.0" || got.Runtime.CheckedAt == nil ||
+			!got.Runtime.CheckedAt.Equal(checkedAt) {
+			t.Fatalf("CheckUpdate = %#v, %v", got, err)
+		}
+	})
 	t.Run("Should expose desktop provenance through the settings HTTP handler", func(t *testing.T) {
 		t.Parallel()
 
@@ -1174,6 +1198,42 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 }
 
 func TestBackgroundUpdateRuntimeHonorsDaemonOwnedAppConfig(t *testing.T) {
+	t.Run("Should discover new releases on the default cadence without restarting", func(t *testing.T) {
+		t.Parallel()
+		checks := make(chan struct{}, 4)
+		config := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}).App
+		runtime, err := newBackgroundUpdateRuntime(stubSettingsUpdateManager{
+			checkAllFn: func(_ context.Context, opts compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+				if !opts.ForceRefresh || opts.MinimumRefreshInterval < time.Minute {
+					t.Errorf("background options = %#v", opts)
+				}
+				checks <- struct{}{}
+				return compozyupdate.MultiState{}, nil, nil
+			},
+		}, config, testutil.DiscardLogger(), func(context.Context) error { return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if runtime.checkInterval != 15*time.Minute {
+			t.Fatalf("check interval = %s, want 15m", runtime.checkInterval)
+		}
+		runtime.checkInterval = 10 * time.Millisecond
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown: %v", err)
+			}
+		})
+		for range 2 {
+			select {
+			case <-checks:
+			case <-time.After(time.Second):
+				t.Fatal("daemon did not repeat its scheduled check")
+			}
+		}
+	})
 	t.Run("Should disable both-track checks while keeping recovery active", func(t *testing.T) {
 		t.Parallel()
 

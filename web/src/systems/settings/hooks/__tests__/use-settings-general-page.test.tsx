@@ -28,6 +28,7 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsUpdate: vi.fn(),
   applySettingsUpdate: vi.fn(),
   cancelSettingsUpdate: vi.fn(),
+  checkSettingsUpdate: vi.fn(),
   reloadSettings: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   getSettingsRestartStatus: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 import {
   applySettingsUpdate,
   cancelSettingsUpdate,
+  checkSettingsUpdate,
   getSettingsGeneral,
   listSettingsApplyRecords,
   getSettingsUpdate,
@@ -50,6 +52,7 @@ import { resetSettingsRestartStore } from "@/systems/settings/stores/use-setting
 import {
   settingsUpdateBothAvailableFixture,
   settingsUpdateStagedFixture,
+  settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
 import { settingsRestartRequiredMutationFixture } from "@/systems/settings/mocks/fixtures";
 
@@ -334,5 +337,55 @@ describe("useSettingsGeneralPage", () => {
       expect(cancelSettingsUpdate).toHaveBeenCalledTimes(1);
       expect(result.current.updateActions.cancelResult).toMatchObject({ status: "canceled" });
     });
+  });
+});
+
+// Invariant: a manual check replaces the shared update snapshot with daemon truth.
+// Owner: Settings mutation/query boundary; canonical suite: use-settings-general-page.
+describe("manual update discovery", () => {
+  it("Should discard an old manual failure when a later poll discovers an update", async () => {
+    vi.mocked(getSettingsUpdate).mockResolvedValue(settingsUpdateStatusFixture);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.update.data).toBeDefined());
+    vi.mocked(checkSettingsUpdate).mockRejectedValue(new Error("Connection lost"));
+    act(() => result.current.updateActions.check());
+    await waitFor(() => expect(result.current.updateActions.checkError).toBe("Connection lost"));
+
+    const recovered = {
+      ...settingsUpdateBothAvailableFixture,
+      runtime: {
+        ...settingsUpdateBothAvailableFixture.runtime,
+        checked_at: "2026-10-18T14:18:00Z",
+      },
+    };
+    vi.mocked(getSettingsUpdate).mockResolvedValue(recovered);
+    await act(async () => {
+      await result.current.update.refetch();
+    });
+    await waitFor(() =>
+      expect(result.current.update.data?.runtime.checked_at).toBe(recovered.runtime.checked_at)
+    );
+    expect(result.current.updateActions.checkError).toBeNull();
+  });
+
+  it("Should refresh through the daemon and publish the result to every update surface", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.update.data).toBeDefined());
+    const checked = {
+      ...settingsUpdateBothAvailableFixture,
+      runtime: {
+        ...settingsUpdateBothAvailableFixture.runtime,
+        checked_at: "2026-10-18T14:18:00Z",
+      },
+    };
+    vi.mocked(checkSettingsUpdate).mockResolvedValue(checked);
+    act(() => result.current.updateActions.check());
+    await waitFor(() =>
+      expect(result.current.update.data?.runtime.checked_at).toBe(checked.runtime.checked_at)
+    );
+    expect(checkSettingsUpdate).toHaveBeenCalledTimes(1);
+    expect(result.current.updateActions.checkError).toBeNull();
   });
 });

@@ -24,6 +24,7 @@ var _ core.SettingsUpdateController = settingsUpdateController{}
 
 type settingsUpdateManager interface {
 	Snapshot(context.Context) (compozyupdate.MultiState, error)
+	Refresh(context.Context) (compozyupdate.MultiState, error)
 	PlanOperation(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (
 		compozyupdate.OperationRequest,
 		error,
@@ -37,6 +38,13 @@ func (c settingsUpdateController) GetUpdate(ctx context.Context) (compozyupdate.
 		return compozyupdate.MultiState{}, errors.New("daemon: settings update manager is required")
 	}
 	return c.manager.Snapshot(ctx)
+}
+
+func (c settingsUpdateController) CheckUpdate(ctx context.Context) (compozyupdate.MultiState, error) {
+	if c.manager == nil {
+		return compozyupdate.MultiState{}, errors.New("daemon: settings update manager is required")
+	}
+	return c.manager.Refresh(ctx)
 }
 
 func (c settingsUpdateController) ApplyUpdate(

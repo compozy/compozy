@@ -5,7 +5,7 @@ title: Read and apply the one product update from Settings in a plain browser
 persona: Bruno
 journey: J-desktop-update-moment
 expected: Settings → General → Updates shows CompozyOS as one row with one version, one status, and one Update action, never separate runtime and app rows. Update applies every eligible part in one operation, the row shows "Updating" with a measured percent while it runs, and staged, blocked, and rolled-back outcomes are reported in plain words without ever claiming success the daemon has not reported.
-entry_points: Settings → General → Updates in Chrome or the app; GET /api/settings/update; POST /api/settings/update/apply; POST /api/settings/update/cancel over HTTP and UDS
+entry_points: Settings → General → Updates in Chrome or the app; GET /api/settings/update; POST /api/settings/update/apply; POST /api/settings/update/cancel; POST /api/settings/update/check over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status: 
@@ -46,3 +46,9 @@ Branches to walk, each against real daemon truth rather than a stubbed payload:
 
 Browser/app equivalence is part of the verdict: the same walk must render identically in the desktop
 app and in a plain browser, because the SPA carries no desktop awareness.
+
+
+Discovery acceptance (issue #804): the Updates header shows **Last checked** with the last successful
+upstream timestamp and a **Check for updates** action. The action refreshes daemon discovery, then
+the shared Settings/menubar query exposes any new offer. Failed checks retain the previous timestamp
+and diagnostic. A newer release remains eligible when a previous app release has an archived failure.

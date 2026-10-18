@@ -342,9 +342,7 @@ export function GeneralSettingsPage() {
       data={update.data}
       error={update.error}
       isError={update.isError}
-      isFetching={update.isFetching}
       isLoading={update.isLoading}
-      onRetry={() => void update.refetch()}
     />
   );
   // Updates lead the page only when there is something to act on.

@@ -3,7 +3,7 @@ package config
 import "time"
 
 const (
-	defaultAppUpdateCheckInterval = 6 * time.Hour
+	defaultAppUpdateCheckInterval = 15 * time.Minute
 	minimumAppUpdateCheckInterval = 15 * time.Minute
 	maximumAppUpdateCheckInterval = 168 * time.Hour
 	appUpdateCheckIntervalPath    = "app.update_check_interval"

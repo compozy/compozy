@@ -52,10 +52,10 @@ describe("app state publisher", () => {
     ["pending", "accepted", undefined],
     ["downloading", "applying", "download"],
     ["verifying", "applying", "verify"],
-    ["installing", "applying", "install"],
+    ["swapping", "applying", "install"],
     ["restarting", "applying", "start"],
-    ["ready-check", "applying", "ready-check"],
-    ["completed", "applying", "ready"],
+    ["health-checking", "applying", "ready-check"],
+    ["finalized", "applying", "ready"],
     ["rolled-back", "failed", undefined],
     ["failed", "failed", undefined],
   ] as const)("Should project runtime phase %s", (phase, state, uiPhase) => {

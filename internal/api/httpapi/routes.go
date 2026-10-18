@@ -302,6 +302,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.GET("/update", handlers.GetSettingsUpdate)
+	settings.POST("/update/check", privileged, handlers.CheckSettingsUpdate)
 	settings.POST("/update/apply", privileged, handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", privileged, handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)

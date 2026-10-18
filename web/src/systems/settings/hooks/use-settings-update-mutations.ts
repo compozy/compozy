@@ -1,8 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { applySettingsUpdate, cancelSettingsUpdate } from "../adapters/settings-api";
+import {
+  applySettingsUpdate,
+  cancelSettingsUpdate,
+  checkSettingsUpdate,
+} from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
-import type { SettingsUpdateApplyRequest } from "../types";
+import type { SettingsUpdateApplyRequest, SettingsUpdateStatus } from "../types";
 
 /**
  * Update-operation mutations (ADR-009). These are host-global lifecycle actions
@@ -32,5 +36,18 @@ export function useCancelSettingsUpdate() {
   return useMutation({
     mutationFn: () => cancelSettingsUpdate(),
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.updateStatus() }),
+  });
+}
+
+/** Publishes a successful manual check to the shared update-status query cache. */
+export function useCheckSettingsUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => checkSettingsUpdate(),
+    onMutate: () => ({
+      checkedAt: queryClient.getQueryData<SettingsUpdateStatus>(settingsKeys.updateStatus())
+        ?.runtime.checked_at,
+    }),
+    onSuccess: snapshot => queryClient.setQueryData(settingsKeys.updateStatus(), snapshot),
   });
 }

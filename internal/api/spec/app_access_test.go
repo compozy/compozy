@@ -214,6 +214,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"cancelSettingsUpdate",
 			"cancelWorktreeCreate",
 			"cancelWorktreeExitAction",
+			"checkSettingsUpdate",
 			"claimNextAgentTask",
 			"closeCmdPaletteViewSession",
 			"completeAgentTaskRun",

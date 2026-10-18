@@ -10,6 +10,36 @@ import (
 	"strings"
 )
 
+// GetTaskRunReview Get one task-run review
+func (c *Client) GetTaskRunReview(ctx context.Context, params GetTaskRunReviewParams) (*TaskRunReviewResponse, error) {
+	path := "/api/task-reviews/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskTimelineParams carries the path, query, and header parameters.
+type GetTaskTimelineParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetTaskTimeline Get one task timeline
 func (c *Client) GetTaskTimeline(ctx context.Context, params GetTaskTimelineParams) (*TaskTimelineResponse, error) {
 	path := "/api/tasks/{id}/timeline"
@@ -413,28 +443,4 @@ func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreePara
 // InstallExtensionParams carries the path, query, and header parameters.
 type InstallExtensionParams struct {
 	Profile *string `url:"profile"`
-}
-
-// InstallExtension Install a local or marketplace extension
-func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*ExtensionResponse, error) {
-	path := "/api/extensions"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
-type InvokeCmdPaletteCommandParams struct {
-	ID                  string  `url:"id"`
-	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
 }

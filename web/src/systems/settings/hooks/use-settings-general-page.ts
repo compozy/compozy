@@ -1,6 +1,7 @@
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+import { useCheckSettingsUpdate } from "./use-settings-update-mutations";
 
 import {
   type SettingsGeneralSection,
@@ -59,6 +60,7 @@ export function useSettingsGeneralPage() {
   const productUpdate = useProductUpdate();
   const update = productUpdate.query;
   const updateCancel = useCancelSettingsUpdate();
+  const updateCheck = useCheckSettingsUpdate();
   const applyRecords = useSettingsApplyRecords({ limit: 8 });
   const mutation = useUpdateSettingsGeneral();
   const reload = useReloadSettings();
@@ -153,6 +155,12 @@ export function useSettingsGeneralPage() {
     // own answer (`accepted` or `blocked` with its holder) so the surface can
     // report it verbatim; terminal truth still comes from the `update` read.
     updateActions: {
+      check: () => updateCheck.mutate(),
+      isChecking: updateCheck.isPending,
+      checkError:
+        updateCheck.context?.checkedAt === update.data?.runtime.checked_at
+          ? updateActionError(updateCheck.error)
+          : null,
       apply: productUpdate.apply,
       cancel: () => updateCancel.mutate(),
       isApplying: productUpdate.applying,

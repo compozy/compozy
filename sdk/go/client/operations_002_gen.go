@@ -398,6 +398,16 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }
 
+// CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
+func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
+	path := "/api/settings/update/check"
+	var out SettingsUpdateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ClaimNextAgentTaskParams carries the path, query, and header parameters.
 type ClaimNextAgentTaskParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
@@ -433,10 +443,4 @@ func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessi
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ClearSessionInputsParams carries the path, query, and header parameters.
-type ClearSessionInputsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

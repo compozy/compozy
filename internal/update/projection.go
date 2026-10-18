@@ -15,17 +15,18 @@ type MultiState struct {
 
 // RuntimeTrackState is the complete runtime update projection.
 type RuntimeTrackState struct {
-	Status          Status `json:"status"`
-	InstallMethod   string `json:"install_method"`
-	Managed         bool   `json:"managed"`
-	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version,omitempty"`
-	ReleaseURL      string `json:"release_url,omitempty"`
-	Recommendation  string `json:"recommendation,omitempty"`
-	RestoredVersion string `json:"restored_version,omitempty"`
-	DaemonRestarted bool   `json:"daemon_restarted"`
-	Message         string `json:"message"`
-	LastError       string `json:"last_error,omitempty"`
+	CheckedAt       *time.Time `json:"checked_at,omitempty"`
+	Status          Status     `json:"status"`
+	InstallMethod   string     `json:"install_method"`
+	Managed         bool       `json:"managed"`
+	CurrentVersion  string     `json:"current_version"`
+	LatestVersion   string     `json:"latest_version,omitempty"`
+	ReleaseURL      string     `json:"release_url,omitempty"`
+	Recommendation  string     `json:"recommendation,omitempty"`
+	RestoredVersion string     `json:"restored_version,omitempty"`
+	DaemonRestarted bool       `json:"daemon_restarted"`
+	Message         string     `json:"message"`
+	LastError       string     `json:"last_error,omitempty"`
 }
 
 // AppTrackState is present exactly when a desktop app is installed.
@@ -69,6 +70,7 @@ const (
 // ProjectMultiState derives every live track and operation field from one computation.
 func ProjectMultiState(runtime State, app *AppTrackState, operation *Operation) MultiState {
 	runtimeTrack := RuntimeTrackState{
+		CheckedAt:       runtime.CheckedAt,
 		Status:          runtime.Status,
 		InstallMethod:   runtime.InstallMethod,
 		Managed:         runtime.Managed,

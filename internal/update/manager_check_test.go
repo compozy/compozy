@@ -1,17 +1,217 @@
 package update
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
+	"testing/synctest"
 	"time"
 )
 
 func TestManagerCheck(t *testing.T) {
+	t.Run("Should keep deadline failures visible and throttle subsequent manual checks", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			var requests atomic.Int32
+			manager, _ := newManagerWithExecutable(t, &Config{
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					if requests.Add(1) > 1 {
+						return nil, errors.New("unexpected duplicate check")
+					}
+					<-request.Context().Done()
+					return nil, request.Context().Err()
+				})},
+			})
+			checkedAt := time.Now().UTC().Add(-time.Hour)
+			if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+				"https://github.com/compozy/compozy/releases/tag/v1.0.0", checkedAt)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.Refresh(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("timed-out Refresh error = %v", err)
+			}
+			for range 2 {
+				snapshot, err := manager.Refresh(t.Context())
+				if err != nil || !strings.Contains(snapshot.Runtime.LastError, context.DeadlineExceeded.Error()) ||
+					snapshot.Runtime.CheckedAt == nil || !snapshot.Runtime.CheckedAt.Equal(checkedAt) {
+					t.Fatalf("Refresh after timeout = %#v, %v", snapshot, err)
+				}
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("requests after timeout = %d, want one throttled attempt", requests.Load())
+			}
+		})
+	})
+	t.Run("Should complete a bounded manual refresh after the client disconnects", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if err := request.Context().Err(); err != nil {
+					return nil, err
+				}
+				deadline, ok := request.Context().Deadline()
+				if !ok || time.Until(deadline) > defaultHTTPTimeout {
+					t.Errorf("manual refresh deadline = %v, present %t", deadline, ok)
+				}
+				return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
+					TagName: "v1.2.0", HTMLURL: "https://github.com/compozy/compozy/releases/tag/v1.2.0",
+					Assets: testGitHubAssets(t, nil),
+				}), nil
+			})},
+		})
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		state, err := manager.Refresh(ctx)
+		if err != nil || state.Runtime.LatestVersion != "v1.2.0" || state.Runtime.CheckedAt == nil {
+			t.Fatalf("Refresh after disconnect = %#v, %v", state, err)
+		}
+	})
+	t.Run("Should retry immediately after cancellation without hiding upstream failures", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int32
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if requests.Add(1) == 1 {
+					cancel()
+					return nil, request.Context().Err()
+				}
+				return nil, errors.New("upstream unavailable")
+			})},
+		})
+		if _, _, err := manager.Check(ctx, CheckOptions{ForceRefresh: true}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled Check error = %v", err)
+		}
+		state, _, err := manager.Check(
+			t.Context(),
+			CheckOptions{ForceRefresh: true, MinimumRefreshInterval: time.Minute},
+		)
+		if requests.Load() != 2 || err == nil || !strings.Contains(state.LastError, "upstream unavailable") {
+			t.Fatalf("retry = %#v, %v, requests %d", state, err, requests.Load())
+		}
+	})
+	t.Run("Should honor GitHub reset deadlines across manual and background checks", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{
+					StatusCode: http.StatusForbidden,
+					Status:     "403 Forbidden",
+					Header: http.Header{
+						"X-Ratelimit-Remaining": {"0"},
+						"X-Ratelimit-Reset":     {strconv.FormatInt(reset.Unix(), 10)},
+						"Retry-After":           {"120"},
+					},
+					Body: io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			})},
+		})
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", now.Add(-time.Hour))); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(15 * time.Minute)
+		state, _, err := manager.CheckAll(t.Context(), CheckOptions{ForceRefresh: true, AllowCachedOnFailure: true})
+		if err != nil || state.Runtime.LastError == "" || requests.Load() != 1 {
+			t.Fatalf("rate limited snapshot = %#v, %v, requests %d", state, err, requests.Load())
+		}
+		now = reset
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if requests.Load() != 2 {
+			t.Fatalf("requests after reset = %d, want 2", requests.Load())
+		}
+	})
+	t.Run("Should discover a published release on manual refresh and coalesce repeated clients", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
+					TagName: "v1.2.0", HTMLURL: "https://github.com/compozy/compozy/releases/tag/v1.2.0",
+					PublishedAt: now.Add(-18 * time.Minute), Assets: testGitHubAssets(t, nil),
+				}), nil
+			})},
+		})
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", now.Add(-time.Hour))); err != nil {
+			t.Fatal(err)
+		}
+		cached, err := manager.Snapshot(t.Context())
+		if err != nil || cached.Runtime.LatestVersion != "v1.0.0" || requests.Load() != 0 {
+			t.Fatalf("Snapshot = %#v, %v, requests %d", cached, err, requests.Load())
+		}
+		var clients sync.WaitGroup
+		for range 3 {
+			clients.Go(func() {
+				fresh, err := manager.Refresh(t.Context())
+				if err != nil || fresh.Runtime.LatestVersion != "v1.2.0" || fresh.Runtime.CheckedAt == nil ||
+					!fresh.Runtime.CheckedAt.Equal(now) {
+					t.Errorf("Refresh = %#v, %v", fresh, err)
+				}
+			})
+		}
+		clients.Wait()
+		if requests.Load() != 1 {
+			t.Fatalf("requests = %d, want one shared refresh", requests.Load())
+		}
+		now = now.Add(time.Minute)
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if requests.Load() != 2 {
+			t.Fatalf("requests after cooldown = %d, want 2", requests.Load())
+		}
+	})
+
+	t.Run("Should preserve the successful check time and failure during manual refresh cooldown", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return nil, errors.New("upstream unavailable")
+			})},
+		})
+		checkedAt := now.Add(-time.Hour)
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", checkedAt)); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			state, err := manager.Refresh(t.Context())
+			if err != nil || state.Runtime.LastError == "" || state.Runtime.CheckedAt == nil ||
+				!state.Runtime.CheckedAt.Equal(checkedAt) {
+				t.Fatalf("Refresh = %#v, %v", state, err)
+			}
+		}
+		if requests.Load() != 1 {
+			t.Fatalf("failed requests = %d, want 1", requests.Load())
+		}
+	})
+
 	t.Run("Should use the cached release snapshot while it is still fresh", func(t *testing.T) {
 		t.Parallel()
 

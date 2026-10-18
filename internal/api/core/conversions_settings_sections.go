@@ -363,6 +363,7 @@ func SettingsUpdateResponseFromStatus(status compozyupdate.MultiState) contract.
 	response := contract.SettingsUpdateResponse{
 		Aggregate: contract.SettingsUpdateStatusKind(status.Aggregate),
 		Runtime: contract.SettingsUpdateRuntimePayload{
+			CheckedAt:       status.Runtime.CheckedAt,
 			Status:          contract.SettingsUpdateStatusKind(status.Runtime.Status),
 			InstallMethod:   settingsUpdateInstallMethodPayload(status.Runtime.InstallMethod),
 			Managed:         status.Runtime.Managed,

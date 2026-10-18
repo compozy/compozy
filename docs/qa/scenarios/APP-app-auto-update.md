@@ -28,3 +28,9 @@ recorded resume-without-duplicate-prompt observation.
 
 QA impact 2026-08-16: the decision surface moved from the shell overlay to the daemon-backed web UI
 and app apply joined the durable multi-target operation. Reset for the Electron N→N+1 walk.
+
+
+Journal-consumer regression (issue #804): stage the app after the runtime reaches `finalized`.
+The desktop must parse the daemon journal's `swapping`, `health-checking`, and `finalized` phases,
+and consume the staged app after runtime readiness. An archived failed install of an older app
+release must not suppress the newly discovered release or replace its version with the failed one.

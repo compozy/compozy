@@ -393,12 +393,20 @@ func (s *stubSettingsRestartController) RequestRestart(
 }
 
 type stubSettingsUpdateController struct {
+	CheckFn     func(context.Context) (compozyupdate.MultiState, error)
 	GetFn       func(context.Context) (compozyupdate.MultiState, error)
 	ApplyFn     func(context.Context, []compozyupdate.Target) (core.SettingsUpdateApply, error)
 	CancelFn    func(context.Context) (core.SettingsUpdateCancel, error)
 	GetCalls    int
 	ApplyCalls  int
 	CancelCalls int
+}
+
+func (s *stubSettingsUpdateController) CheckUpdate(ctx context.Context) (compozyupdate.MultiState, error) {
+	if s.CheckFn != nil {
+		return s.CheckFn(ctx)
+	}
+	return compozyupdate.MultiState{}, nil
 }
 
 func (s *stubSettingsUpdateController) GetUpdate(ctx context.Context) (compozyupdate.MultiState, error) {
@@ -511,6 +519,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/update", handlers.GetSettingsUpdate)
+	settings.POST("/update/check", handlers.CheckSettingsUpdate)
 	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
@@ -1121,6 +1130,25 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 }
 
 func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
+	t.Run("Should refresh discovery and return the last successful check time", func(t *testing.T) {
+		t.Parallel()
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		checkedAt := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		fixture.Update.CheckFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{Aggregate: compozyupdate.StatusAvailable,
+				Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusAvailable,
+					LatestVersion: "v1.2.0", CheckedAt: &checkedAt}}, nil
+		}
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/api/settings/update/check", nil)
+		var payload contract.SettingsUpdateResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if resp.Code != http.StatusOK || payload.Runtime.CheckedAt == nil ||
+			!payload.Runtime.CheckedAt.Equal(checkedAt) || payload.Runtime.LatestVersion != "v1.2.0" {
+			t.Fatalf("check status %d, payload %#v", resp.Code, payload)
+		}
+	})
 	t.Run("Should return an accepted runtime operation", func(t *testing.T) {
 		t.Parallel()
 

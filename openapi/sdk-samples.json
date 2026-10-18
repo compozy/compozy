@@ -246,6 +246,13 @@
             "resource": "worktrees",
             "app_access": "denied"
         },
+        "checkSettingsUpdate": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.checkSettingsUpdate();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckSettingsUpdate(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
         "claimNextAgentTask": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agent.claimNextAgentTask({ headers: { \"X-Compozy-Session-ID\": \"X-Compozy-Session-ID\", \"X-Compozy-Agent\": \"X-Compozy-Agent\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ClaimNextAgentTask(ctx, client.ClaimNextAgentTaskParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\"}, client.AgentTaskClaimNextRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",

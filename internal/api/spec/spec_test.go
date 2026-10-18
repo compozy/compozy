@@ -3168,6 +3168,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		t.Parallel()
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
+		applyApprovedAdditiveSchemaChanges(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3409,6 +3410,27 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 	}
 	t.Fatalf("missing raw stream frame component %s", name)
 	return nil
+}
+
+func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	// #804: optional additive field; no required/type/removal change.
+	// The pre-components fixture inlines SettingsUpdateRuntimePayload in the GET response.
+	properties := baseline
+	for _, key := range []string{
+		"paths", "/api/settings/update", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "runtime", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved update schema addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["checked_at"]; exists {
+		t.Fatal("approved update schema addition: checked_at already exists in the historical baseline")
+	}
+	properties["checked_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {

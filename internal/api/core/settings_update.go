@@ -12,6 +12,20 @@ import (
 
 var errSettingsUpdateUnavailable = errors.New("settings update controller is not configured")
 
+// CheckSettingsUpdate refreshes release discovery without acquiring an update operation.
+func (h *BaseHandlers) CheckSettingsUpdate(c *gin.Context) {
+	if h.SettingsUpdate == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
+		return
+	}
+	status, err := h.SettingsUpdate.CheckUpdate(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, SettingsUpdateResponseFromStatus(status))
+}
+
 // GetSettingsUpdate returns the current software update status snapshot.
 func (h *BaseHandlers) GetSettingsUpdate(c *gin.Context) {
 	if h.SettingsUpdate == nil {

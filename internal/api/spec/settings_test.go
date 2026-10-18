@@ -28,6 +28,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/general", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/persona", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/update/check", method: "POST", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/persona", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
