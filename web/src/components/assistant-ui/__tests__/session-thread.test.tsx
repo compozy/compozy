@@ -26,12 +26,7 @@ import {
   type SessionSendOutcome,
 } from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import {
-  primarySessionFixture,
-  quietWarningSessionFixture,
-  sessionTranscriptFixture,
-} from "@/systems/session/mocks/fixtures";
-import { sessionQuietWarning } from "@/systems/session/lib/session-quiet-warning";
+import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
   getSessionDebugCounters,
@@ -423,7 +418,6 @@ interface ThreadStateOptions {
   statusSession?: ComponentProps<typeof SessionThread>["statusSession"];
   stopCompletionNote?: boolean;
   stopPhase?: ComponentProps<typeof SessionThread>["stopPhase"];
-  quietWarning?: ComponentProps<typeof SessionThread>["quietWarning"];
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
@@ -449,7 +443,6 @@ function threadStateElement(
     statusSession = isSessionRunning ? runningStatusSession() : primarySessionFixture,
     stopCompletionNote = false,
     stopPhase = "idle",
-    quietWarning,
     acpSessionId,
     sessionState,
     failure = null,
@@ -515,7 +508,6 @@ function threadStateElement(
                 statusSession={statusSession}
                 stopCompletionNote={stopCompletionNote}
                 stopPhase={stopPhase}
-                quietWarning={quietWarning}
                 acpSessionId={acpSessionId}
                 sessionState={sessionState}
                 failure={failure}
@@ -1163,23 +1155,52 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  // Invariant (US-014.EC-2): while the daemon reports a quiet episode the
-  // status row never shows a working timer the daemon's own signals
-  // contradict; the window's quiet Alert is the one place the quiet clock reads.
-  it("Should keep the status row silent instead of a working timer while the daemon reports a quiet episode", async () => {
+  // Invariant: a turn the daemon's watchdog saw go quiet keeps its one working
+  // row, which adds "quiet for {d}" from the supervision episode — no notice, no
+  // second line; the composer Stop stays the action.
+  it("Should keep the working row with a quiet segment while the daemon reports a quiet turn", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-04-17T18:31:00Z"));
+    vi.setSystemTime(new Date("2026-04-17T18:42:00Z"));
     try {
+      const transcript = [
+        {
+          id: "assistant-quiet-turn",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              text: "Waiting on the build.",
+              state: "streaming",
+              turn_id: "turn-live",
+              timestamp: "2026-04-17T18:00:00Z",
+            },
+          ] as unknown as SessionMessage["parts"],
+        } as SessionMessage,
+      ];
       renderThreadState({
         status: "success",
+        messages: toReadonlyThreadMessages(transcript),
         isSessionRunning: true,
-        quietWarning: sessionQuietWarning(quietWarningSessionFixture),
+        statusSession: {
+          ...runningStatusSession("2026-04-17T18:00:00Z"),
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-04-17T18:30:00Z",
+              warned_at: "2026-04-17T18:40:00Z",
+              stop_at: "2026-04-17T18:50:00Z",
+            },
+            sources: [],
+            work_signals: [],
+          },
+        },
       });
 
-      await screen.findByTestId("composer-input");
-      expect(screen.queryByRole("status", { name: "Quiet" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("status", { name: "Working" })).not.toBeInTheDocument();
-      expect(screen.queryByTestId("session-working-row")).not.toBeInTheDocument();
+      const workingRow = await screen.findByTestId("session-working-row");
+      expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
+      expect(screen.getByTestId("session-working-timer")).toHaveTextContent("42m");
+      expect(screen.getByTestId("session-working-quiet")).toHaveTextContent("quiet for 12m");
+      expect(workingRow).toHaveTextContent(/Working for 42m.*quiet for 12m/);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

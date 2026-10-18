@@ -301,19 +301,6 @@ test("operator can create a provider/model override session and attach without l
     includeOverride: true,
   });
 
-  const attachResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response
-        .url()
-        .endsWith(
-          sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id, "/attach")
-        )
-  );
-
-  await expect(sessionUi.resumeButton).toBeVisible();
-  await sessionUi.resumeButton.click();
-  expect((await attachResponsePromise).ok()).toBe(true);
   await expect(sessionUi.stopButton).toBeVisible();
   await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await assertSessionParity(
@@ -324,7 +311,7 @@ test("operator can create a provider/model override session and attach without l
   );
 
   await sessionUi.stopButton.click();
-  await expect(sessionUi.resumeButton).not.toBeVisible();
+  await expect(sessionUi.stopButton).not.toBeVisible();
 });
 
 test("operator persists an advertised model and non-empty reasoning effort on the created session", async ({

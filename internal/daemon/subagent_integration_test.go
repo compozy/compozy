@@ -3969,6 +3969,7 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		d, m, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.QuietAfter = 2 * time.Second
 			cfg.Session.Supervision.StopGrace = 2 * time.Second
+			cfg.Session.Supervision.IdleReleaseAfter = 2 * time.Second
 		}, "injected")
 		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
 		if err != nil {
@@ -4017,19 +4018,22 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			t.Fatalf("waiting orchestrator = %+v, %v; want active", info, err)
 		}
 
-		// The target stops with the question still queued: no evidence remains, so the sender goes quiet.
+		// The target stops with the question still queued: no evidence remains, but an orchestrator waiting
+		// with no turn in flight is idle, not hung — it is never stopped for inactivity.
 		if err := m.Stop(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}
-		waitForRuntimeCondition(t, "orchestrator stopped for inactivity", 20*time.Second, func() bool {
-			info, err := m.Status(t.Context(), sender.ID)
-			return err == nil && info.State == session.StateStopped && info.StopReason == store.StopTimeout
-		})
+		time.Sleep(10 * time.Second)
+		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive ||
+			info.StopReason != "" || info.Supervision.QuietWarning != nil {
+			t.Fatalf("idle orchestrator = %+v, %v; want active without a quiet warning", info, err)
+		}
 		if w, err := db.GetReplyWatch(t.Context(), id); err != nil || w.State != store.ReplyWatchArmed {
-			t.Fatalf("watch while both sessions are stopped = %+v, %v; want armed", w, err)
+			t.Fatalf("watch while the target is stopped = %+v, %v; want armed", w, err)
 		}
 
-		// The operator resumes the target; its answer resumes the orchestrator and wakes it once.
+		// The operator resumes the target; its answer wakes the idle orchestrator once, rebinding its
+		// runtime if the supervisor released it.
 		if _, err := m.Resume(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}

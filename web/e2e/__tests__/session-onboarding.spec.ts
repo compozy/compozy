@@ -195,13 +195,10 @@ test("operator can onboard, create a session, submit work, approve a permission 
   );
   const workedFold = sessionWin.getByRole("button", { name: /^Worked/ });
   await expect(workedFold).toHaveCount(0);
-  await expect(sessionUi.resumeButton).toBeVisible();
-
-  await sessionUi.resumeButton.click();
   await expect(sessionUi.stopButton).toBeVisible();
 
   await sessionUi.stopButton.click();
-  await expect(sessionUi.resumeButton).not.toBeVisible();
+  await expect(sessionUi.stopButton).not.toBeVisible();
 
   await browserArtifacts.captureScreenshot("session-onboarding-hydrated", appPage);
 });

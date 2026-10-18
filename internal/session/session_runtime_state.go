@@ -29,6 +29,7 @@ type runtimeBindingSnapshot struct {
 	liveness            *store.SessionLivenessMeta
 	agentDef            compozyconfig.AgentDef
 	startupManifest     acp.StartupManifest
+	runtimeRelease      *runtimeRelease
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -61,6 +62,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		liveness:            store.CloneSessionLivenessMeta(s.Liveness),
 		agentDef:            compozyconfig.CloneAgentDef(s.agentDef),
 		startupManifest:     acp.CloneStartupManifest(s.startupManifest),
+		runtimeRelease:      s.runtimeRelease,
 	}
 }
 
@@ -125,6 +127,9 @@ func (s *Session) completeRuntimeTransitionLocked(
 	now time.Time,
 ) *AgentProcess {
 	previous := s.process
+	if proc != nil {
+		s.runtimeRelease = nil
+	}
 	s.Provider = strings.TrimSpace(selection.Provider)
 	s.Model = strings.TrimSpace(selection.Model)
 	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)
@@ -213,6 +218,7 @@ func (s *Session) restoreRecoveryBinding(
 
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
+	s.runtimeRelease = snapshot.runtimeRelease
 	s.Provider = snapshot.selection.Provider
 	s.Model = snapshot.selection.Model
 	s.ReasoningEffort = snapshot.selection.ReasoningEffort

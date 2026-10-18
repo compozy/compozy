@@ -19,7 +19,6 @@ const routeHookMocks = vi.hoisted(() => ({
   deleteOptions: { current: undefined as { onDeleteSuccess?: () => void } | undefined },
   deleteMutation: { isPending: false, mutate: vi.fn() },
   renameMutation: { isPending: false, mutateAsync: vi.fn() },
-  resumeMutation: { isPending: false, mutateAsync: vi.fn() },
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
@@ -85,7 +84,6 @@ vi.mock("@/systems/session", async () => {
     useSendSessionPrompt: () => routeHookMocks.sendPromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
     useRenameSession: () => routeHookMocks.renameMutation,
-    useResumeSession: () => routeHookMocks.resumeMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
     useSessionInputs: (
       _workspaceId: string,
@@ -197,8 +195,6 @@ describe("useSessionPageControls", () => {
     }
     routeHookMocks.deleteMutation.isPending = false;
     routeHookMocks.deleteMutation.mutate.mockReset();
-    routeHookMocks.resumeMutation.isPending = false;
-    routeHookMocks.resumeMutation.mutateAsync.mockReset();
     routeHookMocks.renameMutation.isPending = false;
     routeHookMocks.renameMutation.mutateAsync.mockReset();
     routeHookMocks.unarchiveMutation.isPending = false;
@@ -588,7 +584,6 @@ describe("useSessionPageControls", () => {
       result.current.handleStop();
       result.current.handleDelete();
       result.current.handleClear();
-      result.current.handleResume();
       result.current.handleUnarchive();
     });
     await expect(result.current.handleRename("Managed title")).resolves.toBeUndefined();
@@ -596,7 +591,6 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.stopMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
-    expect(routeHookMocks.resumeMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.unarchiveMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.renameMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();

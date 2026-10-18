@@ -14,8 +14,9 @@ const (
 	// activity before recovery marks it stalled.
 	DefaultLivenessStallAfter = 2 * time.Minute
 
-	resumeStopDetailAgentOrphaned = "daemon exited while session subprocess remained alive"
-	resumeStopDetailAgentStalled  = "daemon exited while stalled session subprocess remained alive"
+	resumeStopDetailRuntimeReleased = "daemon exited while the idle session runtime was released"
+	resumeStopDetailAgentOrphaned   = "daemon exited while session subprocess remained alive"
+	resumeStopDetailAgentStalled    = "daemon exited while stalled session subprocess remained alive"
 )
 
 // ClassifyInactiveMetaForRecovery preserves stopping until recorded process death is proven.
@@ -25,11 +26,8 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 	}
 	next := *meta
 	next.Liveness = store.CloneSessionLivenessMeta(meta.Liveness)
-	// An accepted logical session has no subprocess until its first prompt binds
-	// one: there is no exit to prove and nothing crashed, so it survives a daemon
-	// restart as it is.
-	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
-		return next, false
+	if classified, changed, ok := classifyUnboundMetaForRecovery(meta, &next); ok {
+		return classified, changed
 	}
 	state := State(strings.TrimSpace(meta.State))
 	if interruptedStartupMeta(meta) {
@@ -91,6 +89,36 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 	default:
 		return next, false
 	}
+}
+
+// classifyUnboundMetaForRecovery handles sessions without a subprocess to verify. An
+// accepted logical session has none until its first prompt binds one: nothing crashed,
+// so it survives a daemon restart as it is. A released idle runtime was stopped and
+// verified before the daemon exited: the session ends like a clean shutdown and its
+// next prompt resumes the ACP session.
+func classifyUnboundMetaForRecovery(meta, next *store.SessionMeta) (store.SessionMeta, bool, bool) {
+	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
+		return *next, false, true
+	}
+	if !releasedRuntimeMeta(meta) {
+		return store.SessionMeta{}, false, false
+	}
+	next.State = string(StateStopped)
+	next.StopVerificationFailed = false
+	next.StopReason = new(store.StopShutdown)
+	next.StopDetail = resumeStopDetailRuntimeReleased
+	classified, changed := recoveredMeta(meta, next)
+	return classified, changed, true
+}
+
+// releasedRuntimeMeta identifies the persisted shape of an idle runtime release: an
+// active session with an ACP session id, no runtime transition, and no subprocess.
+func releasedRuntimeMeta(meta *store.SessionMeta) bool {
+	return State(strings.TrimSpace(meta.State)) == StateActive &&
+		meta.RuntimeStatus == store.SessionRuntimeUnbound &&
+		meta.RuntimeTransition == store.SessionRuntimeTransitionNone &&
+		strings.TrimSpace(derefString(meta.ACPSessionID)) != "" &&
+		meta.Liveness != nil && meta.Liveness.SubprocessPID == 0 && meta.Liveness.SubprocessStartedAt == nil
 }
 
 // recoveredMeta returns the classified metadata and whether it differs from the source.

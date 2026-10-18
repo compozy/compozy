@@ -1230,8 +1230,12 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 	})
 }
 
-// Invariant: quiet and grace are independent nonnegative durations. Owner: config decoder/validator; canonical config suite.
+// Invariant: quiet, grace, and idle release are independent nonnegative durations.
+// Owner: config decoder/validator; canonical config suite.
 func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
+	if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
+		t.Fatalf("default idle_release_after = %s, want 30m", got)
+	}
 	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
 		cfg := DefaultSessionSupervisionConfig()
 		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
@@ -1239,12 +1243,15 @@ func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, field := range []string{"quiet_after", "stop_grace"} {
+	for _, field := range []string{"quiet_after", "stop_grace", "idle_release_after"} {
 		cfg := DefaultSessionSupervisionConfig()
-		if field == "quiet_after" {
+		switch field {
+		case "quiet_after":
 			cfg.QuietAfter = -time.Second
-		} else {
+		case "stop_grace":
 			cfg.StopGrace = -time.Second
+		default:
+			cfg.IdleReleaseAfter = -time.Second
 		}
 		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
 			t.Fatalf("%s: %v", field, err)

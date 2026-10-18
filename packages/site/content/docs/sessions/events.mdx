@@ -141,7 +141,7 @@ The persisted event `type` values currently emitted by CompozyOS are:
 | `prompt_delivery`              | Confirmed delivery of CompozyOS-owned context                                                             | `delivery` with turn, send time, estimate method and disjoint spans                                           |
 | `usage`                        | Token or context usage update                                                                             | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
 | `runtime_progress`             | Low-frequency long-running prompt progress update                                                         | `text`, `runtime` activity payload                                                                            |
-| `runtime_warning`              | Runtime supervision warning or inactivity timeout notice                                                  | `text`, `runtime` activity payload, optional `raw`                                                            |
+| `runtime_warning`              | Prompt deadline exceeded, or a failed runtime health check during a prompt                                | `text`, `runtime` activity payload, optional `raw`                                                            |
 | `compaction`                   | Snapshot of one observed agent compaction; appended when status, summary, or error changes (experimental) | `compaction_id`, `status`, optional `summary`, optional `error`, `terminal` on the first terminal snapshot    |
 | `session.compaction_fired`     | First observation of an agent compaction id (experimental)                                                | `raw` with `compaction_id`, `trigger`, `context_used`, `context_size` (`null` when unknown)                   |
 | `session.compaction.requested` | A compact request CompozyOS accepted for the turn that carries it (experimental)                          | `raw` with `session_id`, `command`, `requested_by` (`cli`, `http`, `tool`, `goal`, or `web`)                  |
@@ -184,10 +184,25 @@ Example `runtime_progress` content:
 }
 ```
 
-`runtime_warning` is emitted once when `session.supervision.inactivity_warning_after` is crossed.
-If `session.supervision.inactivity_timeout` is crossed, CompozyOS cancels the active prompt
-cooperatively. If the prompt does not finish within `timeout_cancel_grace`, CompozyOS stops the session
-with stop reason `timeout` and stop detail `activity_timeout`.
+`runtime_warning` is emitted once when an explicit `session.supervision.prompt_deadline` is
+crossed. CompozyOS then cancels the active prompt cooperatively. If the prompt does not finish
+within `timeout_cancel_grace`, CompozyOS stops the session with stop reason `timeout` and stop detail
+`prompt_deadline_exceeded`. A failed runtime health check during a prompt also emits one
+`runtime_warning`.
+
+Silence supervision records separate daemon-authored facts. Their `raw` payload carries
+`workspace_id`, `session_id`, `turn_id`, `actor_id: "daemon"`, `actor_kind: "system"`,
+`cause: "inactivity"`, and the current `supervision` state:
+
+- `session.supervision_warning` is recorded once per quiet episode when a turn in flight has been
+  silent for `session.supervision.quiet_after`. A session with no turn in flight never records it.
+- `session.supervision_stopped` is recorded after verified termination of an inactivity stop, which
+  uses stop reason `timeout` and stop detail `inactivity`.
+- `session.supervision_source_error` is recorded when a work signal source cannot be inspected.
+
+Idle runtime release (`session.supervision.idle_release_after`) records none of these events and no
+`session_stopped`; the session stays active. See
+[idle runtime release](/docs/sessions/lifecycle#idle-runtime-release).
 
 ### Shared canonical fields inside `content`
 

@@ -84,7 +84,6 @@ export {
   useDeleteSession,
   useRepairSession,
   useRenameSession,
-  useResumeSession,
   useSendSessionPrompt,
   useStopSession,
   useUnarchiveSession,

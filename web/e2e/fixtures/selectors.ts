@@ -51,7 +51,6 @@ export const sessionWindowTestIds = {
   permissionAllowOnce: "permission-allow-once",
   permissionPrompt: "permission-dock",
   processingIndicator: "processing-indicator",
-  resumeButton: "resume-button",
   stopButton: "stop-button",
   topbarOverflow: "session-topbar-overflow",
   userMessageAttachmentFileCard: "user-message-attachment-file-card",
@@ -90,7 +89,6 @@ export interface SessionWindowSelectors {
   permissionAllowOnce: Locator;
   permissionPrompt: Locator;
   processingIndicator: Locator;
-  resumeButton: Locator;
   stopButton: Locator;
   topbarOverflow: Locator;
   userMessageAttachmentFileCard: Locator;
@@ -702,7 +700,6 @@ export function sessionWindowSelectors(
     permissionAllowOnce: win.getByTestId(sessionWindowTestIds.permissionAllowOnce),
     permissionPrompt: win.getByTestId(sessionWindowTestIds.permissionPrompt),
     processingIndicator: win.getByTestId(sessionWindowTestIds.processingIndicator),
-    resumeButton: win.getByTestId(sessionWindowTestIds.resumeButton),
     stopButton: win.getByTestId(sessionWindowTestIds.stopButton),
     topbarOverflow: win.getByTestId(sessionWindowTestIds.topbarOverflow),
     userMessageAttachmentFileCard: win.getByTestId(

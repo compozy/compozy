@@ -35,7 +35,6 @@ describe("artifact collector", () => {
       message_count: 2,
       permission_prompt_visible: false,
       processing_indicator_visible: false,
-      resume_button_visible: false,
       session_name: "browser-session",
       stop_button_visible: true,
     };

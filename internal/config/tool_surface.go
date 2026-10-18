@@ -81,6 +81,7 @@ var (
 		"session.supervision.inactivity_timeout":                   ConfigValueDuration,
 		"session.supervision.quiet_after":                          ConfigValueDuration,
 		"session.supervision.stop_grace":                           ConfigValueDuration,
+		"session.supervision.idle_release_after":                   ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":                 ConfigValueDuration,
 		"session.busy_input.default_mode":                          ConfigValueString,
 		"session.busy_input.queue_cap":                             ConfigValueInt,

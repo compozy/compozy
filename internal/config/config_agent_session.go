@@ -81,7 +81,10 @@ type SessionSupervisionConfig struct {
 	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
 	QuietAfter                time.Duration `toml:"quiet_after"`
 	StopGrace                 time.Duration `toml:"stop_grace"`
-	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
+	// IdleReleaseAfter releases the agent process of a session that has no turn in
+	// flight and no work for this long; the next prompt rebinds it. Zero disables.
+	IdleReleaseAfter   time.Duration `toml:"idle_release_after"`
+	TimeoutCancelGrace time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 
 // SessionBusyInputConfig controls operator input submitted while a turn is active.

@@ -242,7 +242,8 @@ transcripts, and use workspace-relative paths.
 - `HEARTBEAT.md` is **not** task-run lease heartbeat. `task_runs` + `ClaimNextRun` +
   `HeartbeatRunLease` remain the only ownership authority and never read `HEARTBEAT.md`.
 - `HEARTBEAT.md` is **not** session activity supervision. `[session.supervision]` continues to own
-  active prompt activity timers, runtime progress, warnings, and inactivity timeouts. See
+  active prompt activity timers, runtime progress, the in-flight turn warning and inactivity stop,
+  and idle runtime release. See
   [Session Lifecycle → Runtime activity supervision](/docs/sessions/lifecycle).
 - `HEARTBEAT.md` is **not** session health. Health is metadata-only and lives in
   `session_health`. `HEARTBEAT.md` consumes health; it never implements it.

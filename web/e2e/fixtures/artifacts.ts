@@ -130,7 +130,6 @@ export interface BrowserRouteState {
   permission_prompt_visible: boolean;
   processing_indicator_visible: boolean;
   stop_button_visible: boolean;
-  resume_button_visible: boolean;
   message_count: number;
 }
 
