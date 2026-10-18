@@ -17,6 +17,6 @@ Expected: B reaches ready with one automatically queued run. Before the fix, B r
 
 ## Fix and verification
 
-The auto-enqueue call was confined to leased completion publication. It now runs in shared completed-run publication after dependent reconciliation, preserving existing Loop-worker and enqueue guards. Fix commit: this change's implementation commit.
+The auto-enqueue call was confined to leased completion publication. It now uses a shared dependent dispatcher from both completion paths after reconciliation and completion notifications, preserving existing Loop-worker and enqueue guards. Fix commit: this change's implementation commit.
 
 Regression test: existing `TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration` with real SQLite, manual/leased completion, opt-out, concurrent blockers and completion replay. Manual cases failed before and passed after the fix. The real CLI/HTTP walk confirmed one queued run, persistence across daemon restart, and no duplicate on completion replay. Opt-out and failed-blocker canaries retained zero runs.

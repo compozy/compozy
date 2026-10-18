@@ -1452,7 +1452,27 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 
 				ctx := testutil.Context(t)
 				db := openTaskManagerGlobalDB(t)
-				manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+				var blockerID string
+				completionNotified := false
+				hooks := integrationTaskRunHooks{
+					completed: func(hookCtx context.Context, payload hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error) {
+						if payload.TaskID == blockerID {
+							if err := hookCtx.Err(); err != nil {
+								t.Errorf("completion hook context error = %v", err)
+							}
+							completionNotified = true
+						}
+						return payload, nil
+					},
+					enqueued: func(_ context.Context, payload hookspkg.TaskRunEnqueuedPayload) (hookspkg.TaskRunEnqueuedPayload, error) {
+						if leased && payload.TaskID != blockerID && !completionNotified {
+							t.Error("dependent enqueue hook ran before blocker completion notification")
+						}
+						return payload, nil
+					},
+				}
+				manager := newTaskManagerIntegration(t, db,
+					taskpkg.WithSessionExecutor(&integrationSessionExecutor{}), taskpkg.WithTaskRunHooks(hooks))
 
 				actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 				if err != nil {
@@ -1467,6 +1487,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 				if err != nil {
 					t.Fatalf("CreateTask(blocker) error = %v", err)
 				}
+				blockerID = blocker.ID
 				optedIn, err := manager.CreateTask(ctx, taskpkg.CreateTask{
 					ProfileID:          store.DefaultProfileID,
 					Scope:              taskpkg.ScopeGlobal,
@@ -1559,6 +1580,9 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 					}
 				}
 
+				if leased && !completionNotified {
+					t.Fatal("blocker completion hook was not delivered")
+				}
 				optedInRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedIn.ID})
 				if err != nil {
 					t.Fatalf("ListTaskRuns(opted-in) error = %v", err)

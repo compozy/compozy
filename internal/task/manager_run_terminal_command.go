@@ -159,13 +159,15 @@ func (m *Service) publishTerminalRunCommandSettlement(
 	switch settlement.command.Kind() {
 	case TerminalRunCommandCompleted:
 		m.publishTaskEventsAfterCommand(publicationCtx, settlement.events)
-		taskRecord, err := m.publishCompletedRunSettlement(publicationCtx, &CompletedRunSettlement{
+		completed := &CompletedRunSettlement{
 			Run:               settlement.run,
 			Task:              settlement.task,
 			StatusTransitions: settlement.statusTransitions,
 			RolledUpRuns:      settlement.rolledUpRuns,
-		}, actor)
+		}
+		taskRecord, err := m.publishCompletedRunSettlement(publicationCtx, completed, actor)
 		m.dispatchTerminalWake(publicationCtx, taskRecord, settlement.run, actor)
+		m.autoEnqueueCompletedRunDependents(publicationCtx, completed, actor)
 		return err
 	case TerminalRunCommandFailed, TerminalRunCommandCanceled:
 		m.publishTaskRunMutationSettlement(publicationCtx, &taskRunMutationSettlement{

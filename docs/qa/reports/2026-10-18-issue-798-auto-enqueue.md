@@ -27,7 +27,7 @@ The opt-out canary became `ready` with zero runs. The failed-blocker canary rema
 
 - Bug: `BUG-20261018-dependent-run-missing` / GitHub #798.
 - Root cause: dependent auto-enqueue lived only in leased completion publication; direct completion reconciled dependents without enqueuing them.
-- Fix: move the existing bounded auto-enqueue call into shared completed-run publication, after dependent reconciliation. Preserve the Loop-worker exclusion and canonical enqueue/idempotency guards.
+- Fix: reuse one bounded completed-run dependent dispatcher from direct and leased completion, after reconciliation and completion notifications. Preserve the Loop-worker exclusion and canonical enqueue/idempotency guards.
 - Canonical SQLite suite: `TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration`, extended for manual and leased completion, concurrent blockers, opt-out, and completion replay after service recreation. Both manual cases failed before the fix with zero dependent runs; all four pass after it.
 - Focused race validation also passed completion/rollup, block breaker, transient expiry, approval, recovery, and terminal-session suites (16.234s); final auto-enqueue rerun passed (4.679s).
 - Pinned golangci-lint v2.13.1 on `internal/task` without integration tags: zero issues. With integration tags it additionally exposed eight pre-existing findings; the one introduced formatting finding was corrected. The installed binary was built with an older Go version, so the pinned tool was run with the repository's current toolchain.
@@ -42,3 +42,15 @@ The lab strict audit and cleanup receipts are retained in its scratch `qa/` dire
 ## Final Status
 
 Targeted behavior: PASS. One Blocks-Completion bug fixed and re-walked; no outstanding findings in this slice. Heavy local gates were explicitly prohibited; focused checks passed. PR readiness remains governed by current-head required CI, CodeRabbit, Greptile and React Doctor.
+
+
+## Review remediation re-walk
+
+Greptile finding `discussion_r4307465873` identified a shared-deadline regression: enqueue hooks had moved ahead of leased completion notifications. The canonical SQLite suite now verifies the completion hook is observed before a dependent enqueue hook. That assertion failed before the ordering fix. The final implementation calls the shared dependent dispatcher from both completion paths after their completion notifications.
+
+| Scenario | Status |
+|---|---|
+| Reviewed binary: CLI/HTTP enqueue, opt-out/failure, restart/replay | Pass |
+
+
+The reviewed binary passed the fresh CLI/HTTP re-walk: one queued dependent run, opt-out zero runs, failed blocker still blocked with zero runs, and unchanged single-run identity after restart/replay. The focused auto-enqueue, completion/rollup, terminal-session and hook suites passed with race (13.942s); integration-tag lint reported zero new findings. Both lab passes retain their strict audit and clean teardown receipts in scratch evidence. PR readiness still awaits the final head's CI and reviewer coverage.
