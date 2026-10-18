@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -29,24 +30,7 @@ func (m *Manager) watchSteerCompletion(
 				service.OnSteerResolved(ctx, session.ID, "")
 			}
 		}()
-		// Serialize the delivery decision with prepareStop's lifecycle transition.
-		session.mu.Lock()
-		if session.State != StateActive {
-			session.mu.Unlock()
-			if err := m.inputQueue.CancelPendingSteer(ctx, session.ID, entryID); err != nil {
-				m.sessionLogger(session).Error("session: cancel stopped session steer failed", "error", err)
-			}
-			return
-		}
-		if unresolved && !m.savePendingSteer(ctx, session, entryID) {
-			session.mu.Unlock()
-			return
-		}
-		resolved, changed, err := m.inputQueue.SettlePendingSteer(ctx, session.ID, entryID, delivery)
-		if err == nil && changed {
-			session.steerDelivery = delivery
-		}
-		session.mu.Unlock()
+		resolved, changed, err := m.settleSteerCompletion(ctx, session, entryID, delivery, unresolved)
 		if err != nil {
 			m.sessionLogger(session).
 				Error("session: settle steer completion failed", "entry_id", entryID, "error", err)
@@ -83,13 +67,45 @@ func (m *Manager) watchSteerCompletion(
 	})
 }
 
-// savePendingSteer saves the pending resolution an injection could not record, so the provider's outcome
-// can settle it. A row still unsaved stays leased for boot recovery; it is never delivered again.
-func (m *Manager) savePendingSteer(ctx context.Context, session *Session, entryID string) bool {
-	_, err := m.resolveAcceptedSteer(ctx, session.ID, entryID, store.SteerDeliveryPendingInjection)
-	if err != nil {
-		m.sessionLogger(session).Error("session: save pending steer before settling failed",
+// settleSteerCompletion retains the lease and provider outcome while storage recovers. Each attempt
+// serializes with Stop, but logging and backoff happen without the session lock.
+func (m *Manager) settleSteerCompletion(
+	ctx context.Context, session *Session, entryID string, delivery store.SteerDeliveryMode, unresolved bool,
+) (store.SessionInputQueueEntry, bool, error) {
+	for delay := queuedInputSentRetryDelay; ; delay = min(2*delay, queuedInputSentRetryMaxDelay) {
+		// Serialize the delivery decision with prepareStop's lifecycle transition.
+		session.mu.Lock()
+		if session.State != StateActive {
+			session.mu.Unlock()
+			return store.SessionInputQueueEntry{}, false, m.inputQueue.CancelPendingSteer(ctx, session.ID, entryID)
+		}
+		var (
+			resolved store.SessionInputQueueEntry
+			changed  bool
+			err      error
+		)
+		if unresolved {
+			_, err = m.resolveAcceptedSteer(ctx, session.ID, entryID, store.SteerDeliveryPendingInjection)
+			unresolved = err != nil
+		}
+		if err == nil {
+			resolved, changed, err = m.inputQueue.SettlePendingSteer(ctx, session.ID, entryID, delivery)
+		}
+		if err == nil && changed {
+			session.steerDelivery = delivery
+		}
+		session.mu.Unlock()
+		if err == nil {
+			return resolved, changed, nil
+		}
+		m.sessionLogger(session).Warn("session: settle steer completion failed; retrying",
 			"entry_id", entryID, "error", err)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return store.SessionInputQueueEntry{}, false, ctx.Err()
+		case <-timer.C:
+		}
 	}
-	return err == nil
 }

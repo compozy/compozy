@@ -82,6 +82,9 @@ Busy-target policy regression (#760)
     A queued agent message is injected as steer with its original message id; with `0s` it keeps
     waiting; with a human entry waiting it is not promoted. As the operator, Steer an agent queue row
     (works) and try to replace it (409 `input_agent_authored`).
+    Fail persistence while a pending injection is rejected: status and Stop remain responsive,
+    the entry stays leased, and restoring storage returns it to after-turn delivery without
+    injecting the guidance again.
 14. Hop and rate: A answering the session that drives its turn, or sending with `in_reply_to`, keeps
     the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
     that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, and both

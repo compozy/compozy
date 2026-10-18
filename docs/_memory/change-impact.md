@@ -14,45 +14,14 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
-## Concurrent-session responsiveness — 2026-10-17
+## Release integration repairs — 2026-10-18
 
-Owner: branch `perf/responsiveness-audit`; measured evidence, attempted experiments
-and verification limits live in
-`docs/qa/reports/2026-10-17-responsiveness.md`.
-
-Database reads retain task activity/facets, pending terminal approval scope and
-pagination. Workspace detail selects catalog IDs before hydrating their existing
-metadata. Missing-origin Goal outbox rows remain durable and undelivered; they are
-excluded before the delivery batch limit and become eligible if the origin is
-restored. No schema or persisted-state shape changes are involved. Context reads consume
-one ordered union of the five relevant ledger event types; usage notifications
-read event metadata while retaining all-event cursor progression, snapshot
-fences, cancellation and the existing store-owner retry behavior.
-
-Web retains the same server-state keys, envelopes, workspace/profile partitions,
-stream fences and visible-window ownership. Live catalog wakes coalesce canonical
-detail rereads without canceling in-flight work or dropping the final wake. Weak
-transcript-result retention releases obsolete arrays while held consumer views
-remain valid. Exact query lookups preserve custom hashes and all by-ID profile
-lenses when stream fallback timers are re-armed. Direct and permalink routes
-start the canonical transcript prefetch after identity/scope validation without
-blocking route entry on that optional data request.
-
-MCP projection changes are internal: policy-invisible tools avoid backend probes,
-unchanged stream projections avoid schema cloning, and extension availability is
-batched within one projection. Calls retain their policy and backend revalidation;
-no persistent availability cache or longer authorization staleness is introduced.
-Native tool IDs, HTTP/UDS/CLI wire contracts, extension RPC contracts, hooks,
-configuration and official skill behavior remain unchanged. Two paragraphs in
-`skills/compozy/references/native-tools.md` are shortened without removing their
-contracts so the startup manual fits its existing byte budget. No site guide,
-compatibility adapter or migration is required. Generated SQL query code follows
-the existing generator.
-
-Affected QA legs are tracked in the owning workspace, live-session,
-hidden-window, task catalog, attention catalog, usage/context, deep-link, Goal
-lineage and tool-projection scenarios. Historical passes do
-not prove this revision; the report records current checks and outstanding walks.
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
 
 ## Agent CPU priority and load-aware admission — 2026-10-17
 
@@ -140,6 +109,46 @@ native tools, hooks, extensibility, config keys, persisted state, and official `
 are unchanged; no migration or compatibility adapter is needed. Workspace/profile isolation is
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
+
+## Concurrent-session responsiveness — 2026-10-17
+
+Owner: branch `perf/responsiveness-audit`; measured evidence, attempted experiments
+and verification limits live in
+`docs/qa/reports/2026-10-17-responsiveness.md`.
+
+Database reads retain task activity/facets, pending terminal approval scope and
+pagination. Workspace detail selects catalog IDs before hydrating their existing
+metadata. Missing-origin Goal outbox rows remain durable and undelivered; they are
+excluded before the delivery batch limit and become eligible if the origin is
+restored. No schema or persisted-state shape changes are involved. Context reads consume
+one ordered union of the five relevant ledger event types; usage notifications
+read event metadata while retaining all-event cursor progression, snapshot
+fences, cancellation and the existing store-owner retry behavior.
+
+Web retains the same server-state keys, envelopes, workspace/profile partitions,
+stream fences and visible-window ownership. Live catalog wakes coalesce canonical
+detail rereads without canceling in-flight work or dropping the final wake. Weak
+transcript-result retention releases obsolete arrays while held consumer views
+remain valid. Exact query lookups preserve custom hashes and all by-ID profile
+lenses when stream fallback timers are re-armed. Direct and permalink routes
+start the canonical transcript prefetch after identity/scope validation without
+blocking route entry on that optional data request.
+
+MCP projection changes are internal: policy-invisible tools avoid backend probes,
+unchanged stream projections avoid schema cloning, and extension availability is
+batched within one projection. Calls retain their policy and backend revalidation;
+no persistent availability cache or longer authorization staleness is introduced.
+Native tool IDs, HTTP/UDS/CLI wire contracts, extension RPC contracts, hooks,
+configuration and official skill behavior remain unchanged. Two paragraphs in
+`skills/compozy/references/native-tools.md` are shortened without removing their
+contracts so the startup manual fits its existing byte budget. No site guide,
+compatibility adapter or migration is required. Generated SQL query code follows
+the existing generator.
+
+Affected QA legs are tracked in the owning workspace, live-session,
+hidden-window, task catalog, attention catalog, usage/context, deep-link, Goal
+lineage and tool-projection scenarios. Historical passes do
+not prove this revision; the report records current checks and outstanding walks.
 
 ## Web runtime performance — 2026-10-17
 

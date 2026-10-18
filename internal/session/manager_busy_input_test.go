@@ -3689,12 +3689,14 @@ func (r *userMessageFailingRecorder) RecordPersisted(
 // steerResolveFailureStore fails steer resolution while armed, after the provider accepted the guidance.
 type steerResolveFailureStore struct {
 	*globaldb.GlobalDB
-	armed atomic.Bool
+	armed    atomic.Bool
+	attempts atomic.Int32
 }
 
 func (s *steerResolveFailureStore) ResolveSessionSteer(
 	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode, now time.Time,
 ) (store.SessionInputQueueEntry, error) {
+	s.attempts.Add(1)
 	if s.armed.Load() {
 		return store.SessionInputQueueEntry{}, errors.New("steer resolution unavailable")
 	}
@@ -5158,8 +5160,22 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		if err != nil || entry.Status != store.SessionInputQueueStatusDispatching || entry.Dispatchable {
 			t.Fatalf("entry = %#v, %v; want the pending promotion kept leased while unsaved", entry, err)
 		}
-		failing.armed.Store(false)
+		attempts := failing.attempts.Load()
 		completion <- errors.New("tool never finished")
+		waitForCondition(t, "pending completion persistence failed", func() bool {
+			return failing.attempts.Load() >= attempts+steerPersistAttempts
+		})
+		statusRead := make(chan struct{})
+		go func() {
+			f.sess.Info()
+			close(statusRead)
+		}()
+		select {
+		case <-statusRead:
+		case <-time.After(5 * time.Second):
+			t.Fatal("pending steer persistence failure blocked session status")
+		}
+		failing.armed.Store(false)
 		waitForCondition(t, "rejected pending promotion reverted", func() bool {
 			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
 			return err == nil && entry.Mode == store.SessionInputQueueModeQueue &&
