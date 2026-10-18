@@ -1012,6 +1012,19 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
   });
 
+  it("Should say the folders failed to load and retry from the list", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderList({
+      sessions: layoutRows,
+      view: { ...view, sort: "manual", layoutError: { retry } },
+    });
+    expect(screen.getByText("Couldn’t load folders.")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("Should keep manual reorder off on a later catalog page", async () => {
     const layout = fakeLayout();
     const catalog: NonNullable<SessionListViewModel["catalog"]> = {

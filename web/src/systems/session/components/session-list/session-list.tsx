@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { WifiOff } from "lucide-react";
+import { TriangleAlert, WifiOff } from "lucide-react";
 
-import { Alert, AlertDescription, Button, SearchInput } from "@compozy/ui";
+import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@compozy/ui";
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
@@ -127,6 +127,17 @@ export function SessionList({
           <AlertDescription>
             Can&apos;t get session updates right now. The sessions below may be out of date.
           </AlertDescription>
+        </Alert>
+      ) : null}
+      {view.layoutError ? (
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+          <AlertActions>
+            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
+              Retry
+            </Button>
+          </AlertActions>
         </Alert>
       ) : null}
       {sections && layout ? (
