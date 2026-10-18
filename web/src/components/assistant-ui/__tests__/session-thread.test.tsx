@@ -872,6 +872,9 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByText("Gate fixed on main.")).toBeInTheDocument();
     expect(normalized.map(message => message.id)).toEqual(["goal-turn-1", "goal-turn-2"]);
     expect(normalized[1]?.parts.map(part => part.type)).toEqual(["text"]);
+    // A malformed envelope is never mistaken for a message of invalid parts.
+    const malformed = { id: "bogus-role", role: "bogus", parts: [{ type: "text", text: "kept" }] };
+    await expect(normalizeTranscriptMessages([...transcript, malformed])).rejects.toThrow();
     expect(warn).toHaveBeenCalledWith(
       "Dropped an invalid transcript part",
       expect.objectContaining({ messageId: "goal-turn-2", partIndex: 0, partType: "reasoning" })
