@@ -1211,7 +1211,8 @@ func TestReplyWatchBatchedDispatch(t *testing.T) {
 			t.Fatalf("claim = %v, %v", ok, err)
 		}
 		// The follower was delivered in the head's turn, but its own input event was never written.
-		if err := db.MarkSessionInputSentInTurn(t.Context(), target.ID, entry.ID, "batch-turn", h.manager.now()); err != nil {
+		err := db.MarkSessionInputSentInTurn(t.Context(), target.ID, entry.ID, "batch-turn", h.manager.now())
+		if err != nil {
 			t.Fatal(err)
 		}
 		if err := service.Reconcile(t.Context(), w.ID); err != nil {
