@@ -65,7 +65,7 @@ func (m *Manager) replayActiveStopEvent(ctx context.Context, id string, row *sto
 	if err := json.Unmarshal([]byte(row.Content), &event); err != nil {
 		return err
 	}
-	persisted, err := m.appendDurableSessionEvent(ctx, id, *row)
+	persisted, _, err := m.appendDurableSessionEvent(ctx, id, *row)
 	if err != nil {
 		return err
 	}

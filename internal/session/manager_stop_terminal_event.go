@@ -40,7 +40,8 @@ func (m *Manager) recordSessionStoppedEvent(
 			return persisted, nil
 		}
 		recorderErr = err
-		return m.appendStoredSessionEvent(ctx, session.ID, event)
+		persisted, _, storedErr := m.appendStoredSessionEvent(ctx, session.ID, event)
+		return persisted, storedErr
 	}
 	if err := m.recordEventWithWriter(ctx, session, *normalizedStop, "", write); err != nil {
 		return errors.Join(err, recorderErr)
@@ -98,7 +99,8 @@ func recordIdempotentSessionEvent(
 	event store.SessionEvent,
 ) (store.SessionEvent, error) {
 	if appender, ok := recorder.(idempotentSessionEventAppender); ok {
-		return appender.AppendEventIfAbsent(ctx, event)
+		persisted, _, err := appender.AppendEventIfAbsent(ctx, event)
+		return persisted, err
 	}
 	return recordPersistedSessionEvent(ctx, recorder, event)
 }

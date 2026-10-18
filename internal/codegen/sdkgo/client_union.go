@@ -9,9 +9,16 @@ import (
 
 func renderClientUnion(g *typeGenerator, op ClientOperation) ([]*jen.Statement, error) {
 	name := exportIdentifier(op.ID) + "Frame"
+	fields := []jen.Code{jen.Id("Raw").Qual("encoding/json", "RawMessage")}
+	if op.Kind == ClientOperationJSON {
+		fields = append(fields, jen.Id("StatusCode").Int().Tag(map[string]string{"json": "-"}))
+	}
 	blocks := []*jen.Statement{
-		jen.Comment(name + " preserves each event payload; decode its variant using the event name.").Line().
-			Type().Id(name).Struct(jen.Id("Raw").Qual("encoding/json", "RawMessage")),
+		jen.Comment(name + " preserves each response payload; select its variant using the event name or HTTP status.").
+			Line().
+			Type().
+			Id(name).
+			Struct(fields...),
 		jen.Var().Id("_").Qual("encoding/json", "Unmarshaler").Op("=").Parens(jen.Op("*").Id(name)).Call(jen.Nil()),
 		jen.Var().Id("_").Qual("encoding/json", "Marshaler").Op("=").Id(name).Values(),
 		jen.Comment("UnmarshalJSON retains the complete event payload.").Line().Func().
@@ -23,6 +30,12 @@ func renderClientUnion(g *typeGenerator, op ClientOperation) ([]*jen.Statement, 
 			Params(jen.Id("f").Id(name)).Id("MarshalJSON").Params().Params(jen.Index().Byte(), jen.Error()).Block(
 			jen.Return(jen.Qual("encoding/json", "Marshal").Call(jen.Id("f").Dot("Raw"))),
 		),
+	}
+	if op.Kind == ClientOperationJSON {
+		blocks = append(blocks, jen.Func().Params(jen.Id("f").Op("*").Id(name)).
+			Id("setResponseStatus").Params(jen.Id("status").Int()).Block(
+			jen.Id("f").Dot("StatusCode").Op("=").Id("status"),
+		))
 	}
 	seen := make(map[string]bool)
 	for index, variant := range op.ResponseVariants {

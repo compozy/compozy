@@ -4,7 +4,7 @@ area: MS
 title: Fall back background role routing before acceptance
 persona: Ada
 journey: J-route-background-work
-expected: When a primary role route fails before acceptance, Compozy tries each declared fallback once in order (launching a route that sets command with exactly that account command), emits one correlated role.fallback.used event before each attempt carrying provider_command_fingerprint and never the raw command, and never reroutes an accepted ACP session, including one whose post-acceptance configuration failed.
+expected: When a primary role route fails before acceptance, Compozy tries each declared fallback once in order (launching a route that sets command with exactly that account command), emits one correlated role.fallback.used event before each attempt carrying provider_command_fingerprint and never the raw command, and never reroutes an accepted ACP session after partial output or failed cleanup. Auto-title alone may advance after a typed provider refusal before output, once the refused child is stopped and drained; post-acceptance configuration failures still stop the chain.
 entry_points: config.toml roles.<role>.fallback_chain (including route command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"); compozy roles show auto_title (command column) and -o json (command, command_fingerprint); eligible coordinator or auto-title invocation; compozy logs --workspace <ref> --session <parent-session-id> --type role.fallback.used --last 10 -o json; GET /api/logs?workspace_id=<id>&session_id=<parent-session-id>&type=role.fallback.used&limit=10
 qa_status: pass
 bug_ids: BUG-20260724-inherited-role-provider-resolution; BUG-20260928-route-command-env-prefix-not-launched
@@ -75,3 +75,12 @@ Accepted-then-failed start: chain `[rejected-title-model (reject_set), fallback-
 no attempt 2, title unchanged.
 
 QA impact 2026-10-07 (memory removal): the eligible fallback surfaces are `coordinator` and `auto_title`. The dream, extractor, checkpoint-summary, and memory-controller roles no longer exist, so the earlier notes about the memory controller as a config-only seam or a live tiebreaker consumer are historical. The fallback contract itself is unchanged and every recorded walk used `auto_title`; no verdict change.
+
+
+QA impact 2026-10-18: auto-title may advance after an accepted prompt returns a typed
+provider refusal before producing output. Stop and drain the refused child before
+launching the next route. Partial text or structured output suppresses fallback;
+a failed Stop or AwaitStopped also suppresses fallback and preserves the cleanup
+error. Other accepted-session failures retain the acceptance fence above. The
+canonical auto-title generator suite owns these cases; earlier accepted-start
+walks remain historical evidence for that separate boundary.

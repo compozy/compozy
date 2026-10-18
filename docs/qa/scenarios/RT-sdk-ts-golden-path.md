@@ -21,3 +21,8 @@ Follow every command and code block in the Node quickstart against an isolated r
 QA impact 2026-10-17: App SDK implementation adds this user-visible journey. Authored planning only;
 no live execution verdict is recorded. Execute in the assigned isolated lab and attach current-head
 evidence before marking it passed.
+
+QA impact 2026-10-18: a missing session returns status 404 with session_not_found, preserving
+the daemon error message. Catalog reads choose an explicit workspace or all_workspaces=true;
+app credentials cannot register a workspace or read operator diagnostics. The runtime SDK journey
+checks these real HTTP boundaries as well as allowed catalog and live-stream revocation.

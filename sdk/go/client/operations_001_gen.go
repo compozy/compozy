@@ -4,6 +4,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -67,8 +68,50 @@ type AddMarketplaceSourceParams struct {
 	DryRun *bool `url:"dry_run"`
 }
 
+// AddMarketplaceSourceFrame preserves each response payload; select its variant using the event name or HTTP status.
+type AddMarketplaceSourceFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*AddMarketplaceSourceFrame)(nil)
+
+var _ json.Marshaler = AddMarketplaceSourceFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *AddMarketplaceSourceFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f AddMarketplaceSourceFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *AddMarketplaceSourceFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsMarketplaceSourcePreviewPayload decodes this payload as MarketplaceSourcePreviewPayload.
+func (f AddMarketplaceSourceFrame) AsMarketplaceSourcePreviewPayload() (*MarketplaceSourcePreviewPayload, error) {
+	var out MarketplaceSourcePreviewPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsMarketplaceSourceResponse decodes this payload as MarketplaceSourceResponse.
+func (f AddMarketplaceSourceFrame) AsMarketplaceSourceResponse() (*MarketplaceSourceResponse, error) {
+	var out MarketplaceSourceResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AddMarketplaceSource Validate or register a plugin marketplace source Experimental: pin the exact SDK version.
-func (c *Client) AddMarketplaceSource(ctx context.Context, params AddMarketplaceSourceParams, body AddMarketplaceSourceRequest) (*MarketplaceSourcePreviewPayload, error) {
+func (c *Client) AddMarketplaceSource(ctx context.Context, params AddMarketplaceSourceParams, body AddMarketplaceSourceRequest) (*AddMarketplaceSourceFrame, error) {
 	path := "/api/marketplace/sources"
 	query := url.Values{}
 	if params.DryRun != nil {
@@ -77,7 +120,7 @@ func (c *Client) AddMarketplaceSource(ctx context.Context, params AddMarketplace
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out MarketplaceSourcePreviewPayload
+	var out AddMarketplaceSourceFrame
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -393,56 +436,4 @@ func (c *Client) AttachSession(ctx context.Context, params AttachSessionParams, 
 type AttachTaskRunSessionParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// AttachTaskRunSession Attach an existing session to one task run
-func (c *Client) AttachTaskRunSession(ctx context.Context, params AttachTaskRunSessionParams, body AttachTaskRunSessionRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/attach-session"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// BeginSettingsMCPAuthParams carries the path, query, and header parameters.
-type BeginSettingsMCPAuthParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// BeginSettingsMCPAuth Begin daemon-mediated OAuth for one MCP server
-func (c *Client) BeginSettingsMCPAuth(ctx context.Context, params BeginSettingsMCPAuthParams, body SettingsMCPAuthBeginRequest) (*SettingsMCPAuthBeginResponse, error) {
-	path := "/api/settings/mcp-servers/{name}/auth/begin"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPAuthBeginResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

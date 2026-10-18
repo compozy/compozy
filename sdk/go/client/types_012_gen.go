@@ -7,48 +7,6 @@ import (
 	"time"
 )
 
-// Priority is a daemon API value.
-type Priority string
-
-// Profile is a daemon API value.
-type Profile struct {
-	ID                     string                         `json:"id"`
-	Name                   string                         `json:"name"`
-	Color                  string                         `json:"color"`
-	Icon                   *string                        `json:"icon"`
-	Emoji                  *string                        `json:"emoji"`
-	State                  string                         `json:"state"`
-	CreatedAt              time.Time                      `json:"created_at"`
-	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
-	WorkItems              int                            `json:"work_items,omitzero"`
-	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
-	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
-}
-
-// ProfileCredentialRequirement is a daemon API value.
-type ProfileCredentialRequirement struct {
-	Provider        string `json:"provider"`
-	Slot            string `json:"slot"`
-	SourceExtension string `json:"source_extension"`
-	Missing         bool   `json:"missing"`
-}
-
-// ProfileFolderRef is a daemon API value.
-type ProfileFolderRef struct {
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace"`
-	Path          string `json:"path"`
-}
-
-// ProfileLens is a daemon API value.
-type ProfileLens struct {
-	ID   ProfileLensID `json:"profile_lens_id"`
-	Name string        `json:"profile_name"`
-}
-
-// ProfileLensID is a daemon API value.
-type ProfileLensID string
-
 // ProfileOperation is a daemon API value.
 type ProfileOperation struct {
 	ID      string `json:"id"`
@@ -447,4 +405,40 @@ type Redaction struct {
 	Path   string     `json:"path"`
 	Reason ReasonCode `json:"reason"`
 	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+// Reference is a daemon API value.
+type Reference struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// RejectPolicy is a daemon API value.
+type RejectPolicy struct {
+	Route NodeID `json:"route"`
+}
+
+// ReloadExtensionRequest is a daemon API value.
+type ReloadExtensionRequest struct {
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
+// RenameProfilePlan is a daemon API value.
+type RenameProfilePlan struct {
+	Revision          string             `json:"revision"`
+	MachineFolders    []string           `json:"machine_folders"`
+	RepoCandidates    []ProfileFolderRef `json:"repo_candidates"`
+	DormantPlacements []ProfilePlacement `json:"dormant_placements"`
+	VaultRefRewrites  int                `json:"vault_ref_rewrites"`
 }

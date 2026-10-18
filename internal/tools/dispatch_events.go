@@ -34,7 +34,7 @@ func (r *RuntimeRegistry) emit(
 	}
 	event := buildToolCallEvent(target, req, kind, data)
 	if err := r.events.EmitToolEvent(ctx, event); err != nil {
-		logBackendFailure(ctx, target.descriptor.ID, "tool_event_write", err)
+		LogBackendFailure(ctx, target.descriptor.ID, "tool_event_write", err)
 		return NewOperatorToolError(
 			ErrorCodeBackendFailed,
 			target.descriptor.ID,
@@ -155,9 +155,9 @@ func appendUniqueReasons(existing []ReasonCode, incoming ...ReasonCode) []Reason
 	return existing
 }
 
-// logBackendFailure records code-owned phase names without backend error text,
+// LogBackendFailure records code-owned phase names without backend error text,
 // request arguments, resource paths, or credentials.
-func logBackendFailure(ctx context.Context, id ToolID, phase string, err error) {
+func LogBackendFailure(ctx context.Context, id ToolID, phase string, err error) {
 	kind := "backend_failure"
 	contention, hasContention := errors.AsType[*store.WriteContentionError](err)
 	switch {

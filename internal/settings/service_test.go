@@ -5303,8 +5303,9 @@ auth_acp_method = "oauth-personal"
 		settings.AuthMode = compozyconfig.ProviderAuthModeNone
 		settings.AuthACPMethod = "oauth-personal"
 		settings.AuthACPMethodSet = true
-		if err := put(t, service, ctx, settings); err == nil {
-			t.Fatal("PutCollectionItem(invalid combination) error = nil, want validation error")
+		const wantError = `providers.acp-custom.auth_acp_method requires auth_mode = "native_cli"`
+		if err := put(t, service, ctx, settings); err == nil || !strings.Contains(err.Error(), wantError) {
+			t.Fatalf("PutCollectionItem(invalid combination) error = %v, want %q", err, wantError)
 		}
 
 		if got := readFile(t, homePaths.ConfigFile); got != before {

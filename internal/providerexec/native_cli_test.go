@@ -10,8 +10,8 @@ func TestBuiltinProviderExecutionStrategies(t *testing.T) {
 	t.Parallel()
 
 	providers := compozyconfig.BuiltinProviders()
-	if len(providers) != 14 {
-		t.Fatalf("BuiltinProviders() count = %d, want 14", len(providers))
+	if len(providers) != 15 {
+		t.Fatalf("BuiltinProviders() count = %d, want 15", len(providers))
 	}
 	for providerID, provider := range providers {
 		t.Run("Should classify builtin provider "+providerID, func(t *testing.T) {

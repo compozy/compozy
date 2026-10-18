@@ -209,6 +209,11 @@ type SettingsObservabilityRuntimePayload struct {
 	UptimeSeconds      int64  `json:"uptime_seconds"`
 }
 
+// SettingsLogTailEventPayload is the shared SSE payload for daemon log tailing.
+type SettingsLogTailEventPayload struct {
+	Line string `json:"line"`
+}
+
 type SettingsLogTailCapabilityPayload struct {
 	Available bool                    `json:"available"`
 	StreamURL string                  `json:"stream_url,omitempty"`

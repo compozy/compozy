@@ -2288,27 +2288,27 @@ type terminalWriteFailingRecorder struct {
 func (r *terminalWriteFailingRecorder) AppendEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	eventType := r.eventType
 	if eventType == "" {
 		eventType = EventTypeSessionStopped
 	}
 	if event.Type == eventType && r.fail.Load() && !r.afterCommit {
-		return store.SessionEvent{}, r.writeErr
+		return store.SessionEvent{}, false, r.writeErr
 	}
-	persisted, err := recordIdempotentSessionEvent(ctx, r.EventRecorder, event)
+	persisted, inserted, err := r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 	if event.Type == eventType && r.fail.Load() {
-		return persisted, errors.Join(err, r.writeErr)
+		return persisted, inserted, errors.Join(err, r.writeErr)
 	}
-	return persisted, err
+	return persisted, inserted, err
 }
 
 func (r *terminalCloseFailingRecorder) AppendEventIfAbsent(
 	ctx context.Context, event store.SessionEvent,
-) (store.SessionEvent, error) {
-	persisted, err := appendDurableSessionEventWithRecorder(ctx, r.EventRecorder, event)
+) (store.SessionEvent, bool, error) {
+	persisted, inserted, err := r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 	r.terminal = err == nil && event.Type == EventTypeSessionStopped
-	return persisted, err
+	return persisted, inserted, err
 }
 
 func (r *terminalCloseFailingRecorder) Close(ctx context.Context) error {

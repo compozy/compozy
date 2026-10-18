@@ -7,25 +7,6 @@ import (
 	"time"
 )
 
-// TaskInspectPayload is a daemon API value.
-type TaskInspectPayload struct {
-	Target       string                      `json:"target"`
-	Task         TaskSummaryPayload          `json:"task"`
-	CurrentRun   *TaskInspectRunPayload      `json:"current_run,omitzero"`
-	BoundSession *TaskInspectSessionPayload  `json:"bound_session,omitzero"`
-	RecentRuns   []TaskInspectRunPayload     `json:"recent_runs,omitempty"`
-	RecentEvents []TaskInspectEventPayload   `json:"recent_events,omitempty"`
-	Scheduler    TaskInspectSchedulerPayload `json:"scheduler"`
-	Diagnostics  []DiagnosticItem            `json:"diagnostics,omitempty"`
-	NextAction   string                      `json:"next_action"`
-	AsOf         time.Time                   `json:"as_of"`
-}
-
-// TaskInspectResponse is a daemon API value.
-type TaskInspectResponse struct {
-	Inspect TaskInspectPayload `json:"inspect"`
-}
-
 // TaskInspectRunPayload is a daemon API value.
 type TaskInspectRunPayload struct {
 	RunID                   string        `json:"run_id"`
@@ -324,7 +305,7 @@ type TaskRunSessionPayload struct {
 }
 
 // TaskRunStatus is a daemon API value.
-type TaskRunStatus uint8
+type TaskRunStatus string
 
 // TaskRunSummaryPayload is a daemon API value.
 type TaskRunSummaryPayload struct {
@@ -443,4 +424,25 @@ type TaskTimelineItemPayload struct {
 	Origin    Origin                 `json:"origin"`
 	Payload   json.RawMessage        `json:"payload,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
+}
+
+// TaskTimelineResponse is a daemon API value.
+type TaskTimelineResponse struct {
+	Timeline []TaskTimelineItemPayload `json:"timeline"`
+}
+
+// TaskTreeNodePayload is a daemon API value.
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
+// TaskTreePayload is a daemon API value.
+type TaskTreePayload struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
 }

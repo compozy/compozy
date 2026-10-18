@@ -890,8 +890,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		if response == nil || response.Value == nil {
 			t.Fatal("expected 200 response for log-tail stream")
 		}
-		if response.Value.Content != nil {
-			t.Fatalf("log-tail 200 response content = %#v, want no JSON body for SSE route", response.Value.Content)
+		stream := response.Value.Content[specContentTypeEventStream]
+		if len(response.Value.Content) != 1 || stream == nil || stream.Schema == nil || stream.Schema.Value == nil {
+			t.Fatalf(
+				"log-tail 200 response content = %#v, want a typed SSE body and no JSON response",
+				response.Value.Content,
+			)
+		}
+		assertRequired(t, stream.Schema.Value, "line")
+		if line := propertySchema(t, stream.Schema.Value, "line"); !line.Type.Is("string") {
+			t.Fatalf("log-tail line schema = %#v, want string", line)
 		}
 
 		installExtension := operationFor(t, doc, "/api/extensions", "POST")

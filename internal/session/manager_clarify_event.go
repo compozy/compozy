@@ -82,7 +82,7 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 	if err != nil {
 		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}
-	persisted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
+	persisted, _, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
 		ID:        event.Request.RequestID + "-" + string(event.Status),
 		SessionID: sessionID,
 		TurnID:    turnID,

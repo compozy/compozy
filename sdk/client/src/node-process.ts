@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { CompozyUnavailableError } from "./errors.js";
 
-interface DaemonLaunch {
+export interface DaemonLaunch {
   child: ChildProcess;
   logPath: string;
   logOffset: number;
@@ -90,44 +90,32 @@ export async function terminateLaunch(launch: DaemonLaunch): Promise<void> {
   });
 }
 
-export function stopDaemon(binary: string, home: string, timeoutMs: number): Promise<void> {
-  return new Promise((resolveStop, reject) => {
-    let stderr = "";
-    let timedOut = false;
-    const child = spawn(binary, ["daemon", "stop"], {
-      env: environment(home),
-      stdio: ["ignore", "ignore", "pipe"],
-      windowsHide: true,
-    });
-    child.stderr?.setEncoding("utf8");
-    child.stderr?.on("data", (chunk: string) => {
-      stderr = (stderr + chunk).slice(-8192);
-    });
+export function waitForLaunchExit(launch: DaemonLaunch, timeoutMs: number): Promise<void> {
+  if (launch.exited) return Promise.resolve();
+  return new Promise((resolveExit, reject) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolveExit();
+    };
     const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-    child.once("error", cause => {
-      clearTimeout(timer);
+      launch.child.off("exit", onExit);
       reject(
-        new CompozyUnavailableError(`Unable to run compozy daemon stop: ${cause.message}`, {
-          cause,
-        })
+        new CompozyUnavailableError("The owned daemon did not exit before the stop deadline.")
       );
-    });
-    child.once("close", (code, signal) => {
-      clearTimeout(timer);
-      if (code === 0 && !timedOut) resolveStop();
-      else {
-        const reason = timedOut
-          ? `timed out after ${timeoutMs}ms`
-          : `exited with ${signal ?? code}`;
-        reject(
-          new CompozyUnavailableError(
-            `compozy daemon stop ${reason}.${stderr.trim() ? `\n${stderr.trim()}` : ""}`
-          )
-        );
-      }
-    });
+    }, timeoutMs);
+    launch.child.once("exit", onExit);
   });
+}
+
+export async function stopDaemon(launch: DaemonLaunch, timeoutMs: number): Promise<void> {
+  // Signal the retained child handle: a second CLI discovery could target a
+  // replacement daemon that acquired this home after the ownership check.
+  if (!launch.exited) {
+    try {
+      launch.child.kill("SIGTERM");
+    } catch (cause) {
+      throw new CompozyUnavailableError("Unable to signal the owned daemon.", { cause });
+    }
+  }
+  await waitForLaunchExit(launch, timeoutMs);
 }

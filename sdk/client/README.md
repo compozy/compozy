@@ -3,7 +3,7 @@
 A zero-dependency TypeScript client for applications built on CompozyOS. Supports Node 18+, Bun,
 Deno, browsers, and edge runtimes. The daemon remains a separate service.
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 ```ts
 import { Compozy } from "@compozy/client";
@@ -39,7 +39,8 @@ when retrying the same input to preserve its message identity and replay the dae
 
 The Node-only `@compozy/client/node` entry adds `Compozy.start({ home })` and
 `close({ stopDaemon: true })`. It only stops the daemon this instance started while the same home
-still names the owned process. The main browser entry contains no Node modules.
+still names the owned process. Shutdown signals the retained child handle and waits for its exit,
+so a daemon that replaces it cannot become the stop target. The main browser entry contains no Node modules.
 
 Generated resource methods cover JSON operations. Exported `paths`, `operations`, `components`, and
 `Operation*` helpers also work with other HTTP clients. There is no dependency on React or `ai`.

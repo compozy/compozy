@@ -170,7 +170,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		shutdownReason:  cfg.defaultShutdownReason(),
 		healthThreshold: runtime.healthThreshold,
 	}
-	applyLaunchNiceness(runtime.logger, process.PID(), cfg.Niceness)
+	ApplyLaunchNiceness(runtime.logger, process.PID(), cfg.Niceness)
 	if cfg.ProcessRegistry != nil {
 		recordCfg := cfg.ProcessRecord
 		if recordCfg.Source == "" {

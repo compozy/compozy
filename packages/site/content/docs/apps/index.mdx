@@ -4,7 +4,7 @@ description: Connect a Node app to CompozyOS and stream your first agent reply.
 icon: AppWindow
 ---
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 Use `@compozy/client` to build your own app on the CompozyOS daemon. The daemon owns sessions,
 agent execution, approvals, and durable transcripts. Your app calls typed methods and reads streams.
@@ -73,7 +73,9 @@ Methods are grouped by the API tag and retain the operation ID. Each takes typed
 `body`, and `signal` options and resolves to the response body:
 
 ```ts
-const { tasks } = await compozy.tasks.listTasks({ query: { status: "in_progress" } });
+const { tasks } = await compozy.tasks.listTasks({
+  query: { status: "in_progress" },
+});
 console.log(tasks);
 ```
 
@@ -144,13 +146,16 @@ Install `@compozy/cli` alongside the client, then use the Node-only entry point:
 ```ts
 import { Compozy } from "@compozy/client/node";
 
-const compozy = await Compozy.start({ home: "/tmp/my-app-home", timeoutMs: 30000 });
+const compozy = await Compozy.start({
+  home: "/tmp/my-app-home",
+  timeoutMs: 30000,
+});
 console.log(compozy.daemon.version);
 await compozy.close({ stopDaemon: true });
 ```
 
 Expected result: a daemon is started only when that home has none. `close({ stopDaemon: true })`
-stops only the daemon this client started, and never a replacement daemon with a different PID.
+stops only the daemon this client started, waits for that process to exit, and never stops a replacement daemon with a different PID.
 The binary lookup is `binaryPath`, `COMPOZY_BIN`, installed `@compozy/cli`, then `PATH`.
 `@compozy/client/node` is unavailable to browser bundles.
 

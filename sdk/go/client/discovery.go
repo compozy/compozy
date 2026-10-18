@@ -70,5 +70,11 @@ func recordURL(home string) (baseURL string, err error) {
 		return "", fmt.Errorf("daemon record has invalid port %d", record.Port)
 	}
 	host := cmp.Or(record.HTTPHost, "127.0.0.1")
+	switch host {
+	case "0.0.0.0":
+		host = "127.0.0.1"
+	case "::", "[::]":
+		host = "::1"
+	}
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(record.Port)), nil
 }

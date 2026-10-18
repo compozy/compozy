@@ -108,26 +108,39 @@ function compactEnvironment(environment: NodeJS.ProcessEnv): Record<string, stri
   );
 }
 
+const reservedLoopbackPorts = new Set<number>();
+let loopbackPortCounter = 0;
+
 export async function availableLoopbackPort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolveListen, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolveListen();
-    });
-  });
-  const address = server.address();
-  if (!address || typeof address === "string") {
+  // Match the Go harness: avoid client ephemeral ports that may be reused after
+  // the probe closes and before the detached daemon binds its listener.
+  const minimum = 20_000;
+  const span = 10_000;
+  const start = (process.pid * 131 + ++loopbackPortCounter) % span;
+  for (let attempt = 0; attempt < span; attempt++) {
+    const port = minimum + ((start + attempt) % span);
+    if (reservedLoopbackPorts.has(port)) continue;
+    reservedLoopbackPorts.add(port);
+    const server = createServer();
+    try {
+      await new Promise<void>((resolveListen, reject) => {
+        server.once("error", reject);
+        server.listen(port, "127.0.0.1", () => {
+          server.off("error", reject);
+          resolveListen();
+        });
+      });
+    } catch (error) {
+      reservedLoopbackPorts.delete(port);
+      if (error instanceof Error && "code" in error && error.code === "EADDRINUSE") continue;
+      throw error;
+    }
     await new Promise<void>((resolveClose, reject) =>
       server.close(error => (error ? reject(error) : resolveClose()))
     );
-    throw new Error("The desktop E2E port reservation did not expose a TCP port.");
+    return port;
   }
-  await new Promise<void>((resolveClose, reject) =>
-    server.close(error => (error ? reject(error) : resolveClose()))
-  );
-  return address.port;
+  throw new Error("The desktop E2E port reservation exhausted the candidate range.");
 }
 
 async function command(

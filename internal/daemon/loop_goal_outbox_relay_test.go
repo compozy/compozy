@@ -69,6 +69,51 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop a full batch after a failed acknowledgement until the next wake", func(t *testing.T) {
+		t.Parallel()
+		store := &goalSessionOutboxStoreStub{
+			event: goalSessionOutboxEventForTest(1), ackErrs: []error{errors.New("ack unavailable"), nil},
+		}
+		appender := &goalSessionEventAppenderStub{}
+		relay := &goalSessionOutboxRelay{store: store, appender: appender, batchSize: 1}
+		if err := relay.DeliverPending(t.Context()); err == nil {
+			t.Fatal("DeliverPending() error = nil, want failed acknowledgement")
+		}
+		if len(appender.events) != 1 || store.ackCalls != 1 {
+			t.Fatalf(
+				"append/ack count = %d/%d, want one attempt before retry wake",
+				len(appender.events),
+				store.ackCalls,
+			)
+		}
+		if err := relay.DeliverPending(t.Context()); err != nil || !store.delivered || len(appender.events) != 2 {
+			t.Fatalf("retry delivered/appends = %t/%d, error=%v", store.delivered, len(appender.events), err)
+		}
+	})
+
+	t.Run("Should drain multiple cleanup batches without waiting for another sweep", func(t *testing.T) {
+		t.Parallel()
+		obligations := make([]looppkg.SessionCleanupObligation, 17)
+		for index := range obligations {
+			obligations[index] = looppkg.SessionCleanupObligation{
+				ID: int64(index + 1), CleanupID: fmt.Sprintf("cleanup-page-%d", index),
+				SessionID: fmt.Sprintf("session-page-%d", index), Cause: looppkg.SessionCleanupCauseOperatorCancel,
+				CreatedAt: time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC),
+			}
+		}
+		store := &goalSessionCleanupBatchStoreStub{obligations: obligations}
+		relay := &goalSessionOutboxRelay{
+			store: &goalSessionOutboxStoreStub{delivered: true}, appender: &goalSessionEventAppenderStub{},
+			cleanupStore: store, stopper: &goalSessionCleanupStopperBySessionStub{}, batchSize: 4,
+		}
+		if err := relay.DeliverPending(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := len(store.completedSnapshot()); got != len(obligations) {
+			t.Fatalf("completed cleanup count = %d, want %d", got, len(obligations))
+		}
+	})
+
 	t.Run("Should emit nullable run and binding fields after clear", func(t *testing.T) {
 		t.Parallel()
 
@@ -364,14 +409,16 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 				t.Fatalf("claims while idle = %d, want no polling before the fallback sweep", got)
 			}
 
-			store.enqueue(goalSessionOutboxEventForTest(1))
+			for id := int64(1); id <= 3*goalSessionOutboxBatchSize+1; id++ {
+				store.enqueue(goalSessionOutboxEventForTest(id))
+			}
 			relay.Nudge()
 			synctest.Wait()
 			if got := store.pendingCount(); got != 0 {
 				t.Fatalf("pending after nudge = %d, want immediate drain without waiting for the sweep", got)
 			}
 
-			store.enqueue(goalSessionOutboxEventForTest(2))
+			store.enqueue(goalSessionOutboxEventForTest(3*goalSessionOutboxBatchSize + 2))
 			time.Sleep(goalSessionOutboxPollInterval)
 			synctest.Wait()
 			if got := store.pendingCount(); got != 0 {
@@ -489,8 +536,8 @@ type goalSessionCleanupBatchStoreStub struct {
 }
 
 func (s *goalSessionCleanupBatchStoreStub) ClaimLoopSessionCleanup(
-	context.Context,
-	int,
+	_ context.Context,
+	limit int,
 ) ([]looppkg.SessionCleanupObligation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -500,7 +547,7 @@ func (s *goalSessionCleanupBatchStoreStub) ClaimLoopSessionCleanup(
 			pending = append(pending, obligation)
 		}
 	}
-	return pending, nil
+	return pending[:min(len(pending), limit)], nil
 }
 
 func (s *goalSessionCleanupBatchStoreStub) AcknowledgeLoopSessionCleanup(

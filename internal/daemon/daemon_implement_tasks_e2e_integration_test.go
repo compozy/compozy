@@ -621,8 +621,8 @@ func waitForImplementTasksRunDone(
 	t.Helper()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	var response contract.LoopRunResponse
 	for {
-		var response contract.LoopRunResponse
 		path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 			"/loop-runs/" + url.PathEscape(runID)
 		if strings.TrimSpace(profile) != "" {
@@ -637,6 +637,7 @@ func waitForImplementTasksRunDone(
 					continue
 				}
 			}
+			logLoopRunTimeoutDebug(t, harness, runID, response.Run)
 			t.Fatalf("HTTP implement-tasks status error = %v", err)
 		}
 		if response.Run.Status == contract.LoopRunStatusDone {
@@ -651,6 +652,7 @@ func waitForImplementTasksRunDone(
 		}
 		select {
 		case <-ctx.Done():
+			logLoopRunTimeoutDebug(t, harness, runID, response.Run)
 			t.Fatalf("wait implement-tasks run %s: %v", runID, ctx.Err())
 		case <-ticker.C:
 		}

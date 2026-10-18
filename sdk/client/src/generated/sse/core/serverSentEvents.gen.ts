@@ -142,7 +142,8 @@ export function createSseClient<TData = unknown>({
 
         const abortHandler = () => {
           try {
-            reader.cancel();
+            // Fetch may have already errored the reader when abort cleanup runs.
+            void reader.cancel().catch(() => {});
           } catch {
             // noop
           }

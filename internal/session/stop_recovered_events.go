@@ -59,7 +59,7 @@ func (m *Manager) recordRecoveredStopEvent(
 	if err != nil {
 		return err
 	}
-	persisted, err := m.appendDurableSessionEvent(ctx, id, store.SessionEvent{
+	persisted, _, err := m.appendDurableSessionEvent(ctx, id, store.SessionEvent{
 		ID:        fmt.Sprintf("recovered-stop:%s:%s:%s", turnID, eventType, outcome.Phase),
 		SessionID: id, TurnID: turnID, Type: eventType, AgentName: meta.AgentName,
 		Content: content, Timestamp: event.Timestamp,

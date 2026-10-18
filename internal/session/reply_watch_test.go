@@ -605,12 +605,13 @@ func recordReplyEvent(t *testing.T, h *harness, target *Session, event acp.Agent
 	t.Helper()
 	event.SessionID, event.Timestamp = target.ID, h.manager.now()
 	if event.Type == acp.EventTypeUserMessage && event.MessageIDValue() == "reply-message" {
-		if err := h.manager.recordPromptInputWithAuthoredText(
+		if _, err := h.manager.recordPromptInputWithAuthoredText(
 			t.Context(),
 			target,
 			event,
 			event.Text,
 			"input-event",
+			false,
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -1448,7 +1449,7 @@ func (r replyScopedRecorder) Query(ctx context.Context, q store.EventQuery) ([]s
 func (r replyScopedRecorder) AppendEventIfAbsent(
 	ctx context.Context,
 	e store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, e)
 }
 

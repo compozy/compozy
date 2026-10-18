@@ -1414,3 +1414,35 @@ func (d *fakeDriver) Kill(_ context.Context, proc *AgentProcess) error {
 	fakeProc.exit()
 	return nil
 }
+
+func (*fakeEventRecorder) MaxEventSequence(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (*fakeEventRecorder) QueryEventMetadata(context.Context, store.EventQuery) ([]store.EventMetadata, error) {
+	return nil, nil
+}
+
+func (r *failingSinglePromptRecorder) MaxEventSequence(context.Context) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return int64(len(r.events)), nil
+}
+
+func (r *failingSinglePromptRecorder) QueryEventMetadata(
+	ctx context.Context, query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	rows, err := r.Query(ctx, query)
+	return testMetadataFromEvents(rows), err
+}
+
+func testMetadataFromEvents(rows []store.SessionEvent) []store.EventMetadata {
+	result := make([]store.EventMetadata, len(rows))
+	for i, row := range rows {
+		result[i] = store.EventMetadata{
+			ID: row.ID, SessionID: row.SessionID, Sequence: row.Sequence,
+			TurnID: row.TurnID, Type: row.Type, AgentName: row.AgentName, Timestamp: row.Timestamp,
+		}
+	}
+	return result
+}

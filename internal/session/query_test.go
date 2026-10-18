@@ -92,10 +92,18 @@ func TestManagerListForWorkspace(t *testing.T) {
 		for _, query := range []struct {
 			ctx       context.Context
 			workspace string
-		}{{nilCtx, "ws"}, {t.Context(), " "}, {t.Context(), "ws"}} {
-			if _, err := manager.ListForWorkspace(query.ctx, query.workspace); err == nil {
-				t.Fatal("ListForWorkspace() error = nil")
-			}
+			want      string
+		}{
+			{nilCtx, "ws", "list context is required"},
+			{t.Context(), " ", "workspace id is required"},
+			{t.Context(), "ws", "session catalog is required"},
+		} {
+			t.Run("Should report that "+query.want, func(t *testing.T) {
+				if _, err := manager.ListForWorkspace(query.ctx, query.workspace); err == nil ||
+					!strings.Contains(err.Error(), query.want) {
+					t.Fatalf("ListForWorkspace() error = %v, want %q", err, query.want)
+				}
+			})
 		}
 	})
 }
@@ -166,7 +174,8 @@ func TestManagerQueriesUseWorkspaceRegistration(t *testing.T) {
 		h := newHarness(t)
 		sess := createSession(t, h)
 		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
-			t.Fatalf("Stop() error = %v", err)
+			outcome, awaitErr := h.manager.AwaitStopped(t.Context(), sess.ID)
+			t.Fatalf("Stop() error = %v; outcome = %+v; AwaitStopped() error = %v", err, outcome, awaitErr)
 		}
 		h.resolver.mu.Lock()
 		h.resolver.resolveErr = errors.New("runtime resources are unavailable")
@@ -3418,7 +3427,7 @@ func (s *queryRecorderStub) RecordTokenUsage(context.Context, store.TokenUsage) 
 func (s *queryRecorderStub) AppendEventIfAbsent(
 	_ context.Context,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	s.appendCalls++
 	if s.onAppend != nil {
 		s.onAppend()
@@ -3427,10 +3436,10 @@ func (s *queryRecorderStub) AppendEventIfAbsent(
 		err := s.appendErrs[0]
 		s.appendErrs = s.appendErrs[1:]
 		if err != nil {
-			return store.SessionEvent{}, err
+			return store.SessionEvent{}, false, err
 		}
 	}
-	return event, nil
+	return event, true, nil
 }
 
 func (s *queryRecorderStub) Query(_ context.Context, query store.EventQuery) ([]store.SessionEvent, error) {

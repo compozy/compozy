@@ -428,21 +428,21 @@ func TestSessionDBAppendEventIfAbsent(t *testing.T) {
 			Content:   `{"session_id":"sess-idempotent-event","revision":1}`,
 			Timestamp: time.Date(2026, 7, 10, 18, 30, 0, 0, time.UTC),
 		}
-		first, err := sessionDB.AppendEventIfAbsent(ctx, event)
+		first, inserted, err := sessionDB.AppendEventIfAbsent(ctx, event)
 		if err != nil {
 			t.Fatalf("AppendEventIfAbsent(first) error = %v", err)
 		}
-		second, err := sessionDB.AppendEventIfAbsent(ctx, event)
+		second, replayInserted, err := sessionDB.AppendEventIfAbsent(ctx, event)
 		if err != nil {
 			t.Fatalf("AppendEventIfAbsent(identical) error = %v", err)
 		}
-		if first.ID != second.ID || first.Sequence != 1 || second.Sequence != 1 ||
+		if !inserted || replayInserted || first.ID != second.ID || first.Sequence != 1 || second.Sequence != 1 ||
 			first.Content != second.Content || !first.Timestamp.Equal(second.Timestamp) {
 			t.Fatalf("idempotent events = %#v / %#v", first, second)
 		}
 		collision := event
 		collision.Content = `{"session_id":"sess-idempotent-event","revision":2}`
-		if _, err := sessionDB.AppendEventIfAbsent(ctx, collision); !errors.Is(err, ErrEventIdentityCollision) {
+		if _, _, err := sessionDB.AppendEventIfAbsent(ctx, collision); !errors.Is(err, ErrEventIdentityCollision) {
 			t.Fatalf("AppendEventIfAbsent(collision) error = %v, want %v", err, ErrEventIdentityCollision)
 		}
 		stored, err := sessionDB.Query(ctx, EventQuery{})
@@ -1058,7 +1058,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 			Content:   `{"text":"survives reopen"}`,
 			Timestamp: time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC),
 		}
-		if _, err := first.AppendEventIfAbsent(ctx, event); err != nil {
+		if _, _, err := first.AppendEventIfAbsent(ctx, event); err != nil {
 			t.Fatalf("AppendEventIfAbsent() error = %v", err)
 		}
 		if err := first.Close(ctx); err != nil {
@@ -2530,7 +2530,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if got, want := after.MaxSequence, result.MaxSequence; got != want {
 			t.Fatalf("TranscriptPage(after rewind).MaxSequence = %d, want %d", got, want)
 		}
-		if _, err := sessionDB.AppendEventIfAbsent(ctx, SessionEvent{
+		if _, _, err := sessionDB.AppendEventIfAbsent(ctx, SessionEvent{
 			ID: "rewind:audit", TurnID: "rewind:audit", Type: "session.conversation_rewound",
 			AgentName: "coder", Content: `{"target_message_id":"discarded"}`,
 			Archived: true, Timestamp: time.Now().UTC(),

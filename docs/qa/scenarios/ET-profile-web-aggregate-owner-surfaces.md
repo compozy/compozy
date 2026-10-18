@@ -60,3 +60,10 @@ qa-impact: 2026-10-17 (session row anatomy v2) — the session row owner glyph m
 line to the start of the meta line at 14px, and child rows repeat it only when their owner differs
 from the root's. Covered by `SessionList provider marks` ("tags a child with its owner only when it
 differs from its root's"); live walk step 1 re-checks it.
+
+
+Reload regression (2026-10-18): select marketing, then All profiles, and reload with an empty query
+cache. Wait for the remembered Global selection before preloading profile-specific destinations;
+creation still targets marketing while listings remain all-profiles. A failed selection read blocks
+those preloads instead of falling back to default. The canonical route-preloading integration suite
+owns scope, destination, failure and cache-reuse assertions.

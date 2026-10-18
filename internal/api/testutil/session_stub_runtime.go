@@ -40,9 +40,3 @@ func (s StubSessionManager) RequestCompaction(
 	}
 	return session.CompactionRequestResult{}, nil, session.ErrCompactionUnsupported
 }
-func (s StubSessionManager) CompactionBoundary(ctx context.Context, id string) (*int64, error) {
-	if s.CompactionBoundaryFn != nil {
-		return s.CompactionBoundaryFn(ctx, id)
-	}
-	return nil, nil
-}

@@ -37,6 +37,8 @@ export async function* events<Id extends SseOperationId>(
   let failures = 0;
   let delay = 500;
   let lastEventId: string | undefined;
+  let transcriptFence: { epoch: number; generation: number } | undefined;
+  const transcriptStream = operationId === "streamSession" || operationId === "streamGlobalSession";
   while (!signal?.aborted) {
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -54,7 +56,14 @@ export async function* events<Id extends SseOperationId>(
       baseUrl: state.baseUrl,
       headers,
       fetch: async (input, init) => {
-        const response = await state.fetch(input, init);
+        let request = new Request(input, init);
+        if (transcriptStream && transcriptFence) {
+          const url = new URL(request.url);
+          url.searchParams.set("epoch", String(transcriptFence.epoch));
+          url.searchParams.set("generation", String(transcriptFence.generation));
+          request = new Request(url, request);
+        }
+        const response = await state.fetch(request);
         if (!response.ok) throw await responseError(response);
         return response;
       },
@@ -77,6 +86,22 @@ export async function* events<Id extends SseOperationId>(
           if (!parsedJSON)
             throw new CompozyStreamError(`Malformed JSON frame from ${operationId}.`);
           parsedJSON = false;
+          if (
+            transcriptStream &&
+            (received.event === "transcript_snapshot" || received.event === "transcript_delta") &&
+            received.data &&
+            typeof received.data === "object" &&
+            "epoch" in received.data &&
+            "generation" in received.data &&
+            typeof received.data.epoch === "number" &&
+            Number.isInteger(received.data.epoch) &&
+            received.data.epoch >= 0 &&
+            typeof received.data.generation === "number" &&
+            Number.isInteger(received.data.generation) &&
+            received.data.generation >= 0
+          ) {
+            transcriptFence = { epoch: received.data.epoch, generation: received.data.generation };
+          }
           receivedFrame = true;
           failures = 0;
           delay = 500;

@@ -16,7 +16,7 @@ import { discover } from "../node-discovery.js";
 import { Compozy } from "../node.js";
 
 // Invariants: deterministic binary discovery, home/PID ownership, and bounded
-// startup cleanup. Owner: Node lifecycle; canonical suite: this file. The CLI
+// startup cleanup and completed shutdown. Owner: Node lifecycle; canonical suite: this file. The CLI
 // fixture is an I/O boundary and uses actual processes, HTTP, and daemon records.
 const fixture = `#!${process.execPath}
 const fs = require("node:fs");
@@ -27,8 +27,10 @@ const file = name => path.join(home, name);
 const options = fs.existsSync(file("fixture.json")) ? JSON.parse(fs.readFileSync(file("fixture.json"), "utf8")) : {};
 if (process.argv[3] === "stop") {
   fs.appendFileSync(file("stops"), "stop\\n");
+  if (options.stopReplacementInfo) fs.writeFileSync(file("daemon.json"), JSON.stringify(options.stopReplacementInfo));
   const info = JSON.parse(fs.readFileSync(file("daemon.json"), "utf8"));
   process.kill(info.pid, "SIGTERM");
+  if (options.stopAckEarly) process.exit(0);
   const timer = setInterval(() => {
     try { process.kill(info.pid, 0); } catch { clearInterval(timer); process.exit(0); }
   }, 10);
@@ -52,11 +54,16 @@ if (process.argv[3] === "stop") {
       fs.writeFileSync(file("daemon.json"), JSON.stringify({ pid: process.pid, port: server.address().port, http_host: "127.0.0.1" }));
     });
     process.on("SIGTERM", () => {
+      fs.appendFileSync(file("terminations"), "SIGTERM\\n");
       try {
         if (JSON.parse(fs.readFileSync(file("daemon.json"), "utf8")).pid === process.pid) fs.unlinkSync(file("daemon.json"));
       } catch {}
-      server.close(() => process.exit(0));
-      server.closeAllConnections();
+      const finish = () => {
+        server.close(() => process.exit(0));
+        server.closeAllConnections();
+      };
+      if (options.stopAckEarly) setTimeout(finish, 150);
+      else finish();
     });
   }
 }
@@ -271,29 +278,57 @@ describe("Node discovery", () => {
 });
 
 describe.skipIf(process.platform === "win32")("Node daemon lifecycle", () => {
-  it("starts one home, reuses its daemon, and only the owner can stop it", async () => {
+  it.each([false, true])(
+    "starts one home, reuses its daemon, and only the owner can stop it (delayed exit: %s)",
+    async stopAckEarly => {
+      const directory = await home({ stopAckEarly });
+      vi.stubEnv("COMPOZY_URL", "http://127.0.0.1:1");
+      const owner = await Compozy.start({
+        home: directory,
+        binaryPath: await binary(),
+        timeoutMs: 3000,
+      });
+      const launch = await started(directory);
+      expect(launch.args).toEqual(["daemon", "start", "--foreground"]);
+      expect(launch.url).toBeUndefined();
+      expect(owner.daemon.pid).toBe(launch.pid);
+      expect(owner.daemon.userHomeDir).toBe(homedir());
+      expect(owner.daemon.userHomeDir).not.toBe(directory);
+      const reused = await Compozy.start({ home: directory, binaryPath: "/missing/compozy" });
+      await reused.close({ stopDaemon: true });
+      await owner.close();
+      expect(alive(launch.pid)).toBe(true);
+      await expect(readFile(join(directory, "stops"))).rejects.toMatchObject({ code: "ENOENT" });
+      await Promise.all([owner.close({ stopDaemon: true }), owner.close({ stopDaemon: true })]);
+      expect(alive(launch.pid)).toBe(false);
+      expect(await readFile(join(directory, "terminations"), "utf8")).toBe("SIGTERM\n");
+      await expect(readFile(join(directory, "stops"))).rejects.toMatchObject({ code: "ENOENT" });
+      await owner.close({ stopDaemon: true });
+    }
+  );
+
+  it("signals the original process without a second home discovery that could stop a replacement", async () => {
     const directory = await home();
-    vi.stubEnv("COMPOZY_URL", "http://127.0.0.1:1");
-    const owner = await Compozy.start({
-      home: directory,
-      binaryPath: await binary(),
-      timeoutMs: 3000,
-    });
-    const launch = await started(directory);
-    expect(launch.args).toEqual(["daemon", "start", "--foreground"]);
-    expect(launch.url).toBeUndefined();
-    expect(owner.daemon.pid).toBe(launch.pid);
-    expect(owner.daemon.userHomeDir).toBe(homedir());
-    expect(owner.daemon.userHomeDir).not.toBe(directory);
-    const reused = await Compozy.start({ home: directory, binaryPath: "/missing/compozy" });
-    await reused.close({ stopDaemon: true });
-    await owner.close();
-    expect(alive(launch.pid)).toBe(true);
-    await expect(readFile(join(directory, "stops"))).rejects.toMatchObject({ code: "ENOENT" });
-    await Promise.all([owner.close({ stopDaemon: true }), owner.close({ stopDaemon: true })]);
-    expect(alive(launch.pid)).toBe(false);
-    expect(await readFile(join(directory, "stops"), "utf8")).toBe("stop\n");
+    const replacementHome = await home();
+    const binaryPath = await binary();
+    const owner = await Compozy.start({ home: directory, binaryPath, timeoutMs: 3000 });
+    const replacement = await Compozy.start({ home: replacementHome, binaryPath, timeoutMs: 3000 });
+    const original = await started(directory);
+    const replacementInfo = JSON.parse(
+      await readFile(join(replacementHome, "daemon.json"), "utf8")
+    );
+    // The CLI I/O fixture replaces the home record immediately before its own
+    // PID read, making the old check-then-discover race deterministic.
+    await writeFile(
+      join(directory, "fixture.json"),
+      JSON.stringify({ stopReplacementInfo: replacementInfo })
+    );
     await owner.close({ stopDaemon: true });
+    expect(alive(original.pid)).toBe(false);
+    expect(alive(replacementInfo.pid)).toBe(true);
+    expect(await readFile(join(directory, "terminations"), "utf8")).toBe("SIGTERM\n");
+    await expect(readFile(join(directory, "stops"))).rejects.toMatchObject({ code: "ENOENT" });
+    await replacement.close({ stopDaemon: true });
   });
 
   it("does not stop a daemon after its home records a different PID", async () => {

@@ -27,11 +27,6 @@ var (
 	errSettingsRestartUnavailable = errors.New("settings restart controller is not configured")
 )
 
-// SettingsLogTailEventPayload is the shared SSE payload for daemon log tailing.
-type SettingsLogTailEventPayload struct {
-	Line string `json:"line"`
-}
-
 const settingsSessionTimeoutDeprecationWarning = `299 compozy "general.config.session_timeout is deprecated ` +
 	`and has no effect; use idle_release_after; removed in v0.5.0"`
 

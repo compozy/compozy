@@ -248,12 +248,18 @@ async function* promptChunks(
       controller.abort();
     },
   });
+  let terminated = false;
   try {
     for await (const data of stream) {
       if (signal?.aborted)
         throw new CompozyStreamError("Prompt stream was interrupted; the daemon turn continues.");
-      if (data === "[DONE]") break;
-      yield data as UIMessageChunk;
+      if (data === "[DONE]") {
+        terminated = true;
+        break;
+      }
+      const chunk = data as UIMessageChunk;
+      if (chunk.type === "finish" || chunk.type === "abort") terminated = true;
+      yield chunk;
     }
     if (failure || signal?.aborted) {
       throw failure instanceof CompozyStreamError
@@ -262,6 +268,8 @@ async function* promptChunks(
             cause: failure,
           });
     }
+    if (!terminated)
+      throw new CompozyStreamError("Prompt stream ended before its terminal marker.");
   } finally {
     controller.abort();
     signal?.removeEventListener("abort", abort);

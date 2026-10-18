@@ -83,6 +83,7 @@ func terminalManagerOptions(
 	options := []terminalpkg.Option{
 		terminalpkg.WithProcessRegistry(state.processRegistry),
 		terminalpkg.WithLogger(state.logger),
+		terminalpkg.WithAgentNiceness(state.cfg.Daemon.Load.AgentNiceness),
 		terminalpkg.WithClock(d.now),
 		terminalpkg.WithJournal(journal),
 	}

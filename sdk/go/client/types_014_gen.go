@@ -7,52 +7,6 @@ import (
 	"time"
 )
 
-// RowAction is a daemon API value.
-type RowAction struct {
-	Title        string            `json:"title"`
-	Icon         string            `json:"icon,omitempty"`
-	Section      string            `json:"section,omitempty"`
-	Primary      bool              `json:"primary,omitempty"`
-	Destructive  bool              `json:"destructive,omitempty"`
-	Confirmation *Confirmation     `json:"confirmation,omitempty"`
-	Shortcut     string            `json:"shortcut,omitempty"`
-	Action       *Action           `json:"action,omitempty"`
-	Handler      string            `json:"handler,omitempty"`
-	SubmitForm   bool              `json:"submit_form,omitempty"`
-	Requires     map[string]string `json:"requires,omitempty"`
-	Fallback     string            `json:"fallback,omitempty"`
-}
-
-// RunArtifact is a daemon API value.
-type RunArtifact struct {
-	Name         string               `json:"name"`
-	Output       string               `json:"output,omitempty"`
-	Ref          string               `json:"ref,omitempty"`
-	Availability ArtifactAvailability `json:"availability"`
-}
-
-// RunDesignationSummary is a daemon API value.
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
-}
-
-// RunEventKind is a daemon API value.
-type RunEventKind string
-
-// RunID is a daemon API value.
-type RunID string
-
-// RunKind is a daemon API value.
-type RunKind uint8
-
-// RunLoopRequest is a daemon API value.
-type RunLoopRequest struct {
-	Inputs          map[string]any `json:"inputs,omitempty"`
-	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *LoopConfig    `json:"config_overrides,omitzero"`
-}
-
 // RunLoopResponse is a daemon API value.
 type RunLoopResponse struct {
 	Run    *LoopRunPayload  `json:"run,omitzero"`
@@ -441,4 +395,52 @@ type SendPromptResultPayload struct {
 // SendPromptResultResponse is a daemon API value.
 type SendPromptResultResponse struct {
 	Prompt SendPromptResultPayload `json:"prompt"`
+}
+
+// SessionActivityHealthPayload is a daemon API value.
+type SessionActivityHealthPayload struct {
+	SessionID          string     `json:"session_id"`
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current"`
+	IterationMax       int        `json:"iteration_max"`
+	IdleSeconds        int64      `json:"idle_seconds"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
+	Status             string     `json:"status"`
+	StallState         string     `json:"stall_state,omitempty"`
+	StallReason        string     `json:"stall_reason,omitempty"`
+}
+
+// SessionAggregatePayload is a daemon API value.
+type SessionAggregatePayload struct {
+	Active   int            `json:"active"`
+	Total    int            `json:"total"`
+	ByStatus map[string]int `json:"by_status,omitempty"`
+	ByBadge  map[string]int `json:"by_badge,omitempty"`
+}
+
+// SessionApprovalResponse is a daemon API value.
+type SessionApprovalResponse struct {
+	Outcome          string `json:"outcome"`
+	InteractionID    string `json:"interaction_id,omitempty"`
+	RequestID        string `json:"request_id"`
+	Decision         string `json:"decision"`
+	ResolvedDecision string `json:"resolved_decision,omitempty"`
+}
+
+// SessionAttachPayload is a daemon API value.
+type SessionAttachPayload struct {
+	SessionID       string    `json:"session_id"`
+	AttachedTo      string    `json:"attached_to"`
+	AttachExpiresAt time.Time `json:"attach_expires_at"`
+	AttachedAt      time.Time `json:"attached_at"`
 }

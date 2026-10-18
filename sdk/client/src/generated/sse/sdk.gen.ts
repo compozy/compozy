@@ -41,6 +41,10 @@ import type {
   StreamSessionErrors,
   StreamSessionResponse,
   StreamSessionResponses,
+  StreamSettingsObservabilityLogTailData,
+  StreamSettingsObservabilityLogTailErrors,
+  StreamSettingsObservabilityLogTailResponse,
+  StreamSettingsObservabilityLogTailResponses,
   StreamTaskData,
   StreamTaskErrors,
   StreamTaskResponse,
@@ -175,6 +179,27 @@ export const streamGlobalSession = <ThrowOnError extends boolean = true>(
   >({
     responseStyle: "data",
     url: "/api/sessions/{session_id}/stream",
+    ...options,
+  });
+
+/**
+ * Stream daemon log output for the observability settings screen
+ */
+export const streamSettingsObservabilityLogTail = <ThrowOnError extends boolean = true>(
+  options?: Options<
+    StreamSettingsObservabilityLogTailData,
+    ThrowOnError,
+    StreamSettingsObservabilityLogTailResponse
+  >
+): Promise<ServerSentEventsResult<StreamSettingsObservabilityLogTailResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamSettingsObservabilityLogTailResponses,
+    StreamSettingsObservabilityLogTailErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/settings/observability/log-tail",
     ...options,
   });
 

@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-// LoopGenerationPayload is a daemon API value.
-type LoopGenerationPayload struct {
-	Generation       int64                    `json:"generation"`
-	ParentGeneration int64                    `json:"parent_generation"`
-	Origin           LoopGenerationOrigin     `json:"origin"`
-	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
-	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
-	Outputs          []LoopGenerationOutput   `json:"outputs"`
-}
-
 // LoopGenerationStartedEventPayload is a daemon API value.
 type LoopGenerationStartedEventPayload struct {
 	Generation        int64                 `json:"generation"`
@@ -448,3 +438,6 @@ type LoopRunResponse struct {
 	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
 	WatchEvents          *LoopWatchEventsState      `json:"watch_events,omitzero"`
 }
+
+// LoopRunStatus is a daemon API value.
+type LoopRunStatus string

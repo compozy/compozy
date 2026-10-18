@@ -1183,6 +1183,8 @@ func TestAppTokenRouteAuthorization(t *testing.T) {
 	t.Parallel()
 	for _, route := range []struct{ method, path string }{
 		{http.MethodPost, "/api/workspaces/:workspace_id/terminals/exec"},
+		{http.MethodGet, "/api/status"},
+		{http.MethodPost, "/api/workspaces/resolve"},
 		{http.MethodGet, "/api/fs/browse"},
 		{http.MethodPatch, "/api/settings/general"},
 		{http.MethodGet, "/api/vault/secrets"},

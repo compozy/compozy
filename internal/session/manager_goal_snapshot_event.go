@@ -23,7 +23,7 @@ func (m *Manager) AppendSessionEventIfAbsent(ctx context.Context, event GoalEven
 	if _, err := m.Status(ctx, target); err != nil {
 		return err
 	}
-	persisted, err := m.appendDurableSessionEvent(ctx, target, store.SessionEvent{
+	persisted, _, err := m.appendDurableSessionEvent(ctx, target, store.SessionEvent{
 		ID:        strings.TrimSpace(event.EventID),
 		SessionID: target,
 		TurnID:    strings.TrimSpace(event.SyntheticTurnID),

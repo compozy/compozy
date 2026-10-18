@@ -111,3 +111,8 @@ outputs. See BUG-20261005-loop-staged-task-id-literal and the current report. Th
 2026-10-05 verified: the current report records the fresh real-provider runs, exact
 result preservation, independent task/artifact checks, and verified worker cleanup.
 Native sentinel calls, exact Agent/Profile/category runtimes, and one delegating conductor are proven.
+
+
+The deterministic runtime fixture disables host-load admission explicitly so this journey tests
+orchestration within its existing deadline. `MS-daemon-host-load-governance` owns real host-pressure
+behavior; `TestSeedConfigPersistsDaemonLoadOverlay` proves that fixture policy survives config reload.

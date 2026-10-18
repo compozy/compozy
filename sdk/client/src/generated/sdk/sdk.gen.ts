@@ -1236,9 +1236,6 @@ import type {
   StopSessionData,
   StopSessionErrors,
   StopSessionResponses,
-  StreamSettingsObservabilityLogTailData,
-  StreamSettingsObservabilityLogTailErrors,
-  StreamSettingsObservabilityLogTailResponses,
   SubmitTaskRunReviewVerdictData,
   SubmitTaskRunReviewVerdictErrors,
   SubmitTaskRunReviewVerdictResponses,
@@ -4815,29 +4812,6 @@ export class settings extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
-    });
-  }
-
-  /**
-   * Stream daemon log output for the observability settings screen
-   */
-  public streamSettingsObservabilityLogTail<ThrowOnError extends boolean = true>(
-    options?: Options<StreamSettingsObservabilityLogTailData, ThrowOnError>
-  ): RequestResult<
-    StreamSettingsObservabilityLogTailResponses,
-    StreamSettingsObservabilityLogTailErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options?.client ?? this.client).get<
-      StreamSettingsObservabilityLogTailResponses,
-      StreamSettingsObservabilityLogTailErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/settings/observability/log-tail",
-      ...options,
     });
   }
 

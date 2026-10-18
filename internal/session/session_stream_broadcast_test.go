@@ -763,7 +763,14 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 			Type: EventTypeGoalSnapshotChanged, AgentName: "system", Content: `{}`,
 			Timestamp: time.Date(2026, 7, 10, 19, 1, 0, 0, time.UTC),
 		}
-		if _, err := h.manager.appendDurableSessionEventAttempt(ctx, sess.ID, event); !errors.Is(err, store.ErrClosed) {
+		if _, _, err := h.manager.appendDurableSessionEventAttempt(
+			ctx,
+			sess.ID,
+			event,
+		); !errors.Is(
+			err,
+			store.ErrClosed,
+		) {
 			t.Fatalf("append during recorder detachment = %v, want retryable closed store", err)
 		}
 		recorder, err := sessiondb.OpenSessionDB(ctx, testSessionDBOwner(sess.ID, sess.WorkspaceID), sess.DBPath())
@@ -774,7 +781,7 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 		if err := h.manager.Stop(ctx, sess.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
-		persisted, err := h.manager.appendDurableSessionEvent(ctx, sess.ID, event)
+		persisted, _, err := h.manager.appendDurableSessionEvent(ctx, sess.ID, event)
 		if err != nil || persisted.ID != event.ID {
 			t.Fatalf("append after finalization = %#v, %v", persisted, err)
 		}

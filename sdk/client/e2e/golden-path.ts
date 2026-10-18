@@ -224,10 +224,11 @@ try {
     "disconnected proxy must leave a completed daemon turn"
   );
 } finally {
-  server.closeAllConnections();
-  await new Promise<void>((resolve, reject) =>
+  const closed = new Promise<void>((resolve, reject) =>
     server.close(error => (error ? reject(error) : resolve()))
   );
+  server.closeAllConnections();
+  await closed;
 }
 
 const canceled = await session();

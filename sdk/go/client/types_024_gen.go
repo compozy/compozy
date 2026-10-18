@@ -7,29 +7,6 @@ import (
 	"time"
 )
 
-// ToolApprovalGrantPayload is a daemon API value.
-type ToolApprovalGrantPayload struct {
-	ID              string                `json:"id"`
-	ProfileID       string                `json:"profile_id"`
-	ProfileName     string                `json:"profile_name"`
-	ProfileColor    string                `json:"profile_color"`
-	ProfileIcon     string                `json:"profile_icon,omitempty"`
-	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
-	ProfileArchived bool                  `json:"profile_archived"`
-	WorkspaceID     string                `json:"workspace_id"`
-	AgentName       string                `json:"agent_name,omitempty"`
-	ToolID          ToolID                `json:"tool_id"`
-	InputDigest     string                `json:"input_digest,omitempty"`
-	Decision        ApprovalGrantDecision `json:"decision"`
-	CreatedAt       time.Time             `json:"created_at"`
-	LastUsedAt      time.Time             `json:"last_used_at"`
-}
-
-// ToolApprovalGrantResponse is a daemon API value.
-type ToolApprovalGrantResponse struct {
-	Grant ToolApprovalGrantPayload `json:"grant"`
-}
-
 // ToolApprovalGrantSetRequest is a daemon API value.
 type ToolApprovalGrantSetRequest struct {
 	ToolID    ToolID                       `json:"tool_id"`
@@ -166,6 +143,22 @@ type ToolDescriptorPayload struct {
 	Toolsets            []ToolsetID           `json:"toolsets,omitempty"`
 	Tags                []string              `json:"tags,omitempty"`
 	SearchHints         []string              `json:"search_hints,omitempty"`
+}
+
+// ToolErrorPayload is a daemon API value.
+type ToolErrorPayload struct {
+	Code          ErrorCode                  `json:"code"`
+	Message       string                     `json:"message"`
+	ToolID        ToolID                     `json:"tool_id,omitempty"`
+	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
+	Layer         string                     `json:"layer,omitempty"`
+	Details       map[string]json.RawMessage `json:"details,omitempty"`
+	PartialResult *ToolResult                `json:"partial_result,omitzero"`
+}
+
+// ToolErrorResponse is a daemon API value.
+type ToolErrorResponse struct {
+	Error ToolErrorPayload `json:"error"`
 }
 
 // ToolID is a daemon API value.

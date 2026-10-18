@@ -4,10 +4,110 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// InvokeCmdPaletteCommand Invoke one command palette command
+func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
+	path := "/api/cmd-palette/commands/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteInvokeResult
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeToolParams carries the path, query, and header parameters.
+type InvokeToolParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// InvokeToolFrame preserves each response payload; select its variant using the event name or HTTP status.
+type InvokeToolFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*InvokeToolFrame)(nil)
+
+var _ json.Marshaler = InvokeToolFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *InvokeToolFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
+func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
+	var out ToolInvokeResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsToolErrorResponse decodes this payload as ToolErrorResponse.
+func (f InvokeToolFrame) AsToolErrorResponse() (*ToolErrorResponse, error) {
+	var out ToolErrorResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeTool Invoke a registry tool through executable dispatch
+func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body ToolInvokeRequest) (*InvokeToolFrame, error) {
+	path := "/api/tools/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out InvokeToolFrame
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAgentCatalogParams carries the path, query, and header parameters.
+type ListAgentCatalogParams struct {
+	Workspace *string `url:"workspace"`
+	Name      *string `url:"name"`
+	Q         *string `url:"q"`
+	Category  *string `url:"category"`
+	Status    *string `url:"status"`
+	Cursor    *string `url:"cursor"`
+	Limit     *int    `url:"limit"`
+	Profile   *string `url:"profile"`
+}
 
 // ListAgentCatalog List a filtered agent fleet with exact session metrics
 func (c *Client) ListAgentCatalog(ctx context.Context, params ListAgentCatalogParams) (*AgentCatalogResponse, error) {
@@ -317,126 +417,4 @@ type ListAutomationRunsParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAutomationRuns List automation runs
-func (c *Client) ListAutomationRuns(ctx context.Context, params ListAutomationRunsParams) (*RunsResponse, error) {
-	path := "/api/automation/runs"
-	query := url.Values{}
-	if params.JobID != nil {
-		query.Set("job_id", *params.JobID)
-	}
-	if params.TriggerID != nil {
-		query.Set("trigger_id", *params.TriggerID)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Until != nil {
-		query.Set("until", *params.Until)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationSuggestionsParams carries the path, query, and header parameters.
-type ListAutomationSuggestionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Status      *string `url:"status"`
-}
-
-// ListAutomationSuggestions List consent-first automation suggestions for one workspace
-func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutomationSuggestionsParams) (*AutomationSuggestionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/automation/suggestions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AutomationSuggestionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationTriggerRunsParams carries the path, query, and header parameters.
-type ListAutomationTriggerRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	Since       *string `url:"since"`
-	Until       *string `url:"until"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAutomationTriggerRuns List run history for one automation trigger
-func (c *Client) ListAutomationTriggerRuns(ctx context.Context, params ListAutomationTriggerRunsParams) (*RunsResponse, error) {
-	path := "/api/automation/triggers/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Until != nil {
-		query.Set("until", *params.Until)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationTriggersParams carries the path, query, and header parameters.
-type ListAutomationTriggersParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Source      *string `url:"source"`
-	Target      *string `url:"target"`
-	Enabled     *bool   `url:"enabled"`
-	Event       *string `url:"event"`
-	Q           *string `url:"q"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-	Loop        *string `url:"loop"`
 }

@@ -51,3 +51,8 @@ private TLS verification relay must still authenticate the advertised endpoint.
 Focused real-socket proxy, HTTP middleware and SQLite pairing integration evidence is recorded
 in `docs/qa/reports/2026-10-16-issue-737-tailscale-origin.md`. An external tailnet browser walk
 remains unavailable without a disposable authorized tailnet/device; no live gateway was changed.
+
+QA impact 2026-10-18: when a challenge response stalls after its headers and the probe deadline
+expires, report endpoint probe timeout even if the reader completes with an empty body. Never
+advertise an endpoint from a canceled probe. The existing TestEndpointProbeDiagnostics real TLS
+case verifies this boundary; the full public-provider walk retains its independent lab requirements.

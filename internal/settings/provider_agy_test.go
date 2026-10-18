@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -51,7 +52,11 @@ func TestAgyProviderSettingsUpgradeBoundary(t *testing.T) {
 		if !login.Configured || login.Source != "auth_acp_method" {
 			t.Fatalf("AuthStatus.Login = %#v, want configured auth_acp_method source", login)
 		}
-		if got, want := login.Executable, "agy_acp_server.par"; got != want {
+		executable := "agy_acp_server.par"
+		if runtime.GOOS == "windows" {
+			executable = "agy_acp_server.exe"
+		}
+		if got, want := login.Executable, executable; got != want {
 			t.Fatalf("AuthStatus.Login.Executable = %q, want %q", got, want)
 		}
 		if got, want := login.Presence, authproviders.ProviderLoginPresencePresent; got != want {

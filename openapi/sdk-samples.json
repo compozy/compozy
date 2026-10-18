@@ -304,7 +304,7 @@
         },
         "completeMCPAuthCallback": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.completeMCPAuthCallback({ query: { \"state\": \"state\" } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CompleteMCPAuthCallback(ctx, client.CompleteMCPAuthCallbackParams{State: \"state\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.CompleteMCPAuthCallback(ctx, client.CompleteMCPAuthCallbackParams{State: \"state\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"
@@ -605,14 +605,14 @@
         },
         "deliverGlobalWebhook": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.automation.deliverGlobalWebhook({ path: { \"endpoint\": \"endpoint\" }, headers: { \"X-Compozy-Webhook-Delivery-ID\": \"X-Compozy-Webhook-Delivery-ID\", \"X-Compozy-Webhook-Timestamp\": \"X-Compozy-Webhook-Timestamp\", \"X-Compozy-Webhook-Signature\": \"X-Compozy-Webhook-Signature\" }, body: { /* request fields */ } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeliverGlobalWebhook(ctx, client.DeliverGlobalWebhookParams{Endpoint: \"endpoint\", XCompozyWebhookDeliveryID: \"X-Compozy-Webhook-Delivery-ID\", XCompozyWebhookTimestamp: \"X-Compozy-Webhook-Timestamp\", XCompozyWebhookSignature: \"X-Compozy-Webhook-Signature\"}, map[string]any{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.DeliverGlobalWebhook(ctx, client.DeliverGlobalWebhookParams{Endpoint: \"endpoint\", XCompozyWebhookDeliveryID: \"X-Compozy-Webhook-Delivery-ID\", XCompozyWebhookTimestamp: \"X-Compozy-Webhook-Timestamp\", XCompozyWebhookSignature: \"X-Compozy-Webhook-Signature\"}, map[string]any{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "automation",
             "app_access": "denied"
         },
         "deliverWorkspaceWebhook": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.automation.deliverWorkspaceWebhook({ path: { \"workspace_id\": \"workspace_id\", \"endpoint\": \"endpoint\" }, headers: { \"X-Compozy-Webhook-Delivery-ID\": \"X-Compozy-Webhook-Delivery-ID\", \"X-Compozy-Webhook-Timestamp\": \"X-Compozy-Webhook-Timestamp\", \"X-Compozy-Webhook-Signature\": \"X-Compozy-Webhook-Signature\" }, body: { /* request fields */ } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeliverWorkspaceWebhook(ctx, client.DeliverWorkspaceWebhookParams{WorkspaceID: \"workspace_id\", Endpoint: \"endpoint\", XCompozyWebhookDeliveryID: \"X-Compozy-Webhook-Delivery-ID\", XCompozyWebhookTimestamp: \"X-Compozy-Webhook-Timestamp\", XCompozyWebhookSignature: \"X-Compozy-Webhook-Signature\"}, map[string]any{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.DeliverWorkspaceWebhook(ctx, client.DeliverWorkspaceWebhookParams{WorkspaceID: \"workspace_id\", Endpoint: \"endpoint\", XCompozyWebhookDeliveryID: \"X-Compozy-Webhook-Delivery-ID\", XCompozyWebhookTimestamp: \"X-Compozy-Webhook-Timestamp\", XCompozyWebhookSignature: \"X-Compozy-Webhook-Signature\"}, map[string]any{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "automation",
             "app_access": "denied"
@@ -1434,7 +1434,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetStatus(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "diagnostics",
-            "app_access": "allowed"
+            "app_access": "denied"
         },
         "getSubagent": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.getSubagent({ path: { \"workspace_id\": \"workspace_id\", \"subagent_id\": \"subagent_id\" } });",
@@ -1816,7 +1816,7 @@
         },
         "listOpenAIModels": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.openai.listOpenAIModels();",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListOpenAIModels(ctx, client.ListOpenAIModelsParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.ListOpenAIModels(ctx, client.ListOpenAIModelsParams{})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "openai",
             "app_access": "denied"
@@ -2110,7 +2110,7 @@
         },
         "mintGatewayStreamTicket": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.gateway.mintGatewayStreamTicket();",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MintGatewayStreamTicket(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.MintGatewayStreamTicket(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "gateway",
             "app_access": "denied"
@@ -2631,7 +2631,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ResolveWorkspace(ctx, client.ResolveWorkspaceRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "workspaces",
-            "app_access": "allowed"
+            "app_access": "denied"
         },
         "respondLoopRequest": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.respondLoopRequest({ path: { \"workspace_id\": \"workspace_id\", \"run_id\": \"run_id\", \"node_id\": \"node_id\" }, body: { /* request fields */ } });",
@@ -2928,9 +2928,9 @@
             "app_access": "denied"
         },
         "streamSettingsObservabilityLogTail": {
-            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.streamSettingsObservabilityLogTail();",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.StreamSettingsObservabilityLogTail(ctx)\nif err != nil { return err }",
-            "kind": "json",
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamSettingsObservabilityLogTail\", {})) {\n  console.log(frame);\n}",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamSettingsObservabilityLogTail(ctx)\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
+            "kind": "sse",
             "resource": "settings",
             "app_access": "denied"
         },
@@ -3181,7 +3181,7 @@
         },
         "updateSettingsSkills": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.updateSettingsSkills({ body: { /* request fields */ } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsSkills(ctx, client.UpdateSettingsSkillsParams{}, client.UpdateSettingsSkillsRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsSkills(ctx, client.UpdateSettingsSkillsParams{}, client.UpdateSettingsSkillsRequest(\"{}\"))\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"

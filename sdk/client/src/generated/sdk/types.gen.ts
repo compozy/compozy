@@ -22352,30 +22352,6 @@ export type UpdateSettingsObservabilityResponses = {
 export type UpdateSettingsObservabilityResponse =
   UpdateSettingsObservabilityResponses[keyof UpdateSettingsObservabilityResponses];
 
-export type StreamSettingsObservabilityLogTailData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/settings/observability/log-tail";
-};
-
-export type StreamSettingsObservabilityLogTailErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type StreamSettingsObservabilityLogTailError =
-  StreamSettingsObservabilityLogTailErrors[keyof StreamSettingsObservabilityLogTailErrors];
-
-export type StreamSettingsObservabilityLogTailResponses = {
-  /**
-   * SSE stream established
-   */
-  200: unknown;
-};
-
 export type GetSettingsPersonaData = {
   body?: never;
   path?: never;

@@ -25,7 +25,7 @@ func runtimeStatusOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/status",
-			AppAccess:   AppAccessAllowed,
+			AppAccess:   AppAccessDenied,
 			OperationID: "getStatus",
 			Summary:     "Get the runtime status snapshot",
 			Tags:        []string{specDiagnosticsKey},

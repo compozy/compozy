@@ -6,7 +6,7 @@ icon: AppWindow
 
 import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 A browser app can call the local daemon directly when the operator gives it an app token that allows
 its exact origin. This guide uses an existing web app at `http://localhost:3000`. Run the daemon
@@ -56,7 +56,10 @@ list. `Authorization: Bearer …` travels on each request. The default browser b
 Streams use `fetch`, so they carry the same authorization header:
 
 ```ts
-const compozy = await Compozy.connect({ baseUrl: "http://localhost:2123", token });
+const compozy = await Compozy.connect({
+  baseUrl: "http://localhost:2123",
+  token,
+});
 const controller = new AbortController();
 for await (const frame of compozy.events("streamSession", {
   path: { workspace_id: workspaceId, session_id: sessionId },

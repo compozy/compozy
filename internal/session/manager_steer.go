@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/config"
@@ -214,10 +213,15 @@ func (m *Manager) persistAcceptedSteer(
 func (m *Manager) recordAcceptedSteerInput(
 	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
 ) error {
-	recordedAt := m.now()
-	var err error
+	if entry.SteerDelivery != store.SteerDeliveryInjected {
+		return nil
+	}
+	req, err := m.injectedSteerInputRequest(session, entry)
+	if err != nil {
+		return err
+	}
 	for range steerPersistAttempts {
-		if err = m.recordInjectedSteerInput(ctx, session, entry, recordedAt); err == nil {
+		if err = m.recordPromptInputEvent(ctx, session, &req); err == nil {
 			return nil
 		}
 	}
@@ -242,25 +246,21 @@ func (m *Manager) resolveAcceptedSteer(
 // A pending injection is represented by its durable authored receipt until the
 // provider confirms delivery. Only confirmed injection becomes a sent user
 // message; fallback keeps the ordinary queue-dispatch identity and turn.
-func (m *Manager) recordInjectedSteerInput(
-	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry, recordedAt time.Time,
-) error {
-	if entry.SteerDelivery != store.SteerDeliveryInjected {
-		return nil
-	}
+func (m *Manager) injectedSteerInputRequest(
+	session *Session, entry *store.SessionInputQueueEntry,
+) (promptRequest, error) {
 	origin, err := decodePromptOrigin(entry.Origin)
 	if err != nil {
-		return err
+		return promptRequest{}, err
 	}
-	req := promptRequest{
+	return promptRequest{
 		meta:   acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Origin: origin},
 		target: session.ID, turnID: entry.TargetTurnID, turnSource: TurnSourceUser,
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
-		inputAt: recordedAt,
-	}
-	return m.recordPromptInputEvent(ctx, session, &req)
+		inputIdempotent: true,
+	}, nil
 }
 
 // steerFallbackWaitsForTurn reports a steer from another session or the daemon

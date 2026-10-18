@@ -10,6 +10,68 @@ import (
 	"strings"
 )
 
+// GetTaskTimeline Get one task timeline
+func (c *Client) GetTaskTimeline(ctx context.Context, params GetTaskTimelineParams) (*TaskTimelineResponse, error) {
+	path := "/api/tasks/{id}/timeline"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTimelineResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskTreeParams carries the path, query, and header parameters.
+type GetTaskTreeParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskTree Get one task tree live view
+func (c *Client) GetTaskTree(ctx context.Context, params GetTaskTreeParams) (*TaskTreeResponse, error) {
+	path := "/api/tasks/{id}/tree"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTreeResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTerminalParams carries the path, query, and header parameters.
+type GetTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetTerminal Read one terminal
 func (c *Client) GetTerminal(ctx context.Context, params GetTerminalParams) (*TerminalResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}"
@@ -375,60 +437,4 @@ type InvokeCmdPaletteCommandParams struct {
 	ID                  string  `url:"id"`
 	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
 	Profile             *string `url:"profile"`
-}
-
-// InvokeCmdPaletteCommand Invoke one command palette command
-func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
-	path := "/api/cmd-palette/commands/{id}/invoke"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteInvokeResult
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InvokeToolParams carries the path, query, and header parameters.
-type InvokeToolParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// InvokeTool Invoke a registry tool through executable dispatch
-func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body ToolInvokeRequest) (*ToolInvokeResponse, error) {
-	path := "/api/tools/{id}/invoke"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolInvokeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentCatalogParams carries the path, query, and header parameters.
-type ListAgentCatalogParams struct {
-	Workspace *string `url:"workspace"`
-	Name      *string `url:"name"`
-	Q         *string `url:"q"`
-	Category  *string `url:"category"`
-	Status    *string `url:"status"`
-	Cursor    *string `url:"cursor"`
-	Limit     *int    `url:"limit"`
-	Profile   *string `url:"profile"`
 }

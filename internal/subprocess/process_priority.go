@@ -14,10 +14,10 @@ var nicenessFailureWarned atomic.Bool
 // setProcessGroupNiceness is replaceable by tests that exercise the failure path.
 var setProcessGroupNiceness = procutil.SetProcessGroupNiceness
 
-// applyLaunchNiceness lowers the scheduling priority of the launched process
+// ApplyLaunchNiceness lowers the scheduling priority of the launched process
 // group. Failure never aborts the launch: the process keeps running at the
 // daemon's priority.
-func applyLaunchNiceness(logger *slog.Logger, pid int, niceness int) {
+func ApplyLaunchNiceness(logger *slog.Logger, pid int, niceness int) {
 	if niceness <= 0 || pid <= 0 {
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -176,8 +177,24 @@ func (m *Manager) prepareManagedInputPrompt(
 		)
 		return nil
 	}
+	leaseCtx, cancelLease := context.WithCancel(m.fallbackLifecycleContext())
+	if err := m.registerManagedInputLease(owner, cancelLease); err != nil {
+		cancelLease()
+		m.sessionLogger(session).Warn("session: register managed input lease failed", "error", err)
+		return nil
+	}
+	if err := m.checkNewWorkAdmission(admission.WithBackgroundWork(leaseCtx)); err != nil {
+		retry := leaseCtx.Err() == nil
+		m.releaseManagedInputLease(owner)
+		if retry {
+			m.sessionLogger(session).Warn("session: managed prompt admission deferred", "error", err)
+			m.scheduleQueuedInputReselect(session.ID)
+		}
+		return nil
+	}
 	proc, err := session.beginExclusivePromptSetup()
 	if err != nil {
+		m.releaseManagedInputLease(owner)
 		if !errors.Is(err, ErrPromptInProgress) {
 			m.sessionLogger(session).Warn("session: reserve managed prompt slot failed", "error", err)
 		}
@@ -189,12 +206,6 @@ func (m *Manager) prepareManagedInputPrompt(
 			session.finishPromptSetup()
 		}
 	}()
-	leaseCtx, cancelLease := context.WithCancel(m.fallbackLifecycleContext())
-	if err := m.registerManagedInputLease(owner, cancelLease); err != nil {
-		cancelLease()
-		m.sessionLogger(session).Warn("session: register managed input lease failed", "error", err)
-		return nil
-	}
 	submission, err := lifecycle.BeginSubmission(leaseCtx, ManagedInputClaim{
 		Owner:       owner,
 		RequestedAt: m.now().UTC(),

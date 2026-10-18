@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { flattenTranscriptMessages, type SessionTranscriptData } from "../session-transcript-query";
-import { toReadonlyThreadMessages } from "../session-thread-repository";
+import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionMessage, SessionTranscriptPage } from "../../types";
 
 function message(id: string, parts: NonNullable<SessionMessage["parts"]>): SessionMessage {

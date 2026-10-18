@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -284,7 +285,33 @@ func appSDKOperatorJourney(t *testing.T, harness *e2etest.RuntimeHarness) {
 	}
 	request.Header.Set("Origin", origin)
 	request.Header.Set("Authorization", "Bearer "+issued.Token)
-	listRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL("/api/sessions"), http.NoBody)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/status"},
+		{http.MethodPost, "/api/workspaces/resolve"},
+	} {
+		deniedRequest, err := http.NewRequestWithContext(ctx, route.method, harness.HTTPURL(route.path), http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deniedRequest.Header = request.Header.Clone()
+		denied, err := harness.HTTPClient.Do(deniedRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deniedBody, readErr := io.ReadAll(denied.Body)
+		if err := errors.Join(readErr, denied.Body.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if denied.StatusCode != http.StatusForbidden {
+			t.Fatalf("app token %s %s = %d %s, want forbidden", route.method, route.path, denied.StatusCode, deniedBody)
+		}
+	}
+	listRequest, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		harness.HTTPURL("/api/sessions?workspace_id="+url.QueryEscape(session.WorkspaceID)),
+		http.NoBody,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

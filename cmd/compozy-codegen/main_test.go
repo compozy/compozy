@@ -727,11 +727,13 @@ func TestAppSDKArtifacts(t *testing.T) {
 				t.Fatalf("sample %s resource disagrees with registry: %q", operation.OperationID, sample.Resource)
 			}
 			if sample.Kind != "websocket" &&
-				(!strings.Contains(sample.Go, "client.New(ctx)") || !strings.Contains(sample.TypeScript, "Compozy.connect()")) {
+				(!strings.Contains(sample.Go, "client.New(ctx") || !strings.Contains(sample.TypeScript, "Compozy.connect()")) {
 				t.Fatalf("sample %s omits an SDK call", operation.OperationID)
 			}
 		}
 		for id, snippets := range map[string][]string{
+			"listOpenAIModels":        {`client.New(ctx, client.WithBaseURL("http://127.0.0.1:2123"))`},
+			"listProviders":           {"client.New(ctx)"},
 			"listTasks":               {"compozy.tasks.listTasks({ query", "c.ListTasks(ctx"},
 			"sendSessionPrompt":       {"compozy.prompt(", "c.Prompt("},
 			"streamTask":              {"compozy.events(\"streamTask\"", "Next()"},
@@ -877,11 +879,12 @@ func (c *Client) Upload(body *UploadFile) {}
 			source += fmt.Sprintf("var _ %s = %s\n", expected, strings.ReplaceAll(expression, "client.", ""))
 		}
 		for method, expected := range map[string]string{
-			"Struct":  "client.Request{ /* request fields */ }",
-			"Alias":   "client.RequestAlias{ /* request fields */ }",
-			"Defined": "client.DefinedRequest{ /* request fields */ }",
-			"Pointer": "&client.Request{ /* request fields */ }",
-			"Upload":  "&client.UploadFile{ /* name, content type, reader */ }",
+			"Struct":   "client.Request{ /* request fields */ }",
+			"RawAlias": `client.RawAlias("{}")`,
+			"Alias":    "client.RequestAlias{ /* request fields */ }",
+			"Defined":  "client.DefinedRequest{ /* request fields */ }",
+			"Pointer":  "&client.Request{ /* request fields */ }",
+			"Upload":   "&client.UploadFile{ /* name, content type, reader */ }",
 		} {
 			if got := expressions[method]; got != expected {
 				t.Fatalf("%s body expression = %q, want %q", method, got, expected)
@@ -928,13 +931,13 @@ func (c *Client) Upload(body *UploadFile) {}
 		}
 	})
 
-	t.Run("Should retain every stream variant and encode array query parameters", func(t *testing.T) {
+	t.Run("Should retain distinct successful response variants and encode array query parameters", func(t *testing.T) {
 		t.Parallel()
 		operations, err := sdkClientOperations(spec.Operations())
 		if err != nil {
 			t.Fatal(err)
 		}
-		foundUnion, foundArray := false, false
+		foundUnion, foundApproval, foundArray := false, false, false
 		for _, operation := range operations {
 			if operation.ID == "sendSessionPrompt" || operation.ID == "streamWindowManager" {
 				t.Fatalf("unsupported generated method %s", operation.ID)
@@ -945,6 +948,12 @@ func (c *Client) Upload(body *UploadFile) {}
 					t.Fatalf("catalog variants = %#v", operation)
 				}
 			}
+			if operation.ID == "invokeTool" {
+				foundApproval = true
+				if len(operation.ResponseVariants) != 2 {
+					t.Fatalf("tool completion/approval variants = %#v", operation)
+				}
+			}
 			if operation.ID == "getWorktreeExitPlan" {
 				for _, param := range operation.Params {
 					if param.Name == "include" {
@@ -953,8 +962,8 @@ func (c *Client) Upload(body *UploadFile) {}
 				}
 			}
 		}
-		if !foundUnion || !foundArray {
-			t.Fatalf("union/array coverage = %t/%t", foundUnion, foundArray)
+		if !foundUnion || !foundApproval || !foundArray {
+			t.Fatalf("stream/approval/array coverage = %t/%t/%t", foundUnion, foundApproval, foundArray)
 		}
 	})
 }

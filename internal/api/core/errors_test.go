@@ -314,13 +314,15 @@ func TestErrorPayloadForError(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should expose actionable busy input refusals with their HTTP status", func(t *testing.T) {
+	t.Run("Should expose actionable session refusals with their HTTP status", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
 			err    error
 			code   string
 			status int
 		}{
+			{session.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
+			{store.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},
 			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
 			{store.ErrSessionInputSteerTextOnly, "steer_attachments_unsupported", http.StatusConflict},

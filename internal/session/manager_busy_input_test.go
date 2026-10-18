@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -2815,6 +2816,92 @@ func assertManagerPromptAdmissionCount(
 }
 
 func TestManagerBusyInputManagedLifecycle(t *testing.T) {
+	for _, outcome := range []string{"release", "goal-cancel", "session-stop"} {
+		t.Run(
+			"Should gate managed Goal work before dispatch with outcome "+outcome,
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				sess := createSession(t, h)
+				t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+				lifecycle := newRecordingManagedInputLifecycle()
+				h.manager.SetManagedInputLifecycle(lifecycle)
+				entered, release := make(chan struct{}), make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				t.Cleanup(unblock)
+				h.manager.workAdmission = managedInputAdmissionFunc(func(ctx context.Context) error {
+					if !admission.IsBackgroundWork(ctx) {
+						t.Error("managed Goal prompt was admitted as interactive work")
+					}
+					close(entered)
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-release:
+						return nil
+					}
+				})
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent)
+					go func() { defer close(events); emitDonePromptEvents(events, sess.ID, req.TurnID) }()
+					return events, nil
+				}
+				entry := managedInputQueueEntry(sess.ID, "goalq-admission")
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
+				}()
+				select {
+				case <-entered:
+				case <-time.After(time.Second):
+					t.Fatal("managed Goal did not reach work admission")
+				}
+				lifecycle.mu.Lock()
+				before := append([]string(nil), lifecycle.calls...)
+				lifecycle.mu.Unlock()
+				if len(before) != 0 || len(managerPromptCalls(h)) != 0 || sess.IsPrompting() {
+					t.Fatalf("managed Goal started while pressure admission was blocked: %v", before)
+				}
+				if outcome == "goal-cancel" {
+					owner, err := managedInputOwnerFromEntry(managedInputFromQueueEntry(&entry))
+					if err != nil || !h.manager.CancelManagedInputLease(owner) {
+						t.Fatalf("cancel admission lease = %v", err)
+					}
+				} else {
+					if outcome == "session-stop" {
+						stopCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+						defer cancel()
+						if err := h.manager.Stop(stopCtx, sess.ID); err != nil {
+							t.Fatalf("Stop() while admission waits = %v", err)
+						}
+					}
+					unblock()
+				}
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Fatal("managed Goal admission did not settle")
+				}
+				if outcome != "release" {
+					if len(managerPromptCalls(h)) != 0 || sess.IsPrompting() {
+						t.Fatal("canceled admission dispatched or retained its prompt reservation")
+					}
+					lifecycle.mu.Lock()
+					defer lifecycle.mu.Unlock()
+					if len(lifecycle.calls) != 0 {
+						t.Fatalf("canceled admission persisted a submission: %v", lifecycle.calls)
+					}
+				} else {
+					lifecycle.waitTerminal(t)
+					if got := len(managerPromptCalls(h)); got != 1 {
+						t.Fatalf("managed prompt dispatch count = %d, want 1", got)
+					}
+				}
+			},
+		)
+	}
+
 	t.Run("Should persist exact Goal prompt metadata for every managed prompt kind", func(t *testing.T) {
 		t.Parallel()
 
@@ -3663,7 +3750,9 @@ func (s *queueSentFailureStore) MarkSessionInputSentInTurn(
 // userMessageFailingRecorder fails the next failures user-message writes before they persist.
 type userMessageFailingRecorder struct {
 	*sessiondb.SessionDB
-	failures atomic.Int32
+	failures          atomic.Int32
+	committedFailures atomic.Int32
+	committedErr      error
 }
 
 func (r *userMessageFailingRecorder) install(manager *Manager) {
@@ -3684,6 +3773,23 @@ func (r *userMessageFailingRecorder) RecordPersisted(
 		return store.SessionEvent{}, errors.New("input event write unavailable")
 	}
 	return r.SessionDB.RecordPersisted(ctx, event)
+}
+
+func (r *userMessageFailingRecorder) AppendEventIfAbsent(
+	ctx context.Context, event store.SessionEvent,
+) (store.SessionEvent, bool, error) {
+	if event.Type == acp.EventTypeUserMessage && r.failures.Add(-1) >= 0 {
+		return store.SessionEvent{}, false, errors.New("input event write unavailable")
+	}
+	persisted, inserted, err := r.SessionDB.AppendEventIfAbsent(ctx, event)
+	if err == nil && event.Type == acp.EventTypeUserMessage && r.committedFailures.Add(-1) >= 0 {
+		failure := r.committedErr
+		if failure == nil {
+			failure = errors.New("input event acknowledgement lost")
+		}
+		return store.SessionEvent{}, false, failure
+	}
+	return persisted, inserted, err
 }
 
 // steerResolveFailureStore fails steer resolution while armed, after the provider accepted the guidance.
@@ -5220,6 +5326,77 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
+	t.Run(
+		"Should settle a delivered steer after its input write commits without an acknowledgement",
+		func(t *testing.T) {
+			t.Parallel()
+			failing := &userMessageFailingRecorder{}
+			f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{failing.install})
+			failing.committedFailures.Store(1)
+			steer := agentOpts("guidance", "sess-a", false)
+			steer.Mode = BusyInputModeSteer
+			result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer)
+			if err != nil || result.SteerDelivery != store.SteerDeliveryInjected {
+				t.Fatalf("steer = %#v, %v; want injected after the input event retry", result, err)
+			}
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent {
+				t.Fatalf("entry = %#v, %v; want sent", entry, err)
+			}
+			recorded := 0
+			for _, event := range managerUserPromptEvents(t, f.h, f.sess.ID) {
+				if event.MessageIDValue() == "guidance" {
+					recorded++
+				}
+			}
+			if recorded != 1 {
+				t.Fatalf("guidance input events = %d, want exactly one in history", recorded)
+			}
+			drain(t, f)
+		},
+	)
+
+	t.Run(
+		"Should suppress duplicate publication after a committed steer reports a closed recorder",
+		func(t *testing.T) {
+			t.Parallel()
+			failing := &userMessageFailingRecorder{committedErr: store.ErrClosed}
+			f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{failing.install})
+			failing.committedFailures.Store(1)
+			steer := agentOpts("guidance", "sess-a", false)
+			steer.Mode = BusyInputModeSteer
+			result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer)
+			if err != nil || result.SteerDelivery != store.SteerDeliveryInjected {
+				t.Fatalf("steer = %#v, %v; want injected after the input event retry", result, err)
+			}
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent {
+				t.Fatalf("entry = %#v, %v; want sent", entry, err)
+			}
+			recorded := 0
+			for _, event := range managerUserPromptEvents(t, f.h, f.sess.ID) {
+				if event.MessageIDValue() == "guidance" {
+					recorded++
+				}
+			}
+			if recorded != 1 {
+				t.Fatalf("guidance input events = %d, want exactly one in history", recorded)
+			}
+			f.h.notifier.mu.Lock()
+			published := 0
+			for _, event := range f.h.notifier.events[f.sess.ID] {
+				if event.Type == acp.EventTypeUserMessage && event.MessageIDValue() == "guidance" {
+					published++
+				}
+			}
+			f.h.notifier.mu.Unlock()
+			if published != 0 {
+				t.Fatalf("replayed guidance notifications = %d, want none for an existing row", published)
+			}
+			drain(t, f)
+		},
+	)
+
 	t.Run("Should keep a delivered steer leased when its input event never persists", func(t *testing.T) {
 		t.Parallel()
 		failing := &userMessageFailingRecorder{}
@@ -5445,3 +5622,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 }
+
+type managedInputAdmissionFunc func(context.Context) error
+
+func (f managedInputAdmissionFunc) Check(ctx context.Context) error { return f(ctx) }

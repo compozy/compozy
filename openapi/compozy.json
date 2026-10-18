@@ -26082,6 +26082,17 @@
         ],
         "type": "object"
       },
+      "SettingsLogTailEventPayload": {
+        "properties": {
+          "line": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line"
+        ],
+        "type": "object"
+      },
       "SettingsMCPAuthBeginRequest": {
         "properties": {
           "approve_scope_escalation": {
@@ -63702,6 +63713,13 @@
         "operationId": "streamSettingsObservabilityLogTail",
         "responses": {
           "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsLogTailEventPayload"
+                }
+              }
+            },
             "description": "SSE stream established"
           },
           "500": {
@@ -65907,7 +65925,7 @@
         "tags": [
           "diagnostics"
         ],
-        "x-compozy-app-access": "allowed",
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
@@ -73266,7 +73284,7 @@
         "tags": [
           "workspaces"
         ],
-        "x-compozy-app-access": "allowed",
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

@@ -399,3 +399,14 @@ func (r *orderedRecorder) History(context.Context, store.EventQuery) ([]store.Tu
 func (r *orderedRecorder) Close(context.Context) error {
 	return nil
 }
+
+func (r *orderedRecorder) MaxEventSequence(context.Context) (int64, error) {
+	return r.nextSeq, nil
+}
+
+func (r *orderedRecorder) QueryEventMetadata(
+	ctx context.Context, query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	rows, err := r.Query(ctx, query)
+	return testMetadataFromEvents(rows), err
+}

@@ -3,7 +3,7 @@ title: Twelve long-tail providers leave the built-in registry
 type: breaking
 ---
 
-CompozyOS now ships only the built-in providers people actually use: `claude`, `codex`, `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp` harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, and `xai`. Twelve providers with no owner and no end-to-end validation leave the registry, taking it from 26 built-ins to 14. Each still runs as a custom `[providers.<id>]` entry, and existing references keep working for one release. (#761)
+CompozyOS now ships only the built-in providers people actually use: `claude`, `codex`, `agy` (Google Antigravity), `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp` harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, and `xai`. Twelve providers with no owner and no end-to-end validation leave the registry. With Google Antigravity added, the current catalog contains 15 built-ins. Each still runs as a custom `[providers.<id>]` entry, and existing references keep working for one release. (#761)
 
 - Removed standalone ACP CLIs: `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`, `openhands`, and `qoder`.
 - Removed `pi_acp` API-key providers: `mistral`, `groq`, and `minimax`.

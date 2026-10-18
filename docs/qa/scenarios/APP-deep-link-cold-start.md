@@ -25,3 +25,10 @@ start (or provision) step, capturing the intermediate state and the final linked
 covered by the scripted-manual smoke (this is one of the two macOS single-instance/link E2Es that
 replace the missing IT-020 runner there). Evidence includes the app log line showing exactly one
 queued navigation firing after readiness.
+
+
+CI remediation 2026-10-18: the desktop launch fixture reserves distinct available
+ports below the default client ephemeral ranges, matching the Go harness. This
+prevents an outbound connection from reclaiming a released port-0 probe before
+the detached daemon binds. E2E-015/E2E-025 still covers cold Settings navigation,
+hostile deep-link rejection, and CLI navigation with the same startup budget.

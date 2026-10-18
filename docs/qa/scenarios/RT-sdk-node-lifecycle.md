@@ -21,3 +21,9 @@ Use a unique lab home and record daemon PID, address, and socket. Start with no 
 QA impact 2026-10-17: App SDK implementation adds this user-visible journey. Authored planning only;
 no live execution verdict is recorded. Execute in the assigned isolated lab and attach current-head
 evidence before marking it passed.
+
+QA impact 2026-10-18: distinguish stop acknowledgement from process exit. Exercise a daemon
+whose SIGTERM handler delays shutdown; the owning close must wait for that child
+to exit within its deadline, with no late writes after the home is released. The existing Node
+lifecycle unit suite covers delayed exit and a replacement between ownership and CLI discovery, and TestDaemonE2EAppSDK runs the public
+package against a real daemon. Preserve the foreign-PID and reused-client checks.

@@ -182,3 +182,10 @@ Provider probe recovery: remove the daemon launch directory after startup, then 
 and probe native and ACP authentication. The endpoints remain available and probes run from the
 temporary directory, including on systems that return a stale path from `Getwd()`. The owning
 `TestProviderHandlersWithoutWorkingDirectory` subprocess regression verifies this boundary.
+
+
+Review remediation 2026-10-18: a successful ACP login remains authenticated when
+the consent timeout expires before the subsequent status probe. The probe uses
+the caller context; the timeout still bounds the consent phase. Verify the built-in
+server executable as `agy_acp_server.exe` on Windows and `agy_acp_server.par` on
+Unix, including CLI missing-command guidance, provider inventory, and Settings.

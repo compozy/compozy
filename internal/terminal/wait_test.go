@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
@@ -34,76 +35,78 @@ func TestWaitEngineContract(t *testing.T) {
 
 	t.Run("Should wake on a matching output revision without timer polling [UT-051]", func(t *testing.T) {
 		t.Parallel()
-		manager, starter, _ := newTestManager(t, DefaultSettings())
-		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-		viewer, err := handle.Attach(t.Context(), AttachOptions{
-			Mode: "read", Flow: "ack",
-			Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-		})
-		if err != nil {
-			t.Fatalf("Attach() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := viewer.Close(); err != nil {
-				t.Errorf("Close() error = %v", err)
-			}
-		})
-		assertAttachedFrame(t, receiveSubscriptionFrame(t, viewer), 0, false)
-		// Fill the ACK window before timing Wait; leave every output frame unacknowledged.
-		if err := starter.latest().emit(bytes.Repeat([]byte("x"), terminalwire.AckHighWatermark)); err != nil {
-			t.Fatalf("emit(stalled viewer setup) error = %v", err)
-		}
-		waitForTerminalTail(t, handle, "setup output did not fill the ACK window", func(tail *ReadResult) bool {
-			return tail.Seq == terminalwire.AckHighWatermark &&
-				viewer.(*subscription).queue.PendingBytes() >= terminalwire.AckHighWatermark
-		})
-		// Consume any read already in flight when the ACK window became full.
-		probe := []byte("settled\r\n")
-		probeDone := make(chan error, 1)
-		go func() { probeDone <- starter.latest().emit(probe) }()
-		setupCtx, cancelSetup := context.WithTimeout(t.Context(), 2*time.Second)
-		defer cancelSetup()
-		waitForTerminalTail(t, handle, "setup probe or screen did not settle", func(tail *ReadResult) bool {
-			wantSeq := uint64(terminalwire.AckHighWatermark + len(probe))
-			if tail.Seq != wantSeq {
-				return false
-			}
-			screen, err := handle.Screen(setupCtx, ReadOptions{View: terminalViewScreen})
+		synctest.Test(t, func(t *testing.T) {
+			manager, starter, _ := newTestManager(t, DefaultSettings())
+			handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+			viewer, err := handle.Attach(t.Context(), AttachOptions{
+				Mode: "read", Flow: "ack",
+				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			})
 			if err != nil {
-				t.Fatalf("Screen(stalled viewer setup) error = %v", err)
+				t.Fatalf("Attach() error = %v", err)
 			}
-			return !screen.Busy && screen.Seq == wantSeq
+			t.Cleanup(func() {
+				if err := viewer.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+			assertAttachedFrame(t, receiveSubscriptionFrame(t, viewer), 0, false)
+			// Fill the ACK window before timing Wait; leave every output frame unacknowledged.
+			if err := starter.latest().emit(bytes.Repeat([]byte("x"), terminalwire.AckHighWatermark)); err != nil {
+				t.Fatalf("emit(stalled viewer setup) error = %v", err)
+			}
+			waitForTerminalTail(t, handle, "setup output did not fill the ACK window", func(tail *ReadResult) bool {
+				return tail.Seq == terminalwire.AckHighWatermark &&
+					viewer.(*subscription).queue.PendingBytes() >= terminalwire.AckHighWatermark
+			})
+			// Settle the emulator before measuring the revision wake under a stalled viewer.
+			probe := []byte("settled\r\n")
+			probeDone := make(chan error, 1)
+			go func() { probeDone <- starter.latest().emit(probe) }()
+			setupCtx, cancelSetup := context.WithTimeout(t.Context(), 2*time.Second)
+			defer cancelSetup()
+			waitForTerminalTail(t, handle, "setup probe or screen did not settle", func(tail *ReadResult) bool {
+				wantSeq := uint64(terminalwire.AckHighWatermark + len(probe))
+				if tail.Seq != wantSeq {
+					return false
+				}
+				screen, err := handle.Screen(setupCtx, ReadOptions{View: terminalViewScreen})
+				if err != nil {
+					t.Fatalf("Screen(stalled viewer setup) error = %v", err)
+				}
+				return !screen.Busy && screen.Seq == wantSeq
+			})
+			if err := <-probeDone; err != nil {
+				t.Fatalf("emit(setup probe) error = %v", err)
+			}
+			type waitOutcome struct {
+				result *WaitResult
+				err    error
+			}
+			waitCtx, cancelWait := context.WithTimeout(t.Context(), 200*time.Millisecond)
+			defer cancelWait()
+			resultDone := make(chan waitOutcome, 1)
+			waitStarted := make(chan struct{})
+			go func() {
+				close(waitStarted)
+				result, err := handle.Wait(waitCtx, WaitCondition{Until: "match", Pattern: "ready-[0-9]+"})
+				resultDone <- waitOutcome{result: result, err: err}
+			}()
+			<-waitStarted
+			emitDone := make(chan error, 1)
+			go func() { emitDone <- starter.latest().emit([]byte("ready-42\r\n")) }()
+			select {
+			case outcome := <-resultDone:
+				if outcome.err != nil || outcome.result.Reason != "match" {
+					t.Fatalf("Wait(match) = %#v error=%v", outcome.result, outcome.err)
+				}
+				if err := <-emitDone; err != nil {
+					t.Fatalf("emit() error = %v", err)
+				}
+			case <-time.After(200 * time.Millisecond):
+				t.Fatal("matching output did not wake wait")
+			}
 		})
-		if err := <-probeDone; err != nil {
-			t.Fatalf("emit(setup probe) error = %v", err)
-		}
-		type waitOutcome struct {
-			result *WaitResult
-			err    error
-		}
-		waitCtx, cancelWait := context.WithTimeout(t.Context(), 200*time.Millisecond)
-		defer cancelWait()
-		resultDone := make(chan waitOutcome, 1)
-		waitStarted := make(chan struct{})
-		go func() {
-			close(waitStarted)
-			result, err := handle.Wait(waitCtx, WaitCondition{Until: "match", Pattern: "ready-[0-9]+"})
-			resultDone <- waitOutcome{result: result, err: err}
-		}()
-		<-waitStarted
-		emitDone := make(chan error, 1)
-		go func() { emitDone <- starter.latest().emit([]byte("ready-42\r\n")) }()
-		select {
-		case outcome := <-resultDone:
-			if outcome.err != nil || outcome.result.Reason != "match" {
-				t.Fatalf("Wait(match) = %#v error=%v", outcome.result, outcome.err)
-			}
-			if err := <-emitDone; err != nil {
-				t.Fatalf("emit() error = %v", err)
-			}
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("matching output did not wake wait")
-		}
 	})
 
 	t.Run("Should distinguish timeout idle and still-running states [UT-052]", func(t *testing.T) {

@@ -5,7 +5,14 @@ import { CompozyConfigError, CompozyUnavailableError } from "./errors.js";
 import { Compozy as Client } from "./index-node.js";
 import { resolveBinary } from "./node-binary.js";
 import { daemonBaseUrl, readDaemonInfo, resolveHome } from "./node-discovery.js";
-import { launchDaemon, launchError, stopDaemon, terminateLaunch } from "./node-process.js";
+import {
+  launchDaemon,
+  launchError,
+  stopDaemon,
+  terminateLaunch,
+  waitForLaunchExit,
+  type DaemonLaunch,
+} from "./node-process.js";
 
 export * from "./index-node.js";
 
@@ -18,9 +25,9 @@ export interface CloseOptions {
 }
 
 interface OwnedDaemon {
+  launch: DaemonLaunch;
   home: string;
   pid: number;
-  binary: string;
   timeoutMs: number;
 }
 
@@ -60,7 +67,7 @@ export class Compozy extends Client {
         }
         const client = await this.connectHome(home, options, deadline, launch.child.pid);
         if (client && !launch.exited && !launch.error) {
-          client.ownedDaemon = { home, pid: client.daemon.pid, binary, timeoutMs };
+          client.ownedDaemon = { home, pid: client.daemon.pid, timeoutMs, launch };
           launch.child.unref();
           return client;
         }
@@ -91,11 +98,13 @@ export class Compozy extends Client {
     const owned = this.ownedDaemon;
     if (!owned) return;
     const info = await readDaemonInfo(owned.home);
-    if (info?.pid !== owned.pid) {
+    if (info && info.pid !== owned.pid) {
       this.ownedDaemon = undefined;
       return;
     }
-    await stopDaemon(owned.binary, owned.home, owned.timeoutMs);
+    const deadline = Date.now() + owned.timeoutMs;
+    if (info) await stopDaemon(owned.launch, owned.timeoutMs);
+    await waitForLaunchExit(owned.launch, Math.max(0, deadline - Date.now()));
     this.ownedDaemon = undefined;
   }
 

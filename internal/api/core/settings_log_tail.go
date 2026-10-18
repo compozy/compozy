@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -104,7 +105,7 @@ func (h *BaseHandlers) drainSettingsLogTail(
 		}
 		h.writeSSEBestEffort(writer, SSEMessage{
 			Name: "log",
-			Data: SettingsLogTailEventPayload{Line: strings.TrimRight(line, "\r\n")},
+			Data: contract.SettingsLogTailEventPayload{Line: strings.TrimRight(line, "\r\n")},
 		})
 	}
 }

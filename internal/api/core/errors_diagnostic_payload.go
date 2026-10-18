@@ -20,7 +20,33 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	enrichOperationError(&payload, err)
+	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
+	}
+	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
+		payload.Code = "workspace_home_forbidden"
+	}
+	if code := GatewayErrorCode(err); code != "" {
+		payload.Code = code
+	}
+	if code := WorktreeErrorCode(err); code != "" {
+		payload.Code = code
+	}
+	enrichWorktreeError(&payload, err)
+	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
+		payload.Code = string(reason.Code)
+		payload.Details = lifecycleReasonDetails(reason.Meta)
+	}
+	payload.Diagnostic = errorDiagnosticItem(message, err)
+	enrichSessionInputError(&payload, err)
+	return payload
+}
+
+func enrichOperationError(payload *contract.ErrorPayload, err error) {
 	switch {
+	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
+		payload.Code = "session_not_found"
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):
@@ -54,26 +80,6 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"
 	}
-	if code := DeriveErrorCode(err); code != "" {
-		payload.Code = code
-	}
-	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
-		payload.Code = "workspace_home_forbidden"
-	}
-	if code := GatewayErrorCode(err); code != "" {
-		payload.Code = code
-	}
-	if code := WorktreeErrorCode(err); code != "" {
-		payload.Code = code
-	}
-	enrichWorktreeError(&payload, err)
-	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
-		payload.Code = string(reason.Code)
-		payload.Details = lifecycleReasonDetails(reason.Meta)
-	}
-	payload.Diagnostic = errorDiagnosticItem(message, err)
-	enrichSessionInputError(&payload, err)
-	return payload
 }
 
 func enrichWorktreeError(payload *contract.ErrorPayload, err error) {

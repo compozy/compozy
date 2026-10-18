@@ -2,48 +2,10 @@
 
 package client
 
-import "time"
-
-// SettingsSkillSourcePayload is a daemon API value.
-type SettingsSkillSourcePayload struct {
-	Slug          string                           `json:"slug"`
-	Label         string                           `json:"label"`
-	Kind          string                           `json:"kind"`
-	Enabled       bool                             `json:"enabled"`
-	AlwaysOn      bool                             `json:"always_on"`
-	Default       bool                             `json:"default,omitzero"`
-	WorkspacePath string                           `json:"workspace_path,omitempty"`
-	GlobalPath    string                           `json:"global_path,omitempty"`
-	Path          string                           `json:"path,omitempty"`
-	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
-}
-
-// SettingsSkillSourceRootPayload is a daemon API value.
-type SettingsSkillSourceRootPayload struct {
-	RootID        string                                  `json:"root_id"`
-	Path          string                                  `json:"path"`
-	Exists        bool                                    `json:"exists"`
-	Readable      bool                                    `json:"readable"`
-	ScannedCount  *int                                    `json:"scanned_count,omitzero"`
-	SkillCount    *int                                    `json:"skill_count,omitzero"`
-	Truncated     bool                                    `json:"truncated"`
-	SkippedLinks  []SettingsSkillSourceSkippedLinkPayload `json:"skipped_links"`
-	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`
-	Verification  SettingsSkillSourceVerificationPayload  `json:"verification"`
-	NativeReaders []string                                `json:"native_readers"`
-}
-
-// SettingsSkillSourceSkippedLinkPayload is a daemon API value.
-type SettingsSkillSourceSkippedLinkPayload struct {
-	Path   string `json:"path"`
-	Reason string `json:"reason"`
-}
-
-// SettingsSkillSourceVerificationPayload is a daemon API value.
-type SettingsSkillSourceVerificationPayload struct {
-	Blocked int `json:"blocked"`
-	Warned  int `json:"warned"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 // SettingsSkillsConfigPayload is a daemon API value.
 type SettingsSkillsConfigPayload struct {
@@ -87,10 +49,8 @@ type SettingsSkillsMutationResponse struct {
 }
 
 // SettingsSkillsOverridePayload is a daemon API value.
-type SettingsSkillsOverridePayload struct {
-	Sources       OptionalStringList `json:"sources,omitzero"`
-	CustomSources OptionalStringList `json:"custom_sources,omitzero"`
-}
+// SettingsSkillsOverridePayload preserves its custom JSON wire representation.
+type SettingsSkillsOverridePayload = json.RawMessage
 
 // SettingsSkillsResponse is a daemon API value.
 type SettingsSkillsResponse struct {
@@ -444,4 +404,36 @@ type SkillExposeResponse struct {
 	WorkspaceID string                             `json:"workspace_id,omitempty"`
 	Results     []SkillExposureTargetResultPayload `json:"results"`
 	RolledBack  bool                               `json:"rolled_back"`
+}
+
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
+// SkillExposureRequest is a daemon API value.
+type SkillExposureRequest struct {
+	Targets     []string `json:"targets"`
+	WorkspaceID string   `json:"workspace_id,omitempty"`
+}
+
+// SkillExposureStatus is a daemon API value.
+type SkillExposureStatus string
+
+// SkillExposureTargetResultPayload is a daemon API value.
+type SkillExposureTargetResultPayload struct {
+	Target       string                     `json:"target"`
+	OK           bool                       `json:"ok"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
+	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
 }

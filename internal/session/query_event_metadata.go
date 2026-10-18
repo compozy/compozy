@@ -20,11 +20,7 @@ func (m *Manager) EventMetadata(
 		if openErr != nil {
 			return nil, openErr
 		}
-		reader, ok := recorder.(store.EventMetadataReader)
-		if !ok {
-			return nil, errors.Join(errors.New("session: recorder has no event metadata projection"), cleanup())
-		}
-		events, err = reader.QueryEventMetadata(ctx, query)
+		events, err = recorder.QueryEventMetadata(ctx, query)
 		cleanupErr := cleanup()
 		if err == nil {
 			if cleanupErr != nil {

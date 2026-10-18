@@ -4,47 +4,6 @@ package client
 
 import "time"
 
-// SessionFolderPayload is a daemon API value.
-type SessionFolderPayload struct {
-	ID           string    `json:"id"`
-	WorkspaceID  string    `json:"workspace_id"`
-	ProfileID    string    `json:"profile_id"`
-	Name         string    `json:"name"`
-	Position     int       `json:"position"`
-	SessionCount int       `json:"session_count"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-// SessionFolderResponse is a daemon API value.
-type SessionFolderResponse struct {
-	Folder SessionFolderPayload `json:"folder"`
-}
-
-// SessionFoldersResponse is a daemon API value.
-type SessionFoldersResponse struct {
-	Folders []SessionFolderPayload `json:"folders"`
-}
-
-// SessionGoalCommandRequest is a daemon API value.
-type SessionGoalCommandRequest struct {
-	Operation     SessionGoalOperation           `json:"operation"`
-	Objective     string                         `json:"objective,omitempty"`
-	ExpectedRunID string                         `json:"expected_run_id,omitempty"`
-	Runtime       *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
-}
-
-// SessionGoalOperation is a daemon API value.
-type SessionGoalOperation string
-
-// SessionGoalResponse is a daemon API value.
-type SessionGoalResponse struct {
-	Goal *GoalSnapshot `json:"goal"`
-}
-
-// SessionHealthIneligibilityReason is a daemon API value.
-type SessionHealthIneligibilityReason string
-
 // SessionHealthPayload is a daemon API value.
 type SessionHealthPayload struct {
 	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
@@ -447,4 +406,40 @@ type SessionUsageTurnPayload struct {
 type SessionUsageTurnsResponse struct {
 	Turns       []SessionUsageTurnPayload  `json:"turns"`
 	Compactions []SessionCompactionPayload `json:"compactions"`
+}
+
+// SessionWaitRequest is a daemon API value.
+type SessionWaitRequest struct {
+	Until     []string `json:"until,omitempty"`
+	TimeoutMS int64    `json:"timeout_ms"`
+	Epoch     int64    `json:"epoch,omitzero"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWaitResponse is a daemon API value.
+type SessionWaitResponse struct {
+	SessionID string   `json:"session_id"`
+	Outcome   string   `json:"outcome"`
+	State     string   `json:"state,omitempty"`
+	WaitedMS  int64    `json:"waited_ms"`
+	Until     []string `json:"until,omitempty"`
+	Revision  int64    `json:"revision"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWorkspaceFacetsPayload is a daemon API value.
+type SessionWorkspaceFacetsPayload struct {
+	WorkspaceID string                      `json:"workspace_id"`
+	Facets      SessionCatalogFacetsPayload `json:"facets"`
+}
+
+// SetExtensionEnablementRequest is a daemon API value.
+type SetExtensionEnablementRequest struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SetExtensionSecretsRequest is a daemon API value.
+type SetExtensionSecretsRequest struct {
+	Bindings []ExtensionSecretBindingInput `json:"bindings"`
 }

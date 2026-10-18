@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
@@ -37,8 +36,9 @@ type promptRequest struct {
 	notifyOnComplete       bool
 	// supersede replaces the same sender's older undispatched message to this target.
 	supersede bool
-	// inputAt pins the input event timestamp so a retried write of the same event stays idempotent.
-	inputAt time.Time
+	// Accepted steering retries retain the complete normalized event, including its timestamp and correlation.
+	inputIdempotent bool
+	inputEvent      *acp.AgentEvent
 	// batch carries the queued entries dispatched in the same turn after this request's own input.
 	batch []queuedInput
 	// batchDropped reports a batched entry that left the batch before the turn started and went back
@@ -69,9 +69,6 @@ func (m *Manager) recordPromptInputEvent(
 		Timestamp: m.now(),
 		Text:      req.message,
 	}
-	if !req.inputAt.IsZero() {
-		event.Timestamp = req.inputAt
-	}
 	event = event.WithPromptOrigin(req.meta.Origin)
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
 	event = event.WithSkillInvocations(req.skillInvocations)
@@ -87,22 +84,38 @@ func (m *Manager) recordPromptInputEvent(
 		}
 	}
 	event = m.normalizeEvent(session, req.turnID, event)
+	if req.inputIdempotent {
+		if req.inputEvent == nil {
+			prepared := m.enrichRecordedAgentEvent(session, event)
+			req.inputEvent = &prepared
+		}
+		event = *req.inputEvent
+	}
 	if session != nil {
-		if err := m.recordPromptInputWithAuthoredText(
+		if inserted, err := m.recordPromptInputWithAuthoredText(
 			ctx,
 			session,
 			event,
 			req.authoredMessage,
 			req.eventID,
+			req.inputIdempotent,
 		); err == nil {
-			m.notifyAgentEvent(ctx, session, event)
+			if inserted {
+				m.notifyAgentEvent(ctx, session, event)
+			}
 			req.inputRecorded = true
 			return nil
 		} else if !errors.Is(err, store.ErrClosed) {
 			return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
 		}
 	}
-	if err := m.recordInactivePromptInputEvent(ctx, req.target, event, req.authoredMessage, req.eventID); err != nil {
+	if _, err := m.recordInactivePromptInputEvent(
+		ctx,
+		req.target,
+		event,
+		req.authoredMessage,
+		req.eventID,
+	); err != nil {
 		return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
 	}
 	req.inputRecorded = true
@@ -135,21 +148,21 @@ func (m *Manager) recordInactivePromptInputEvent(
 	event acp.AgentEvent,
 	authoredText string,
 	eventID string,
-) error {
+) (bool, error) {
 	meta, err := m.readMetaWithContext(ctx, sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	event.SessionID = sessionID
 	payload, err := marshalAgentEventPreservingAuthoredText(event, authoredText)
 	if err != nil {
-		return err
+		return false, err
 	}
 	persistedEventID, err := promptInputEventID(eventID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	persisted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
+	persisted, inserted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
 		ID:        persistedEventID,
 		SessionID: sessionID,
 		TurnID:    event.TurnID,
@@ -159,11 +172,14 @@ func (m *Manager) recordInactivePromptInputEvent(
 		Timestamp: event.Timestamp,
 	})
 	if err != nil {
-		return err
+		return false, err
+	}
+	if !inserted {
+		return false, nil
 	}
 	m.publishSessionEventByID(ctx, sessionID, persisted)
 	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, &meta), event)
-	return nil
+	return true, nil
 }
 
 func promptInputEventID(eventID string) (string, error) {

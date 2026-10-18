@@ -4,7 +4,7 @@ description: Discover the daemon, create a session, and read prompt and event st
 icon: FileCode
 ---
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 The Go client uses only the standard library and lives at
 `github.com/compozy/compozy/sdk/go/client`. It shares the extension SDK's module and release tag,
@@ -114,8 +114,11 @@ returns the accepted payload and a boolean; `Next()` immediately returns `io.EOF
 result. The payload includes the queue status and position.
 
 Generated JSON methods retain the operation ID in Go form, such as `ListTasks`. Parameters go in a
-`ListTasksParams` struct and the request body, where needed, is the final argument. Generated SSE
-methods return streams whose `Next()` yields frames with `Event`, `ID`, and decoded `Data`:
+`ListTasksParams` struct and the request body, where needed, is the final argument. Distinct successful
+response shapes retain their JSON and expose `StatusCode`. For an operator `InvokeTool` call, select
+`AsToolInvokeResponse()` for 200 or `AsToolErrorResponse()` for 202 to read its approval details.
+
+Generated SSE methods return streams whose `Next()` yields frames with `Event`, `ID`, and decoded `Data`:
 
 ```go
 stream, err := c.StreamSession(ctx, client.StreamSessionParams{
@@ -146,6 +149,15 @@ A daemon error is a `*client.APIError` with `Status`, `Code`, `Message`, and `De
 discovery wraps `client.ErrUnavailable`. Canceling the stream context makes `Next()` return
 `context.Canceled`; it detaches the reader without canceling the agent's turn. Recover the transcript
 before resubmitting interrupted work, and explicitly cancel the session prompt when that is your intent.
+
+Set a deadline on the request context for long waits, uploads, or downloads. JSON calls use a
+30-second default only when the caller provides no deadline; an explicit longer deadline is preserved.
+
+Custom JSON values use `json.RawMessage` aliases so the client preserves scalar/object unions and
+explicit nulls. `client.StrategyThreshold` carries either the JSON string `"66%"` or the object
+`{"count":2}`. Strategy and stop-condition shorthand strings, and source-list overrides such as
+`{"override":{"sources":null}}`, retain their wire shape. Task-run status and run kind are string types.
+The daemon validates these values.
 
 The [API reference](/docs/api) includes generated Go calls per operation. Full package documentation
 is published on [pkg.go.dev](https://pkg.go.dev/github.com/compozy/compozy/sdk/go/client).

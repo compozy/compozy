@@ -2,7 +2,10 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // WindowManagerPreview is a daemon API value.
 type WindowManagerPreview struct {
@@ -46,7 +49,8 @@ type WindowManagerReturnAnchor struct {
 }
 
 // WindowManagerRevision is a daemon API value.
-type WindowManagerRevision uint64
+// WindowManagerRevision preserves its custom JSON wire representation.
+type WindowManagerRevision = json.RawMessage
 
 // WindowManagerSnapshot is a daemon API value.
 type WindowManagerSnapshot struct {

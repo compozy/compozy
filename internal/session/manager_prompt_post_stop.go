@@ -52,7 +52,7 @@ func (m *Manager) recordPostStopMarker(ctx context.Context, session *Session, tu
 	}
 	// The ordinary recorder has already closed. Reuse the durable append owner
 	// and one stable marker ID per turn without applying agent state projections.
-	persisted, err := m.appendDurableSessionEvent(ctx, session.ID, store.SessionEvent{
+	persisted, _, err := m.appendDurableSessionEvent(ctx, session.ID, store.SessionEvent{
 		ID:        fmt.Sprintf("post-stop:%s:%s", session.ID, turnID),
 		SessionID: session.ID,
 		TurnID:    turnID,

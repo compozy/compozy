@@ -92,10 +92,8 @@ type UpdateSettingsShellRequest struct {
 }
 
 // UpdateSettingsSkillsRequest is a daemon API value.
-type UpdateSettingsSkillsRequest struct {
-	Config   SettingsSkillsConfigPayload    `json:"config,omitzero"`
-	Override *SettingsSkillsOverridePayload `json:"override,omitzero"`
-}
+// UpdateSettingsSkillsRequest preserves its custom JSON wire representation.
+type UpdateSettingsSkillsRequest = json.RawMessage
 
 // UpdateSettingsWindowManagerRequest is a daemon API value.
 type UpdateSettingsWindowManagerRequest struct {

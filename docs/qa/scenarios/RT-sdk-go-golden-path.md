@@ -21,3 +21,8 @@ Follow the Go tutorial with the module version derived from the installed daemon
 QA impact 2026-10-17: App SDK implementation adds this user-visible journey. Authored planning only;
 no live execution verdict is recorded. Execute in the assigned isolated lab and attach current-head
 evidence before marking it passed.
+
+QA impact 2026-10-18: HTTP-only operation examples explicitly select the daemon HTTP URL.
+For operator tool invocation, preserve both the completed 200 payload and the approval-required
+202 payload, including the approval token; inspect StatusCode before decoding the matching variant.
+The canonical Go client suite uses real HTTP responses for both outcomes.

@@ -108,7 +108,7 @@ func resolveWorkspaceOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/resolve",
-		AppAccess:   AppAccessAllowed,
+		AppAccess:   AppAccessDenied,
 		OperationID: "resolveWorkspace",
 		Summary:     "Resolve or register a workspace from a path",
 		Tags:        []string{specWorkspacesKey},

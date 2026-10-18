@@ -236,6 +236,18 @@ order and the rest of the lifecycle live in `references/loops.md`.
 
 Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
 
+## Host CPU Scheduling
+
+`daemon.load.agent_niceness` applies to agent-owned terminal process groups, including
+commands requested through ACP `terminal/create`, as well as the ACP process itself.
+Human and system terminals retain the daemon's inherited priority. Managed Goal
+work, continuation, and compaction prompts use background admission before beginning
+a durable submission; cancelling the Goal also cancels that admission wait.
+
+The Goal event and cleanup relays drain complete batches without waiting for another
+sweep. A failed batch waits for the next wake before retrying, preserving durable
+events and cleanup obligations without a tight retry loop.
+
 ## Goals
 
 `[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "2s"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. The poll interval is only a fallback sweep: committed enqueues wake the relay immediately. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.

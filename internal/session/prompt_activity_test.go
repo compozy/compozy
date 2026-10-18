@@ -1049,16 +1049,16 @@ type quietWarningFailingRecorder struct {
 func (r *quietWarningFailingRecorder) AppendEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	failing := event.Type == eventspkg.SessionSupervisionWarning && r.fail.Load()
 	if failing && !r.afterCommit {
-		return store.SessionEvent{}, errors.New("warning persistence failed")
+		return store.SessionEvent{}, false, errors.New("warning persistence failed")
 	}
-	persisted, err := recordIdempotentSessionEvent(ctx, r.EventRecorder, event)
+	persisted, inserted, err := r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 	if failing {
-		return persisted, errors.Join(err, errors.New("warning acknowledgement lost"))
+		return persisted, inserted, errors.Join(err, errors.New("warning acknowledgement lost"))
 	}
-	return persisted, err
+	return persisted, inserted, err
 }
 
 // Canonical supervision event coverage: lifecycle and failure paths above own emissions.

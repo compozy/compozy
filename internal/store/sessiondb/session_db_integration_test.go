@@ -2647,6 +2647,14 @@ func (r *readOnlyPoolTestReader) Query(
 	return nil, nil
 }
 
+func (*readOnlyPoolTestReader) MaxEventSequence(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (*readOnlyPoolTestReader) QueryEventMetadata(context.Context, store.EventQuery) ([]store.EventMetadata, error) {
+	return nil, nil
+}
+
 func (r *readOnlyPoolTestReader) History(
 	context.Context,
 	store.EventQuery,

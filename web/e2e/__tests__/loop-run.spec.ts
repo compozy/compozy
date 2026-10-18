@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
 
 import type { LoopDefinition, LoopRunDetail, RunLoopResult } from "@/systems/loops";
-import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { ensureAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -826,8 +826,9 @@ test.describe("Loop run page — two registers", () => {
     await expect(appPage.getByTestId("loop-run-briefing-headline")).toBeVisible();
     await appPage.getByTestId("os-menubar-profile").click();
     await appPage.getByTestId("profile-switcher-all").click();
-    const loops = await openAppWindow(appPage, "Loops", "loops");
-    await loops.getByTestId("loops-runs-link").click();
+    // The focused run already owns the Loops window; the Dock toggles that window closed.
+    const loops = await ensureAppWindow(appPage, "Loops", "loops");
+    await loops.getByRole("button", { name: "Back one level" }).click();
     await loops
       .getByTestId("loop-run-row")
       .filter({ hasText: NEEDS_YOU_LOOP })

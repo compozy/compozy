@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -15,14 +17,21 @@ import (
 	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
+func agyTestExecutable() string {
+	if runtime.GOOS == "windows" {
+		return "agy_acp_server.exe"
+	}
+	return "agy_acp_server.par"
+}
+
 func agyTestResolver(t *testing.T) func(context.Context, string, []string, string) (string, error) {
 	t.Helper()
 
 	return func(_ context.Context, command string, _ []string, _ string) (string, error) {
-		if command != "agy_acp_server.par" {
-			t.Fatalf("resolve command = %q, want agy_acp_server.par", command)
+		if command != agyTestExecutable() {
+			t.Fatalf("resolve command = %q, want %q", command, agyTestExecutable())
 		}
-		return "/test/bin/agy_acp_server.par", nil
+		return "/test/bin/" + agyTestExecutable(), nil
 	}
 }
 
@@ -69,7 +78,7 @@ func TestProviderAGYCheapReads(t *testing.T) {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if !record.Login.Configured || record.Login.Source != "auth_acp_method" ||
-			record.Login.Executable != "agy_acp_server.par" ||
+			record.Login.Executable != agyTestExecutable() ||
 			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
 			t.Fatalf("Login = %#v, want present auth_acp_method descriptor", record.Login)
 		}
@@ -117,7 +126,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		deps := newTestDeps(t, nil)
 		deps.resolveProviderAuthCommand = agyTestResolver(t)
 		deps.runACPProbe = func(_ context.Context, req acp.SessionInspectionRequest) error {
-			if !strings.HasPrefix(strings.TrimSpace(req.Command), "agy_acp_server.par") {
+			if !strings.HasPrefix(strings.TrimSpace(req.Command), agyTestExecutable()) {
 				t.Fatalf("Command = %q, want builtin server command", req.Command)
 			}
 			return nil
@@ -141,7 +150,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		if !record.Login.Configured || record.Login.Source != "auth_acp_method" {
 			t.Fatalf("Login = %#v, want auth_acp_method source", record.Login)
 		}
-		if strings.Contains(stdout, "/test/bin/agy_acp_server.par") {
+		if strings.Contains(stdout, "/test/bin/"+agyTestExecutable()) {
 			t.Fatalf("stdout leaked resolved server path: %s", stdout)
 		}
 	})
@@ -186,7 +195,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 			if got, want := req.MethodID, "oauth-personal"; got != want {
 				t.Fatalf("MethodID = %q, want %q", got, want)
 			}
-			if !strings.HasPrefix(strings.TrimSpace(req.Command), "agy_acp_server.par") {
+			if !strings.HasPrefix(strings.TrimSpace(req.Command), agyTestExecutable()) {
 				t.Fatalf("Command = %q, want builtin server command", req.Command)
 			}
 			if req.InteractiveOutput == nil {
@@ -226,6 +235,44 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep successful login independent of the expired consent timeout", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, nil)
+		deps.resolveProviderAuthCommand = agyTestResolver(t)
+		deps.runACPLogin = func(ctx context.Context, _ acp.AuthenticationRequest) error {
+			if _, ok := ctx.Deadline(); !ok {
+				t.Fatal("login context has no consent deadline")
+			}
+			<-ctx.Done()
+			return nil
+		}
+		deps.runACPProbe = func(ctx context.Context, _ acp.SessionInspectionRequest) error {
+			return ctx.Err()
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"provider",
+			"auth",
+			"login",
+			"agy",
+			"--timeout",
+			"1ms",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("provider auth login after consent error = %v", err)
+		}
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.State != "authenticated" {
+			t.Fatalf("login status = %#v, want authenticated", record)
+		}
+	})
+
 	t.Run("Should refuse login when the server executable is missing", func(t *testing.T) {
 		t.Parallel()
 
@@ -242,7 +289,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		if err == nil {
 			t.Fatal("provider auth login agy error = nil, want missing CLI error")
 		}
-		if !strings.Contains(err.Error(), `native CLI "agy_acp_server.par" was not found on PATH`) {
+		if !strings.Contains(err.Error(), fmt.Sprintf("native CLI %q was not found on PATH", agyTestExecutable())) {
 			t.Fatalf("error = %v, want missing server guidance", err)
 		}
 	})

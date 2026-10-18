@@ -190,36 +190,53 @@ func (m *Manager) recordPromptInputWithAuthoredText(
 	event acp.AgentEvent,
 	authoredText string,
 	eventID string,
-) error {
+	idempotent bool,
+) (bool, error) {
 	recorder := session.recorderHandle()
 	if recorder == nil {
-		return errors.New("session: event recorder is not available")
+		return false, errors.New("session: event recorder is not available")
 	}
-	event = m.enrichRecordedAgentEvent(session, event)
+	if !idempotent {
+		event = m.enrichRecordedAgentEvent(session, event)
+	}
 	payload, err := marshalAgentEventPreservingAuthoredText(event, authoredText)
 	if err != nil {
-		return err
+		return false, err
 	}
 	persistedEventID, err := promptInputEventID(eventID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	m.dispatchEventPreRecord(ctx, session, event, payload)
-	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
+	candidate := store.SessionEvent{
 		ID: persistedEventID, TurnID: event.TurnID, Type: event.Type,
 		AgentName: session.Info().AgentName, Content: payload, Timestamp: event.Timestamp,
-	})
+	}
+	var persisted store.SessionEvent
+	inserted := true
+	if idempotent {
+		appender, ok := recorder.(idempotentSessionEventAppender)
+		if !ok {
+			return false, errors.New("session: event recorder does not support idempotent append")
+		}
+		persisted, inserted, err = appender.AppendEventIfAbsent(ctx, candidate)
+	} else {
+		persisted, err = recordPersistedSessionEvent(ctx, recorder, candidate)
+	}
 	if err != nil {
-		return err
+		return false, err
+	}
+	if !inserted {
+		return false, nil
 	}
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
-		return err
+		return false, err
 	}
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)
-	return nil
+	return true, nil
 }
 
 type persistedSessionEventRecorder interface {

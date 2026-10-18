@@ -10,6 +10,35 @@ import (
 	"strings"
 )
 
+// GetPendingToolApprovalParams carries the path, query, and header parameters.
+type GetPendingToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// GetPendingToolApproval Get one pending tool approval lifecycle
+func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
+	path := "/api/tools/approvals/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileParams carries the path, query, and header parameters.
+type GetProfileParams struct {
+	Name string `url:"name"`
+}
+
 // GetProfile Get a profile
 func (c *Client) GetProfile(ctx context.Context, params GetProfileParams) (*Profile, error) {
 	path := "/api/profiles/{name}"
@@ -27,9 +56,10 @@ type GetProfileSelectionsParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 }
 
-// GetProfileSelectionsFrame preserves each event payload; decode its variant using the event name.
+// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
 type GetProfileSelectionsFrame struct {
-	Raw json.RawMessage
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
 }
 
 var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
@@ -44,6 +74,10 @@ func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
 // MarshalJSON returns the original event payload.
 func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Raw)
+}
+
+func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
+	f.StatusCode = status
 }
 
 // AsVariant1 decodes this payload as Variant1.
@@ -405,41 +439,4 @@ func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistory
 // GetSessionOwnerParams carries the path, query, and header parameters.
 type GetSessionOwnerParams struct {
 	SessionID string `url:"session_id"`
-}
-
-// GetSessionOwner Get a session owner; Global history has an empty workspace id
-func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
-	path := "/api/sessions/{session_id}/owner"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionOwner
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionRecapParams carries the path, query, and header parameters.
-type GetSessionRecapParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-	Limit       *int   `url:"limit"`
-}
-
-// GetSessionRecap Get a deterministic session recap
-func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRecapResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

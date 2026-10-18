@@ -20,3 +20,16 @@ Added 2026-10-18 for branch `perf/daemon-load-mitigations`. The walk starts ≥5
 isolated home, saturates the host (e.g. parallel `yes > /dev/null`), and proves the niceness of each
 agent tree, the background-only admission hold (a scheduled automation waits, a user prompt does not),
 the doctor item, both disable switches after restart, and idle daemon CPU with sessions bound.
+
+
+Review remediation 2026-10-18: include ACP `terminal/create` commands in the
+priority inspection. Agent-owned groups use the configured niceness, while human
+and system terminal groups retain inherited priority. Exercise an existing Goal
+session through work, continuation, and compaction: each waits before a durable
+submission under pressure, and cancellation releases the wait without dispatch.
+Enqueue more than three full Goal outbox batches, send one nudge, and verify that
+all ready events and session cleanups drain before the next fallback sweep. A
+failed acknowledgement or Stop remains durable and is retried on a later wake.
+The terminal manager uses real process groups for the priority regression; managed
+input and relay suites own cancellation, exact dispatch counts, and batch retry
+boundaries. The full multi-session CPU saturation walk above remains unverified.

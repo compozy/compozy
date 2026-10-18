@@ -2,39 +2,10 @@
 
 package client
 
-import "time"
-
-// SkillExposureErrorPayload is a daemon API value.
-type SkillExposureErrorPayload struct {
-	Code       string `json:"code"`
-	Message    string `json:"message,omitempty"`
-	OccupiedBy string `json:"occupied_by,omitempty"`
-}
-
-// SkillExposurePayload is a daemon API value.
-type SkillExposurePayload struct {
-	Target string              `json:"target"`
-	Path   string              `json:"path"`
-	Status SkillExposureStatus `json:"status"`
-}
-
-// SkillExposureRequest is a daemon API value.
-type SkillExposureRequest struct {
-	Targets     []string `json:"targets"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-}
-
-// SkillExposureStatus is a daemon API value.
-type SkillExposureStatus string
-
-// SkillExposureTargetResultPayload is a daemon API value.
-type SkillExposureTargetResultPayload struct {
-	Target       string                     `json:"target"`
-	OK           bool                       `json:"ok"`
-	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
-	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
-	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 // SkillPayload is a daemon API value.
 type SkillPayload struct {
@@ -233,27 +204,19 @@ type StopSessionRequest struct {
 }
 
 // StopWhenSpec is a daemon API value.
-type StopWhenSpec struct {
-	Expr        string          `json:"expr"`
-	OnEvalError EvalErrorPolicy `json:"on_eval_error,omitempty"`
-}
+// StopWhenSpec preserves its custom JSON wire representation.
+type StopWhenSpec = json.RawMessage
 
 // StrategyKind is a daemon API value.
 type StrategyKind string
 
 // StrategySpec is a daemon API value.
-type StrategySpec struct {
-	Kind      StrategyKind       `json:"kind"`
-	Threshold *StrategyThreshold `json:"threshold,omitzero"`
-	Missing   MissingPolicy      `json:"missing,omitempty"`
-}
+// StrategySpec preserves its custom JSON wire representation.
+type StrategySpec = json.RawMessage
 
 // StrategyThreshold is a daemon API value.
-type StrategyThreshold struct {
-	Kind    ThresholdKind
-	Percent int
-	Count   int
-}
+// StrategyThreshold preserves its custom JSON wire representation.
+type StrategyThreshold = json.RawMessage
 
 // StuckTaskRunPayload is a daemon API value.
 type StuckTaskRunPayload struct {
@@ -445,4 +408,39 @@ type SupportBundleOperationPayload struct {
 // SupportBundleOperationResponse is a daemon API value.
 type SupportBundleOperationResponse struct {
 	Operation SupportBundleOperationPayload `json:"operation"`
+}
+
+// TargetKind is a daemon API value.
+type TargetKind string
+
+// TaskBlockPayload is a daemon API value.
+type TaskBlockPayload struct {
+	ID          string          `json:"id"`
+	TaskID      string          `json:"task_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Kind        BlockKind       `json:"kind"`
+	Reason      string          `json:"reason"`
+	Details     json.RawMessage `json:"details,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	CreatedBy   ActorIdentity   `json:"created_by"`
+	ExpiresAt   *time.Time      `json:"expires_at,omitempty"`
+	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
+	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
+	ClearNote   string          `json:"clear_note,omitempty"`
+}
+
+// TaskBlockResponse is a daemon API value.
+type TaskBlockResponse struct {
+	Block TaskBlockPayload `json:"block"`
+}
+
+// TaskBlocksResponse is a daemon API value.
+type TaskBlocksResponse struct {
+	Blocks []TaskBlockPayload `json:"blocks"`
+}
+
+// TaskCatalogFacetsPayload is a daemon API value.
+type TaskCatalogFacetsPayload struct {
+	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
+	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
 }

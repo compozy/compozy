@@ -260,7 +260,11 @@ func TestProviderAGYACPProbe(t *testing.T) {
 		if got, want := payload.AuthStatus.Login.Source, contract.ProviderLoginSourceAuthACPMethod; got != want {
 			t.Fatalf("Login.Source = %q, want %q", got, want)
 		}
-		if got, want := payload.AuthStatus.Login.Executable, "agy_acp_server.par"; got != want {
+		executable := "agy_acp_server.par"
+		if runtime.GOOS == "windows" {
+			executable = "agy_acp_server.exe"
+		}
+		if got, want := payload.AuthStatus.Login.Executable, executable; got != want {
 			t.Fatalf("Login.Executable = %q, want %q", got, want)
 		}
 	})

@@ -14,11 +14,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestClientDiscovery(t *testing.T) {
@@ -103,6 +105,40 @@ func TestClientDiscovery(t *testing.T) {
 			t.Fatalf("New() error = %v, want context.Canceled", err)
 		}
 	})
+	for _, recordHost := range []string{"0.0.0.0", "::", "[::]"} {
+		t.Run("Should connect wildcard listener "+recordHost+" through loopback", func(t *testing.T) {
+			home := t.TempDir()
+			server := identityServer(t, "0.4.5")
+			serverURL, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			port, err := strconv.Atoi(serverURL.Port())
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(map[string]any{"http_host": recordHost, "port": port})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(home, "daemon.json"), data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			wantHost := "::1"
+			if recordHost == "0.0.0.0" {
+				wantHost = "127.0.0.1"
+			}
+			want := "http://" + net.JoinHostPort(wantHost, serverURL.Port())
+			if got, err := recordURL(home); err != nil || got != want {
+				t.Fatalf("recordURL() = %q, %v; want %q", got, err, want)
+			}
+			if recordHost == "0.0.0.0" {
+				if c, err := New(t.Context(), WithHome(home)); err != nil || c.DaemonVersion() != "0.4.5" {
+					t.Fatalf("New(wildcard record) = %v, %v", c, err)
+				}
+			}
+		})
+	}
 }
 
 func TestClientRequests(t *testing.T) {
@@ -209,10 +245,67 @@ func TestClientRequests(t *testing.T) {
 			t.Fatalf("upload result = %q, %v", out, err)
 		}
 	})
+	t.Run("Should honor an explicit deadline for an HTTP wait beyond thirty seconds", func(t *testing.T) {
+		t.Parallel()
+		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			timer := time.NewTimer(31 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				writeResponse(t, w, `"completed"`)
+			case <-r.Context().Done():
+			}
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		var result string
+		if err := c.Do(ctx, http.MethodGet, "/api/wait", nil, &result); err != nil || result != "completed" {
+			t.Fatalf("Do(long wait) = %q, %v", result, err)
+		}
+	})
 }
 
 func TestClientGeneratedOperations(t *testing.T) {
 	t.Parallel()
+	// Invariant: distinct successful tool responses retain their HTTP discriminator and complete body.
+	// Owner: generated Go client transport; canonical suite: generated operations over real HTTP.
+	for _, test := range []struct {
+		status int
+		wire   string
+	}{
+		{http.StatusOK, `{"tool_id":"compozy__session_list","status":"completed","result":{"content":[]}}`},
+		{http.StatusAccepted, `{"error":{"code":"tool_approval_required","message":"Approval required","details":{"approval_token":"approve-1"}}}`},
+	} {
+		t.Run(fmt.Sprintf("Should preserve tool response status %d and its payload", test.status), func(t *testing.T) {
+			t.Parallel()
+			c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != "/api/tools/compozy__session_list/invoke" {
+					t.Errorf("tool request = %s %s", r.Method, r.URL.Path)
+				}
+				w.WriteHeader(test.status)
+				writeResponse(t, w, test.wire)
+			})
+			result, err := c.InvokeTool(t.Context(), InvokeToolParams{ID: "compozy__session_list"}, ToolInvokeRequest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.StatusCode != test.status {
+				t.Fatalf("status = %d, want %d", result.StatusCode, test.status)
+			}
+			if test.status == http.StatusAccepted {
+				approval, err := result.AsToolErrorResponse()
+				if err != nil || approval.Error.Code != "tool_approval_required" ||
+					string(approval.Error.Details["approval_token"]) != `"approve-1"` {
+					t.Fatalf("approval payload = %#v, %v", approval, err)
+				}
+			} else {
+				completed, err := result.AsToolInvokeResponse()
+				if err != nil || completed.ToolID != "compozy__session_list" || completed.Status != "completed" {
+					t.Fatalf("completed payload = %#v, %v", completed, err)
+				}
+			}
+		})
+	}
 	for _, test := range []struct {
 		name     string
 		params   ListSessionsParams
@@ -307,6 +400,47 @@ func TestClientGeneratedOperations(t *testing.T) {
 			t.Fatalf("frame payload = %s, %v", data, err)
 		}
 	})
+	// Invariant: public DTOs preserve the daemon's scalar, union, list and null JSON forms.
+	// Owner: generated Go client codec; canonical generated-operations suite.
+	for _, test := range []struct {
+		name, wire string
+		target     any
+	}{
+		{"task status", `"running"`, new(TaskRunStatus)},
+		{"run kind", `"worker"`, new(RunKind)},
+		{"percent threshold", `"66%"`, new(StrategyThreshold)},
+		{"count threshold", `{"count":2}`, new(StrategyThreshold)},
+		{"strategy shorthand", `"all"`, new(StrategySpec)},
+		{"strategy object", `{"kind":"quorum","threshold":"66%"}`, new(StrategySpec)},
+		{"stop expression", `"score >= 0.8"`, new(StopWhenSpec)},
+		{"stop policy", `{"expr":"score >= 0.8","on_eval_error":"fail"}`, new(StopWhenSpec)},
+		{"source list", `["~/.agents/skills"]`, new(OptionalStringList)},
+		{"empty source list", `[]`, new(OptionalStringList)},
+		{"null source list", `null`, new(OptionalStringList)},
+		{"explicit null override", `{"override":{"sources":null}}`, new(UpdateSettingsSkillsRequest)},
+		{"empty override", `{"override":{}}`, new(UpdateSettingsSkillsRequest)},
+	} {
+		t.Run("Should round trip "+test.name+" through its public JSON form", func(t *testing.T) {
+			t.Parallel()
+			if err := json.Unmarshal([]byte(test.wire), test.target); err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(test.target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got, want any
+			if err := json.Unmarshal(encoded, &got); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(test.wire), &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("Marshal() = %s, want equivalent JSON %s", encoded, test.wire)
+			}
+		})
+	}
 }
 
 func TestClientPrompt(t *testing.T) {
@@ -482,6 +616,29 @@ func TestClientStreams(t *testing.T) {
 		apiErr, ok := errors.AsType[*APIError](err)
 		if !ok || apiErr.Status != 401 || apiErr.Code != "app_token_revoked" {
 			t.Fatalf("newStream() error = %v", err)
+		}
+	})
+	t.Run("Should expose settings log tail as a typed SSE operation", func(t *testing.T) {
+		t.Parallel()
+		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/settings/observability/log-tail" || r.Header.Get("Accept") != "text/event-stream" {
+				t.Errorf("stream request = %s, accept = %q", r.URL.Path, r.Header.Get("Accept"))
+			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			writeResponse(t, w, "event: log\ndata: {\"line\":\"ready\"}\n\n")
+		})
+		stream, err := c.StreamSettingsObservabilityLogTail(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := stream.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		frame, err := stream.Next()
+		if err != nil || frame.Event != "log" || frame.Data.Line != "ready" {
+			t.Fatalf("log frame = %+v, %v", frame, err)
 		}
 	})
 }

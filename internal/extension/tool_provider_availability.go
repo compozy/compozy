@@ -25,6 +25,7 @@ func (p *ExtensionToolProvider) ProjectionAvailability(
 	}
 	manifestTools, err := p.manifestTools(ctx, scope)
 	if err != nil {
+		toolspkg.LogBackendFailure(ctx, ids[0], "tool_projection_manifest_read", err)
 		for _, id := range ids {
 			availability[id] = toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
 		}

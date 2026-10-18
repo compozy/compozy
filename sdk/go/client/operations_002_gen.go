@@ -10,6 +10,58 @@ import (
 	"strings"
 )
 
+// AttachTaskRunSession Attach an existing session to one task run
+func (c *Client) AttachTaskRunSession(ctx context.Context, params AttachTaskRunSessionParams, body AttachTaskRunSessionRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/attach-session"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BeginSettingsMCPAuthParams carries the path, query, and header parameters.
+type BeginSettingsMCPAuthParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
+// BeginSettingsMCPAuth Begin daemon-mediated OAuth for one MCP server
+func (c *Client) BeginSettingsMCPAuth(ctx context.Context, params BeginSettingsMCPAuthParams, body SettingsMCPAuthBeginRequest) (*SettingsMCPAuthBeginResponse, error) {
+	path := "/api/settings/mcp-servers/{name}/auth/begin"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPAuthBeginResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BindGatewayIngress Confirm one subject against the verified public endpoint
 func (c *Client) BindGatewayIngress(ctx context.Context, body GatewayIngressBindRequest) (*GatewayIngressBindingResponse, error) {
 	path := "/api/gateway/ingress-bindings"
@@ -387,47 +439,4 @@ func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessi
 type ClearSessionInputsParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
-}
-
-// ClearSessionInputs Clear queued input with attributed per-entry traces
-func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInputsParams) (*SessionInputClearResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionInputClearResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionRuntimeParams carries the path, query, and header parameters.
-type ClearSessionRuntimeParams struct {
-	WorkspaceID      string `url:"workspace_id"`
-	SessionID        string `url:"session_id"`
-	ExpectedRevision int64  `url:"expected_revision"`
-}
-
-// ClearSessionRuntime Clear the default runtime for future prompts
-func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRuntimeParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("expected_revision", strconv.FormatInt(params.ExpectedRevision, 10))
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearTaskBlockParams carries the path, query, and header parameters.
-type ClearTaskBlockParams struct {
-	ID      string  `url:"id"`
-	BlockID string  `url:"block_id"`
-	Profile *string `url:"profile"`
 }

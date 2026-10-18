@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,6 +205,43 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 			t.Fatalf("TimeoutCancelGrace = %s, want %s", got, want)
 		}
 	})
+}
+
+// Invariant: fixture load policy survives serialization and a real config reload, including disabled admission.
+// Owner: E2E fixture configuration; canonical config-seed overlay suite.
+func TestSeedConfigPersistsDaemonLoadOverlay(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		threshold float64
+		override  bool
+	}{{0, false}, {0, true}, {0.75, true}} {
+		t.Run(
+			fmt.Sprintf("Should preserve admission threshold %g with override %t", tc.threshold, tc.override),
+			func(t *testing.T) {
+				t.Parallel()
+				homePaths := NewHomePaths(t)
+				seeded := SeedConfig(t, homePaths, ConfigSeedOptions{
+					Mutate: func(cfg *compozyconfig.Config) {
+						cfg.Daemon.Load.AgentNiceness = 3
+						if tc.override {
+							cfg.Daemon.Load.AdmissionThreshold = tc.threshold
+						}
+						cfg.Daemon.Load.AdmissionMaxWait = 20 * time.Second
+					},
+				})
+				loaded, err := compozyconfig.LoadForHome(homePaths)
+				if err != nil || loaded.Daemon.Load != seeded.Daemon.Load ||
+					loaded.Daemon.Load.AdmissionThreshold != tc.threshold {
+					t.Fatalf(
+						"loaded daemon load = %+v, want %+v, error = %v",
+						loaded.Daemon.Load,
+						seeded.Daemon.Load,
+						err,
+					)
+				}
+			},
+		)
+	}
 }
 
 func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testing.T) {

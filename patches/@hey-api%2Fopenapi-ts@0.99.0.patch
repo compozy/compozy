@@ -1,0 +1,14 @@
+diff --git a/dist/clients/core/serverSentEvents.ts b/dist/clients/core/serverSentEvents.ts
+index 16c6fbb780a3a399ac7d882e405bd24c82e57c7d..b51a22c73743cecde15deb71ba6ce06e5a475343 100644
+--- a/dist/clients/core/serverSentEvents.ts
++++ b/dist/clients/core/serverSentEvents.ts
+@@ -140,7 +140,8 @@ export function createSseClient<TData = unknown>({
+ 
+         const abortHandler = () => {
+           try {
+-            reader.cancel();
++            // Fetch may have already errored the reader when abort cleanup runs.
++            void reader.cancel().catch(() => {});
+           } catch {
+             // noop
+           }

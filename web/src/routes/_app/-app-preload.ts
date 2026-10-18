@@ -29,7 +29,8 @@ export async function prepareAppProfile(queryClient: QueryClient): Promise<void>
   }
   const options = profileSelectionOptions();
   for (;;) {
-    if (localProfileView()) return;
+    // The aggregate still needs the remembered creation destination.
+    if (localProfileView()?.kind === "profile") return;
     try {
       await queryClient.fetchQuery(options);
       return;

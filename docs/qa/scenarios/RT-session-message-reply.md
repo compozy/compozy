@@ -55,7 +55,8 @@ overlaps: RT-session-prompt-cancel; RT-session-spawn-wake
 
 Task 04 automated evidence covers admission/watch atomicity, legacy replay exclusion, native
 receipts in every prompt mode, exact reply content, queue priority, restart, abrupt process loss,
-provider/commit faults, pending steering, and the automatic eight-hop reply limit. The canonical
+provider/commit faults, pending steering, restored sender hops across nine sequential replies,
+and the independent eight-hop forwarding limit. The canonical
 owners are the session reply suite, global admission/queue suite, and daemon subagent integration
 suite. Public Web/real-provider QA remains untested until the controller's integrated QA run;
 this worker packet prohibits QA labs and full E2E runs.
@@ -89,3 +90,9 @@ Explicit reply and expiry regression (#760)
     The message may still be pending; check the target session." After expiry the watch no longer
     keeps A out of inactivity stop. With `"0s"` an armed watch never expires and keeps A out of
     inactivity stop while B is live.
+
+
+Release integration verification (2026-10-18): the native busy-sender case keeps the operator input
+ahead of the reply wake, waits for dispatch before claiming delivery, and checks one reply with the
+original sender hop after restart. `TestReplyWatchNativeChainIntegration` checks nine delivered
+watches, nine target inputs and nine wakes with matching identities.

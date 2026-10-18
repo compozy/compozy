@@ -204,16 +204,8 @@ type LoopControlProvenancePayload struct {
 }
 
 // LoopDefinitionDocument is a daemon API value.
-type LoopDefinitionDocument struct {
-	APIVersion  string            `json:"apiVersion"`
-	Kind        string            `json:"kind"`
-	Meta        Meta              `json:"meta"`
-	Concurrency ConcurrencyPolicy `json:"concurrency,omitempty"`
-	Inputs      map[string]Input  `json:"inputs,omitempty"`
-	Contract    Contract          `json:"contract"`
-	Graph       Graph             `json:"graph"`
-	Start       []StartBinding    `json:"start,omitempty"`
-}
+// LoopDefinitionDocument preserves its custom JSON wire representation.
+type LoopDefinitionDocument = json.RawMessage
 
 // LoopDefinitionPayload is a daemon API value.
 type LoopDefinitionPayload struct {
@@ -441,4 +433,14 @@ type LoopGenerationOutput struct {
 	NextAttemptAt   *time.Time           `json:"next_attempt_at,omitempty"`
 	FailureClass    string               `json:"failure_class,omitempty"`
 	Disposition     string               `json:"disposition,omitempty"`
+}
+
+// LoopGenerationPayload is a daemon API value.
+type LoopGenerationPayload struct {
+	Generation       int64                    `json:"generation"`
+	ParentGeneration int64                    `json:"parent_generation"`
+	Origin           LoopGenerationOrigin     `json:"origin"`
+	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
+	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
+	Outputs          []LoopGenerationOutput   `json:"outputs"`
 }

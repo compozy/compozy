@@ -552,6 +552,10 @@ export type SessionUsageChangedPayload = {
   turn_id?: string;
 };
 
+export type SettingsLogTailEventPayload = {
+  line: string;
+};
+
 export type SubagentPayload = {
   child_session_id: string | null;
   created_at: string;
@@ -1276,6 +1280,33 @@ export type StreamGlobalSessionResponses = {
 
 export type StreamGlobalSessionResponse =
   StreamGlobalSessionResponses[keyof StreamGlobalSessionResponses];
+
+export type StreamSettingsObservabilityLogTailData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/settings/observability/log-tail";
+};
+
+export type StreamSettingsObservabilityLogTailErrors = {
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type StreamSettingsObservabilityLogTailError =
+  StreamSettingsObservabilityLogTailErrors[keyof StreamSettingsObservabilityLogTailErrors];
+
+export type StreamSettingsObservabilityLogTailResponses = {
+  /**
+   * SSE stream established
+   */
+  200: SettingsLogTailEventPayload;
+};
+
+export type StreamSettingsObservabilityLogTailResponse =
+  StreamSettingsObservabilityLogTailResponses[keyof StreamSettingsObservabilityLogTailResponses];
 
 export type StreamTaskData = {
   body?: never;

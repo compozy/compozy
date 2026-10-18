@@ -4,7 +4,7 @@ Build applications against a running CompozyOS daemon with typed HTTP methods,
 server-sent events, and streamed prompts. This package uses only the Go standard
 library and ships in the existing `github.com/compozy/compozy/sdk/go` module.
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation
+> Experimental in this release: names and shapes may change in the next release without a deprecation
 > window. Pin the exact version.
 
 ```go
@@ -30,6 +30,10 @@ Generated methods retain each operation's transport constraints. HTTP-only opera
 `WithBaseURL` pointing to the daemon's HTTP address; the default socket connection returns 404 for
 those routes. See the [Go tutorial's transport guidance](https://compozy.com/docs/apps/go#create-a-session-and-prompt-it)
 for the methods and the OpenAPI `x-compozy-transports` metadata.
+
+Operations with distinct successful response bodies preserve the complete JSON and expose
+`StatusCode`. For an operator `InvokeTool` call, decode a 200 with `AsToolInvokeResponse` or a
+202 with `AsToolErrorResponse` to retain its approval details.
 
 Follow the [Go app tutorial](https://compozy.com/docs/apps/go) for installation,
 session creation, prompts, and stream handling. See the generated

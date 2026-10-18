@@ -105,7 +105,12 @@ func streamSettingsObservabilityLogTailOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "SSE stream established"},
+			{
+				Status:      200,
+				Description: "SSE stream established",
+				Body:        contract.SettingsLogTailEventPayload{},
+				ContentType: specContentTypeEventStream,
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

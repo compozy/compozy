@@ -118,7 +118,7 @@ func (m *Manager) recordConversationRewindEvent(
 		return fmt.Errorf("session: marshal conversation rewind event: %w", err)
 	}
 	eventID := "rewind:" + result.IdempotencyKey
-	_, err = m.appendDurableSessionEvent(ctx, session.ID, store.SessionEvent{
+	_, _, err = m.appendDurableSessionEvent(ctx, session.ID, store.SessionEvent{
 		ID: eventID, SessionID: session.ID, TurnID: eventID,
 		Type: eventspkg.SessionConversationRewound, AgentName: session.Info().AgentName,
 		Content: string(payload), Archived: true, Timestamp: result.CreatedAt,

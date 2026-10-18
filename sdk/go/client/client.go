@@ -139,7 +139,7 @@ func transportClient(custom *http.Client, socket string) (*http.Client, error) {
 		Proxy:             http.ProxyFromEnvironment,
 		DialContext:       (&net.Dialer{Timeout: identityTimeout, KeepAlive: 30 * time.Second}).DialContext,
 		ForceAttemptHTTP2: true, MaxIdleConns: 100, IdleConnTimeout: 90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: requestTimeout,
+		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: time.Second,
 	}
 	if result.Transport != nil {

@@ -129,6 +129,9 @@ func (v *EndpointVerifier) Verify(
 	}
 	body, readErr := readBoundedChallengeBody(response.Body)
 	closeErr := response.Body.Close()
+	if err := requestCtx.Err(); err != nil {
+		return endpointProbeError(err)
+	}
 	if errors.Is(readErr, context.DeadlineExceeded) || errors.Is(readErr, context.Canceled) {
 		return endpointProbeError(readErr)
 	}

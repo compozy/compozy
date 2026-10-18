@@ -72,7 +72,8 @@ type configSeedFile struct {
 }
 
 type configSeedDaemonSection struct {
-	Socket string `toml:"socket"`
+	Socket string                         `toml:"socket"`
+	Load   compozyconfig.DaemonLoadConfig `toml:"load"`
 }
 
 type configSeedHTTPSection struct {
@@ -108,6 +109,8 @@ func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeed
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	// Protocol journeys must not depend on the shared runner load; scenarios can opt in via Mutate.
+	cfg.Daemon.Load.AdmissionThreshold = 0
 	cfg.HTTP.Host = defaultString(opts.Host, "127.0.0.1")
 	if opts.HTTPPort > 0 {
 		cfg.HTTP.Port = opts.HTTPPort
@@ -154,6 +157,7 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 	overlay := configSeedFile{
 		Daemon: &configSeedDaemonSection{
 			Socket: cfg.Daemon.Socket,
+			Load:   cfg.Daemon.Load,
 		},
 		HTTP: &configSeedHTTPSection{
 			Host: cfg.HTTP.Host,

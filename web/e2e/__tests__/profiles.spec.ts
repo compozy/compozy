@@ -1031,8 +1031,19 @@ test.describe("Profiles", () => {
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     await test.step("E2E-015: aggregate listings label owners and creation destination", async () => {
+      const remembered = appPage.waitForResponse(
+        response =>
+          response.request().method() === "PUT" &&
+          response.url().endsWith("/api/profiles/selection")
+      );
+      await ui.switcher.click();
+      await ui.switcherOption("marketing").click();
+      expect((await remembered).ok()).toBe(true);
+      await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
       await ui.switcher.click();
       await ui.switcherAll.click();
+      await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+      await appPage.reload({ waitUntil: "domcontentloaded" });
       await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
 
       // S3: every aggregate row names its owner, and an archived owner says so.
@@ -1044,7 +1055,7 @@ test.describe("Profiles", () => {
       await sessions.getByTestId("os-sessions-modal-new-session").click();
       const chip = profilesOperatorSelectors(appPage).destinationChip;
       await expect(chip).toBeVisible();
-      await expect(chip).toContainText("default");
+      await expect(chip).toContainText("marketing");
       await expect(chip.locator("button, select, input")).toHaveCount(0);
       await appPage.getByRole("button", { name: "Cancel", exact: true }).click();
       await sessions.getByRole("button", { name: "Close sessions" }).click();

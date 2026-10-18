@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 type terminalLaunch struct {
@@ -25,6 +27,9 @@ func (m *Service) launchTerminal(
 	proc, err := m.pty.Start(ctx, launch.spec)
 	if err != nil {
 		return nil, terminalKey{}, fmt.Errorf("terminal: start %s: %w", launch.startLabel, err)
+	}
+	if launch.origin.Kind == ActorKindAgent {
+		subprocess.ApplyLaunchNiceness(m.logger, proc.ProcessGroupID(), m.agentNiceness)
 	}
 	profileName := m.eventProfileName(ctx, launch.info.ProfileID)
 	item := newSession(

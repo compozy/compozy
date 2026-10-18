@@ -26,6 +26,7 @@ type EventCloser interface {
 // EventReadCloser is the complete contract exposed by read-only event stores.
 type EventReadCloser interface {
 	EventReader
+	EventMetadataReader
 	EventCloser
 }
 

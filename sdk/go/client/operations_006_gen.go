@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// DownloadTerminalArtifact Download one terminal spill artifact
+func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTerminalArtifactParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/artifacts/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DownloadTerminalRecordingParams carries the path, query, and header parameters.
+type DownloadTerminalRecordingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // DownloadTerminalRecording Download one terminal recording
 func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
@@ -419,28 +445,4 @@ func (c *Client) ForkLoopRun(ctx context.Context, params ForkLoopRunParams, body
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ForkSessionParams carries the path, query, and header parameters.
-type ForkSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ForkSession Fork a session with the same agent, whole or through one user message and its turn
-func (c *Client) ForkSession(ctx context.Context, params ForkSessionParams, body ForkSessionRequest) (*SessionDeriveResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/fork"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionDeriveResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkSessionToWorktreeParams carries the path, query, and header parameters.
-type ForkSessionToWorktreeParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

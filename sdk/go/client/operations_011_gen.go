@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// GetSessionOwner Get a session owner; Global history has an empty workspace id
+func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
+	path := "/api/sessions/{session_id}/owner"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionOwner
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionRecapParams carries the path, query, and header parameters.
+type GetSessionRecapParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+	Limit       *int   `url:"limit"`
+}
+
+// GetSessionRecap Get a deterministic session recap
+func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionRecapResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionStatusParams carries the path, query, and header parameters.
 type GetSessionStatusParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -401,48 +438,4 @@ func (c *Client) GetSettingsSkills(ctx context.Context, params GetSettingsSkills
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSettingsUpdate Read the current CompozyOS software update status
-func (c *Client) GetSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
-	path := "/api/settings/update"
-	var out SettingsUpdateResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsWindowManagerParams carries the path, query, and header parameters.
-type GetSettingsWindowManagerParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-}
-
-// GetSettingsWindowManager Read the window-manager settings section
-func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSettingsWindowManagerParams) (*SettingsWindowManagerResponse, error) {
-	path := "/api/settings/window-manager"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsWindowManagerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSkillParams carries the path, query, and header parameters.
-type GetSkillParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	ForAgent    *string `url:"for_agent"`
 }

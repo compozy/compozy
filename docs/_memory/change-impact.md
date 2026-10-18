@@ -33,10 +33,42 @@ Web behavior are unchanged; title generation uses the existing title QA journey.
 
 Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
 while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
-Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+Stop responsive during a storage failure. Accepted steer events append by deterministic identity;
+retries retain their complete event timestamp and correlation, and only newly inserted rows publish
+post-record callbacks. The internal append result reports insertion without changing a wire shape.
+`TestManagerAgentQueueDelivery` owns the regression and
 `RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
 configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
-unchanged; no schema migration is needed.
+unchanged; no schema migration is needed. Batch tool projection failures retain the existing safe failure-kind
+logging once per batch. Event readers require metadata projection at compile time; the retired, unused
+compaction-boundary test hook is removed in favor of complete context snapshots. Session fixture and
+transcript-test imports follow the existing Web alias contract. Existing daemon integration assertions now match the
+approved operator-first queue and restored sender-hop contract, while retaining exact delivery counts
+and the independent forwarding-limit suite. The shared Go E2E seed disables host-load admission
+for protocol journeys unless a scenario opts in, matching the existing daemon test harness. The seed
+helper persists the complete load policy through the real config loader; production defaults,
+deadlines and admission-policy coverage stay unchanged.
+
+The App SDK rejects prompt EOF without a terminal marker and resumes transcript feeds with the
+latest cursor, epoch and generation. The Go client preserves custom JSON wire values, caller deadlines
+and wildcard-to-loopback discovery. The existing log-tail payload moves to the shared contract so
+OpenAPI and both SDKs expose its SSE transport. App tokens cannot read operator status diagnostics or
+register workspaces; identity and registered-workspace reads stay available. No native tool ID, hook,
+configuration key or additional persisted shape changes; SDK site docs and stream QA co-ship.
+Missing-session HTTP/UDS errors add the stable session_not_found code while preserving status and
+message. Node-owned close waits for its launched child to exit within the stop deadline, including
+when the CLI acknowledges shutdown early; replacement PID protection remains intact. The existing
+SDK runtime journey, Node lifecycle suite, site guide and QA scenarios cover those boundaries.
+The Web shell loads the remembered creation profile before an aggregate cold entry can read work;
+the existing route and browser profile suites cover cache reuse and the reloaded destination. The
+session_create description clarifies the resolved operator profile as well as inherited agent identity;
+the generated native catalog co-ships, with no native ID, hook, config or workspace-isolation change.
+Endpoint proof validates its request context after response-body cleanup, preserving timeout
+diagnostics when cancellation produces EOF instead of a read error. Verification policy, nonce and
+size checks, configured budgets, native surfaces and persisted endpoint state remain unchanged;
+TestEndpointProbeDiagnostics and the connectivity-route QA scenario own this boundary. The pinned
+Hey API generator patch handles its abort-cleanup Promise in the SSE template; patches/README.md
+records the external reproduction and removal condition, and generated SDKs co-ship normally.
 
 ## Agent CPU priority and load-aware admission — 2026-10-17
 
@@ -3559,3 +3591,47 @@ Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
   Web reply links are keyed by peer session plus message id.
 - **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
   ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.
+
+
+## 2026-10-18 merged-PR review follow-through
+
+- Native tools, extensibility, and hooks: no new ID, DTO, permission, or hook.
+  ACP terminal commands use the existing actor ownership to receive the configured
+  agent niceness. Human and system terminals retain inherited process priority.
+- Config: existing `daemon.load.agent_niceness` now reaches agent-owned terminal
+  groups; managed Goal submissions use the existing background admission gate.
+  A cancelled admission neither begins durable submission nor calls the driver;
+  failed admission retains queued work and reselects with the existing retry path.
+- Runtime state and isolation: no schema change. Goal event and cleanup relays
+  drain healthy full batches immediately, stopping on failure until another wake.
+  Workspace/profile ownership and durable acknowledgement rules are unchanged.
+- CLI: ACP consent timeout no longer expires a post-login status probe. Provider
+  tests retain exact platform-specific executable checks. The promoted-field
+  literal flagged by Greptile compiles with the repository's current Go toolchain;
+  no behavioral fix is needed for that language-level finding.
+- Official skill and Web/Docs: configuration reference documents agent terminal
+  priority, managed Goal admission, full-batch drain, and the 2s fallback sweep.
+  The source provider-removal release note now lists `agy` and 15 current providers;
+  generated release documents will be refreshed by the release workflow. No Web
+  control or generated API contract changes in this follow-through.
+- QA: `MS-daemon-host-load-governance`, `MS-background-role-fallback`, and
+  `RT-agy-acp-provider` carry the added boundaries. Focused real-process and
+  canonical lifecycle suites provide slice evidence; the broader host saturation
+  journey is not claimed as complete.
+
+
+CI follow-through 2026-10-18: the release full-integration runners install ripgrep
+through the same Ubuntu-only setup used by preflight, so the existing product
+language guard runs instead of exiting 127. Desktop E2E uses the Go harness's
+20000–29999 port range and per-process reservations instead of released client
+ephemeral ports. No production API, CLI, config, or timeout changes; the existing
+cold-start/deep-link scenario owns end-to-end verification.
+
+SDK review follow-through 2026-10-18: Go generation preserves all distinct successful response
+shapes and exposes their HTTP status for variant selection. Registry transport metadata chooses
+an explicit HTTP URL in HTTP-only Go examples. Node close signals its retained child process
+handle and waits for exit, preventing a second home lookup from stopping a replacement.
+The experimental compatibility notice names this release rather than an incorrect future version.
+No daemon wire schema, permission, native tool ID, configuration, migration, or workspace boundary
+changes; Go/Node clients, generated samples, package docs, site docs, and the source release note
+co-ship. RT-sdk-go-golden-path and RT-sdk-node-lifecycle own the added QA boundaries.

@@ -780,3 +780,20 @@ func TestSubagentTranscriptResult(t *testing.T) {
 		})
 	}
 }
+
+func (r *filteringTranscriptRecorder) MaxEventSequence(context.Context) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var sequence int64
+	for _, event := range r.events {
+		sequence = max(sequence, event.Sequence)
+	}
+	return sequence, nil
+}
+
+func (r *filteringTranscriptRecorder) QueryEventMetadata(
+	ctx context.Context, query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	rows, err := r.Query(ctx, query)
+	return testMetadataFromEvents(rows), err
+}

@@ -4,7 +4,7 @@ description: Forward the daemon's UI message stream through your own server to a
 icon: MessageSquare
 ---
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 This guide connects a Next.js server route to a session and renders its reply with the Vercel AI SDK.
 The browser talks to your server; your server connects to CompozyOS. App tokens and daemon CORS are
@@ -50,7 +50,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Send a user message with text." }, { status: 400 });
   }
   const compozy = await Compozy.connect();
-  return compozy.promptResponse({ workspaceId, sessionId, message, signal: request.signal });
+  return compozy.promptResponse({
+    workspaceId,
+    sessionId,
+    message,
+    signal: request.signal,
+  });
 }
 ```
 

@@ -133,7 +133,7 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 		if !available {
 			t.Fatal("fixture provider is not available for delegation")
 		}
-		// IT-007: older user inputs retain FIFO but a subsequent wake dispatches first.
+		// IT-007: operator inputs retain FIFO and dispatch before background wakes.
 		for _, text := range []string{"user one", "user two"} {
 			queued, err := manager.SendPrompt(
 				ctx,
@@ -220,8 +220,9 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 			t.Fatal(wake, members, err)
 		}
 		queue, err := d.registry.(store.SessionInputQueueStore).ListPendingSessionInputs(ctx, parent.ID)
-		if err != nil || len(queue) != 3 || queue[0].Priority != 1 || strings.Contains(queue[0].Text, rows[0].ID) ||
-			!strings.Contains(queue[0].Text, rows[2].ID) {
+		if err != nil || len(queue) != 3 || queue[0].Text != "user one" || queue[1].Text != "user two" ||
+			strings.Contains(queue[2].Text, rows[0].ID) || strings.Contains(queue[2].Text, rows[1].ID) ||
+			!strings.Contains(queue[2].Text, rows[2].ID) {
 			t.Fatal(queue, err)
 		}
 		row = rows[2]
@@ -262,7 +263,7 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 				}
 			}
 		}
-		if strings.Join(dispatchOrder, ",") != "wake,user one,user two" {
+		if strings.Join(dispatchOrder, ",") != "user one,user two,wake" {
 			t.Fatal(dispatchOrder)
 		}
 		if wakeCount != 1 {
@@ -926,7 +927,13 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 				return false
 			}
 			row = page.Items[0]
-			return row.Status == "waiting"
+			if row.Status != "waiting" {
+				return false
+			}
+			pending, err := manager.PendingInteractions(
+				t.Context(), *row.ChildSessionID, []string{store.PendingInteractionStatusPending},
+			)
+			return err == nil && len(pending) == 1
 		})
 		select {
 		case got := <-done:
@@ -2363,7 +2370,7 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 			}
 			if event.Synthetic != nil && event.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {
 				count++
-				if event.Synthetic.WakeEventID != watch.ID || event.Synthetic.Hop != 1 ||
+				if event.Synthetic.WakeEventID != watch.ID || event.Synthetic.Hop != 0 ||
 					!strings.Contains(event.Text, "child answer") {
 					t.Fatalf("wake = %+v", event)
 				}
@@ -3274,7 +3281,12 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 		}
 		_, err = d.toolRegistry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: sender.ID, WorkspaceID: ws, AgentName: "subagent-test", ProfileID: sender.ProfileID},
+			toolspkg.Scope{
+				SessionID:   sender.ID,
+				WorkspaceID: ws,
+				AgentName:   "subagent-test",
+				ProfileID:   sender.ProfileID,
+			},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionPrompt, ToolCallID: id, TurnID: sender.CurrentTurnID(), Input: input,
 			},
@@ -3306,7 +3318,11 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 			}
 		}
 		for i, want := range []int{3, 4, 4} {
-			rows, err := m.Events(t.Context(), peers[i].ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
+			rows, err := m.Events(
+				t.Context(),
+				peers[i].ID,
+				store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3449,6 +3465,7 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 			} else if mode != "direct" {
 				hold(target.ID)
 			}
+			targetTurn := target.CurrentTurnID()
 			busyMode := mode
 			if mode == "direct" || mode == "busy sender" {
 				busyMode = "queue"
@@ -3503,8 +3520,21 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 				t.Fatal(watch, err)
 			}
 			call() // Same receipt must not register or dispatch another message.
-			if mode == "queue" || mode == "steer" {
+			if mode == "interrupt" && (!target.IsPrompting() || target.CurrentTurnID() != targetTurn) {
+				t.Fatal("agent interrupt canceled or replaced the operator turn")
+			}
+			if mode == "queue" || mode == "steer" || mode == "interrupt" {
 				if _, err := m.CancelPrompt(t.Context(), target.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "busy sender" {
+				waitForRuntimeCondition(t, "reply queued after operator input", 15*time.Second, func() bool {
+					entries, err := m.ListPendingInputs(t.Context(), sender.ID)
+					return err == nil && len(entries) == 2 && entries[0].Text == "child work" &&
+						entries[1].MessageID == "prompt-reply:"+id
+				})
+				if _, err := m.CancelPrompt(t.Context(), sender.ID); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -3512,15 +3542,6 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 				w, e := db.GetReplyWatch(t.Context(), id)
 				return e == nil && w.State == "delivered"
 			})
-			if mode == "busy sender" {
-				entries, err := m.ListPendingInputs(t.Context(), sender.ID)
-				if err != nil || len(entries) != 2 || entries[0].MessageID != "prompt-reply:"+id {
-					t.Fatalf("priority = %+v, %v", entries, err)
-				}
-				if _, err := m.CancelPrompt(t.Context(), sender.ID); err != nil {
-					t.Fatal(err)
-				}
-			}
 			waitForRuntimeCondition(t, "one synthetic reply", 15*time.Second, func() bool {
 				rows, e := m.Events(
 					t.Context(),
@@ -3538,26 +3559,31 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			event, err := transcript.UnmarshalAgentEvent(rows[0].Content)
-			if err != nil || event.Synthetic == nil || event.Synthetic.Hop != 1 || event.Synthetic.WakeEventID != id {
+			if err != nil || event.Synthetic == nil || event.Synthetic.Hop != 0 || event.Synthetic.WakeEventID != id {
 				t.Fatal(event, err)
 			}
-			if mode == "direct" || mode == "queue" || mode == "interrupt" || mode == "busy sender" {
-				want := fmt.Sprintf(
-					"Session %q (%s) replied to your message native-question: completed.\n---\nchild answer",
-					target.Name,
-					target.ID,
-				)
-				if event.Text != want {
-					t.Fatalf("reply = %q, want %q", event.Text, want)
-				}
+			outcome, text := "completed", "child answer"
+			if mode == "steer" || mode == "interrupt" {
+				outcome, text = "canceled", "(no reply text)"
+			}
+			want := fmt.Sprintf(
+				"Session %q (%s) replied to your message native-question: %s.\n---\n%s",
+				target.Name,
+				target.ID,
+				outcome,
+				text,
+			)
+			if event.Text != want {
+				t.Fatalf("reply = %q, want %q", event.Text, want)
 			}
 		})
 	}
 }
 
-// Invariant: actual ACP reply turns inherit the hop budget and the ninth native send is refused (IT-005).
+// Invariant: sequential ACP replies restore the sender hop without consuming the forwarding budget.
+// Owner: daemon/native reply-watch integration; forwarding limits remain in TestSessionMessageOriginSteerChainIntegration.
 func TestReplyWatchNativeChainIntegration(t *testing.T) {
-	t.Run("Should bound an automatic reply chain at eight messages", func(t *testing.T) {
+	t.Run("Should deliver nine sequential replies without accumulating forwarding hops", func(t *testing.T) {
 		d, m, ws := newSubagentDaemonWithExecutable(t, nil, e2etest.BuildCompozyBinary(t), "injected")
 		path := filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
 		raw, err := os.ReadFile(path)
@@ -3572,7 +3598,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		turns := make([]acpmock.TurnFixture, 0, 9)
+		turns := make([]acpmock.TurnFixture, 0, 10)
 		for hop := 1; hop <= 9; hop++ {
 			id := fmt.Sprintf("auto-%d", hop)
 			match := acpmock.TurnMatch{UserText: "start reply chain"}
@@ -3608,6 +3634,11 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 				},
 			)
 		}
+		turns = append(turns, acpmock.TurnFixture{
+			Name:  "reply-chain-complete",
+			Match: acpmock.TurnMatch{RawUserTextContains: "replied to your message auto-9:"},
+			Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "reply chain complete"}},
+		})
 		fixture.Agents[0].Turns = append(turns, fixture.Agents[0].Turns...)
 		writeSessionOriginFixture(t, path, fixture)
 		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
@@ -3621,13 +3652,13 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		for range result.Events {
 			continue
 		}
-		waitForRuntimeCondition(t, "ninth native send refused", 30*time.Second, func() bool {
-			rows, e := m.Events(t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeToolResult, Limit: 100})
-			if e != nil {
+		waitForRuntimeCondition(t, "ninth reply handled", 30*time.Second, func() bool {
+			rows, err := m.Events(t.Context(), sender.ID, store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 100})
+			if err != nil {
 				return false
 			}
 			for _, row := range rows {
-				if strings.Contains(row.Content, "message_hop_limit") {
+				if strings.Contains(row.Content, "reply chain complete") {
 					return true
 				}
 			}
@@ -3639,9 +3670,9 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		db := d.registry.(*globaldb.GlobalDB)
 		var watches int
 		if err := db.DB().
-			QueryRowContext(t.Context(), "SELECT count(*) FROM session_prompt_reply_watches WHERE sender_session_id=?", sender.ID).
+			QueryRowContext(t.Context(), "SELECT count(*) FROM session_prompt_reply_watches WHERE sender_session_id=? AND state='delivered'", sender.ID).
 			Scan(&watches); err != nil ||
-			watches != 8 {
+			watches != 9 {
 			t.Fatal(watches, err)
 		}
 		rows, err := m.Events(
@@ -3649,7 +3680,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 			sender.ID,
 			store.EventQuery{Type: acp.EventTypeSyntheticReentry, Limit: 100, Forward: true},
 		)
-		if err != nil || len(rows) != 8 {
+		if err != nil || len(rows) != 9 {
 			t.Fatal(len(rows), err)
 		}
 		targetRows, err := m.Events(
@@ -3657,12 +3688,14 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 			target.ID,
 			store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100},
 		)
-		if err != nil || len(targetRows) != 8 {
+		if err != nil || len(targetRows) != 9 {
 			t.Fatalf("target turns = %d, %v", len(targetRows), err)
 		}
 		for i, row := range rows {
 			event, err := transcript.UnmarshalAgentEvent(row.Content)
-			if err != nil || event.Synthetic == nil || event.Synthetic.Hop != i+1 {
+			if err != nil || event.Synthetic == nil || event.Synthetic.Hop != 0 ||
+				event.Synthetic.Kind != acp.PromptSyntheticKindSessionReply ||
+				event.Synthetic.WakeEventID != store.ReplyWatchID(target.ID, fmt.Sprintf("auto-%d", i+1)) {
 				t.Fatal(i, event, err)
 			}
 		}
@@ -4102,7 +4135,12 @@ func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 		stranded, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-stranded")
 		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed ||
 			stranded.FailureSummary != store.SessionInputStaleDispatchSummary {
-			t.Fatalf("stranded = %q/%q, %v; want failed by boot recovery", stranded.Status, stranded.FailureSummary, err)
+			t.Fatalf(
+				"stranded = %q/%q, %v; want failed by boot recovery",
+				stranded.Status,
+				stranded.FailureSummary,
+				err,
+			)
 		}
 		waiting, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-waiting")
 		if err != nil || waiting.Status == store.SessionInputQueueStatusFailed {

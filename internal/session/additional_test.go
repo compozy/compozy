@@ -1234,3 +1234,11 @@ func TestNativeSubagentEventFromStored(t *testing.T) {
 		}
 	})
 }
+
+func (*stubRecorder) MaxEventSequence(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (*stubRecorder) QueryEventMetadata(context.Context, store.EventQuery) ([]store.EventMetadata, error) {
+	return nil, nil
+}

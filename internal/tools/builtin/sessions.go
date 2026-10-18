@@ -113,7 +113,8 @@ func sessionCreateDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionCreate,
 		"session_create",
 		"Session Create",
-		"Create an unbound logical user session in the caller session's profile. "+
+		"Create an unbound logical user session in the effective profile: the caller session's "+
+			"profile for agent calls, or the operator's resolved profile for operator calls. "+
 			"Select its runtime on the first prompt.",
 		sessionCreateInputSchema,
 		toolspkg.RiskMutating,

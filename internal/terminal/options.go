@@ -73,6 +73,18 @@ func WithPTY(starter pty.PTY) Option {
 	}
 }
 
+// WithAgentNiceness lowers the scheduling priority of agent-owned terminal groups.
+// Human and system terminals retain the daemon's inherited priority.
+func WithAgentNiceness(niceness int) Option {
+	return func(service *Service) error {
+		if niceness < 0 || niceness > 19 {
+			return errors.New("terminal: agent niceness must be between 0 and 19")
+		}
+		service.agentNiceness = niceness
+		return nil
+	}
+}
+
 // WithWorkspaceResolver sets the workspace boundary resolver.
 func WithWorkspaceResolver(resolver WorkspaceResolver) Option {
 	return func(service *Service) error {

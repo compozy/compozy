@@ -108,8 +108,8 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 		event, err := s.writeEvent(req.ctx, req.event)
 		return sessionWriteResult{event: event, err: err}
 	case sessionWriteEventIfAbsent:
-		event, err := s.writeEventIfAbsent(req.ctx, req.event)
-		return sessionWriteResult{event: event, err: err}
+		event, inserted, err := s.writeEventIfAbsent(req.ctx, req.event)
+		return sessionWriteResult{event: event, inserted: inserted, err: err}
 	case sessionWriteEventBatch:
 		events, err := s.writeEventBatch(req.ctx, req.events)
 		return sessionWriteResult{events: events, err: err}

@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
 )
 
+const sdkJSONName = "json"
+
 const (
 	sdkDirectory      = "sdk"
 	sdkClientPackage  = "client"
@@ -65,6 +67,7 @@ func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation
 				GoType: kind, Enum: parameter.Enum,
 			})
 		}
+		seenResponses := make(map[reflect.Type]bool)
 		for _, response := range source.Responses {
 			if response.Status < 200 || response.Status >= 300 {
 				continue
@@ -75,19 +78,22 @@ func sdkClientOperations(registry []spec.OperationSpec) ([]sdkgo.ClientOperation
 			}
 			// Reflection only adapts compile-time DTO types during code generation.
 			for _, bodyType := range response.BodyTypes() {
+				if seenResponses[bodyType] {
+					continue
+				}
+				seenResponses[bodyType] = true
 				value := reflect.Zero(bodyType).Interface()
 				op.ResponseVariants = append(op.ResponseVariants, value)
-			}
-			if len(op.ResponseVariants) == 1 {
-				op.Response = op.ResponseVariants[0]
-				op.ResponseVariants = nil
 			}
 			if response.ContentType != "" && response.ContentType != "application/json" &&
 				response.ContentType != sdkContentTypeSSE {
 				op.Response = []byte{}
 				op.ResponseVariants = nil
 			}
-			break
+		}
+		if len(op.ResponseVariants) == 1 {
+			op.Response = op.ResponseVariants[0]
+			op.ResponseVariants = nil
 		}
 		ops = append(ops, op)
 	}
@@ -131,5 +137,5 @@ func sdkOperationKind(operation spec.OperationSpec) string {
 	if upgrade {
 		return sdkKindWebSocket
 	}
-	return "json"
+	return sdkJSONName
 }

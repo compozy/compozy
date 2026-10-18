@@ -77,6 +77,12 @@ func sdkGoRequestExpression(expression ast.Expr, declarations map[string]ast.Exp
 	case *ast.MapType, *ast.ArrayType:
 		return typeName + sdkGoRequestFields, nil
 	case *ast.Ident:
+		if wire, ok := declarations[value.Name].(*ast.SelectorExpr); ok {
+			if qualifier, ok := wire.X.(*ast.Ident); ok && qualifier.Name == sdkJSONName &&
+				wire.Sel.Name == "RawMessage" {
+				return typeName + `("{}")`, nil
+			}
+		}
 		if sdkGoStructType(value, declarations) {
 			return typeName + sdkGoRequestFields, nil
 		}

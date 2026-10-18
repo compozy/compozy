@@ -38,11 +38,12 @@ type sessionWriteRequest struct {
 }
 
 type sessionWriteResult struct {
-	event   store.SessionEvent
-	events  []store.SessionEvent
-	archive store.EventArchiveResult
-	rewind  store.ConversationRewindResult
-	err     error
+	inserted bool
+	event    store.SessionEvent
+	events   []store.SessionEvent
+	archive  store.EventArchiveResult
+	rewind   store.ConversationRewindResult
+	err      error
 }
 
 type sessionShutdownRequest struct {

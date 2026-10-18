@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/spec"
@@ -47,7 +48,11 @@ func generateSDKSamples() ([]byte, error) {
 		if kind != sdkKindWebSocket {
 			sample.TypeScript = "import { Compozy } from \"@compozy/client\";\n\n" +
 				"const compozy = await Compozy.connect();\n" + sdkTypeScriptSample(operation, kind)
-			sample.Go = "c, err := client.New(ctx)\nif err != nil { return err }\n\n" + sdkGoSample(
+			connection := "client.New(ctx)"
+			if !slices.Contains(operation.Transports, spec.TransportUDS) {
+				connection = `client.New(ctx, client.WithBaseURL("http://127.0.0.1:2123"))`
+			}
+			sample.Go = "c, err := " + connection + "\nif err != nil { return err }\n\n" + sdkGoSample(
 				operation,
 				kind,
 				bodies[sdkgo.ClientMethodName(operation.OperationID)],
@@ -231,7 +236,7 @@ func checkSDKSampleMethods(root string) error {
 		resource := sdkResourceName(operation)
 		_, class, found := strings.Cut(string(ts), "export class "+resource+" ")
 		class, _, _ = strings.Cut(class, "\nexport class ")
-		if kind == "json" && (!found || (!strings.Contains(class, operation.OperationID+"<") &&
+		if kind == sdkJSONName && (!found || (!strings.Contains(class, operation.OperationID+"<") &&
 			!strings.Contains(class, operation.OperationID+"("))) {
 			return fmt.Errorf("SDK sample %s: TypeScript method is missing", operation.OperationID)
 		}

@@ -36,8 +36,8 @@ export interface ProfileOwner {
 export interface ProfileListingScope {
   aggregate: boolean;
   /**
-   * The profile a *new* item would land in. Under the aggregate that is
-   * `default`, which is why it must never be read as the name of what is on
+   * The profile a *new* item would land in. Under the aggregate that is the
+   * remembered Global choice, which must never be read as the name of what is on
    * screen: an empty aggregate list is not "empty in default".
    */
   destination: string;

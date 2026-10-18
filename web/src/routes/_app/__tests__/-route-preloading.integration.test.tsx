@@ -29,7 +29,12 @@ import {
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
-import { profileSelectionOptions, resetProfileViews, setProfileView } from "@/systems/profiles";
+import {
+  profileSelectionOptions,
+  readActingProfile,
+  resetProfileViews,
+  setProfileView,
+} from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
@@ -846,6 +851,7 @@ describe("route query preloading", () => {
     "Should reuse Loop catalog preloads under the %s profile view",
     async profile => {
       const queryClient = createQueryClient();
+      adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
       const scope = profile === "@all" ? { all_profiles: true } : { profile };
       await invokeLoader(LoopsRoute, {
@@ -1283,6 +1289,7 @@ describe("route query preloading", () => {
     "Should reuse run preloads under the %s profile view",
     async profile => {
       const queryClient = createQueryClient();
+      adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
       const scope = profile === "@all" ? { all_profiles: true } : { profile };
       adapterMocks.getTaskRun.mockResolvedValueOnce({ run: { id: "run-1", status: "completed" } });
@@ -1293,7 +1300,8 @@ describe("route query preloading", () => {
       adapterMocks.listTaskRuns.mockResolvedValueOnce([]);
 
       await createRunEntryRouter(queryClient).load();
-      expect(adapterMocks.fetchProfileSelection).not.toHaveBeenCalled();
+      expect(adapterMocks.fetchProfileSelection).toHaveBeenCalledTimes(profile === "@all" ? 1 : 0);
+      expect(readActingProfile(queryClient)).toBe("marketing");
       const unmount = mountQueries(queryClient, () => {
         useTaskRunDetail("run-1");
         useTaskRuns("task-1");
@@ -1369,23 +1377,27 @@ describe("route query preloading", () => {
     }
   );
 
-  it("Should retain a failed initial profile read without loading work in default", async () => {
-    const queryClient = createQueryClient();
-    const failure = new Error("profile selection unavailable");
-    adapterMocks.fetchProfileSelection.mockRejectedValue(failure);
-    const router = createRunEntryRouter(queryClient);
+  it.each([false, true])(
+    "Should retain a failed initial profile read without loading work in default (aggregate: %s)",
+    async aggregate => {
+      const queryClient = createQueryClient();
+      if (aggregate) setProfileView({ kind: "aggregate" });
+      const failure = new Error("profile selection unavailable");
+      adapterMocks.fetchProfileSelection.mockRejectedValue(failure);
+      const router = createRunEntryRouter(queryClient);
 
-    await router.load();
+      await router.load();
 
-    expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
-    expect(adapterMocks.getTask).not.toHaveBeenCalled();
-    expect(adapterMocks.listTaskRuns).not.toHaveBeenCalled();
-    expect(adapterMocks.fetchAgents).not.toHaveBeenCalled();
-    expect(
-      router.state.matches.some(match => match.status === "error" && match.error === failure)
-    ).toBe(true);
-    queryClient.clear();
-  });
+      expect(adapterMocks.getTaskRun).not.toHaveBeenCalled();
+      expect(adapterMocks.getTask).not.toHaveBeenCalled();
+      expect(adapterMocks.listTaskRuns).not.toHaveBeenCalled();
+      expect(adapterMocks.fetchAgents).not.toHaveBeenCalled();
+      expect(
+        router.state.matches.some(match => match.status === "error" && match.error === failure)
+      ).toBe(true);
+      queryClient.clear();
+    }
+  );
 
   it.each([false, true])(
     "Should await the current profile after reconnect cancellation (workspace changed: %s)",

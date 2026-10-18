@@ -85,6 +85,9 @@ func (p *daemonExtensionToolProvider) ProjectionAvailability(
 	canonical, err := p.canonicalWorkspaceScope(ctx, scope)
 	availability := make(map[toolspkg.ToolID]toolspkg.Availability, len(ids))
 	if err != nil {
+		if len(ids) > 0 {
+			toolspkg.LogBackendFailure(ctx, ids[0], "tool_projection_workspace_resolve", err)
+		}
 		for _, id := range ids {
 			availability[id] = toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
 		}
@@ -93,10 +96,15 @@ func (p *daemonExtensionToolProvider) ProjectionAvailability(
 	if source, ok := p.inner.(toolspkg.ProjectionAvailabilityProvider); ok {
 		return source.ProjectionAvailability(ctx, canonical, ids)
 	}
+	loggedFailure := false
 	for _, id := range ids {
 		handle, found, resolveErr := p.inner.Resolve(ctx, canonical, id)
 		switch {
 		case resolveErr != nil:
+			if !loggedFailure {
+				toolspkg.LogBackendFailure(ctx, id, "tool_registry_resolve", resolveErr)
+				loggedFailure = true
+			}
 			availability[id] = toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
 		case found && handle != nil:
 			availability[id] = handle.Availability(ctx, canonical)

@@ -1,5 +1,5 @@
-import { sessionRuntime } from "../../mocks/fixtures";
-import type { SessionPayload } from "../../types";
+import { sessionRuntime } from "@/systems/session/mocks/fixtures";
+import type { SessionPayload } from "@/systems/session/types";
 
 export function sidebarSession(
   id: string,

@@ -4,7 +4,7 @@ description: Create, audit, update, and revoke access for apps that call your lo
 icon: Key
 ---
 
-> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+> Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact version.
 
 An app token is a named, revocable bearer credential for the local daemon. Its origin allowlist grants
 [direct browser access](/docs/apps/browser); non-browser processes can use it for attribution without
@@ -104,6 +104,11 @@ Use local HTTP without a foreign `Origin`, or the daemon's Unix socket. App-toke
 exposed on Gateway listeners. The [API reference](/docs/api) supplies TypeScript and Go SDK calls.
 No native `compozy__*` tools or `config.toml` keys are introduced for app tokens; agents use the
 structured CLI or local HTTP/UDS surfaces.
+
+App tokens cannot read the operator's `/api/status` diagnostics or register directories through
+`/api/workspaces/resolve`. Use `/api/status/identity` for the bounded SDK handshake and list the
+workspaces the operator has already registered. Local operator HTTP and UDS retain those management
+operations.
 
 ## Resolve errors
 

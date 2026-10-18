@@ -34,20 +34,20 @@ func (s *SessionDB) RecordPersisted(ctx context.Context, event store.SessionEven
 func (s *SessionDB) AppendEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	if s == nil {
-		return store.SessionEvent{}, errors.New("store: session database is required")
+		return store.SessionEvent{}, false, errors.New("store: session database is required")
 	}
 	if ctx == nil {
-		return store.SessionEvent{}, errors.New("store: append event context is required")
+		return store.SessionEvent{}, false, errors.New("store: append event context is required")
 	}
 	normalized, err := s.normalizeSessionEvent(event)
 	if err != nil {
-		return store.SessionEvent{}, err
+		return store.SessionEvent{}, false, err
 	}
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	if normalized.ID == "" {
-		return store.SessionEvent{}, errors.New("store: append-if-absent event id is required")
+		return store.SessionEvent{}, false, errors.New("store: append-if-absent event id is required")
 	}
 	return s.enqueueWritePersisted(ctx, sessionWriteRequest{
 		ctx: ctx, kind: sessionWriteEventIfAbsent, event: normalized, result: make(chan sessionWriteResult, 1),
@@ -98,12 +98,13 @@ func (s *SessionDB) recordSessionEvent(
 	if err != nil {
 		return store.SessionEvent{}, err
 	}
-	return s.enqueueWritePersisted(ctx, sessionWriteRequest{
+	persisted, _, err := s.enqueueWritePersisted(ctx, sessionWriteRequest{
 		ctx:    ctx,
 		kind:   sessionWriteEvent,
 		event:  normalized,
 		result: make(chan sessionWriteResult, 1),
 	})
+	return persisted, err
 }
 
 func (s *SessionDB) normalizeSessionEvent(event store.SessionEvent) (store.SessionEvent, error) {
@@ -125,28 +126,28 @@ func (s *SessionDB) normalizeSessionEvent(event store.SessionEvent) (store.Sessi
 func (s *SessionDB) enqueueWritePersisted(
 	ctx context.Context,
 	req sessionWriteRequest,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	s.acceptMu.RLock()
 	defer s.acceptMu.RUnlock()
 
 	if s.state.Load() != sessionStateOpen {
-		return store.SessionEvent{}, store.ErrClosed
+		return store.SessionEvent{}, false, store.ErrClosed
 	}
 
 	select {
 	case s.writeCh <- req:
 	case <-ctx.Done():
-		return store.SessionEvent{}, fmt.Errorf("store: enqueue session write: %w", ctx.Err())
+		return store.SessionEvent{}, false, fmt.Errorf("store: enqueue session write: %w", ctx.Err())
 	}
 
 	select {
 	case result := <-req.result:
 		if result.err != nil {
-			return store.SessionEvent{}, result.err
+			return store.SessionEvent{}, false, result.err
 		}
-		return result.event, nil
+		return result.event, result.inserted, nil
 	case <-ctx.Done():
-		return store.SessionEvent{}, fmt.Errorf("store: wait for session write completion: %w", ctx.Err())
+		return store.SessionEvent{}, false, fmt.Errorf("store: wait for session write completion: %w", ctx.Err())
 	}
 }
 
@@ -192,11 +193,12 @@ func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) (s
 func (s *SessionDB) writeEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	if event.Timestamp.IsZero() {
 		event.Timestamp = s.now()
 	}
 	var persisted store.SessionEvent
+	inserted := false
 	err := s.writeWithTranscriptFolds(ctx, func(ctx context.Context, tx *store.WriteTx) error {
 		row, err := sqlcgen.New(tx).GetEventByID(ctx, event.ID)
 		if err == nil {
@@ -228,6 +230,7 @@ func (s *SessionDB) writeEventIfAbsent(
 			return err
 		}
 		event.Sequence = sequence
+		inserted = true
 		if event.Archived {
 			if err := insertSessionEvent(ctx, tx, event, ""); err != nil {
 				return err
@@ -261,9 +264,9 @@ func (s *SessionDB) writeEventIfAbsent(
 		return nil
 	})
 	if err != nil {
-		return store.SessionEvent{}, err
+		return store.SessionEvent{}, false, err
 	}
-	return persisted, nil
+	return persisted, inserted, nil
 }
 
 func sessionEventsHaveIdenticalIdentity(existing store.SessionEvent, candidate store.SessionEvent) bool {

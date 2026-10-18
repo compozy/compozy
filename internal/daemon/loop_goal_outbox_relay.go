@@ -118,90 +118,104 @@ func (r *goalSessionOutboxRelay) DeliverPending(ctx context.Context) error {
 }
 
 func (r *goalSessionOutboxRelay) deliverPendingProjections(ctx context.Context) error {
-	events, err := r.store.ClaimGoalSessionOutbox(ctx, r.claimBatchSize())
-	if err != nil {
-		return fmt.Errorf("daemon: claim Goal session outbox: %w", err)
-	}
-	var deliveryErrs []error
-	for _, event := range events {
-		projection, err := goalSessionProjectionEvent(event)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		events, err := r.store.ClaimGoalSessionOutbox(ctx, r.claimBatchSize())
 		if err != nil {
-			deliveryErrs = append(deliveryErrs, err)
-			continue
+			return fmt.Errorf("daemon: claim Goal session outbox: %w", err)
 		}
-		if err := r.appender.AppendSessionEventIfAbsent(ctx, projection); err != nil {
-			deliveryErrs = append(deliveryErrs, fmt.Errorf("append Goal session event %q: %w", event.EventID, err))
-			continue
+		var deliveryErrs []error
+		for _, event := range events {
+			projection, err := goalSessionProjectionEvent(event)
+			if err != nil {
+				deliveryErrs = append(deliveryErrs, err)
+				continue
+			}
+			if err := r.appender.AppendSessionEventIfAbsent(ctx, projection); err != nil {
+				deliveryErrs = append(deliveryErrs, fmt.Errorf("append Goal session event %q: %w", event.EventID, err))
+				continue
+			}
+			deliveredAt := r.currentTime()
+			if deliveredAt.Before(event.CreatedAt) {
+				deliveredAt = event.CreatedAt
+			}
+			if err := r.store.AcknowledgeGoalSessionOutbox(ctx, event.EventID, deliveredAt); err != nil {
+				deliveryErrs = append(
+					deliveryErrs,
+					fmt.Errorf("acknowledge Goal session event %q: %w", event.EventID, err),
+				)
+			}
 		}
-		deliveredAt := r.currentTime()
-		if deliveredAt.Before(event.CreatedAt) {
-			deliveredAt = event.CreatedAt
-		}
-		if err := r.store.AcknowledgeGoalSessionOutbox(ctx, event.EventID, deliveredAt); err != nil {
-			deliveryErrs = append(
-				deliveryErrs,
-				fmt.Errorf("acknowledge Goal session event %q: %w", event.EventID, err),
-			)
+		if err := errors.Join(deliveryErrs...); err != nil || len(events) < r.claimBatchSize() {
+			return err
 		}
 	}
-	return errors.Join(deliveryErrs...)
 }
 
 func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) error {
 	if r.cleanupStore == nil || r.stopper == nil {
 		return nil
 	}
-	obligations, err := r.cleanupStore.ClaimLoopSessionCleanup(ctx, r.claimBatchSize())
-	if err != nil {
-		return fmt.Errorf("daemon: claim Loop session cleanup: %w", err)
-	}
-	var deliveryErrs []error
-	var deliveryErrsMu sync.Mutex
-	var group errgroup.Group
-	group.SetLimit(loopSessionCleanupConcurrency)
-	for _, obligation := range obligations {
-		group.Go(func() error {
-			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
-			defer cancel()
-			err := r.stopper.StopWithCause(
-				stopCtx,
-				obligation.SessionID,
-				loopSessionCleanupStopCause(obligation.Cause),
-				"Loop session cleanup: "+string(obligation.Cause),
-			)
-			if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
-				!errors.Is(err, session.ErrSessionNotActive) {
-				wrapped := fmt.Errorf("stop Loop run-owned session %q: %w", obligation.SessionID, err)
-				r.logCleanupFailure(ctx, obligation, "stop", wrapped)
-				deliveryErrsMu.Lock()
-				deliveryErrs = append(deliveryErrs, wrapped)
-				deliveryErrsMu.Unlock()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		obligations, err := r.cleanupStore.ClaimLoopSessionCleanup(ctx, r.claimBatchSize())
+		if err != nil {
+			return fmt.Errorf("daemon: claim Loop session cleanup: %w", err)
+		}
+		var deliveryErrs []error
+		var deliveryErrsMu sync.Mutex
+		var group errgroup.Group
+		group.SetLimit(loopSessionCleanupConcurrency)
+		for _, obligation := range obligations {
+			group.Go(func() error {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
+				defer cancel()
+				err := r.stopper.StopWithCause(
+					stopCtx,
+					obligation.SessionID,
+					loopSessionCleanupStopCause(obligation.Cause),
+					"Loop session cleanup: "+string(obligation.Cause),
+				)
+				if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
+					!errors.Is(err, session.ErrSessionNotActive) {
+					wrapped := fmt.Errorf("stop Loop run-owned session %q: %w", obligation.SessionID, err)
+					r.logCleanupFailure(ctx, obligation, "stop", wrapped)
+					deliveryErrsMu.Lock()
+					deliveryErrs = append(deliveryErrs, wrapped)
+					deliveryErrsMu.Unlock()
+					return nil
+				}
+				completedAt := r.currentTime()
+				if completedAt.Before(obligation.CreatedAt) {
+					completedAt = obligation.CreatedAt
+				}
+				ackCtx, ackCancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
+				defer ackCancel()
+				if err := r.cleanupStore.AcknowledgeLoopSessionCleanup(
+					ackCtx,
+					obligation.CleanupID,
+					completedAt,
+				); err != nil {
+					wrapped := fmt.Errorf("acknowledge Loop session cleanup %q: %w", obligation.CleanupID, err)
+					r.logCleanupFailure(ctx, obligation, "acknowledge", wrapped)
+					deliveryErrsMu.Lock()
+					deliveryErrs = append(deliveryErrs, wrapped)
+					deliveryErrsMu.Unlock()
+				}
 				return nil
-			}
-			completedAt := r.currentTime()
-			if completedAt.Before(obligation.CreatedAt) {
-				completedAt = obligation.CreatedAt
-			}
-			ackCtx, ackCancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
-			defer ackCancel()
-			if err := r.cleanupStore.AcknowledgeLoopSessionCleanup(
-				ackCtx,
-				obligation.CleanupID,
-				completedAt,
-			); err != nil {
-				wrapped := fmt.Errorf("acknowledge Loop session cleanup %q: %w", obligation.CleanupID, err)
-				r.logCleanupFailure(ctx, obligation, "acknowledge", wrapped)
-				deliveryErrsMu.Lock()
-				deliveryErrs = append(deliveryErrs, wrapped)
-				deliveryErrsMu.Unlock()
-			}
-			return nil
-		})
+			})
+		}
+		if err := group.Wait(); err != nil {
+			deliveryErrs = append(deliveryErrs, err)
+		}
+		if err := errors.Join(deliveryErrs...); err != nil || len(obligations) < r.claimBatchSize() {
+			return err
+		}
 	}
-	if err := group.Wait(); err != nil {
-		deliveryErrs = append(deliveryErrs, err)
-	}
-	return errors.Join(deliveryErrs...)
 }
 
 func loopSessionCleanupStopCause(cause looppkg.SessionCleanupCause) session.StopCause {

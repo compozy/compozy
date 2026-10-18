@@ -16,6 +16,7 @@ import type {
   SessionPayload,
 } from "../generated/sdk/types.gen.js";
 import type { SseOperationId } from "../events.js";
+import type { UIMessageChunk } from "../prompt.js";
 
 // Invariants: connection discovery/errors, typed resource calls, prompt stream integrity,
 // and bounded resumable SSE. Owner: app client HTTP boundary; canonical suite: this file.
@@ -275,25 +276,29 @@ describe("prompt", () => {
     }
   );
 
-  it.each(["[DONE]", ""])("yields UI chunks in order and ends at %s", async ending => {
-    const chunks = [
-      { type: "start", messageId: "m1" },
-      { type: "text-delta", id: "text1", delta: "hello" },
-    ];
-    const { client, requests } = await connected(() =>
-      sse(
-        chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join("") +
-          (ending ? `data: ${ending}\n\n` : "")
-      )
-    );
-    const reply = await client.prompt(promptInput);
-    expect(reply.kind).toBe("stream");
-    if (reply.kind !== "stream") throw new Error("expected stream");
-    const received = [];
-    for await (const chunk of reply.chunks) received.push(chunk);
-    expect(received).toEqual(chunks);
-    expect(requests).toHaveLength(1);
-  });
+  it.each(["[DONE]", "finish", "abort"] as const)(
+    "yields UI chunks in order and ends at %s",
+    async ending => {
+      const chunks: UIMessageChunk[] = [
+        { type: "start", messageId: "m1" },
+        { type: "text-delta", id: "text1", delta: "hello" },
+      ];
+      if (ending !== "[DONE]") chunks.push({ type: ending });
+      const { client, requests } = await connected(() =>
+        sse(
+          chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join("") +
+            (ending === "[DONE]" ? `data: ${ending}\n\n` : "")
+        )
+      );
+      const reply = await client.prompt(promptInput);
+      expect(reply.kind).toBe("stream");
+      if (reply.kind !== "stream") throw new Error("expected stream");
+      const received = [];
+      for await (const chunk of reply.chunks) received.push(chunk);
+      expect(received).toEqual(chunks);
+      expect(requests).toHaveLength(1);
+    }
+  );
 
   it("exposes a readable stream for AI SDK adapters", async () => {
     const { client } = await connected(() =>
@@ -374,20 +379,22 @@ describe("prompt", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it.each(['data: {"type":"text-delta"', "data: not-json\n\n"])(
-    "rejects truncated or malformed prompt frames without replaying POST",
-    async body => {
-      const { client, requests } = await connected(() => sse(body));
-      const reply = await client.prompt(promptInput);
-      if (reply.kind !== "stream") throw new Error("expected stream");
-      await expect(async () => {
-        for await (const _chunk of reply.chunks) {
-          /* consume */
-        }
-      }).rejects.toBeInstanceOf(CompozyStreamError);
-      expect(requests).toHaveLength(1);
-    }
-  );
+  it.each([
+    'data: {"type":"text-delta"',
+    "data: not-json\n\n",
+    'data: {"type":"text-delta","id":"t1","delta":"partial"}\n\n',
+    "",
+  ])("rejects incomplete or malformed prompts without replaying POST", async body => {
+    const { client, requests } = await connected(() => sse(body));
+    const reply = await client.prompt(promptInput);
+    if (reply.kind !== "stream") throw new Error("expected stream");
+    await expect(async () => {
+      for await (const _chunk of reply.chunks) {
+        /* consume */
+      }
+    }).rejects.toBeInstanceOf(CompozyStreamError);
+    expect(requests).toHaveLength(1);
+  });
 });
 
 describe("events", () => {
@@ -419,58 +426,81 @@ describe("events", () => {
     expect(requests[0]!.headers.get("X-Compozy-Client-ID")).toBe("my-app");
   });
 
-  it("cancels an open response body when the caller aborts", async () => {
-    const canceled = vi.fn();
-    const controller = new AbortController();
-    const { client } = await connected(
-      () =>
-        new Response(
-          new ReadableStream({
-            start(stream) {
-              stream.enqueue(new TextEncoder().encode('id: 1\ndata: {"sequence":1}\n\n'));
-            },
-            cancel: canceled,
-          }),
-          { headers: { "Content-Type": "text/event-stream" } }
-        )
-    );
-    const iterator = client
-      .events("streamSession", { path, signal: controller.signal })
-      [Symbol.asyncIterator]();
-    expect((await iterator.next()).value).toMatchObject({ id: "1" });
-    controller.abort();
-    expect((await iterator.next()).done).toBe(true);
-    expect(canceled).toHaveBeenCalledOnce();
-  });
+  it.each([false, true])(
+    "cancels an open response body when the caller aborts (rejected cleanup: %s)",
+    async rejectCancellation => {
+      const canceled = vi.fn(() =>
+        rejectCancellation
+          ? Promise.reject(new DOMException("aborted", "AbortError"))
+          : Promise.resolve()
+      );
+      const controller = new AbortController();
+      const { client } = await connected(
+        () =>
+          new Response(
+            new ReadableStream({
+              start(stream) {
+                stream.enqueue(new TextEncoder().encode('id: 1\ndata: {"sequence":1}\n\n'));
+              },
+              cancel: canceled,
+            }),
+            { headers: { "Content-Type": "text/event-stream" } }
+          )
+      );
+      const iterator = client
+        .events("streamSession", { path, signal: controller.signal })
+        [Symbol.asyncIterator]();
+      expect((await iterator.next()).value).toMatchObject({ id: "1" });
+      controller.abort();
+      expect((await iterator.next()).done).toBe(true);
+      expect(canceled).toHaveBeenCalledOnce();
+    }
+  );
 
-  it("resumes at the last id with 500ms/1000ms backoff and aborts during backoff", async () => {
-    vi.useFakeTimers();
-    const controller = new AbortController();
-    const { client, requests } = await connected(() =>
-      requests.length === 1
-        ? sse('event: transcript_delta\nid: 1201\ndata: {"sequence":1201}\n\n')
-        : new Response("unavailable", { status: 503 })
-    );
-    const iterator = client
-      .events("streamSession", { path, signal: controller.signal })
-      [Symbol.asyncIterator]();
-    expect((await iterator.next()).value).toMatchObject({ id: "1201" });
-    const next = iterator.next();
-    await vi.advanceTimersByTimeAsync(499);
-    expect(requests).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(requests).toHaveLength(2);
-    expect(requests[1]!.headers.get("Last-Event-ID")).toBe("1201");
-    await vi.advanceTimersByTimeAsync(999);
-    expect(requests).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(requests).toHaveLength(3);
-    expect(requests[2]!.headers.get("Last-Event-ID")).toBe("1201");
-    controller.abort();
-    expect((await next).done).toBe(true);
-    await vi.runAllTimersAsync();
-    expect(requests).toHaveLength(3);
-  });
+  it.each(["streamSession", "streamGlobalSession"] as const)(
+    "resumes %s with its latest cursor and fences and bounded backoff",
+    async operationId => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const { client, requests } = await connected(() =>
+        requests.length === 1
+          ? sse(
+              'event: transcript_snapshot\nid: 1201\ndata: {"epoch":3,"generation":4,"entries":[],"max_sequence":1201,"reset":true}\n\n'
+            )
+          : new Response("unavailable", { status: 503 })
+      );
+      const iterator = client
+        .events(operationId, {
+          path,
+          query: { epoch: 1, generation: 2, limit: 3, profile: "marketing" },
+          signal: controller.signal,
+        })
+        [Symbol.asyncIterator]();
+      expect((await iterator.next()).value).toMatchObject({ id: "1201" });
+      const next = iterator.next();
+      await vi.advanceTimersByTimeAsync(499);
+      expect(requests).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requests).toHaveLength(2);
+      expect(requests[1]!.headers.get("Last-Event-ID")).toBe("1201");
+      const resumed = new URL(requests[1]!.url);
+      expect(Object.fromEntries(resumed.searchParams)).toMatchObject({
+        epoch: "3",
+        generation: "4",
+        limit: "3",
+        profile: "marketing",
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(requests).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requests).toHaveLength(3);
+      expect(requests[2]!.headers.get("Last-Event-ID")).toBe("1201");
+      controller.abort();
+      expect((await next).done).toBe(true);
+      await vi.runAllTimersAsync();
+      expect(requests).toHaveLength(3);
+    }
+  );
 
   it.each([
     [401, "app_token_revoked"],

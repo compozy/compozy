@@ -10,40 +10,40 @@ import (
 )
 
 type idempotentSessionEventAppender interface {
-	AppendEventIfAbsent(context.Context, store.SessionEvent) (store.SessionEvent, error)
+	AppendEventIfAbsent(context.Context, store.SessionEvent) (store.SessionEvent, bool, error)
 }
 
 func (m *Manager) appendDurableSessionEvent(
 	ctx context.Context,
 	sessionID string,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	for attempt := range 2 {
-		persisted, err := m.appendDurableSessionEventAttempt(ctx, sessionID, event)
+		persisted, inserted, err := m.appendDurableSessionEventAttempt(ctx, sessionID, event)
 		if err == nil || !errors.Is(err, store.ErrClosed) || attempt == 1 {
-			return persisted, err
+			return persisted, inserted, err
 		}
 		if _, waitErr := m.waitForSessionFinalization(ctx, sessionID); waitErr != nil {
-			return store.SessionEvent{}, fmt.Errorf(
+			return store.SessionEvent{}, false, fmt.Errorf(
 				"session: wait for finalization for %q after closed event recorder: %w",
 				sessionID,
 				waitErr,
 			)
 		}
 	}
-	return store.SessionEvent{}, store.ErrClosed
+	return store.SessionEvent{}, false, store.ErrClosed
 }
 
 func (m *Manager) appendDurableSessionEventAttempt(
 	ctx context.Context,
 	sessionID string,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	if active, ok := m.Get(sessionID); ok {
 		return appendDurableSessionEventWithRecorder(ctx, active.recorderHandle(), event)
 	}
 	if _, err := m.waitForSessionFinalization(ctx, sessionID); err != nil {
-		return store.SessionEvent{}, err
+		return store.SessionEvent{}, false, err
 	}
 	return m.appendStoredSessionEvent(ctx, sessionID, event)
 }
@@ -52,15 +52,15 @@ func (m *Manager) appendDurableSessionEventAttempt(
 // its recorder; that owner must not wait for its own finalization to finish.
 func (m *Manager) appendStoredSessionEvent(
 	ctx context.Context, sessionID string, event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	path := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, sessionID))
 	meta, err := m.readMetaWithContext(ctx, sessionID)
 	if err != nil {
-		return store.SessionEvent{}, err
+		return store.SessionEvent{}, false, err
 	}
 	owner, err := m.resolveStoredSessionOwner(ctx, &meta)
 	if err != nil {
-		return store.SessionEvent{}, fmt.Errorf(
+		return store.SessionEvent{}, false, fmt.Errorf(
 			"session: resolve catalog owner for durable event %q: %w",
 			sessionID,
 			err,
@@ -68,27 +68,27 @@ func (m *Manager) appendStoredSessionEvent(
 	}
 	recorder, err := m.openStore(ctx, owner, path)
 	if err != nil {
-		return store.SessionEvent{}, err
+		return store.SessionEvent{}, false, err
 	}
-	persisted, appendErr := appendDurableSessionEventWithRecorder(ctx, recorder, event)
+	persisted, inserted, appendErr := appendDurableSessionEventWithRecorder(ctx, recorder, event)
 	closeErr := recorder.Close(ctx)
 	if appendErr != nil || closeErr != nil {
-		return store.SessionEvent{}, errors.Join(appendErr, closeErr)
+		return store.SessionEvent{}, false, errors.Join(appendErr, closeErr)
 	}
-	return persisted, nil
+	return persisted, inserted, nil
 }
 
 func appendDurableSessionEventWithRecorder(
 	ctx context.Context,
 	recorder EventRecorder,
 	event store.SessionEvent,
-) (store.SessionEvent, error) {
+) (store.SessionEvent, bool, error) {
 	if recorder == nil {
-		return store.SessionEvent{}, store.ErrClosed
+		return store.SessionEvent{}, false, store.ErrClosed
 	}
 	appender, ok := recorder.(idempotentSessionEventAppender)
 	if !ok {
-		return store.SessionEvent{}, fmt.Errorf(
+		return store.SessionEvent{}, false, fmt.Errorf(
 			"session: event recorder %T does not support idempotent append",
 			recorder,
 		)

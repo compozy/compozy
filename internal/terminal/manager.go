@@ -55,6 +55,7 @@ type Service struct {
 	now             func() time.Time
 	entropy         io.Reader
 	inputRequestTTL time.Duration
+	agentNiceness   int
 
 	mu                  sync.RWMutex
 	terminals           map[terminalKey]*session

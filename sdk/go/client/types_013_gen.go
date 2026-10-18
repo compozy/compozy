@@ -7,42 +7,6 @@ import (
 	"time"
 )
 
-// Reference is a daemon API value.
-type Reference struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitzero"`
-	EffectivePaused bool       `json:"effective_paused,omitzero"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// RejectPolicy is a daemon API value.
-type RejectPolicy struct {
-	Route NodeID `json:"route"`
-}
-
-// ReloadExtensionRequest is a daemon API value.
-type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
-}
-
-// RenameProfilePlan is a daemon API value.
-type RenameProfilePlan struct {
-	Revision          string             `json:"revision"`
-	MachineFolders    []string           `json:"machine_folders"`
-	RepoCandidates    []ProfileFolderRef `json:"repo_candidates"`
-	DormantPlacements []ProfilePlacement `json:"dormant_placements"`
-	VaultRefRewrites  int                `json:"vault_ref_rewrites"`
-}
-
 // RenameProfileRequest is a daemon API value.
 type RenameProfileRequest struct {
 	NewName      string   `json:"new_name"`
@@ -414,10 +378,8 @@ type RosterPage struct {
 }
 
 // RouteIntent is a daemon API value.
-type RouteIntent struct {
-	Pathname string                     `json:"pathname"`
-	Search   map[string]json.RawMessage `json:"search"`
-}
+// RouteIntent preserves its custom JSON wire representation.
+type RouteIntent = json.RawMessage
 
 // RouteSpec is a daemon API value.
 type RouteSpec struct {
@@ -438,4 +400,50 @@ type Row struct {
 	Actions     []RowAction       `json:"actions,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
+}
+
+// RowAction is a daemon API value.
+type RowAction struct {
+	Title        string            `json:"title"`
+	Icon         string            `json:"icon,omitempty"`
+	Section      string            `json:"section,omitempty"`
+	Primary      bool              `json:"primary,omitempty"`
+	Destructive  bool              `json:"destructive,omitempty"`
+	Confirmation *Confirmation     `json:"confirmation,omitempty"`
+	Shortcut     string            `json:"shortcut,omitempty"`
+	Action       *Action           `json:"action,omitempty"`
+	Handler      string            `json:"handler,omitempty"`
+	SubmitForm   bool              `json:"submit_form,omitempty"`
+	Requires     map[string]string `json:"requires,omitempty"`
+	Fallback     string            `json:"fallback,omitempty"`
+}
+
+// RunArtifact is a daemon API value.
+type RunArtifact struct {
+	Name         string               `json:"name"`
+	Output       string               `json:"output,omitempty"`
+	Ref          string               `json:"ref,omitempty"`
+	Availability ArtifactAvailability `json:"availability"`
+}
+
+// RunDesignationSummary is a daemon API value.
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
+// RunEventKind is a daemon API value.
+type RunEventKind string
+
+// RunID is a daemon API value.
+type RunID string
+
+// RunKind is a daemon API value.
+type RunKind string
+
+// RunLoopRequest is a daemon API value.
+type RunLoopRequest struct {
+	Inputs          map[string]any `json:"inputs,omitempty"`
+	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides *LoopConfig    `json:"config_overrides,omitzero"`
 }

@@ -321,7 +321,7 @@ func runACPProviderLogin(
 	if err != nil {
 		return mapACPLoginError(target.ACPMethod, options.timeout > 0, err)
 	}
-	record, err := buildProviderAuthStatus(ctx, deps, runtime, providerAuthStatusOptions{
+	record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, providerAuthStatusOptions{
 		providerRef: target.ProviderName,
 		probe:       true,
 	})

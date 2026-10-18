@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// ForkSessionParams carries the path, query, and header parameters.
+type ForkSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ForkSession Fork a session with the same agent, whole or through one user message and its turn
+func (c *Client) ForkSession(ctx context.Context, params ForkSessionParams, body ForkSessionRequest) (*SessionDeriveResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/fork"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionDeriveResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForkSessionToWorktreeParams carries the path, query, and header parameters.
+type ForkSessionToWorktreeParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // ForkSessionToWorktree Fork a live session into a worktree
 func (c *Client) ForkSessionToWorktree(ctx context.Context, params ForkSessionToWorktreeParams, body ForkSessionWorktreeRequest) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork"
@@ -405,34 +429,4 @@ type GetDoctorParams struct {
 	Only    *string `url:"only"`
 	Exclude *string `url:"exclude"`
 	Quiet   *bool   `url:"quiet"`
-}
-
-// GetDoctor Run runtime diagnostics
-func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*DoctorPayload, error) {
-	path := "/api/doctor"
-	query := url.Values{}
-	if params.Only != nil {
-		query.Set("only", *params.Only)
-	}
-	if params.Exclude != nil {
-		query.Set("exclude", *params.Exclude)
-	}
-	if params.Quiet != nil {
-		query.Set("quiet", strconv.FormatBool(*params.Quiet))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DoctorPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionParams carries the path, query, and header parameters.
-type GetExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

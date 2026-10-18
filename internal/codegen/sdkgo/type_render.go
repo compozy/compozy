@@ -1,10 +1,13 @@
 package sdkgo
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"github.com/dave/jennifer/jen"
+
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type goField struct {
@@ -38,6 +41,24 @@ var generatedFieldComments = map[string]map[string]string{
 }
 
 func (g *typeGenerator) renderDeclaration(name string, value reflect.Type) (*jen.Statement, error) {
+	if g.allNamed {
+		if value == reflect.TypeFor[taskpkg.RunStatus]() || value == reflect.TypeFor[taskpkg.RunKind]() {
+			return jen.Type().Id(name).String(), nil
+		}
+		// Reflection exposes fields, not custom JSON methods. Preserve such wire values
+		// verbatim instead of inventing a struct shape that the daemon cannot encode/decode.
+		if value != timeType && value != rawMessageType &&
+			(value.Implements(reflect.TypeFor[json.Marshaler]()) ||
+				reflect.PointerTo(value).Implements(reflect.TypeFor[json.Unmarshaler]())) {
+			if value.Kind() == reflect.Struct {
+				if _, err := g.structFields(value, name); err != nil {
+					return nil, err
+				}
+			}
+			return jen.Comment(name+" preserves its custom JSON wire representation.").Line().
+				Type().Id(name).Op("=").Qual("encoding/json", "RawMessage"), nil
+		}
+	}
 	var underlying *jen.Statement
 	var err error
 	if value.Kind() == reflect.Struct {

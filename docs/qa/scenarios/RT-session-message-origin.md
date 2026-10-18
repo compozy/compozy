@@ -84,7 +84,8 @@ Busy-target policy regression (#760)
     (works) and try to replace it (409 `input_agent_authored`).
     Fail persistence while a pending injection is rejected: status and Stop remain responsive,
     the entry stays leased, and restoring storage returns it to after-turn delivery without
-    injecting the guidance again.
+    injecting the guidance again. Also lose the acknowledgement after an input write commits:
+    history retains exactly one authored event and the queue entry still settles as sent.
 14. Hop and rate: A answering the session that drives its turn, or sending with `in_reply_to`, keeps
     the hop; forwarding to a third session adds one. Exceed `rate_limit_messages` within the window:
     that send returns `message_rate_limited` with `limit`, `window` and `retry_after_seconds`, and both

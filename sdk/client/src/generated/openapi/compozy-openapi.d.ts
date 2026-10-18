@@ -13950,6 +13950,9 @@ export interface components {
       /** @enum {string} */
       transport?: "sse";
     };
+    SettingsLogTailEventPayload: {
+      line: string;
+    };
     SettingsMCPAuthBeginRequest: {
       approve_scope_escalation?: boolean;
       approved_scopes?: string[];
@@ -32919,7 +32922,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "text/event-stream": components["schemas"]["SettingsLogTailEventPayload"];
+        };
       };
       /** @description Internal server error */
       500: {

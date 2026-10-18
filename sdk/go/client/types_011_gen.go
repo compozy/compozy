@@ -7,54 +7,6 @@ import (
 	"time"
 )
 
-// Node is a daemon API value.
-type Node struct {
-	ID             NodeID              `json:"id"`
-	Class          NodeClass           `json:"class"`
-	Kind           string              `json:"kind"`
-	Session        *SessionSpec        `json:"session,omitzero"`
-	Timeout        string              `json:"timeout,omitempty"`
-	Retry          *RetrySpec          `json:"retry,omitzero"`
-	Review         *ReviewSpec         `json:"review,omitzero"`
-	Deadline       string              `json:"deadline,omitempty"`
-	ResultContract *ResultContract     `json:"result_contract,omitzero"`
-	OnError        *ErrorPolicy        `json:"on_error,omitzero"`
-	OnRetry        []EffectSpec        `json:"on_retry,omitempty"`
-	OnSuccess      []EffectSpec        `json:"on_success,omitempty"`
-	OnPause        []EffectSpec        `json:"on_pause,omitempty"`
-	OnTimeout      []EffectSpec        `json:"on_timeout,omitempty"`
-	OnCancel       []EffectSpec        `json:"on_cancel,omitempty"`
-	OnQuarantine   []EffectSpec        `json:"on_quarantine,omitempty"`
-	OnParentClose  ParentClosePolicy   `json:"on_parent_close,omitempty"`
-	Harvest        *HarvestSpec        `json:"harvest,omitzero"`
-	Produces       map[string]any      `json:"produces,omitempty"`
-	Params         map[string]any      `json:"params,omitempty"`
-	Collection     string              `json:"collection,omitempty"`
-	Filter         string              `json:"filter,omitempty"`
-	BatchSize      int                 `json:"batch_size,omitzero"`
-	MaxParallel    int                 `json:"max_parallel,omitzero"`
-	MaxFanOut      int                 `json:"max_fan_out,omitzero"`
-	Strategy       *StrategySpec       `json:"strategy,omitzero"`
-	BindAs         string              `json:"bind_as,omitempty"`
-	IndexAs        string              `json:"index_as,omitempty"`
-	Condition      string              `json:"condition,omitempty"`
-	OnEvalError    EvalErrorPolicy     `json:"on_eval_error,omitempty"`
-	Routes         []RouteSpec         `json:"routes,omitempty"`
-	Default        NodeID              `json:"default,omitempty"`
-	Criteria       []GateCriterion     `json:"criteria,omitempty"`
-	VerdictPolicy  VerdictPolicy       `json:"verdict_policy,omitempty"`
-	OnResult       map[string]any      `json:"on_result,omitempty"`
-	MaxRevisions   int                 `json:"max_revisions,omitzero"`
-	Expires        *WaitExpiry         `json:"expires,omitzero"`
-	Body           *Graph              `json:"body,omitzero"`
-	Contract       *Contract           `json:"contract,omitzero"`
-	InputRef       string              `json:"input_ref,omitempty"`
-	Pattern        string              `json:"pattern,omitempty"`
-	Parse          FileParseKind       `json:"parse,omitempty"`
-	WatchSpec      map[string]any      `json:"watch,omitempty"`
-	Events         []EventSubscription `json:"events,omitempty"`
-}
-
 // NodeAttemptView is a daemon API value.
 type NodeAttemptView struct {
 	Attempt      int        `json:"attempt"`
@@ -232,7 +184,8 @@ type OperatorNotificationEventPayload struct {
 }
 
 // OptionalStringList is a daemon API value.
-type OptionalStringList struct{}
+// OptionalStringList preserves its custom JSON wire representation.
+type OptionalStringList = json.RawMessage
 
 // Origin is a daemon API value.
 type Origin struct {
@@ -448,3 +401,45 @@ type Predicate struct {
 
 // PredicateOperator is a daemon API value.
 type PredicateOperator string
+
+// Priority is a daemon API value.
+type Priority string
+
+// Profile is a daemon API value.
+type Profile struct {
+	ID                     string                         `json:"id"`
+	Name                   string                         `json:"name"`
+	Color                  string                         `json:"color"`
+	Icon                   *string                        `json:"icon"`
+	Emoji                  *string                        `json:"emoji"`
+	State                  string                         `json:"state"`
+	CreatedAt              time.Time                      `json:"created_at"`
+	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
+	WorkItems              int                            `json:"work_items,omitzero"`
+	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ProfileCredentialRequirement is a daemon API value.
+type ProfileCredentialRequirement struct {
+	Provider        string `json:"provider"`
+	Slot            string `json:"slot"`
+	SourceExtension string `json:"source_extension"`
+	Missing         bool   `json:"missing"`
+}
+
+// ProfileFolderRef is a daemon API value.
+type ProfileFolderRef struct {
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace"`
+	Path          string `json:"path"`
+}
+
+// ProfileLens is a daemon API value.
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+// ProfileLensID is a daemon API value.
+type ProfileLensID string

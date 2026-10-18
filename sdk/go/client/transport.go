@@ -36,8 +36,11 @@ func (c *Client) doContent(
 	ctx context.Context, method, path string, headers http.Header, body, out any,
 	requestContentType, responseContentType string,
 ) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, requestTimeout)
+		defer cancel()
+	}
 	headers = headers.Clone()
 	if headers == nil {
 		headers = make(http.Header)
@@ -52,6 +55,9 @@ func (c *Client) doContent(
 	defer func() { err = errors.Join(err, drainClose(response.Body)) }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return responseError(response)
+	}
+	if result, ok := out.(interface{ setResponseStatus(int) }); ok {
+		result.setResponseStatus(response.StatusCode)
 	}
 	if out == nil || response.StatusCode == http.StatusNoContent {
 		return nil

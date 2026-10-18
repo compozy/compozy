@@ -25,7 +25,7 @@ replies and live events. The daemon continues to own execution and durable trans
 - The Web app uses API types from the public package. The new **Build an app** documentation covers
   Node, a server-backed chat UI, browser access, Go, and token administration.
 
-Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact
+Experimental in this release: names and shapes may change in the next release without a deprecation window. Pin the exact
 version. This applies to the client facade/resource layout, Node entry point, Go client, app-token
 CLI/HTTP, and browser-access error codes. Existing daemon operations and the runtime OpenAPI endpoint
 retain their normal compatibility guarantees.

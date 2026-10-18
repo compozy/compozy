@@ -6,8 +6,52 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ClearSessionInputs Clear queued input with attributed per-entry traces
+func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInputsParams) (*SessionInputClearResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionInputClearResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearSessionRuntimeParams carries the path, query, and header parameters.
+type ClearSessionRuntimeParams struct {
+	WorkspaceID      string `url:"workspace_id"`
+	SessionID        string `url:"session_id"`
+	ExpectedRevision int64  `url:"expected_revision"`
+}
+
+// ClearSessionRuntime Clear the default runtime for future prompts
+func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRuntimeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("expected_revision", strconv.FormatInt(params.ExpectedRevision, 10))
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearTaskBlockParams carries the path, query, and header parameters.
+type ClearTaskBlockParams struct {
+	ID      string  `url:"id"`
+	BlockID string  `url:"block_id"`
+	Profile *string `url:"profile"`
+}
 
 // ClearTaskBlock Clear one typed task block
 func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams, body ClearTaskBlockRequest) (*TaskBlockResponse, error) {
@@ -402,39 +446,4 @@ func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body C
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateTerminalParams carries the path, query, and header parameters.
-type CreateTerminalParams struct {
-	WorkspaceID         string  `url:"workspace_id"`
-	XCompozyClientToken *string `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
-}
-
-// CreateTerminal Create an interactive terminal
-func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams, body TerminalCreateRequest) (*TerminalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	headers := http.Header{}
-	if params.XCompozyClientToken != nil {
-		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateToolApprovalParams carries the path, query, and header parameters.
-type CreateToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }
