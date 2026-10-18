@@ -215,6 +215,17 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
+		// Quiet supervision watches only a turn in flight: the frozen tree owns one.
+		events, err := h.manager.Prompt(ctx, sess.ID, "Continue the committed work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		go func() {
+			defer close(drained)
+			for range events {
+			}
+		}()
 		for tick := range 3 {
 			at := base.Add(time.Duration(10+tick) * time.Second)
 			clock.Store(at.UnixNano())
@@ -225,6 +236,11 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		outcome, err := h.manager.AwaitStopped(ctx, sess.ID)
 		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
 			t.Fatalf("supervised stop = %#v, %v", outcome, err)
+		}
+		select {
+		case <-drained:
+		case <-ctx.Done():
+			t.Fatal("frozen turn did not end after the supervised stop")
 		}
 		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: source.TaskID})
 		if err != nil || len(runs) != 2 {
