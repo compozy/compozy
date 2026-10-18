@@ -45,6 +45,11 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			return contract.DoctorPayload{}, err
 		}
 	}
+	if h.HostLoad != nil {
+		if err := registry.Register(&doctor.HostLoadProbe{Source: h.HostLoad}); err != nil {
+			return contract.DoctorPayload{}, err
+		}
+	}
 	if source, ok := h.Sessions.(doctor.SubprocessHealthSnapshotSource); ok {
 		if err := registry.Register(&doctor.SubprocessHealthProbe{Source: source}); err != nil {
 			return contract.DoctorPayload{}, err

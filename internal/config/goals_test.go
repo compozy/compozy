@@ -28,8 +28,8 @@ func TestGoalsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
 		if cfg.Goals.OutboxBatchSize != 50 {
 			t.Fatalf("Goals.OutboxBatchSize = %d, want 50", cfg.Goals.OutboxBatchSize)
 		}
-		if cfg.Goals.OutboxPollInterval != 100*time.Millisecond {
-			t.Fatalf("Goals.OutboxPollInterval = %s, want 100ms", cfg.Goals.OutboxPollInterval)
+		if cfg.Goals.OutboxPollInterval != 2*time.Second {
+			t.Fatalf("Goals.OutboxPollInterval = %s, want 2s", cfg.Goals.OutboxPollInterval)
 		}
 	})
 

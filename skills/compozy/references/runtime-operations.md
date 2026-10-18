@@ -547,7 +547,8 @@ Busy input order is operator input, then messages from other sessions, then synt
 (reply wakes, subagent wakes), then enqueue time within each class. `queue_cap` applies separately to
 operator and agent/wake entries, so agents cannot exhaust the operator's slots; `queue_position` is
 the real rank in that order. An agent-origin `steer` never interrupts: when injection is unavailable
-it is queued, and steer supersede is scoped per sender, so it cannot cancel an operator steer.
+or operator input waits it is queued behind that input, and steer supersede is scoped per sender, so
+it cannot cancel an operator steer.
 Consecutive agent messages and reply wakes (up to 8) dispatch as one turn, each keeping its own origin
 and reply watch; operator input is never merged. A message from another session that waits on a
 target in the same turn longer than `session.messaging.queue_promote_after` (default `2m`, `0s`

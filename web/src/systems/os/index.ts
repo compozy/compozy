@@ -12,6 +12,7 @@ export { useDesktop } from "./hooks/use-desktop";
 // Pass `{ reduced }` to `runViewTransition` from any system's in-window transition.
 export { useOsReducedMotion } from "./hooks/use-os-reduced-motion";
 export { isOsReducedMotion } from "./lib/reduced-motion";
+export { openContextMenuFromKeyboard } from "./lib/context-menu-keyboard";
 export { OS_APPS, getOsApp, resolveAppForPath, matchSessionInstance } from "./lib/app-registry";
 export { getOsAppDescriptor, OS_APP_DESCRIPTORS } from "./lib/app-catalog";
 export { validateMarketplaceDetailSearch } from "./apps/marketplace/marketplace-detail-search";

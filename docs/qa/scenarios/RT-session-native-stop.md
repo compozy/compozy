@@ -150,7 +150,8 @@ lab. Hold a turn in flight that stops producing work (for example a provider tha
 prompt). Exercise fresh progress, verified tool, active child, recent Loop reconciliation, task
 lease, and scheduled wait independently; each must suppress the warning. Provider waiting and an
 open subscriber must not. Observe one quiet warning: no window banner, and the working status line
-under the transcript reads `Working for … · quiet for …`; CLI/HTTP/UDS/resource/native describe
+under the transcript reads `Working for … · quiet for …`, also for a turn that hangs before its
+first token (it must not stay on `Thinking`); CLI/HTTP/UDS/resource/native describe
 fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
 `stop_reason: "timeout"`, `stop_detail: "inactivity"`). Resume real work during grace and confirm
 warning cancellation; end the turn during grace and confirm the warning clears and no stop follows.
@@ -175,6 +176,16 @@ agent that does not advertise `session/load`: its runtime is never released. Wit
 released, kill the daemon uncleanly and restart: the session is `stopped` with
 `stop_reason: "shutdown"` and detail `daemon exited while the idle session runtime was released`,
 and the next prompt resumes it. Setting `idle_release_after = "0"` disables the release.
+Stop a session while its release is still stopping the agent: the stop completes only after the
+released subprocess exits. If the release cannot stop the subprocess, the next prompt fails rather
+than loading the ACP session into a second process while the old one runs. A daemon killed before a
+release verified the subprocess exit keeps that subprocess identity in `meta.json`; on restart the
+session reads `shutdown` only if the recorded subprocess is gone, otherwise it stays under stop
+verification.
+
+QA impact 2026-10-17 (#787 follow-up): the quiet span now also covers a turn hung before its first
+token, and the idle-release branch gained the stop-during-release, failed-release, and
+interrupted-release steps above. Both branches need the re-walk already pending.
 
 QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death constraints remain the previously documented external branch; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
 

@@ -1,24 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { BULK_SESSION_FAMILY, BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
-import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 import {
-  sidebarSession,
-  PROVENANCE_FAMILY,
-  STORY_FOLDERS,
-  withSubagents,
-  VIEWED_SUBAGENT,
-  minutesAgo,
-  SUBAGENT_PARENTS,
-  STABLE_FAMILY,
   GOAL_OWNER,
   HISTORICAL_JUDGES,
-  onRuntime,
+  LONG_AGENT,
   MIXED_RUNTIMES,
   PROFILE_OWNERS,
+  PROVENANCE_FAMILY,
+  STABLE_FAMILY,
+  STORY_FOLDERS,
+  SUBAGENT_PARENTS,
+  VIEWED_SUBAGENT,
   inProfile,
-  LONG_AGENT,
+  minutesAgo,
+  onRuntime,
+  sidebarSession,
+  withSubagents,
 } from "./session-sidebar-fixtures";
+import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 

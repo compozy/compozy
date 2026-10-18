@@ -13,7 +13,7 @@ import {
   Kbd,
 } from "@compozy/ui";
 
-import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
+import { openContextMenuFromKeyboard } from "@/systems/os";
 
 export interface LoopEditorNodeMenuProps {
   nodeId: string;

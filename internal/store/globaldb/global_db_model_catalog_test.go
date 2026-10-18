@@ -1108,6 +1108,87 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should touch unchanged source rows in place instead of rewriting them", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sourceID := modelcatalog.SourceKindProviderLiveID("cursor")
+		executionContext := modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive)
+		effort := modelcatalog.ReasoningEffortHigh
+		row := modelCatalogRow(sourceID, "cursor", "grok-4.6", modelcatalog.SourceKindProviderLive, 110)
+		row.ExpiresAt = time.Time{}
+		row.ReleaseDate = new("2026-04-01")
+		row.Hidden = new(false)
+		row.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortLow, effort}
+		row.DefaultReasoningEffort = &effort
+		row.ConfigOptions = []modelcatalog.ModelOptionDescriptor{{
+			ID:     "context",
+			Kind:   modelcatalog.ModelOptionKindSelect,
+			Values: []modelcatalog.ModelOptionValue{{ValueID: "standard"}, {ValueID: "long", Order: 1}},
+		}}
+		row.TransportBindings = []modelcatalog.ModelTransportBinding{
+			{
+				TransportModelID: "grok-4.6[effort=high]",
+				ReasoningEffort:  &effort,
+				OptionSelections: []modelcatalog.ModelOptionSelection{{ID: "context", ValueID: "standard"}},
+				ConfigOptions:    []modelcatalog.ModelOptionDescriptor{},
+			},
+			{TransportModelID: "grok-4.6"},
+		}
+		second := modelCatalogRow(sourceID, "cursor", "auto", modelcatalog.SourceKindProviderLive, 110)
+		second.ExpiresAt = time.Time{}
+		status := modelCatalogStatus(sourceID, "cursor", modelcatalog.SourceKindProviderLive, 110)
+		rows := []modelcatalog.ModelRow{row, second}
+		if err := globalDB.ReplaceSourceRows(ctx, executionContext, sourceID, "cursor", rows, status); err != nil {
+			t.Fatalf("ReplaceSourceRows(initial) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `CREATE TRIGGER test_forbid_catalog_row_rewrite
+			BEFORE DELETE ON model_catalog_rows
+			BEGIN SELECT RAISE(ABORT, 'model catalog rows rewritten'); END`); err != nil {
+			t.Fatalf("create rewrite guard trigger error = %v", err)
+		}
+
+		refreshedAt := row.RefreshedAt.Add(time.Hour)
+		repeated := []modelcatalog.ModelRow{second, row}
+		for index := range repeated {
+			repeated[index].RefreshedAt = refreshedAt
+		}
+		status.LastRefresh = refreshedAt
+		status.NextRefresh = refreshedAt.Add(5 * time.Minute)
+		if err := globalDB.ReplaceSourceRows(ctx, executionContext, sourceID, "cursor", repeated, status); err != nil {
+			t.Fatalf("ReplaceSourceRows(unchanged) error = %v, want in-place timestamp touch", err)
+		}
+		stored, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			SourceID:         sourceID,
+			ProviderID:       "cursor",
+			ExecutionContext: executionContext,
+			IncludeAll:       true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(after unchanged) error = %v", err)
+		}
+		if len(stored) != 2 || !stored[0].RefreshedAt.Equal(refreshedAt) || !stored[1].RefreshedAt.Equal(refreshedAt) {
+			t.Fatalf("stored rows = %#v, want both rows refreshed at %s", stored, refreshedAt)
+		}
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+			ProviderID:       "cursor",
+			ExecutionContext: executionContext,
+		})
+		if err != nil {
+			t.Fatalf("ListSourceStatus(after unchanged) error = %v", err)
+		}
+		if len(statuses) != 1 || !statuses[0].NextRefresh.Equal(status.NextRefresh) || statuses[0].RowCount != 2 {
+			t.Fatalf("statuses = %#v, want updated status timestamps with row_count 2", statuses)
+		}
+
+		changed := slices.Clone(repeated)
+		changed[1].DisplayName = "Grok 4.6 Renamed"
+		if err := globalDB.ReplaceSourceRows(ctx, executionContext, sourceID, "cursor", changed, status); err == nil {
+			t.Fatal("ReplaceSourceRows(changed) error = nil, want changed content to take the rewrite path")
+		}
+	})
+
 	t.Run("Should filter rows by provider source and stale flag", func(t *testing.T) {
 		t.Parallel()
 
@@ -1175,6 +1256,29 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			t.Fatalf("ListRows(claude) error = %v", err)
 		}
 		assertModelCatalogModelIDs(t, rows, []string{"claude-fresh"})
+
+		owners, err := globalDB.ListRowOwners(ctx, modelcatalog.ListOptions{ProviderID: "codex", IncludeAll: true})
+		if err != nil {
+			t.Fatalf("ListRowOwners(codex) error = %v", err)
+		}
+		wantOwners := []modelcatalog.SourceProviderKey{
+			{SourceID: "config", ProviderID: "codex"},
+			{SourceID: "models_dev", ProviderID: "codex"},
+		}
+		if !slices.Equal(owners, wantOwners) {
+			t.Fatalf("ListRowOwners(codex) = %#v, want %#v", owners, wantOwners)
+		}
+		owners, err = globalDB.ListRowOwners(ctx, modelcatalog.ListOptions{SourceID: "config"})
+		if err != nil {
+			t.Fatalf("ListRowOwners(config) error = %v", err)
+		}
+		wantOwners = []modelcatalog.SourceProviderKey{
+			{SourceID: "config", ProviderID: "claude"},
+			{SourceID: "config", ProviderID: "codex"},
+		}
+		if !slices.Equal(owners, wantOwners) {
+			t.Fatalf("ListRowOwners(config) = %#v, want %#v", owners, wantOwners)
+		}
 	})
 
 	t.Run("Should store models dev status per provider without empty provider sentinel", func(t *testing.T) {

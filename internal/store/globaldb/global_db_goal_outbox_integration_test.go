@@ -4,6 +4,7 @@ package globaldb
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -325,6 +326,51 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		}
 		if count != 0 {
 			t.Fatalf("rejected outbox rows = %d, want 0", count)
+		}
+	})
+	t.Run("Should signal the Goal relay only after an enqueue commits", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-signal")
+		now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+		registerGoalSessionIdentityForTest(
+			t,
+			globalDB,
+			goalSessionInfoForTest("session-signal", "ws-goal-signal", now),
+			store.SessionCreationIdentity{
+				CreationProfileRef: "profile-signal",
+				PolicySpecDigest:   "policy-signal",
+				CreationDigest:     "creation-signal",
+			},
+		)
+		originSessionID := "session-signal"
+		insertGoalSchemaLoopRun(t, globalDB, "run-goal-signal", "ws-goal-signal", "session", &originSessionID)
+		var goalSignals, effectSignals atomic.Int32
+		globalDB.SetGoalSessionOutboxCommitSignal(func() { goalSignals.Add(1) })
+		globalDB.SetLoopEffectCommitSignal(func() { effectSignals.Add(1) })
+
+		ctx := testutil.Context(t)
+		request := goal.EnqueueSessionOutboxRequest{
+			EventID:     "goal-snapshot:session-signal:run-goal-signal:clear:1",
+			WorkspaceID: "ws-goal-signal", OriginSessionID: "session-signal",
+			LoopRunID: "run-goal-signal", Cause: goal.SessionOutboxCauseClear, CreatedAt: now,
+		}
+		if _, err := globalDB.EnqueueGoalSessionOutbox(ctx, request); err != nil {
+			t.Fatalf("EnqueueGoalSessionOutbox() error = %v", err)
+		}
+		if got := goalSignals.Load(); got != 1 {
+			t.Fatalf("Goal commit signals = %d, want 1", got)
+		}
+		collision := request
+		collision.CreatedAt = now.Add(time.Minute)
+		if _, err := globalDB.EnqueueGoalSessionOutbox(ctx, collision); !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("EnqueueGoalSessionOutbox(collision) error = %v, want %v", err, looppkg.ErrTransitionConflict)
+		}
+		if got := goalSignals.Load(); got != 1 {
+			t.Fatalf("Goal commit signals after rollback = %d, want no signal for a rolled-back enqueue", got)
+		}
+		if got := effectSignals.Load(); got != 0 {
+			t.Fatalf("effect commit signals = %d, want 0 for a Goal-only transaction", got)
 		}
 	})
 }

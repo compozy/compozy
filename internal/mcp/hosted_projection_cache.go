@@ -9,8 +9,10 @@ import (
 
 const hostedProjectionGenerationRetries = 3
 
+// hostedProjectionCache holds immutable projection snapshots. Entries and flight results are
+// shared with every reader, so no path may mutate a response after it enters the cache.
 type hostedProjectionCache struct {
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	entries     map[string]hostedProjectionCacheEntry
 	flights     map[hostedProjectionFlightKey]*hostedProjectionFlight
 	unversioned map[string]hostedUnversionedProjection
@@ -45,12 +47,12 @@ func newHostedProjectionCache() hostedProjectionCache {
 }
 
 // projectionForGeneration coalesces known generations and rebuilds views whenever generation authority is absent.
+// The response may be a cached snapshot shared with other readers; callers must not mutate it.
 func (s *HostedService) projectionForGeneration(
 	ctx context.Context,
 	record *hostedBindRecord,
 	registry tools.Registry,
 	unversioned hostedProjectionBuilder,
-	lastDigest string,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
 		return unversioned(ctx, registry, record)
@@ -62,14 +64,14 @@ func (s *HostedService) projectionForGeneration(
 		if !known {
 			return unversioned(ctx, registry, record)
 		}
-		if cached, ok := s.projectionCache.load(record.bindID, generation, lastDigest); ok {
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
+		if cached, ok := s.projectionCache.load(key); ok {
 			return cached, nil
 		}
 
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		flight, leader := s.projectionCache.begin(key)
 		if !leader {
-			response, retry, err := waitHostedProjectionFlight(ctx, flight, lastDigest)
+			response, retry, err := waitHostedProjectionFlight(ctx, flight)
 			if retry {
 				continue
 			}
@@ -86,7 +88,7 @@ func (s *HostedService) projectionForGeneration(
 		stored := s.finishProjectionGeneration(key, record, response, stable)
 		if stable {
 			if stored {
-				return cloneHostedProjectionAfter(response, lastDigest), nil
+				return response, nil
 			}
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
@@ -124,21 +126,18 @@ func buildHostedProjection(
 	return hostedProjectionResponse(views, record.digestMemo), nil
 }
 
-func (c *hostedProjectionCache) load(
-	bindID string,
-	generation string,
-	lastDigest string,
-) (HostedProjectionResponse, bool) {
+// load returns the shared immutable snapshot cached for the exact bind generation.
+func (c *hostedProjectionCache) load(key hostedProjectionFlightKey) (HostedProjectionResponse, bool) {
 	if c == nil {
 		return HostedProjectionResponse{}, false
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.entries[bindID]
-	if !ok || entry.generation != generation {
+	c.mu.RLock()
+	entry, ok := c.entries[key.bindID]
+	c.mu.RUnlock()
+	if !ok || entry.generation != key.generation {
 		return HostedProjectionResponse{}, false
 	}
-	return cloneHostedProjectionAfter(entry.response, lastDigest), true
+	return entry.response, true
 }
 
 func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedProjectionFlight, bool) {
@@ -164,11 +163,11 @@ func (c *hostedProjectionCache) finish(
 	if store {
 		c.entries[key.bindID] = hostedProjectionCacheEntry{
 			generation: key.generation,
-			response:   cloneHostedProjectionResponse(response),
+			response:   response,
 		}
 	}
 	if flight != nil {
-		flight.response = cloneHostedProjectionResponse(response)
+		flight.response = response
 		flight.err = err
 		flight.retry = retry
 		delete(c.flights, key)
@@ -191,31 +190,24 @@ func (c *hostedProjectionCache) size() int {
 	if c == nil {
 		return 0
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return len(c.entries) + len(c.unversioned)
 }
 
 func waitHostedProjectionFlight(
 	ctx context.Context,
 	flight *hostedProjectionFlight,
-	lastDigest string,
 ) (HostedProjectionResponse, bool, error) {
 	select {
 	case <-ctx.Done():
 		return HostedProjectionResponse{}, false, ctx.Err()
 	case <-flight.done:
-		return cloneHostedProjectionAfter(flight.response, lastDigest), flight.retry, flight.err
+		return flight.response, flight.retry, flight.err
 	}
 }
 
-func cloneHostedProjectionAfter(response HostedProjectionResponse, lastDigest string) HostedProjectionResponse {
-	if lastDigest != "" && response.Digest == lastDigest {
-		return HostedProjectionResponse{Digest: response.Digest}
-	}
-	return cloneHostedProjectionResponse(response)
-}
-
+// cloneHostedProjectionResponse detaches a shared snapshot before it reaches a caller that may mutate it.
 func cloneHostedProjectionResponse(response HostedProjectionResponse) HostedProjectionResponse {
 	return HostedProjectionResponse{
 		Tools:  cloneToolViews(response.Tools),

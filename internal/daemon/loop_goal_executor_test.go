@@ -945,3 +945,37 @@ func (inertActionToolRegistry) Get(context.Context, tools.Scope, tools.ToolID) (
 func (inertActionToolRegistry) Call(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
 	return tools.ToolResult{}, nil
 }
+
+// Invariant: goal_report availability follows Goal prompt state, so every binding and prompt
+// transition advances the tool projection epoch, including failed transitions that may have
+// persisted partial state. Owner: daemon Goal runtime composition.
+func TestGoalToolProjectionRuntimeShouldInvalidateOnGoalPromptTransitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should invalidate after binding, prompt preparation, and prompt completion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		runtime := &loopGoalRuntime{loopActionSessionBinder: &loopActionSessionBinder{}}
+		invalidations := 0
+		decorated := withGoalToolProjection(runtime, func() { invalidations++ })
+
+		if _, err := decorated.BindActionSession(ctx, looppkg.ActionSessionBindRequest{}); err == nil {
+			t.Fatal("BindActionSession() error = nil, want missing session runtime")
+		}
+		if _, err := decorated.PrepareActionPrompt(
+			ctx, looppkg.ActionSessionBinding{}, looppkg.ActionPromptRequest{},
+		); err == nil {
+			t.Fatal("PrepareActionPrompt() error = nil, want missing prompt runtime")
+		}
+		if _, err := decorated.AwaitActionPrompt(ctx, looppkg.ActionPromptTicket{}); err == nil {
+			t.Fatal("AwaitActionPrompt() error = nil, want missing prompt store")
+		}
+		if invalidations != 3 {
+			t.Fatalf("projection invalidations = %d, want 3", invalidations)
+		}
+		if undecorated := withGoalToolProjection(runtime, nil); undecorated != loopGoalBinderRuntime(runtime) {
+			t.Fatal("withGoalToolProjection(nil) wrapped the runtime, want it unchanged")
+		}
+	})
+}

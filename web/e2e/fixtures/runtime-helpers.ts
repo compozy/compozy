@@ -58,6 +58,10 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     "[daemon]",
     `socket = ${tomlString(input.socketPath)}`,
     "",
+    // E2E runners are often saturated; host-load admission would delay background work.
+    "[daemon.load]",
+    "admission_threshold = 0",
+    "",
     "[http]",
     `host = ${tomlString(input.host)}`,
     `port = ${input.port}`,

@@ -33,9 +33,21 @@ export function useSessionListFolderLayout(
   const sections: SessionListSections | null = layout
     ? buildSessionListSections(threads, layout.folders, { filtering, archived: view.archived })
     : null;
+  // A reorder pins the listed rows ahead of every container member the request
+  // omits. Rows hidden by a filter, a worktree scope, or a page boundary would be
+  // pushed behind the visible ones, so manual reorder needs the whole container on
+  // screen: unfiltered, unscoped, and the first settled catalog page. Archived
+  // members never render alongside active ones, so the archive split keeps each
+  // list's own relative order.
+  const orderable =
+    view.sort === "manual" &&
+    !filtering &&
+    !view.worktreeId &&
+    !view.catalog?.previous &&
+    !view.catalog?.paging;
   const dnd = useSessionListDnd(layout, {
     manual: view.sort === "manual",
-    reorderable: !filtering,
+    reorderable: orderable,
   });
   const [dialog, setDialog] = useState<SessionFolderDialogState>(null);
   return {
@@ -43,6 +55,8 @@ export function useSessionListFolderLayout(
     sections,
     collapsedFolders,
     toggleFolder,
+    /** Drag reorder and Move up/down: only when every member of a container is listed. */
+    orderable,
     /** Threads on screen in order; bulk selection and range picks follow it. */
     visibleThreads: sections
       ? sectionsVisibleThreads(sections, collapsedFolders, filtering)

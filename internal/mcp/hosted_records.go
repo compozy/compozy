@@ -100,7 +100,12 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	return s.projectionForGeneration(ctx, record, registry, buildHostedProjection, "")
+	response, err := s.projectionForGeneration(ctx, record, registry, buildHostedProjection)
+	if err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	// One-shot readers receive a private copy because the cache shares its snapshots.
+	return cloneHostedProjectionResponse(response), nil
 }
 
 // hostedProjectionResponse returns isolated, ID-sorted views and a digest over their canonical empty form.

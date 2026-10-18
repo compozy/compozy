@@ -7,6 +7,11 @@ func WithRuntimeMemorySnapshotSource(source doctor.RuntimeMemorySnapshotSource) 
 	return func(server *Server) { server.runtimeMemory = source }
 }
 
+// WithHostLoadSnapshotSource injects host CPU pressure observations from load-aware admission.
+func WithHostLoadSnapshotSource(source doctor.HostLoadSnapshotSource) Option {
+	return func(server *Server) { server.hostLoad = source }
+}
+
 // WithDeadEntitySource injects durable runtime-reliability diagnostics.
 func WithDeadEntitySource(source doctor.DeadEntitySource) Option {
 	return func(server *Server) { server.deadEntities = source }
