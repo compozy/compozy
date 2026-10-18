@@ -11,10 +11,44 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
+	"testing/synctest"
 	"time"
 )
 
 func TestManagerCheck(t *testing.T) {
+	t.Run("Should keep deadline failures visible and throttle subsequent manual checks", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			var requests atomic.Int32
+			manager, _ := newManagerWithExecutable(t, &Config{
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					if requests.Add(1) > 1 {
+						return nil, errors.New("unexpected duplicate check")
+					}
+					<-request.Context().Done()
+					return nil, request.Context().Err()
+				})},
+			})
+			checkedAt := time.Now().UTC().Add(-time.Hour)
+			if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+				"https://github.com/compozy/compozy/releases/tag/v1.0.0", checkedAt)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.Refresh(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("timed-out Refresh error = %v", err)
+			}
+			for range 2 {
+				snapshot, err := manager.Refresh(t.Context())
+				if err != nil || !strings.Contains(snapshot.Runtime.LastError, context.DeadlineExceeded.Error()) ||
+					snapshot.Runtime.CheckedAt == nil || !snapshot.Runtime.CheckedAt.Equal(checkedAt) {
+					t.Fatalf("Refresh after timeout = %#v, %v", snapshot, err)
+				}
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("requests after timeout = %d, want one throttled attempt", requests.Load())
+			}
+		})
+	})
 	t.Run("Should complete a bounded manual refresh after the client disconnects", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newManagerWithExecutable(t, &Config{

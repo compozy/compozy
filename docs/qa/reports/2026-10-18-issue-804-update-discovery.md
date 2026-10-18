@@ -19,6 +19,8 @@ Go manager/projection, daemon background/controller, API handlers, config lifecy
 
 Review remediation also passed the focused updater race suite and updater/API-spec lint. The updater coverage verifies that a disconnected manual-check client does not cancel shared discovery, that the refresh has a bounded deadline, and that a canceled direct check does not throttle the next attempt or hide a real upstream failure.
 
+The owning updater suite additionally exercises the actual 30-second manual-check deadline with `synctest`. An exhausted check budget remains a recorded failure, preserves the prior successful timestamp, and throttles subsequent manual requests during the one-minute interval. Explicit caller cancellation remains unrecorded.
+
 The test-convention heuristic passed the changed update/daemon suites. Its eight findings in `internal/api/core/settings_test.go` concern pre-existing unrelated functions; the new check-handler case uses a parallel `Should ...` subtest.
 
 ## Limitations

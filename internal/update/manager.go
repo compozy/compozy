@@ -201,7 +201,8 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	if needRefresh {
 		attemptedAt := m.now().UTC()
 		freshRelease, err := m.fetchLatestRelease(ctx)
-		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+		// Caller cancellation is transient; an exhausted check budget is a shared failed attempt.
+		if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) && errors.Is(err, ctxErr) {
 			return State{}, nil, ctxErr
 		}
 		m.lastCheckAttempt = attemptedAt
