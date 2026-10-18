@@ -1,6 +1,11 @@
 import type { SessionFolderPayload, SessionPayload } from "../types";
 import { isSubagentSession } from "./session-hierarchy";
-import { threadVisibleOrder, type SessionThreadModel } from "./session-list-threads";
+import type { SessionListScope } from "./session-list-preferences";
+import {
+  buildSessionListThreads,
+  threadVisibleOrder,
+  type SessionThreadModel,
+} from "./session-list-threads";
 
 /** One folder with the provenance threads it holds on the current page. */
 export interface SessionFolderSection {
@@ -79,6 +84,53 @@ export function sectionsVisibleOrder(
     sectionsVisibleThreads(sections, collapsedFolders, forceExpanded),
     collapsedThreads
   );
+}
+
+export interface VisibleSessionOrderOptions {
+  scope: SessionListScope;
+  collapsedThreadIds: ReadonlySet<string>;
+  collapsedWorkspaceIds: ReadonlySet<string>;
+  workspaceGroups: ReadonlyArray<{
+    workspaceId: string;
+    sessions: readonly SessionPayload[];
+  }>;
+  /** The workspace list's folders once loaded; without them the list renders flat. */
+  folders?: readonly SessionFolderPayload[];
+  collapsedFolderIds?: ReadonlySet<string>;
+  archived?: boolean;
+}
+
+/**
+ * Projects the same unfiltered row order the shared session catalog renders.
+ * Closed groups, folders, and threads are excluded because the cycle shortcut
+ * must never focus a row the operator cannot currently see.
+ */
+export function visibleSessionOrder(
+  sessions: readonly SessionPayload[],
+  options: VisibleSessionOrderOptions
+): SessionPayload[] {
+  if (options.scope === "all-workspaces") {
+    return options.workspaceGroups.flatMap(group =>
+      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
+    );
+  }
+
+  const threads = buildSessionListThreads(sessions, "");
+  const visibleThreads = options.folders
+    ? sectionsVisibleThreads(
+        buildSessionListSections(threads, options.folders, {
+          filtering: false,
+          archived: options.archived ?? false,
+        }),
+        options.collapsedFolderIds ?? new Set(),
+        false
+      )
+    : threads;
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
+    const session = byId.get(id);
+    return session ? [session] : [];
+  });
 }
 
 /** Moves `id` one step up (-1) or down (+1); returns null at the edge or when absent. */

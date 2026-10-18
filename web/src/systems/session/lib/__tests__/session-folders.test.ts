@@ -2,7 +2,8 @@
 // Invariant: the workspace list groups provenance threads by their root's folder
 // in served order (children follow their parent, empty folders show unless a
 // filter or the archive narrows the list), collapsed folders drop out of the
-// visible row order, and optimistic layout edits only move what they name.
+// visible row order (the session-cycle shortcut follows the same projection),
+// and optimistic layout edits only move what they name.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +17,7 @@ import {
   placeId,
   sectionsVisibleOrder,
   shiftId,
+  visibleSessionOrder,
 } from "../session-folders";
 import { buildSessionListThreads } from "../session-list-threads";
 
@@ -155,5 +157,56 @@ describe("layout order helpers", () => {
       ["z", undefined],
     ]);
     expect(applyFolderRemoval(page, "f").every(item => item.folder_id === undefined)).toBe(true);
+  });
+});
+
+describe("visibleSessionOrder", () => {
+  const base = {
+    collapsedThreadIds: new Set<string>(),
+    collapsedWorkspaceIds: new Set<string>(),
+    workspaceGroups: [],
+  };
+  const order = (sessions: readonly SessionPayload[]) => sessions.map(item => item.id);
+
+  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
+    const rootA = session("sess-a");
+    const childA = session("sess-a-child", undefined, "sess-a");
+    const rootB = session("sess-b");
+
+    expect(
+      order(visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }))
+    ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
+    expect(
+      order(
+        visibleSessionOrder([rootA, childA, rootB], {
+          ...base,
+          scope: "workspace",
+          collapsedThreadIds: new Set(["sess-a"]),
+        })
+      )
+    ).toEqual(["sess-a", "sess-b"]);
+    expect(
+      order(
+        visibleSessionOrder([], {
+          ...base,
+          scope: "all-workspaces",
+          collapsedWorkspaceIds: new Set(["ws-hidden"]),
+          workspaceGroups: [
+            { workspaceId: "ws-hidden", sessions: [rootA] },
+            { workspaceId: "ws-visible", sessions: [rootB] },
+          ],
+        })
+      )
+    ).toEqual(["sess-b"]);
+  });
+
+  it("Should follow folder sections and skip sessions inside a collapsed folder", () => {
+    const page = [session("r1"), session("a1", "fa"), session("b1", "fb"), session("a2", "fa")];
+    const options = { ...base, scope: "workspace" as const, folders: [folder("fa"), folder("fb")] };
+
+    expect(order(visibleSessionOrder(page, options))).toEqual(["a1", "a2", "b1", "r1"]);
+    expect(
+      order(visibleSessionOrder(page, { ...options, collapsedFolderIds: new Set(["fa"]) }))
+    ).toEqual(["b1", "r1"]);
   });
 });
