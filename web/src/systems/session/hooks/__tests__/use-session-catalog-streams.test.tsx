@@ -960,7 +960,7 @@ describe("useSessionCatalogStreams", () => {
     act(() => {
       sources[0]!.emit("session_catalog_changed", wake);
       sources[0]!.emit("session_catalog_changed", wake);
-      setProfileView({ scope: "global" }, { kind: "profile", profile: "marketing" });
+      setProfileView({ kind: "profile", profile: "marketing" });
     });
     expect(sources).toHaveLength(2);
     expect(sources[0]!.closed).toBe(true);
