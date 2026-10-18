@@ -1,6 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { use } from "react";
 
 import { cancelSubagent } from "@/systems/session/adapters/subagent-api";
+import { sessionDetailOptions } from "@/systems/session/lib/query-options";
 import { SubagentWaitingBanner } from "@/systems/session/components/subagents/subagent-waiting-banner";
 import {
   subagentWaitingBannerRows,
@@ -19,7 +21,8 @@ import {
  * while a settled result waits to wake the parent.
  */
 export function SessionSubagentBanner({ parentTurnRunning }: { parentTurnRunning: boolean }) {
-  const { workspaceId, onOpen } = useSubagentRosterContext();
+  const queryClient = useQueryClient();
+  const { workspaceId, sessionId, onOpen } = useSubagentRosterContext();
   const roster = useSessionSubagentRoster();
   const navigation = use(SubagentNavigationContext);
   const waiting = subagentWaitingBannerRows(roster.rows, parentTurnRunning);
@@ -30,7 +33,15 @@ export function SessionSubagentBanner({ parentTurnRunning }: { parentTurnRunning
       wakePending={subagentWakePending(roster.rows)}
       onOpen={onOpen ? subagent => onOpen(subagent, { newWindow: false }) : undefined}
       onShowAll={navigation?.showSubagents}
-      onStop={() => Promise.all(waiting.map(subagent => cancelSubagent(workspaceId, subagent.id)))}
+      onStop={async () => {
+        const parent = await queryClient.fetchQuery({
+          ...sessionDetailOptions(workspaceId, sessionId),
+          staleTime: 0,
+        });
+        return Promise.all(
+          waiting.map(subagent => cancelSubagent(workspaceId, subagent.id, parent.profile_name))
+        );
+      }}
     />
   );
 }

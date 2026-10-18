@@ -130,6 +130,7 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 }
 
+// TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
 
@@ -693,15 +694,27 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
-
-		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
-			t.Fatalf("RequestStopWithCause() error = %v", err)
-		}
+		// Observe the stopping snapshot before asynchronous cancellation advances runtime metadata.
+		release := make(chan struct{})
+		cancelStarted := make(chan struct{})
+		signalStarted := sync.OnceFunc(func() { close(cancelStarted) })
+		unblock := sync.OnceFunc(func() { close(release) })
+		h.driver.cancelHook = func(*fakeProcess) error { signalStarted(); <-release; return nil }
 		t.Cleanup(func() {
+			unblock()
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() cleanup error = %v", err)
 			}
 		})
+		ctx := testutil.Context(t)
+		if err := h.manager.RequestStopWithCause(ctx, session.ID, CauseUserRequested, ""); err != nil {
+			t.Fatalf("RequestStopWithCause() error = %v", err)
+		}
+		select {
+		case <-cancelStarted:
+		case <-ctx.Done():
+			t.Fatal("cancellation hook did not start:", ctx.Err())
+		}
 
 		if got, want := session.Info().State, StateStopping; got != want {
 			t.Fatalf("memory state after request stop = %q, want %q", got, want)

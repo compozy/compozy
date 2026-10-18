@@ -29,6 +29,7 @@ import {
 import { SessionComposerSubagents } from "@/systems/session/components/session-composer-subagents";
 import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
@@ -118,6 +119,9 @@ function harness(
   navigation: SubagentNavigation | null = null,
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 ) {
+  queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+    profile_name: "design",
+  });
   queryClient.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
     rows,
     staleIds: new Set(),
@@ -260,6 +264,10 @@ describe("roster updates re-render only the card they change (m19)", () => {
 
 describe("composer waiting banner (UT-W13 wiring)", () => {
   it("Should show live delegated subagents of an idle parent and stop each through the cancel route", async () => {
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "design-renamed",
+    });
     vi.mocked(cancelSubagent).mockResolvedValue({ subagent_id: "x", status: "cancel_requested" });
     const rows = [
       view("sub-a"),
@@ -271,9 +279,9 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
     expect(screen.getByText("Waiting on 2 subagents")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(cancelSubagent).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 2))).toEqual([
-      [WORKSPACE_ID, "sub-a"],
-      [WORKSPACE_ID, "sub-b"],
+    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 3))).toEqual([
+      [WORKSPACE_ID, "sub-a", "design-renamed"],
+      [WORKSPACE_ID, "sub-b", "design-renamed"],
     ]);
   });
 
@@ -307,6 +315,37 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
 });
 
 describe("composer subagents control (issue #766 wiring)", () => {
+  it("Should refresh a renamed parent owner before stopping a roster row", async () => {
+    // Invariant: the immutable owner may have a new name; cancellation must resolve it at dispatch.
+    // Owner: roster action hook; canonical suite: this session/subagent wiring suite.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+      ...primarySessionFixture,
+      profile_name: "old-name",
+    });
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "new-name",
+    });
+    vi.mocked(cancelSubagent).mockResolvedValue({
+      subagent_id: "sub-a",
+      status: "cancel_requested",
+    });
+    const { result } = renderHook(
+      () => useSessionSubagents(WORKSPACE_ID, SESSION_ID, { coldRead: false }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await act(async () => {
+      await result.current.stop(view("sub-a"));
+    });
+    expect(cancelSubagent).toHaveBeenCalledExactlyOnceWith(WORKSPACE_ID, "sub-a", "new-name");
+    client.clear();
+  });
+
   const parent = (summary: SessionPayload["subagent_summary"] = null): SessionPayload => ({
     ...primarySessionFixture,
     id: SESSION_ID,
@@ -364,6 +403,36 @@ describe("composer subagents control (issue #766 wiring)", () => {
     );
     await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: "Subagents, 3 running" })).toBeInTheDocument();
+  });
+
+  it("Should stop a failed cold page walk until the operator retries", async () => {
+    // Invariant: a failed continuation cannot spin requests; explicit retry can recover.
+    // Owner: cold roster wiring, reusing this suite's real QueryClient and adapter boundary.
+    vi.mocked(fetchSessionSubagents).mockReset().mockRejectedValue(new Error("Page unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const firstPage = { subagents: [subagentPayload("sub-a")], next_cursor: "page-2" };
+    client.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [firstPage],
+      pageParams: [""],
+    });
+    const { result } = renderHook(() => useSessionSubagents(WORKSPACE_ID, SESSION_ID), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    expect(result.current.complete).toBe(false);
+    vi.mocked(fetchSessionSubagents)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({ subagents: [subagentPayload("sub-b")], next_cursor: null });
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.complete).toBe(true));
+    expect(result.current.subagents.map(row => row.id)).toEqual(["sub-a", "sub-b"]);
+    client.clear();
   });
 });
 

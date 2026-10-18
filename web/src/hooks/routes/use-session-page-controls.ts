@@ -44,7 +44,7 @@ interface UseSessionPageControlsOptions {
 
 export type { ResumeProviderUnavailableDetail, SessionResumeFailure };
 
-/** Coordinates session-page actions, preserving the displayed session ownership for deletion. */
+/** Coordinates session-page actions, preserving the displayed session ownership for lifecycle mutations. */
 export function useSessionPageControls(
   sessionId: string,
   session: SessionPayload,
@@ -67,8 +67,8 @@ export function useSessionPageControls(
   });
   const stopMutation = useStopSession();
   const resumeMutation = useResumeSession({ workspaceId });
-  const unarchiveMutation = useUnarchiveSession({ workspaceId });
-  const renameMutation = useRenameSession({ workspaceId });
+  const unarchiveMutation = useUnarchiveSession();
+  const renameMutation = useRenameSession();
   const clearMutation = useClearSessionConversation({ workspaceId });
   const {
     activeTurnId,
@@ -183,7 +183,7 @@ export function useSessionPageControls(
       return;
     }
 
-    unarchiveMutation.mutate(sessionId, {
+    unarchiveMutation.mutate(session, {
       onError: error => {
         console.error("Failed to unarchive session", error);
         toast.error("Couldn't unarchive this session.");
@@ -217,7 +217,7 @@ export function useSessionPageControls(
       throw new Error("Session controls are busy.");
     }
     try {
-      await renameMutation.mutateAsync({ id: sessionId, name });
+      await renameMutation.mutateAsync({ ...session, name });
       toast.success("Session renamed.");
     } catch (error) {
       console.error("Failed to rename session", error);

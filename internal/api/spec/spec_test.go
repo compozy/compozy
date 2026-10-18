@@ -340,6 +340,7 @@ func validRegistryOperation() OperationSpec {
 	}
 }
 
+// TestDocumentTracksRequiredFieldsAndEnums checks public schemas and route selectors against their contracts.
 func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	t.Parallel()
 
@@ -571,6 +572,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					method string
 				}{
 					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/stop", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/archive", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodPatch},
+					{path: "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel", method: http.MethodPost},
 				}
 				for _, endpoint := range profileMutations {
 					operation := operationFor(t, doc, endpoint.path, endpoint.method)

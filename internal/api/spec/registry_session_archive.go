@@ -16,6 +16,7 @@ func unarchiveSessionOperationSpec() OperationSpec {
 	return sessionArchiveOperationSpec("unarchive", "unarchiveSession", "Restore an archived session")
 }
 
+// sessionArchiveOperationSpec shares the explicit owner selector across archive and restore.
 func sessionArchiveOperationSpec(action string, operationID string, summary string) OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
@@ -24,10 +25,10 @@ func sessionArchiveOperationSpec(action string, operationID string, summary stri
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},

@@ -9,6 +9,7 @@ func sessionAdmissionOperations() []OperationSpec {
 	return append(sessionConversationAdmissionOperations(), sessionDeriveOperations()...)
 }
 
+// sessionConversationAdmissionOperations describes clear and owner-scoped rewind admission.
 func sessionConversationAdmissionOperations() []OperationSpec {
 	return []OperationSpec{
 		{
@@ -37,10 +38,10 @@ func sessionConversationAdmissionOperations() []OperationSpec {
 			Summary:     "Rewind a conversation before one durable user message",
 			Tags:        []string{specSessionsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("workspace_id", "Workspace id"),
 				pathParam("session_id", "Session id"),
-			},
+			),
 			RequestBody: contract.SessionConversationRewindRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.SessionConversationRewindResponse{}},

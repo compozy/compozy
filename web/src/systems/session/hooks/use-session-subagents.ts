@@ -3,6 +3,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { cancelSubagent } from "../adapters/subagent-api";
 import type { SubagentView } from "../components/subagents/types";
+import { sessionDetailOptions } from "../lib/query-options";
 import { sessionKeys } from "../lib/query-keys";
 import { subagentViewFromPayload } from "../lib/subagent-payload";
 import { SUBAGENT_LIST_PAGE_SIZE, sessionSubagentsOptions } from "../lib/subagent-query-options";
@@ -79,7 +80,8 @@ function useLiveSubagentRoster(
  * Direct subagents of one parent session (S9 preview, S10 roster). While the
  * parent's session stream is open its roster feeds the rows and no list request
  * runs; otherwise the paged list route serves a cold read. The population is
- * the parent's direct children, never the workspace.
+ * the parent's direct children, never the workspace. Failed page walks wait for
+ * explicit retry; cancellation refreshes the parent owner before dispatch.
  */
 export function useSessionSubagents(
   workspaceId: string,
@@ -96,8 +98,9 @@ export function useSessionSubagents(
   const { hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = query;
   const walk = allPages && coldRead && live === null;
   useEffect(() => {
-    if (walk && hasNextPage && !isFetchingNextPage) void fetchNextPage().catch(() => undefined);
-  }, [walk, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (walk && hasNextPage && !isFetchingNextPage && !query.isError)
+      void fetchNextPage().catch(() => undefined);
+  }, [walk, hasNextPage, isFetchingNextPage, fetchNextPage, query.isError]);
 
   return {
     subagents:
@@ -108,7 +111,11 @@ export function useSessionSubagents(
     failed: live === null && query.isError,
     retry: () => void refetch(),
     stop: async subagent => {
-      await cancelSubagent(workspaceId, subagent.id);
+      const parent = await queryClient.fetchQuery({
+        ...sessionDetailOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
+      await cancelSubagent(workspaceId, subagent.id, parent.profile_name);
       // A live roster settles through the stream; a cold read re-reads the list.
       if (live === null) {
         await queryClient.invalidateQueries({

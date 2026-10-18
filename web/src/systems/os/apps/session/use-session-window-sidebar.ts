@@ -66,7 +66,7 @@ export function useSessionWindowSidebar({
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionLifecycleActions({ workspaceId });
+  const lifecycle = useSessionLifecycleActions();
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });

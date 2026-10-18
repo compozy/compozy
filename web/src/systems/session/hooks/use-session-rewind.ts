@@ -4,7 +4,7 @@ import { rewindSession, SessionApiError, type SessionRewindResult } from "../ada
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionLiveQueries } from "../lib/session-query-invalidation";
 import { type SessionTranscriptData } from "../lib/session-transcript-query";
-import { sessionTranscriptOptions } from "../lib/query-options";
+import { sessionDetailOptions, sessionTranscriptOptions } from "../lib/query-options";
 
 export interface SessionRewindVariables {
   idempotencyKey: string;
@@ -40,24 +40,31 @@ function rewindFence(
 /**
  * Rewinds one workspace-scoped session from a durable transcript message. The
  * returned transcript fence is daemon-owned; the client never derives it from
- * display order or a local runtime tail.
+ * display order or a local runtime tail. Refreshes the owner before mutation so
+ * cached profile names cannot survive a profile rename.
  */
 export function useSessionRewind(workspaceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation<SessionRewindResult, Error, SessionRewindVariables>({
     mutationKey: sessionKeys.rewindConversation(workspaceId),
-    mutationFn: ({ idempotencyKey, messageId, sessionId, signal }) =>
-      rewindSession(
+    mutationFn: async ({ idempotencyKey, messageId, sessionId, signal }) => {
+      const parent = await queryClient.fetchQuery({
+        ...sessionDetailOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
+      return rewindSession(
         workspaceId,
         sessionId,
+        parent.profile_name,
         {
           ...rewindFence(queryClient, workspaceId, sessionId),
           idempotency_key: idempotencyKey,
           message_id: messageId,
         },
         signal
-      ),
+      );
+    },
     onSuccess: async (result, { sessionId }) => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), result.session);
       queryClient.removeQueries({

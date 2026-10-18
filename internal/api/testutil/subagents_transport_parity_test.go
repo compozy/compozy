@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	"github.com/compozy/compozy/internal/listcursor"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspace"
@@ -44,6 +45,13 @@ func TestSubagentHTTPUDSParity(t *testing.T) {
 		{"foreign row", "GET", "/api/workspaces/ws-public/subagents/foreign", "", `"code":"subagent_not_found"`, 404},
 		{"foreign cancel", "POST", "/api/workspaces/ws-public/subagents/foreign/cancel", `{}`, `"code":"subagent_not_found"`, 404},
 		{"profile isolation", "GET", "/api/workspaces/ws-public/subagents/private", "", `"code":"subagent_not_found"`, 404},
+		{"profile roster", "GET", "/api/workspaces/ws-public/sessions/private/subagents?profile=design", "", `"parent_session_id":"private"`, 200},
+		{"aggregate profile roster", "GET", "/api/workspaces/ws-public/sessions/private/subagents?all_profiles=true", "", `"parent_session_id":"private"`, 200},
+		{"wrong profile roster", "GET", "/api/workspaces/ws-public/sessions/private/subagents?profile=default", "", `"code":"session_not_found"`, 404},
+		{"profile cancel", "POST", "/api/workspaces/ws-public/subagents/private/cancel?profile=design", `{}`, `"status":"cancel_requested"`, 202},
+		{"wrong profile cancel", "POST", "/api/workspaces/ws-public/subagents/private/cancel?profile=default", `{}`, `"code":"subagent_not_found"`, 404},
+		{"aggregate cancel refusal", "POST", "/api/workspaces/ws-public/subagents/private/cancel?all_profiles=true", `{}`, `"code":"subagent_not_found"`, 404},
+
 		{"bad origin", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?origin=bad", "", `"code":"invalid_request"`, 400},
 		{"bad status", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?status=running,bad", "", `"code":"invalid_request"`, 400},
 		{"bad limit", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?limit=201", "", `"code":"invalid_request"`, 400},
@@ -151,6 +159,8 @@ func (s *subagentParityService) Get(_ context.Context, workspaceID, id string) (
 	}
 	return session.Subagent{SessionSubagent: row}, nil
 }
+
+// List checks forwarded roster scope and filters at the service boundary for both transports.
 func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
 	if q.Cursor == "bad" {
 		return store.SubagentPage{}, listcursor.ErrInvalid
@@ -162,7 +172,8 @@ func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuer
 		}
 		return store.SubagentPage{Items: []store.SessionSubagent{}, NextCursor: "next"}, nil
 	}
-	if q.ParentSessionID != "parent" || q.WorkspaceID != "ws-registry" || q.Limit != 50 {
+	if (q.ParentSessionID != "parent" && q.ParentSessionID != "private") ||
+		q.WorkspaceID != "ws-registry" || q.Limit != 50 {
 		return store.SubagentPage{}, errors.New("unexpected query")
 	}
 	return store.SubagentPage{
@@ -191,6 +202,7 @@ func (s *subagentParityService) Summaries(_ context.Context, ids []string) (map[
 	return map[string]store.SubagentSummary{"parent": {Total: 30, Live: 3}}, nil
 }
 
+// subagentParityRouters gives HTTP and UDS the same workspace and profile authorization fixtures.
 func subagentParityRouters(t *testing.T, service *subagentParityService) (http.Handler, http.Handler) {
 	t.Helper()
 	manager := testutil.StubSessionManager{
@@ -253,6 +265,10 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 	workspaceService.GetFn = func(context.Context, string) (workspace.Workspace, error) {
 		return workspace.Workspace{ID: "ws-registry", Name: "Parity", RootDir: "/repo"}, nil
 	}
+	profiles := parityProfileService{profiles: []profilepkg.WithCounts{
+		{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		{ID: "other-profile", Name: "design", State: profilepkg.StateActive},
+	}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	if _, err := httpapi.New(
 		httpapi.WithEngine(a),
@@ -266,6 +282,7 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(workspaceService),
 		httpapi.WithSubagentService(dependency),
+		httpapi.WithProfileService(profiles),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -279,6 +296,7 @@ func subagentParityRouters(t *testing.T, service *subagentParityService) (http.H
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(workspaceService),
 		udsapi.WithSubagentService(dependency),
+		udsapi.WithProfileService(profiles),
 	); err != nil {
 		t.Fatal(err)
 	}

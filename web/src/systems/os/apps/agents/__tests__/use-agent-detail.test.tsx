@@ -61,7 +61,7 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
 }));
 
 vi.mock("@/systems/session/hooks/use-session-lifecycle-actions", () => ({
-  useSessionLifecycleActions: (options: unknown) => mockUseSessionLifecycleActions(options),
+  useSessionLifecycleActions: () => mockUseSessionLifecycleActions(),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -132,7 +132,9 @@ describe("useAgentDetailPage", () => {
     expect(mockUseAgent).toHaveBeenCalledWith("categorized-multi", "ws_alpha");
     expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_alpha", "categorized-multi");
     expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith("ws_alpha", "categorized-multi");
-    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: "ws_alpha" });
+    expect(result.current.sessionActions).toBe(
+      mockUseSessionLifecycleActions.mock.results[0]?.value.actions
+    );
     expect(result.current.search).toEqual({
       tab: "overview",
       file: "agent",
@@ -144,12 +146,14 @@ describe("useAgentDetailPage", () => {
     mockActiveWorkspaceId = null;
     mockRuntimeWorkspaceId = "ws_home";
 
-    renderHook(() => useAgentDetailPage("global-agent", emptySearch));
+    const { result } = renderHook(() => useAgentDetailPage("global-agent", emptySearch));
 
     expect(mockUseAgent).toHaveBeenCalledWith("global-agent", "ws_home");
     expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_home", "global-agent");
     expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith("ws_home", "global-agent");
-    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: "ws_home" });
+    expect(result.current.sessionActions).toBe(
+      mockUseSessionLifecycleActions.mock.results[0]?.value.actions
+    );
   });
 
   it("exposes exact catalog session metrics and session-row pagination separately", () => {

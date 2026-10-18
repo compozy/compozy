@@ -43,6 +43,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  fetchSession: vi.fn(),
   fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
@@ -69,6 +70,7 @@ import {
   clearSessionInputs,
   createSession,
   deleteSession,
+  fetchSession,
   fetchSessionInputs,
   repairSession,
   renameSession,
@@ -348,14 +350,17 @@ describe("session actions", () => {
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
-  it("useSessionRewind sends the current durable fence and refreshes the transcript", async () => {
+  it("useSessionRewind refreshes a renamed profile owner and sends the current durable fence", async () => {
+    const owner = { ...createdSession, profile_name: "design-renamed" };
+    vi.mocked(fetchSession).mockResolvedValue(owner);
     vi.mocked(rewindSession).mockResolvedValue({
       rewind: { draft_text: "Return to this request." },
-      session: createdSession,
+      session: owner,
     });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
     const freshTranscript = transcriptCache("message-rewound");
     const fetchInfiniteQuery = vi
       .spyOn(queryClient, "fetchInfiniteQuery")
@@ -390,6 +395,7 @@ describe("session actions", () => {
     expect(rewindSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
+      owner.profile_name,
       {
         expected_epoch: 3,
         expected_generation: 7,
@@ -400,7 +406,7 @@ describe("session actions", () => {
       controller.signal
     );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
-      createdSession
+      owner
     );
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
@@ -767,12 +773,13 @@ describe("session actions", () => {
     });
   });
 
-  it("archive and unarchive invalidate the owning session query tree", async () => {
+  it("archive and unarchive use the row owner across workspace and profile selection", async () => {
+    const target = { ...createdSession, workspace_id: "ws-other", profile_name: "design" };
     vi.mocked(archiveSession).mockResolvedValue({
-      ...createdSession,
+      ...target,
       archived_at: "2026-08-04T12:00:00Z",
     });
-    vi.mocked(unarchiveSession).mockResolvedValue(createdSession);
+    vi.mocked(unarchiveSession).mockResolvedValue(target);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -783,32 +790,34 @@ describe("session actions", () => {
     );
 
     await act(async () => {
-      await result.current.archive.mutateAsync(createdSession.id);
-      await result.current.unarchive.mutateAsync(createdSession.id);
+      await result.current.archive.mutateAsync(target);
+      await result.current.unarchive.mutateAsync(target);
     });
 
     expect(archiveSession).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      createdSession.id,
+      target.workspace_id,
+      target.id,
+      target.profile_name,
       expect.any(AbortSignal)
     );
     expect(unarchiveSession).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      createdSession.id,
+      target.workspace_id,
+      target.id,
+      target.profile_name,
       expect.any(AbortSignal)
     );
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+      queryKey: sessionKeys.detail(target.workspace_id, target.id),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+      queryKey: sessionKeys.workspaceLists(target.workspace_id),
     });
   });
 
   it("aborts an in-flight archive request when its hook unmounts", async () => {
     let requestSignal: AbortSignal | undefined;
     vi.mocked(archiveSession).mockImplementation(
-      (_workspaceId, _sessionId, signal) =>
+      (_workspaceId, _sessionId, _profile, signal) =>
         new Promise((_resolve, reject) => {
           requestSignal = signal;
           signal?.addEventListener("abort", () =>
@@ -825,7 +834,7 @@ describe("session actions", () => {
 
     let mutation!: Promise<SessionPayload>;
     act(() => {
-      mutation = result.current.mutateAsync(createdSession.id);
+      mutation = result.current.mutateAsync(createdSession);
     });
     await waitFor(() => expect(requestSignal).toBeInstanceOf(AbortSignal));
     unmount();
@@ -909,6 +918,7 @@ describe("session actions", () => {
     expect(renameSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
+      createdSession.profile_name,
       { name: "Release review" },
       expect.any(AbortSignal)
     );
@@ -933,7 +943,7 @@ describe("session actions", () => {
     });
 
     await act(async () => {
-      await result.current.mutateAsync({ id: createdSession.id, name: "Release review" });
+      await result.current.mutateAsync({ ...createdSession, name: "Release review" });
     });
 
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
@@ -1512,6 +1522,7 @@ describe("session lifecycle batches", () => {
     expect(archiveSession).toHaveBeenCalledExactlyOnceWith(
       WORKSPACE_ID,
       "stopped",
+      createdSession.profile_name,
       expect.any(AbortSignal)
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
@@ -1519,6 +1530,7 @@ describe("session lifecycle batches", () => {
     expect(unarchiveSession).toHaveBeenCalledExactlyOnceWith(
       WORKSPACE_ID,
       "archived",
+      createdSession.profile_name,
       expect.any(AbortSignal)
     );
   });

@@ -29,7 +29,7 @@ export function DesktopSessionDialogs({
   view,
   onNewSession,
 }: DesktopSessionDialogsProps) {
-  const lifecycle = useSessionLifecycleActions({ workspaceId });
+  const lifecycle = useSessionLifecycleActions();
   return (
     <OsSessionsDialogHost
       open={open}
