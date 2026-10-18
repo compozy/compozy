@@ -1,5 +1,5 @@
 {
-    "defaults": { "update_check": true, "update_check_interval": "6h" },
+    "defaults": { "update_check": true, "update_check_interval": "15m" },
     "valid_intervals": ["15m", "0.25h", "1h30m", "6h", "168h"],
     "invalid_intervals": ["5m", "200h", "never"],
     "invalid_documents": [

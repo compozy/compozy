@@ -83,6 +83,17 @@ export async function updateSettingsGeneral(
   return requireResponseData(data, response, "Failed to update general settings");
 }
 
+export async function checkSettingsUpdate(signal?: AbortSignal): Promise<SettingsUpdateStatus> {
+  const { data, error, response } = await apiClient.POST("/api/settings/update/check", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to check for updates", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to check for updates");
+}
+
 export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsUpdateStatus> {
   const { data, error, response } = await apiClient.GET("/api/settings/update", { signal });
   if (apiRequestFailed(response, error)) {

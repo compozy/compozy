@@ -314,6 +314,7 @@ type SettingsUpdateOperationPayload struct {
 }
 
 type SettingsUpdateRuntimePayload struct {
+	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
 	Status          SettingsUpdateStatusKind    `json:"status"`
 	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
 	Managed         bool                        `json:"managed"`

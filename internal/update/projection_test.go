@@ -6,6 +6,22 @@ import (
 )
 
 func TestUpdateProjectionContracts(t *testing.T) {
+	t.Run("Should offer a newer app release after an older installation failed", func(t *testing.T) {
+		t.Parallel()
+		app := &AppTrackState{CurrentVersion: "v1.0.0", LatestVersion: "v1.2.0", Status: StatusAvailable}
+		archived := &Operation{LastError: "old failure", App: &AppOperationState{
+			ToVersion: "v1.1.0", Phase: PhaseFailed, ConsecutiveFailures: 1,
+		}}
+		applyArchivedAppFailure(app, archived, false)
+		if app.Status != StatusAvailable || app.LatestVersion != "v1.2.0" || app.LastError != "" {
+			t.Fatalf("app = %#v, want newer available release", app)
+		}
+		app.LatestVersion = "v1.1.0"
+		applyArchivedAppFailure(app, archived, false)
+		if app.Status != StatusFailed || app.LastError != "old failure" {
+			t.Fatalf("app = %#v, want same-release failure retained", app)
+		}
+	})
 	t.Run("Should apply the frozen live and terminal aggregate precedence", func(t *testing.T) {
 		t.Parallel()
 

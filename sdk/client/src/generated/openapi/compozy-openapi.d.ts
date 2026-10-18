@@ -3130,6 +3130,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/update/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh update discovery, limited to one upstream check per minute */
+    post: operations["checkSettingsUpdate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/window-manager": {
     parameters: {
       query?: never;
@@ -14711,6 +14728,8 @@ export interface components {
       runtime: components["schemas"]["SettingsUpdateRuntimePayload"];
     };
     SettingsUpdateRuntimePayload: {
+      /** Format: date-time */
+      checked_at?: string | null;
       current_version: string;
       daemon_restarted: boolean;
       /** @enum {string} */
@@ -33749,6 +33768,53 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SettingsUpdateCancelResponse"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Update surface unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkSettingsUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current status with last successful check time */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsUpdateResponse"];
         };
       };
       /** @description Forbidden */

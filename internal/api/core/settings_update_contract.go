@@ -26,6 +26,7 @@ type SettingsUpdateCancel struct {
 // SettingsUpdateController exposes the daemon-owned update status surface to settings transports.
 type SettingsUpdateController interface {
 	GetUpdate(ctx context.Context) (compozyupdate.MultiState, error)
+	CheckUpdate(ctx context.Context) (compozyupdate.MultiState, error)
 	ApplyUpdate(ctx context.Context, targets []compozyupdate.Target) (SettingsUpdateApply, error)
 	CancelUpdate(ctx context.Context) (SettingsUpdateCancel, error)
 }

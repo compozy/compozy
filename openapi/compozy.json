@@ -28732,6 +28732,11 @@
       },
       "SettingsUpdateRuntimePayload": {
         "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "current_version": {
             "type": "string"
           },
@@ -64886,6 +64891,62 @@
           }
         },
         "summary": "Cancel and archive a dormant software update operation",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/update/check": {
+      "post": {
+        "operationId": "checkSettingsUpdate",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsUpdateResponse"
+                }
+              }
+            },
+            "description": "Current status with last successful check time"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Update surface unavailable"
+          }
+        },
+        "summary": "Refresh update discovery, limited to one upstream check per minute",
         "tags": [
           "settings"
         ],

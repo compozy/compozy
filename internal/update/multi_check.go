@@ -74,6 +74,9 @@ func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefre
 	if forceRefresh || app == nil || archivedAppFailureCount(app.CurrentVersion, archived) == 0 {
 		return
 	}
+	if comparison, err := compareVersions(app.LatestVersion, archived.App.ToVersion); err == nil && comparison > 0 {
+		return
+	}
 	app.Status = StatusFailed
 	app.LatestVersion = archived.App.ToVersion
 	app.AttemptID = archived.App.AttemptID
@@ -86,12 +89,22 @@ func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefre
 
 // Snapshot returns the cached live projection, tolerating a recorded upstream refresh error.
 func (m *Manager) Snapshot(ctx context.Context) (MultiState, error) {
-	state, _, err := m.CheckAll(ctx, CheckOptions{AllowCachedOnFailure: true})
+	state, _, err := m.CheckAll(ctx, CheckOptions{AllowCachedOnFailure: true, MinimumRefreshInterval: time.Minute})
 	if err != nil && strings.TrimSpace(state.Runtime.Message) == "" &&
 		strings.TrimSpace(state.Runtime.LastError) == "" {
 		return MultiState{}, err
 	}
 	return state, nil
+}
+
+// Refresh checks upstream at most once a minute across Settings clients.
+func (m *Manager) Refresh(ctx context.Context) (MultiState, error) {
+	if _, _, err := m.Check(ctx, CheckOptions{
+		ForceRefresh: true, AllowCachedOnFailure: true, MinimumRefreshInterval: time.Minute,
+	}); err != nil {
+		return MultiState{}, err
+	}
+	return m.Snapshot(ctx)
 }
 
 // OperationStore exposes the single journal authority to composition roots.

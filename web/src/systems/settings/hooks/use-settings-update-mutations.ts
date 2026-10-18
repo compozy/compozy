@@ -1,6 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { applySettingsUpdate, cancelSettingsUpdate } from "../adapters/settings-api";
+import {
+  applySettingsUpdate,
+  cancelSettingsUpdate,
+  checkSettingsUpdate,
+} from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
 import type { SettingsUpdateApplyRequest } from "../types";
 
@@ -32,5 +36,13 @@ export function useCancelSettingsUpdate() {
   return useMutation({
     mutationFn: () => cancelSettingsUpdate(),
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.updateStatus() }),
+  });
+}
+
+export function useCheckSettingsUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => checkSettingsUpdate(),
+    onSuccess: snapshot => queryClient.setQueryData(settingsKeys.updateStatus(), snapshot),
   });
 }

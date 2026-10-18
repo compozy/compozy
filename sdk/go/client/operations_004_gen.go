@@ -9,6 +9,23 @@ import (
 	"strings"
 )
 
+// CreateTask Create a task
+func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body CreateTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateTerminalParams carries the path, query, and header parameters.
 type CreateTerminalParams struct {
 	WorkspaceID         string  `url:"workspace_id"`
@@ -408,38 +425,4 @@ type DeleteSettingsHookParams struct {
 	Scope       *string `url:"scope"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// DeleteSettingsHook Delete one settings-backed hook declaration
-func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHookParams) (*SettingsApplyResponse, error) {
-	path := "/api/settings/hooks/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteSettingsMCPServerParams carries the path, query, and header parameters.
-type DeleteSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-	Target      *string `url:"target"`
 }

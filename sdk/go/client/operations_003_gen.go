@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// ClearSessionInputsParams carries the path, query, and header parameters.
+type ClearSessionInputsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // ClearSessionInputs Clear queued input with attributed per-entry traces
 func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInputsParams) (*SessionInputClearResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
@@ -429,21 +435,4 @@ func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBund
 // CreateTaskParams carries the path, query, and header parameters.
 type CreateTaskParams struct {
 	Profile *string `url:"profile"`
-}
-
-// CreateTask Create a task
-func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body CreateTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

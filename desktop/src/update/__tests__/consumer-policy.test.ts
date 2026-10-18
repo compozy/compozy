@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { decideAppUpdateAction } from "../consumer-policy";
-import type { AppOperationPhase, UpdateOperation } from "../operation-contract";
+import {
+  parseUpdateOperation,
+  type AppOperationPhase,
+  type UpdateOperation,
+} from "../operation-contract";
 
 function operation(
   phase: AppOperationPhase,
@@ -34,6 +38,36 @@ function operation(
 // Invariant: the shell journals ownership before install and only verifies a restart from observed version truth.
 // Owner: desktop app-update policy. Canonical suite: consumer-policy.test.ts.
 describe("app update consumer policy", () => {
+  it.each(["swapping", "health-checking", "finalized"] as const)(
+    "Should accept the daemon runtime phase %s before consuming a staged app",
+    phase => {
+      const staged = operation(
+        "staged",
+        {
+          waiting: "waiting-for-app",
+          targets: ["runtime", "app"],
+          runtime: {
+            from_version: "1.0.0",
+            to_version: "1.1.0",
+            release_tag: "v1.1.0",
+            asset: "runtime.tar.gz",
+            digest: "sha256:abc",
+            install_method: "desktop-app",
+            daemon_restarted: true,
+            phase,
+          },
+        },
+        false
+      );
+      const parsed = parseUpdateOperation(JSON.parse(JSON.stringify(staged)));
+      expect(parsed.runtime?.phase).toBe(phase);
+      if (phase === "finalized") {
+        expect(decideAppUpdateAction(parsed, "1.0.0", new Date("2026-10-18T14:18:00Z"))).toEqual({
+          kind: "install",
+        });
+      }
+    }
+  );
   it("Should consume only a staged operation handed to the app", () => {
     const staged = operation("staged", { waiting: "waiting-for-app" }, false);
     expect(decideAppUpdateAction(staged, "1.0.0", new Date())).toEqual({ kind: "install" });

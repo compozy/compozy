@@ -14,6 +14,7 @@ export const settingsUpdateStatusFixture: SettingsUpdateStatus = {
   aggregate: "up-to-date",
   operation: null,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "up-to-date",
     install_method: "direct-binary",
     managed: false,
@@ -43,6 +44,7 @@ export const settingsUpdateBothAvailableFixture: SettingsUpdateStatus = {
   aggregate: "available",
   operation: null,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "available",
     install_method: "desktop-app",
     managed: false,
@@ -86,6 +88,7 @@ export const settingsUpdateRuntimeAvailableFixture: SettingsUpdateStatus = {
 export const settingsUpdateAppAvailableFixture: SettingsUpdateStatus = {
   ...settingsUpdateBothAvailableFixture,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     ...settingsUpdateStatusFixture.runtime,
     install_method: "desktop-app",
   },
@@ -96,6 +99,7 @@ export const settingsUpdateManagedFixture: SettingsUpdateStatus = {
   aggregate: "available",
   operation: null,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "available",
     install_method: "homebrew",
     managed: true,
@@ -116,6 +120,7 @@ export const settingsUpdateNoAppFixture: SettingsUpdateStatus = {
   aggregate: "available",
   operation: null,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "available",
     install_method: "direct-binary",
     managed: false,
@@ -153,6 +158,7 @@ export const settingsUpdateApplyingFixture: SettingsUpdateStatus = {
     },
   },
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "applying",
     install_method: "desktop-app",
     managed: false,
@@ -183,6 +189,7 @@ export const settingsUpdateStagedFixture: SettingsUpdateStatus = {
     holder: null,
   },
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "updated",
     install_method: "desktop-app",
     managed: false,
@@ -229,6 +236,7 @@ export const settingsUpdateBlockedFixture: SettingsUpdateStatus = {
     },
   },
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "blocked",
     install_method: "desktop-app",
     managed: false,
@@ -249,6 +257,7 @@ export const settingsUpdateRolledBackFixture: SettingsUpdateStatus = {
   aggregate: "failed",
   operation: null,
   runtime: {
+    checked_at: "2026-10-18T14:00:00Z",
     status: "failed",
     install_method: "desktop-app",
     managed: false,

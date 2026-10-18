@@ -115,6 +115,9 @@ import type {
   CancelWorktreeExitActionData,
   CancelWorktreeExitActionErrors,
   CancelWorktreeExitActionResponses,
+  CheckSettingsUpdateData,
+  CheckSettingsUpdateErrors,
+  CheckSettingsUpdateResponses,
   ClaimNextAgentTaskData,
   ClaimNextAgentTaskErrors,
   ClaimNextAgentTaskResponses,
@@ -5148,6 +5151,24 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/update/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Refresh update discovery, limited to one upstream check per minute
+   */
+  public checkSettingsUpdate<ThrowOnError extends boolean = true>(
+    options?: Options<CheckSettingsUpdateData, ThrowOnError>
+  ): RequestResult<CheckSettingsUpdateResponses, CheckSettingsUpdateErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).post<
+      CheckSettingsUpdateResponses,
+      CheckSettingsUpdateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/update/check",
       ...options,
     });
   }

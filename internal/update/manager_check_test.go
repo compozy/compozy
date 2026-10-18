@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
@@ -12,6 +14,120 @@ import (
 )
 
 func TestManagerCheck(t *testing.T) {
+	t.Run("Should honor GitHub reset deadlines across manual and background checks", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		reset := now.Add(time.Hour)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{
+					StatusCode: http.StatusForbidden,
+					Status:     "403 Forbidden",
+					Header: http.Header{
+						"X-Ratelimit-Remaining": {"0"},
+						"X-Ratelimit-Reset":     {strconv.FormatInt(reset.Unix(), 10)},
+						"Retry-After":           {"120"},
+					},
+					Body: io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			})},
+		})
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", now.Add(-time.Hour))); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(15 * time.Minute)
+		state, _, err := manager.CheckAll(t.Context(), CheckOptions{ForceRefresh: true, AllowCachedOnFailure: true})
+		if err != nil || state.Runtime.LastError == "" || requests.Load() != 1 {
+			t.Fatalf("rate limited snapshot = %#v, %v, requests %d", state, err, requests.Load())
+		}
+		now = reset
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if requests.Load() != 2 {
+			t.Fatalf("requests after reset = %d, want 2", requests.Load())
+		}
+	})
+	t.Run("Should discover a published release on manual refresh and coalesce repeated clients", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
+					TagName: "v1.2.0", HTMLURL: "https://github.com/compozy/compozy/releases/tag/v1.2.0",
+					PublishedAt: now.Add(-18 * time.Minute), Assets: testGitHubAssets(t, nil),
+				}), nil
+			})},
+		})
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", now.Add(-time.Hour))); err != nil {
+			t.Fatal(err)
+		}
+		cached, err := manager.Snapshot(t.Context())
+		if err != nil || cached.Runtime.LatestVersion != "v1.0.0" || requests.Load() != 0 {
+			t.Fatalf("Snapshot = %#v, %v, requests %d", cached, err, requests.Load())
+		}
+		var clients sync.WaitGroup
+		for range 3 {
+			clients.Go(func() {
+				fresh, err := manager.Refresh(t.Context())
+				if err != nil || fresh.Runtime.LatestVersion != "v1.2.0" || fresh.Runtime.CheckedAt == nil ||
+					!fresh.Runtime.CheckedAt.Equal(now) {
+					t.Errorf("Refresh = %#v, %v", fresh, err)
+				}
+			})
+		}
+		clients.Wait()
+		if requests.Load() != 1 {
+			t.Fatalf("requests = %d, want one shared refresh", requests.Load())
+		}
+		now = now.Add(time.Minute)
+		if _, err := manager.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if requests.Load() != 2 {
+			t.Fatalf("requests after cooldown = %d, want 2", requests.Load())
+		}
+	})
+
+	t.Run("Should preserve the successful check time and failure during manual refresh cooldown", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			Now: func() time.Time { return now },
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return nil, errors.New("upstream unavailable")
+			})},
+		})
+		checkedAt := now.Add(-time.Hour)
+		if err := writeCache(manager.cachePath(), testCacheEntry(t, manager, "v1.0.0",
+			"https://github.com/compozy/compozy/releases/tag/v1.0.0", checkedAt)); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			state, err := manager.Refresh(t.Context())
+			if err != nil || state.Runtime.LastError == "" || state.Runtime.CheckedAt == nil ||
+				!state.Runtime.CheckedAt.Equal(checkedAt) {
+				t.Fatalf("Refresh = %#v, %v", state, err)
+			}
+		}
+		if requests.Load() != 1 {
+			t.Fatalf("failed requests = %d, want 1", requests.Load())
+		}
+	})
+
 	t.Run("Should use the cached release snapshot while it is still fresh", func(t *testing.T) {
 		t.Parallel()
 
