@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
+import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
+import type { SessionMessage } from "@/systems/session/types";
+import claudeGoalLive from "./fixtures/claude-goal-live.json";
+
 import {
   deriveSessionRows,
   sessionRowEqual,
@@ -35,6 +40,48 @@ function text(
 }
 
 describe("session timeline derivation", () => {
+  // Captured Claude transcript_delta, before the Goal turn settled: Goal metadata
+  // on invisible tool receipts/usage must not divide the completed work rail.
+  it.each([true, false])("Should group captured Claude Goal work with active=%s", active => {
+    const [message] = toThreadMessageLikes([claudeGoalLive as SessionMessage]);
+    const parts = toTimelineParts(message!);
+    const options = active ? { activeTurnId: claudeGoalLive.id } : {};
+    const rows = deriveSessionRows(parts, options);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: "work",
+      summary: { label: "Ran 4 commands", entryCount: 4 },
+      active,
+      expanded: false,
+    });
+    const group = rows[0]!;
+    if (group.kind !== "work") throw new Error("expected grouped Claude commands");
+    expect(group.entries).toEqual(parts.filter(part => part.kind === "tool"));
+    expect(
+      deriveSessionRows(parts, { ...options, expandedWorkGroupIds: new Set([group.groupId]) })[0]
+    ).toMatchObject({ expanded: true, entries: group.entries });
+  });
+
+  it("Should retain a running call after the captured Goal's completed group", () => {
+    const [message] = toThreadMessageLikes([claudeGoalLive as SessionMessage]);
+    const parts = toTimelineParts(message!).map(part =>
+      part.kind === "tool" && part.toolCallId === "claude-call-4"
+        ? { ...part, status: "running" as const, result: undefined }
+        : part
+    );
+    const rows = deriveSessionRows(parts, { activeTurnId: claudeGoalLive.id });
+    expect(rows.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    expect(rows[0]).toMatchObject({
+      kind: "work",
+      summary: { label: "Ran 3 commands" },
+      active: true,
+    });
+    expect(rows[1]).toMatchObject({
+      kind: "live-tool",
+      entries: [{ toolCallId: "claude-call-4" }],
+    });
+  });
+
   it("Should preserve mixed order, complete parts, expansion and identity through streaming", () => {
     const parts: SessionTimelinePart[] = [
       {
@@ -836,6 +883,7 @@ describe("session timeline derivation", () => {
           // A runtime warning is a visible row (a status event would render nothing and never become one).
           data: {
             type: "runtime_warning",
+            goal: { kind: "goal-work" },
             text: "Provider slow to answer",
             runtime: { elapsed_seconds: 40, idle_seconds: 30 },
           },

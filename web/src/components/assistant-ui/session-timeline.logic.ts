@@ -306,14 +306,15 @@ function deriveBaseRows(
 // Status events are not narrative (ADR-006): progress ticks, usage, tool-call
 // receipts, hook dispatches, system notes and the like render nothing, so they
 // never append a row — and never split a tool run into single rows. What stays
-// is what the reader sees: markers, errors, decision asks, goal prompts and
-// runtime warnings.
+// is what the reader sees: markers, errors, decision asks and runtime warnings.
+// Goal metadata attributes every event in a Goal turn; it does not make an
+// otherwise hidden receipt visible. The message owns the Goal prompt header.
 function isProgressTick(part: SessionTimelineDataPart): boolean {
   if (part.name !== "data-compozy-event") return false;
   const data = part.data;
   if (!isAgentEventPayload(data)) return false;
   if (data.type === "runtime_progress") return true;
-  if (data.type === CLARIFY_EVENT_TYPE || data.goal) return false;
+  if (data.type === CLARIFY_EVENT_TYPE) return false;
   if (isTranscriptMarkerEvent(data) || isSessionErrorEvent(data)) return false;
   if (isRuntimeActivityEvent(data)) return false;
   return true;
