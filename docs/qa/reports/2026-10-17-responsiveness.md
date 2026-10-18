@@ -318,13 +318,40 @@ for execution or full CI.
 Affected scenarios have dated impact notes preserving historical evidence. Their
 full historical status is not relabeled as a new pass. Cross-surface impact is
 recorded once in `docs/_memory/change-impact.md`: public HTTP/UDS/CLI DTOs, native
-tool IDs, hooks, configuration, persisted shapes and official `skills/compozy/`
-remain unchanged; no migration or compatibility shim is needed.
+tool IDs, hooks, configuration and persisted shapes remain unchanged. Official
+skill instructions are editorially shortened without removing any contract; no
+migration or compatibility shim is needed.
 
 The PR delivery receipt contains the published head, exact CI outcomes and
 remaining measurement boundaries. The measured results and reproduction commands are versioned with
 the implementation; raw logs and generated output are not tracked. No merge or deployment is part of this task.
 
+
+## CI follow-ups on the current base
+
+The initial run exposed existing failures outside the measured hot paths:
+
+- The sidebar story from #790 exceeded the production source-size policy at
+  665 lines. Fixtures were moved into its existing sibling-fixture pattern;
+  the story and fixture files now contain 408 and 283 lines. All 16 story exports
+  and declaration bodies are preserved. Scoped formatting/lint and the actual
+  `make source-size` gate pass.
+- The supervised recovery fixture froze a process before admitting a prompt,
+  while #787 deliberately supervises only in-flight turns. The existing test now
+  admits a real prompt, waits for the subprocess handshake and verifies its PID
+  before freezing. All original exit/recovery/lease assertions remain intact.
+  The real-process integration reproduced the CI failure and then passed both
+  cases with race (3.932 s package runtime); production behavior was unchanged.
+- The two bundled startup reference sources totaled 72,083 bytes and failed
+  assembly within the existing 72,000-byte manual budget, omitting native tools. Two paragraphs were
+  shortened by 137 bytes without removing attachment, runtime or reply-watch
+  instructions. The new source total is 71,946 bytes; the owning fixture assembles 71,960
+  bytes including its base prompt and separator. All ten cases pass with race
+  (2.325 s package runtime). Neither the budget nor its assertions changed.
+
+These are delivery repairs, not additional performance gains. The published-head
+CI receipt in the PR records their final verification. Raw logs and generated
+benchmark dumps remain ignored local artifacts, outside the branch commits.
 
 ## Reproduction commands
 

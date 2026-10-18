@@ -29,7 +29,9 @@ unchanged stream projections avoid schema cloning, and extension availability is
 batched within one projection. Calls retain their policy and backend revalidation;
 no persistent availability cache or longer authorization staleness is introduced.
 Native tool IDs, HTTP/UDS/CLI wire contracts, extension RPC contracts, hooks,
-configuration and official `skills/compozy/` remain unchanged. No site guide,
+configuration and official skill behavior remain unchanged. Two paragraphs in
+`skills/compozy/references/native-tools.md` are shortened without removing their
+contracts so the startup manual fits its existing byte budget. No site guide,
 compatibility adapter or migration is required. Generated SQL query code follows
 the existing generator.
 
