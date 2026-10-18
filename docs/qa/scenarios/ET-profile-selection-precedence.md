@@ -20,9 +20,11 @@ Flagged by Profiles task 04. The final QA tasks own the real-user walk, evidence
 
 Walk:
 
-1. Run `compozy profile use <name>` inside a workspace and confirm `profile current -o json` reports
-   the same remembered choice from every workspace and from outside any workspace; then override it
-   with `COMPOZY_PROFILE` and root `--profile` and verify source and workspace.
+1. Upgrade a home that remembers different per-workspace choices: confirm the Global choice is seeded
+   from the most recent one, and that a command inside a workspace with its own choice still uses it
+   and prints the v0.5.0 deprecation warning. Run `compozy profile use <name>` and confirm every
+   workspace and the outside-workspace lens now report that choice without a warning; then override
+   it with `COMPOZY_PROFILE` and root `--profile` and verify source and workspace.
 2. Archive the remembered profile and verify fallback to `default` with
    `archived_remembered_fallback`; explicit selection of the archived profile must fail.
 3. Start sessions under two profiles from separate terminals, change remembered selection, and prove
@@ -46,5 +48,6 @@ pending after this session ended for repair.
 2026-10-02 completed replay: Profile selection, archived fallback, immutable session owners, empty/populated JSONL, and machine-command parity passed through real CLI/HTTP/UDS/native surfaces. Fix 42db6579f; affected local gate passed. See the current dated report for exact receipts and limitations.
 
 qa-impact: 2026-10-18 issue #792. The remembered selection is one global slot (legacy per-workspace
-slots no longer resolve), and agent-created sessions bind the caller's profile. Steps 1 and 4 changed;
+slots resolve in the CLI with a deprecation warning until v0.5.0), and agent-created sessions bind the
+caller's profile. Steps 1 and 4 changed;
 re-walk them.

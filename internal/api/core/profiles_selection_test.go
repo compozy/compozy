@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -79,4 +80,47 @@ func TestGetProfileSelectionsReturnsOneStableShape(t *testing.T) {
 			})
 		}
 	})
+}
+
+type selectionWriteProfileServiceStub struct {
+	core.ProfileService
+}
+
+func (selectionWriteProfileServiceStub) GetByName(_ context.Context, name string) (profilepkg.Profile, error) {
+	return profilepkg.Profile{ID: "profile-" + name, Name: name, State: profilepkg.StateActive}, nil
+}
+
+func (selectionWriteProfileServiceStub) PutSelection(context.Context, profilepkg.Selection) error {
+	return nil
+}
+
+func TestPutProfileSelectionDeprecatesTheWorkspaceLens(t *testing.T) {
+	t.Parallel()
+
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Profiles: selectionWriteProfileServiceStub{}})
+	engine := gin.New()
+	engine.PUT("/profiles/selection", handlers.PutProfileSelection)
+
+	tests := []struct {
+		name        string
+		body        string
+		wantWarning bool
+	}{
+		{name: "workspace", body: `{"scope":"workspace","workspace_id":"ws-1","profile":"marketing"}`, wantWarning: true},
+		{name: "global", body: `{"scope":"global","profile":"marketing"}`},
+	}
+	for _, test := range tests {
+		t.Run("Should answer the "+test.name+" lens", func(t *testing.T) {
+			t.Parallel()
+
+			response := performRequest(t, engine, http.MethodPut, "/profiles/selection", []byte(test.body))
+			if response.Code != http.StatusOK {
+				t.Fatalf("PUT status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+			}
+			warning := response.Header().Get("Warning")
+			if got := strings.Contains(warning, "v0.5.0"); got != test.wantWarning {
+				t.Fatalf("PUT %s Warning = %q, want deprecation warning %t", test.name, warning, test.wantWarning)
+			}
+		})
+	}
 }

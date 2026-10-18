@@ -231,6 +231,11 @@ func (h *BaseHandlers) GetProfileSelections(c *gin.Context) {
 	c.JSON(http.StatusOK, contracts)
 }
 
+// profileWorkspaceSelectionDeprecationWarning marks the per-workspace selection lens, superseded by
+// the one Global choice (#792). The lens is accepted until v0.5.0 removes it.
+const profileWorkspaceSelectionDeprecationWarning = `299 compozy "scope workspace is deprecated and ` +
+	`stops applying in v0.5.0; use scope global, the profile choice shared by every workspace"`
+
 // PutProfileSelection stores the selected profile for one selection lens.
 func (h *BaseHandlers) PutProfileSelection(c *gin.Context) {
 	var request contract.ProfileSelection
@@ -247,6 +252,9 @@ func (h *BaseHandlers) PutProfileSelection(c *gin.Context) {
 	if err != nil {
 		respondProfileError(c, err)
 		return
+	}
+	if profilepkg.SelectionLens(request.Scope) == profilepkg.SelectionLensWorkspace {
+		c.Header("Warning", profileWorkspaceSelectionDeprecationWarning)
 	}
 	c.JSON(http.StatusOK, contract.ProfileSelection{
 		Scope: contract.ProfileSelectionScope(

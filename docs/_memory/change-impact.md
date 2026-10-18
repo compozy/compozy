@@ -5,18 +5,21 @@
 Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
 back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
 added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
-global choice: CLI resolution and `compozy profile use|create` read and write the Global slot only,
-and legacy per-workspace slots stay stored but no longer resolve (no migration, no data loss; the
-HTTP/UDS selection routes and DTOs are unchanged). Web drops the per-workspace lens: the switcher
-keeps its selection across workspace and breadth changes, All profiles is kept by the browser
-across reloads, and creation under All profiles lands in the remembered profile. Settings' "Where
-each profile is active" map is removed. Native tools: only the `session_create` description
-changed. Hooks, extension SDKs and config keys are unchanged. Workspace and profile isolation hold:
-scoped reads still return not found across profiles. Official skill (`profiles.md`,
-`native-tools.md`, `configuration.md`), site profile pages, QA scenarios
-`ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the contract.
-The startup tool-reference budget rises to 76,000 bytes so skills-disabled sessions keep both
-complete manuals.
+global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
+from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
+(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
+with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
+a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
+`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
+surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
+workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
+All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
+it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
+keys are unchanged. Scoped reads still return not found across profiles. Official skill
+(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
+scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
+contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
+on.
 
 ## Session folders and manual order — 2026-10-17
 

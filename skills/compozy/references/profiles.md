@@ -15,8 +15,14 @@ remembered profile (`default` until one is chosen), shown by the destination chi
 ## Resolve And Inspect
 
 Resolution order is root `--profile`, `COMPOZY_PROFILE`, the remembered choice (the Global slot, shared
-by every workspace), then `default`. Legacy per-workspace slots stay stored but no longer resolve. An
-archived remembered choice falls back to `default` with the `archived_remembered_fallback` note. `daemon`, `doctor`, and `update` ignore profile selection.
+by every workspace), then `default`. An archived remembered choice falls back to `default` with the
+`archived_remembered_fallback` note.
+
+Per-workspace choices remembered before this change are a deprecated shim removed in v0.5.0. Upgrading
+seeds an empty Global slot from the most recently remembered workspace choice. Until v0.5.0 the CLI
+still resolves a workspace's legacy slot inside that workspace and prints a deprecation warning, and a
+`PUT /api/profiles/selection` with `scope: "workspace"` returns a `Warning` header. Writing the Global
+choice (`compozy profile use`, `profile create`, or the Web switcher) clears every legacy slot. `daemon`, `doctor`, and `update` ignore profile selection.
 
 `GET /api/profiles/selection` returns the effective `profile` for each remembered lens. When the
 remembered profile is archived, `profile` is `default` and optional `note` is

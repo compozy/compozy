@@ -32,8 +32,19 @@ HTTP and UDS selection reads (`GET /api/profiles/selection`) keep `profile` set 
 `default` and include `note: "archived_remembered_fallback"` in this case. Unarchiving restores the
 remembered choice; reading the fallback does not overwrite it.
 
-Choices remembered per workspace by v0.3.0-beta.34 and earlier stay stored but no longer affect
-resolution. Run `compozy profile use <name>` once to set the shared choice.
+### Choices remembered per workspace
+
+Earlier releases remembered one choice per workspace. Upgrading keeps them and seeds the shared choice
+from the one you set most recently, so you keep landing where you left off. Until v0.5.0, a CLI command
+run inside a workspace that still has its own remembered choice uses it and prints a warning:
+
+```text
+warning: profile "marketing" is remembered only for workspace "my-saas"; per-workspace profile choices are deprecated and stop applying in v0.5.0. Run "compozy profile use <name>" to set the choice for every workspace
+```
+
+Choosing a profile with `compozy profile use`, `compozy profile create`, or the Web switcher sets the
+shared choice and clears the per-workspace ones. Scripts that call `PUT /api/profiles/selection` with
+`scope: "workspace"` receive a `Warning` header; send `scope: "global"` before v0.5.0.
 
 ## Web selection
 

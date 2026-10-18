@@ -1698,6 +1698,45 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 		}
 	})
 
+	t.Run("Should let the Global choice supersede legacy workspace selections", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		marketing, err := manager.Create(ctx, CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatalf("Create(marketing) error = %v", err)
+		}
+		for _, workspaceID := range []string{"ws-1", "ws-2"} {
+			if err := manager.PutSelection(ctx, Selection{
+				Lens: SelectionLensWorkspace, WorkspaceID: workspaceID, ProfileID: marketing.ID,
+			}); err != nil {
+				t.Fatalf("PutSelection(workspace %s) error = %v", workspaceID, err)
+			}
+		}
+		if selections, err := manager.ListSelections(ctx); err != nil || len(selections) != 2 {
+			t.Fatalf("ListSelections(after workspace writes) = %#v, %v; want both workspace rows kept", selections, err)
+		}
+
+		if err := manager.PutSelection(ctx, Selection{
+			Lens: SelectionLensGlobal, ProfileID: marketing.ID,
+		}); err != nil {
+			t.Fatalf("PutSelection(global) error = %v", err)
+		}
+		selections, err := manager.ListSelections(ctx)
+		if err != nil {
+			t.Fatalf("ListSelections() error = %v", err)
+		}
+		if len(selections) != 1 || selections[0].Lens != SelectionLensGlobal ||
+			selections[0].ProfileID != marketing.ID {
+			t.Fatalf("ListSelections(after global write) = %#v, want only the Global choice", selections)
+		}
+		resolved, err := manager.Resolve(ctx, ResolveInput{Lens: Lens{Kind: SelectionLensWorkspace, WorkspaceID: "ws-1"}})
+		if err != nil || resolved.Source != ResolutionSourceDefault {
+			t.Fatalf("Resolve(superseded workspace lens) = %#v, %v; want no remembered workspace slot", resolved, err)
+		}
+	})
+
 	t.Run("Should make pending and failed lifecycle owners unavailable until done", func(t *testing.T) {
 		t.Parallel()
 
