@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatAbsoluteTime } from "@compozy/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -161,6 +162,17 @@ function renderList(
 }
 
 describe("SessionList selection", () => {
+  // Invariant: hovering a row swaps its compact time for the actions, so the row
+  // target itself still reveals the full timestamp to mouse users.
+  it("keeps the full timestamp on the row target while hover hides the compact time", () => {
+    renderList();
+    const running = sessions.find(session => session.id === "running")!;
+    expect(screen.getByTestId("session-sidebar-session-running")).toHaveAttribute(
+      "title",
+      formatAbsoluteTime(running.updated_at)
+    );
+  });
+
   it("Should offer all five sort choices and send the selected stable order", async () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
@@ -764,6 +776,89 @@ describe("SessionList provider marks", () => {
     expect(rowButton("child")).toHaveAccessibleName(/Session child\s*Claude Code/);
     expect(screen.queryByTestId("session-provider-mark-unbound")).not.toBeInTheDocument();
     expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
+  });
+
+  // Invariant: a child running its root's agent on its root's provider and model drops
+  // the repeated who line, yet still names its runtime and agent; any difference keeps it.
+  it("collapses a child that repeats its root's agent, provider, and model, keeping its spoken runtime", () => {
+    const lineage = (parent: string): SessionPayload["lineage"] => ({
+      parent_session_id: parent,
+      root_session_id: parent,
+      spawn_depth: 1,
+      auto_stop_on_parent: false,
+      notify_creator: true,
+      spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+      permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+    });
+    renderList({
+      sessions: [
+        row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
+        row("same", { runtime: runtime("codex", "gpt-6.1-sol"), lineage: lineage("root") }),
+        row("other", { runtime: runtime("claude"), lineage: lineage("root") }),
+        row("model", { runtime: runtime("codex", "gpt-6.1-mini"), lineage: lineage("root") }),
+      ],
+    });
+
+    expect(screen.queryByTestId("session-provider-mark-same")).not.toBeInTheDocument();
+    expect(rowButton("same")).toHaveAccessibleName(
+      /Session same\s*Codex · GPT-6\.1 Sol frontend-engineer-agent/
+    );
+    expect(screen.getByTestId("session-provider-mark-other")).toHaveAttribute(
+      "data-kind",
+      "claude"
+    );
+    expect(screen.getByTestId("session-provider-mark-model")).toHaveAttribute("data-kind", "codex");
+  });
+
+  // Invariant: the mark answers mouse hover with its runtime and, lifted above the
+  // row's stretched target, still navigates to the row when clicked.
+  it("opens the runtime tooltip on hover and navigates when the mark is clicked", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = renderList({
+      sessions: [row("root", { runtime: runtime("codex", "gpt-6.1-sol") })],
+    });
+
+    const mark = screen.getByTestId("session-provider-mark-root");
+    expect(screen.queryByText("Codex · GPT-6.1 Sol")).not.toBeInTheDocument();
+    await user.hover(mark);
+    expect(await screen.findByText("Codex · GPT-6.1 Sol")).toBeInTheDocument();
+    await user.click(mark);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "root" }));
+  });
+
+  // Invariant: the aggregate tags a thread's root with its owner and a child only
+  // when the child belongs to another profile.
+  it("tags a child with its owner only when it differs from its root's", () => {
+    const lineage = (parent: string): SessionPayload["lineage"] => ({
+      parent_session_id: parent,
+      root_session_id: parent,
+      spawn_depth: 1,
+      auto_stop_on_parent: false,
+      notify_creator: true,
+      spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+      permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+    });
+    const owners = {
+      default: { id: "default", name: "Personal", archived: false },
+      design: { id: "design", name: "Design", archived: false },
+    };
+    renderList({
+      sessions: [
+        row("root"),
+        row("mine", { lineage: lineage("root") }),
+        row("theirs", { lineage: lineage("root"), profile_id: "design" }),
+      ],
+      view: {
+        ...view,
+        aggregate: true,
+        ownerOf: session => (session.profile_id === "design" ? owners.design : owners.default),
+      },
+    });
+
+    const tags = within(screen.getByTestId("session-sidebar-thread-root")).getAllByTestId(
+      "profile-owner-tag"
+    );
+    expect(tags.map(tag => tag.getAttribute("aria-label"))).toEqual(["Personal", "Design"]);
   });
 
   it("keeps the wire ids and the neutral glyph for a runtime the catalog does not name", () => {

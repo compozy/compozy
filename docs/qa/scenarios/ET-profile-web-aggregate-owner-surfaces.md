@@ -22,8 +22,10 @@ Walk:
 
 1. With three profiles — one of them archived — turn All profiles on and confirm every task, loop
    run, automation job, and automation trigger row names its owner; session rows instead carry only
-   the owner's colored glyph, with the name available on hover and to assistive tech. Confirm the
-   archived owner reads as archived rather than only appearing dimmer.
+   the owner's colored glyph at the start of their meta line, with the name available on hover and
+   to assistive tech. A child session in its root's profile carries no glyph of its own; a child
+   owned by another profile does. Confirm the archived owner reads as archived rather than only
+   appearing dimmer.
 2. Switch to a real profile and confirm the same listings carry no owner tags at all.
 3. In both states confirm worktree rows still carry their owner tag, and that no worktree disappears
    from a scoped list.
@@ -53,3 +55,8 @@ returns successfully, and a terminal 404/410 does not cause recurring control po
 A failed cold roster page must stop automatic pagination until an explicit retry.
 Record the session slice separately from this scenario's broader coverage in
 `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+
+qa-impact: 2026-10-17 (session row anatomy v2) — the session row owner glyph moves from the title
+line to the start of the meta line at 14px, and child rows repeat it only when their owner differs
+from the root's. Covered by `SessionList provider marks` ("tags a child with its owner only when it
+differs from its root's"); live walk step 1 re-checks it.
