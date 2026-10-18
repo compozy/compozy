@@ -16,6 +16,7 @@ type StubSessionManager struct {
 		context.Context, string,
 	) (session.CompactionRequestResult, <-chan acp.AgentEvent, error)
 	CompactionBoundaryFn         func(context.Context, string) (*int64, error)
+	ContextEventsFn              func(context.Context, string) (session.ContextEvents, error)
 	UsageEventsFn                func(context.Context, string) ([]session.UsageEventEnvelope, error)
 	DeliveriesFn                 func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
 	CompactionsFn                func(context.Context, string) ([]session.CompactionEnvelope, error)
@@ -26,6 +27,7 @@ type StubSessionManager struct {
 	CreateWorktreeForkAcceptedFn func(context.Context, string, session.CreateAcceptedOpts) (*session.Info, error)
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
+	ListForWorkspaceFn           func(context.Context, string) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
 	CatalogFacetsFn              func(context.Context, session.ListQuery) (store.SessionCatalogFacetResult, error)
 	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
@@ -37,6 +39,7 @@ type StubSessionManager struct {
 	SessionOwnerFn          func(context.Context, string) (store.SessionOwner, error)
 	ActivePromptRunFn       func(context.Context, string) (session.PromptRunIdentity, error)
 	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	EventMetadataFn         func(context.Context, string, store.EventQuery) ([]store.EventMetadata, error)
 	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
 	HistoryFn               func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptPageFn        func(context.Context, string, transcript.PageQuery) (transcript.Page, error)

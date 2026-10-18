@@ -18,6 +18,7 @@ type readOnlyPoolLease struct {
 }
 
 var _ store.EventReadCloser = (*readOnlyPoolLease)(nil)
+var _ store.EventMetadataReader = (*readOnlyPoolLease)(nil)
 var _ transcript.Reader = (*readOnlyPoolLease)(nil)
 var _ transcript.NavigationReader = (*readOnlyPoolLease)(nil)
 var _ store.ConversationRewindReader = (*readOnlyPoolLease)(nil)
@@ -42,6 +43,36 @@ func (l *readOnlyPoolLease) Query(
 		return nil, errors.New("store: read-only pool lease recorder is required")
 	}
 	return l.entry.recorder.Query(ctx, query)
+}
+
+func (l *readOnlyPoolLease) QueryEventMetadata(
+	ctx context.Context,
+	query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	reader, err := l.eventMetadataReader()
+	if err != nil {
+		return nil, err
+	}
+	return reader.QueryEventMetadata(ctx, query)
+}
+
+func (l *readOnlyPoolLease) MaxEventSequence(ctx context.Context) (int64, error) {
+	reader, err := l.eventMetadataReader()
+	if err != nil {
+		return 0, err
+	}
+	return reader.MaxEventSequence(ctx)
+}
+
+func (l *readOnlyPoolLease) eventMetadataReader() (store.EventMetadataReader, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return nil, errors.New("store: read-only pool lease recorder is required")
+	}
+	reader, ok := l.entry.recorder.(store.EventMetadataReader)
+	if !ok {
+		return nil, errors.New("store: pooled recorder has no event metadata projection")
+	}
+	return reader, nil
 }
 
 func (l *readOnlyPoolLease) History(

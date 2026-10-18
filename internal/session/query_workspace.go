@@ -2,10 +2,50 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+// ListForWorkspace hydrates only sessions belonging to one registered workspace.
+func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*Info, error) {
+	if ctx == nil {
+		return nil, errors.New("session: list context is required")
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return nil, errors.New("session: workspace id is required")
+	}
+	if m.sessionCatalog == nil {
+		return nil, errors.New("session: session catalog is required")
+	}
+	activeByID := make(map[string]*Info)
+	for _, info := range m.List() {
+		if info != nil && info.WorkspaceID == workspaceID {
+			activeByID[info.ID] = info
+		}
+	}
+	stored, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceID,
+		Archive: store.SessionArchiveInclude,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session: list workspace catalog: %w", err)
+	}
+	ids := make([]string, 0, len(stored))
+	for _, info := range stored {
+		ids = append(ids, info.ID)
+	}
+	infos, err := m.mergePersistedSessionInfos(ctx, ids, activeByID)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(infos, func(info *Info) bool { return info.WorkspaceID != workspaceID }), nil
+}
 
 // WorkspaceResolver supplies runtime snapshots and inexpensive persisted registrations.
 type WorkspaceResolver interface {

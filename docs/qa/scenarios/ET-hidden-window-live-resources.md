@@ -30,3 +30,11 @@ report's session matrix in a future QA cycle.
 QA impact 2026-10-17 (web performance): Subagent roster readers no longer subscribe while disabled and ignore unrelated query changes while enabled. Window visibility/resource ownership is unchanged. Re-walk hide/restore and verify the last stream observer still restores the authoritative list; the existing session-list integration suite covers the latter boundary.
 
 Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
+
+QA impact 2026-10-17 (concurrent-session responsiveness): Repeat last-owner
+hide/restore while both workspace-scoped and profile-scoped reads are mounted.
+Fallback timers must re-arm for every observer, preserve unrelated sessions and
+avoid fetching solely because the timer was recomputed. Query-client custom hash
+defaults must retain the same behavior. The query-options/live-tail owning suites
+and the [responsiveness report](../reports/2026-10-17-responsiveness.md) record the
+current proof; this note does not upgrade the historical skipped browser verdict.

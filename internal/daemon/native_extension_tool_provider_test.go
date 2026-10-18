@@ -108,6 +108,16 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 				if generation, known := source.ProjectionGeneration(t.Context(), scope); known || generation != "" {
 					t.Fatalf("ProjectionGeneration() = %q, %v, want unknown", generation, known)
 				}
+				batch, ok := provider.(toolspkg.ProjectionAvailabilityProvider)
+				if !ok {
+					t.Fatal("provider does not expose projection availability")
+				}
+				availability := batch.ProjectionAvailability(t.Context(), scope,
+					[]toolspkg.ToolID{specCycleImportTasksToolID})[specCycleImportTasksToolID]
+				if availability.Executable ||
+					!slices.Contains(availability.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+					t.Fatalf("ProjectionAvailability() = %#v, want unavailable backend", availability)
+				}
 				handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, specCycleImportTasksToolID)
 				if err != nil || !ok {
 					t.Fatalf("Resolve(unscoped) = %v, %v, want handle", ok, err)
@@ -140,7 +150,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		inner := &daemonExtensionBatchProviderStub{
+			daemonExtensionProviderStub: &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}},
+		}
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
 				ID: "workspace-registration", RootDir: root,
@@ -171,6 +183,17 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if inner.generationScope != canonical {
 			t.Fatalf("ProjectionGeneration() scope = %#v, want %#v", inner.generationScope, canonical)
 		}
+		batch, ok := provider.(toolspkg.ProjectionAvailabilityProvider)
+		if !ok {
+			t.Fatal("provider does not expose projection availability")
+		}
+		ids := []toolspkg.ToolID{specCycleImportTasksToolID}
+		availability := batch.ProjectionAvailability(t.Context(), scope, ids)
+		if !availability[ids[0]].Executable || inner.availabilityScope != canonical ||
+			!slices.Equal(inner.availabilityIDs, ids) {
+			t.Fatalf("ProjectionAvailability() = %#v, scope %#v, ids %#v; want executable and canonical inputs",
+				availability, inner.availabilityScope, inner.availabilityIDs)
+		}
 
 		toolID := toolspkg.ToolID("ext__workspace_tool__search")
 		handle, ok, err := provider.Resolve(
@@ -199,6 +222,29 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 		if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {
 			t.Fatalf("Call() trusted root = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve canonical availability for providers without batching", func(t *testing.T) {
+		t.Parallel()
+
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		provider := newDaemonScopedExtensionToolProvider(inner, &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				ID: "workspace-registration", RootDir: t.TempDir(), WorkspaceID: "workspace-identity",
+			},
+		})
+		batch, ok := provider.(toolspkg.ProjectionAvailabilityProvider)
+		if !ok {
+			t.Fatal("provider does not expose projection availability")
+		}
+		scope := toolspkg.Scope{WorkspaceID: "workspace-identity", ProfileID: "profile-1"}
+		availability := batch.ProjectionAvailability(t.Context(), scope,
+			[]toolspkg.ToolID{specCycleImportTasksToolID})
+		scope.WorkspaceID = "workspace-registration"
+		if !availability[specCycleImportTasksToolID].Executable || inner.resolveScope != scope {
+			t.Fatalf("ProjectionAvailability() = %#v with scope %#v, want executable and %#v",
+				availability, inner.resolveScope, scope)
 		}
 	})
 
@@ -616,6 +662,28 @@ type daemonExtensionProviderStub struct {
 	listScope       toolspkg.Scope
 	resolveScope    toolspkg.Scope
 	generationScope toolspkg.Scope
+}
+
+type daemonExtensionBatchProviderStub struct {
+	*daemonExtensionProviderStub
+	availabilityScope toolspkg.Scope
+	availabilityIDs   []toolspkg.ToolID
+}
+
+var _ toolspkg.ProjectionAvailabilityProvider = (*daemonExtensionBatchProviderStub)(nil)
+
+func (p *daemonExtensionBatchProviderStub) ProjectionAvailability(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	ids []toolspkg.ToolID,
+) map[toolspkg.ToolID]toolspkg.Availability {
+	p.availabilityScope = scope
+	p.availabilityIDs = slices.Clone(ids)
+	availability := make(map[toolspkg.ToolID]toolspkg.Availability, len(ids))
+	for _, id := range ids {
+		availability[id] = p.handle.Availability(ctx, scope)
+	}
+	return availability
 }
 
 var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)

@@ -91,7 +91,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	bindID := strings.TrimSpace(c.Query("bind_id"))
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
 	changes := h.HostedMCP.ProjectionChanges()
-	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer)
+	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 	if err != nil {
 		respondHostedMCPError(c, err)
 		return
@@ -126,7 +126,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 			return
 		}
 		changes = h.HostedMCP.ProjectionChanges()
-		response, err = h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer)
+		response, err = h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 		if err != nil {
 			status := hostedMCPStatus(err)
 			if h.Logger != nil {

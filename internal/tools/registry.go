@@ -374,6 +374,10 @@ func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entr
 		}
 	}
 	availability := handle.Availability(ctx, scope)
+	return validateProjectionAvailability(availability)
+}
+
+func validateProjectionAvailability(availability Availability) Availability {
 	availability.Registered = true
 	if err := availability.Validate(); err != nil {
 		reason, found := ReasonOf(err)

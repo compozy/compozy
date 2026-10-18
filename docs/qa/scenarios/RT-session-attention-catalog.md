@@ -60,3 +60,12 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 Issue #756 acceptance: verdict-only system judge sessions do not contribute to attention totals, bell candidates or automatic attention toasts, including historical stopped/escalated judges. Automation/task/extension system sessions without verdict-only policy retain their attention behavior. Lifecycle events, explicit session audit reads and hooks remain available. Owning checks: TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages, TestSessionCatalogBroadcaster and TestPageSessionsVisibilityExclusion. Rendered before/after notification evidence is linked from PR #759.
+
+
+QA impact 2026-10-17 (concurrent-session responsiveness): terminal permission
+facets use the existing active-interaction partial index while retaining pending
+status, visibility, profile/workspace scope and optimizer-selected join order.
+Compare sparse and dense pending populations, including a narrow workspace among
+many inactive interaction histories. Owning globaldb tests and before/after SQL
+results are linked in [the responsiveness report](../reports/2026-10-17-responsiveness.md);
+they do not replace outstanding public-surface scenario legs.

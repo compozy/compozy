@@ -80,7 +80,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
-	sessions, err := h.Sessions.ListAll(c.Request.Context())
+	sessions, err := h.Sessions.ListForWorkspace(c.Request.Context(), resolved.WorkspaceID)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

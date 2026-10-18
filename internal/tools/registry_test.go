@@ -20,6 +20,19 @@ type registryTestProvider struct {
 
 var _ Provider = registryTestProvider{}
 
+type projectionAvailabilityTestProvider struct {
+	registryTestProvider
+	availability func(context.Context, Scope, []ToolID) map[ToolID]Availability
+}
+
+var _ ProjectionAvailabilityProvider = (*projectionAvailabilityTestProvider)(nil)
+
+func (p *projectionAvailabilityTestProvider) ProjectionAvailability(
+	ctx context.Context, scope Scope, ids []ToolID,
+) map[ToolID]Availability {
+	return p.availability(ctx, scope, ids)
+}
+
 func (p registryTestProvider) ID() SourceRef {
 	return p.source
 }
@@ -402,6 +415,107 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 
 func TestRuntimeRegistryProjections(t *testing.T) {
 	t.Parallel()
+
+	t.Run(
+		"Should batch only allowed tools by provider instance and refresh availability on every projection",
+		func(t *testing.T) {
+			t.Parallel()
+
+			alpha := descriptorWithID(ToolIDTaskRead, "Read task")
+			beta := descriptorWithID(ToolIDToolList, "List tools")
+			hidden := validDescriptor()
+			firstCalls, secondCalls := 0, 0
+			available := false
+			first := &projectionAvailabilityTestProvider{
+				registryTestProvider: providerWithDescriptors(alpha.Source, alpha, hidden),
+				availability: func(_ context.Context, scope Scope, ids []ToolID) map[ToolID]Availability {
+					firstCalls++
+					if scope.SessionID != "session-batch" || !slices.Equal(ids, []ToolID{alpha.ID}) {
+						t.Fatalf("first provider batch scope = %#v, IDs = %#v", scope, ids)
+					}
+					return map[ToolID]Availability{alpha.ID: Available()}
+				},
+			}
+			second := &projectionAvailabilityTestProvider{
+				registryTestProvider: providerWithDescriptors(alpha.Source, beta),
+				availability: func(_ context.Context, _ Scope, ids []ToolID) map[ToolID]Availability {
+					secondCalls++
+					if !slices.Equal(ids, []ToolID{beta.ID}) {
+						t.Fatalf("second provider batch IDs = %#v", ids)
+					}
+					if !available {
+						return nil
+					}
+					return map[ToolID]Availability{beta.ID: Available()}
+				},
+			}
+			inputs := DefaultPolicyInputs()
+			inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{alpha.ID, beta.ID}}
+			registry, err := NewRegistry(WithProviders(first, second), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope := Scope{SessionID: "session-batch"}
+			views, err := registry.SessionProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, alpha.ID)
+			available = true
+			views, err = registry.SessionProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, alpha.ID, beta.ID)
+			if firstCalls != 2 || secondCalls != 2 {
+				t.Fatalf("provider batch calls = %d, %d; want 2 each", firstCalls, secondCalls)
+			}
+			views, err = registry.OperatorProjection(t.Context(), Scope{Operator: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, alpha.ID, beta.ID, hidden.ID)
+			if firstCalls != 2 || secondCalls != 2 {
+				t.Fatal("operator diagnostics used session-only availability batches")
+			}
+		},
+	)
+
+	t.Run("Should avoid probing denied backends while retaining operator diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		probes := 0
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Availability: func(context.Context, Scope) Availability {
+				probes++
+				return Unavailable(ReasonBackendUnhealthy)
+			},
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{}, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inputs := DefaultPolicyInputs()
+		inputs.Session.Enforced = true
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.SessionProjection(t.Context(), Scope{})
+		if err != nil || len(views) != 0 || probes != 0 {
+			t.Fatalf("denied session projection = %#v, probes = %d, error = %v", views, probes, err)
+		}
+		views, err = registry.OperatorProjection(t.Context(), Scope{Operator: true})
+		if err != nil || probes != 1 {
+			t.Fatalf("operator projection probes = %d, error = %v", probes, err)
+		}
+		requireViewReason(t, views, descriptor.ID, ReasonSessionDenied)
+		requireViewReason(t, views, descriptor.ID, ReasonBackendUnhealthy)
+	})
 
 	t.Run("Should keep operator diagnostics broader than session projection", func(t *testing.T) {
 		t.Parallel()

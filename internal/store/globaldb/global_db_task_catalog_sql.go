@@ -110,16 +110,6 @@ base_dependencies AS MATERIALIZED (
 	FROM base_dependency_edges edge
 	JOIN dependency_completion completion ON completion.task_id = edge.depends_on_task_id
 ),
-run_activity AS (
-	SELECT task_id, MAX(activity_at) AS last_activity_at
-	FROM (
-		SELECT task_id, queued_at AS activity_at FROM base_runs
-		UNION ALL SELECT task_id, claimed_at FROM base_runs WHERE claimed_at IS NOT NULL
-		UNION ALL SELECT task_id, started_at FROM base_runs WHERE started_at IS NOT NULL
-		UNION ALL SELECT task_id, ended_at FROM base_runs WHERE ended_at IS NOT NULL
-	)
-	GROUP BY task_id
-),
 event_activity AS (
 	SELECT task_id, MAX(timestamp) AS last_activity_at, MAX(event_seq) AS latest_event_seq
 	FROM base_events
@@ -148,7 +138,13 @@ run_policy AS (
 		task_id,
 		MAX(CASE WHEN status IN ('starting', 'running') THEN 1 ELSE 0 END) AS has_active,
 		MAX(CASE WHEN status IN ('queued', 'claimed') THEN 1 ELSE 0 END) AS has_queued_or_claimed,
-		MAX(attempt) AS max_attempt
+		MAX(attempt) AS max_attempt,
+		MAX(MAX(
+			queued_at,
+			COALESCE(claimed_at, queued_at),
+			COALESCE(started_at, queued_at),
+			COALESCE(ended_at, queued_at)
+		)) AS last_activity_at
 	FROM base_runs
 	GROUP BY task_id
 ),
@@ -201,7 +197,7 @@ catalog_derived AS (
 		COALESCE(dc.dependency_count, 0) AS dependency_count,
 		MAX(
 			t.updated_at,
-			COALESCE(ra.last_activity_at, t.updated_at),
+			COALESCE(rp.last_activity_at, t.updated_at),
 			COALESCE(ea.last_activity_at, t.updated_at)
 		) AS last_activity_at,
 		CASE t.priority
@@ -271,7 +267,6 @@ catalog_derived AS (
 		lp.loop_run_id AS provenance_loop_run_id,
 		lp.run_kind AS provenance_run_kind
 	FROM base_tasks t
-	LEFT JOIN run_activity ra ON ra.task_id = t.id
 	LEFT JOIN event_activity ea ON ea.task_id = t.id
 	LEFT JOIN child_counts cc ON cc.task_id = t.id
 	LEFT JOIN dependency_counts dc ON dc.task_id = t.id

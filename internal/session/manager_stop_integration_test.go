@@ -178,7 +178,10 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		var clock atomic.Int64
 		clock.Store(base.UnixNano())
 		pidFile := filepath.Join(t.TempDir(), "child.pid")
-		h := newRealACPIntegrationHarness(t, sessionStopWrapperCommand(t, pidFile))
+		promptFile := filepath.Join(t.TempDir(), "prompts.jsonl")
+		command := shellquote.Join("env", "COMPOZY_TEST_STUBBORN_PROMPTS="+promptFile) + " " +
+			sessionStopWrapperCommand(t, pidFile)
+		h := newRealACPIntegrationHarness(t, command)
 		config := testSupervisionConfig()
 		config.QuietAfter, config.StopGrace = time.Second, time.Second
 		h.manager = newManagerWithHarness(t, h, WithDriver(h.manager.driver),
@@ -211,22 +214,19 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 			})
 		})
 		installAbsentWorkSources(h.manager)
-		if err := syscall.Kill(-proc.PID, syscall.SIGSTOP); err != nil {
-			t.Fatal(err)
-		}
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
-		// Quiet supervision watches only a turn in flight: the frozen tree owns one.
-		events, err := h.manager.Prompt(ctx, sess.ID, "Continue the committed work")
+		promptEvents, err := h.manager.Prompt(ctx, sess.ID, "Continue the claimed task")
 		if err != nil {
 			t.Fatal(err)
 		}
-		drained := make(chan struct{})
-		go func() {
-			defer close(drained)
-			for range events {
-			}
-		}()
+		prompts := waitForStubbornSessionPrompts(ctx, t, promptFile, 1)
+		if prompts[0].PID != childPID || !sess.IsPrompting() {
+			t.Fatalf("active prompt = %#v, child PID = %d, session = %#v", prompts, childPID, sess.Info())
+		}
+		if err := syscall.Kill(-proc.PID, syscall.SIGSTOP); err != nil {
+			t.Fatal(err)
+		}
 		for tick := range 3 {
 			at := base.Add(time.Duration(10+tick) * time.Second)
 			clock.Store(at.UnixNano())
@@ -238,11 +238,7 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
 			t.Fatalf("supervised stop = %#v, %v", outcome, err)
 		}
-		select {
-		case <-drained:
-		case <-ctx.Done():
-			t.Fatal("frozen turn did not end after the supervised stop")
-		}
+		collectEvents(t, promptEvents)
 		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: source.TaskID})
 		if err != nil || len(runs) != 2 {
 			t.Fatalf("recovered runs = %#v, %v", runs, err)

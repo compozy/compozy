@@ -52,6 +52,7 @@ type ExtensionToolProvider struct {
 }
 
 var _ toolspkg.Provider = (*ExtensionToolProvider)(nil)
+var _ toolspkg.ProjectionAvailabilityProvider = (*ExtensionToolProvider)(nil)
 
 // WithToolProviderLogger injects the logger used when one invalid extension is
 // isolated from the aggregate tool catalog.
