@@ -50,15 +50,12 @@ func (s *HostedService) ProjectionChanges() HostedProjectionChanges {
 	return changes
 }
 
-// StreamProjection serves projection-stream reads. Authoritative generations reuse the per-bind
-// cache; an unversioned projection, and its generation lookup, run at most once per refresh
-// interval unless the daemon projection epoch advanced. The response is a shared
-// immutable snapshot: callers may serialize it but must not mutate it. Projection stays fresh and
-// private for one-shot reads.
+// StreamProjection omits unchanged tools and isolates changed views from the shared cache.
 func (s *HostedService) StreamProjection(
 	ctx context.Context,
 	bindID string,
 	peer PeerInfo,
+	lastDigest string,
 ) (HostedProjectionResponse, error) {
 	record, err := s.recordForBind(ctx, bindID, peer)
 	if err != nil {
@@ -69,13 +66,28 @@ func (s *HostedService) StreamProjection(
 	if cached, ok := s.projectionCache.loadUnversioned(
 		record.bindID, s.currentProjectionEpoch(), s.now(), s.StreamRefreshInterval(),
 	); ok {
-		return cached, nil
+		return hostedStreamProjectionAfter(cached, lastDigest), nil
 	}
 	registry := s.currentRegistry()
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	unversioned := func(
+		ctx context.Context,
+		registry tools.Registry,
+		record *hostedBindRecord,
+	) (HostedProjectionResponse, error) {
+		return s.boundedUnversionedProjection(ctx, registry, record)
+	}
+	response, err := s.projectionForGeneration(ctx, record, registry, unversioned)
+	return hostedStreamProjectionAfter(response, lastDigest), err
+}
+
+func hostedStreamProjectionAfter(response HostedProjectionResponse, lastDigest string) HostedProjectionResponse {
+	if lastDigest != "" && response.Digest == lastDigest {
+		return HostedProjectionResponse{Digest: response.Digest}
+	}
+	return cloneHostedProjectionResponse(response)
 }
 
 func (s *HostedService) boundedUnversionedProjection(

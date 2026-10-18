@@ -1,5 +1,4 @@
 import { useProfileEventStream } from "../hooks/use-profile-event-stream";
-import { useProfileLens } from "../hooks/use-profile-lens";
 import { useProfiles } from "../hooks/use-profiles";
 import { ProfileLifecycleDialogs } from "./profile-lifecycle-dialogs";
 
@@ -19,13 +18,11 @@ export function ProfileLifecycleHost({
 }: {
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
 }) {
-  const lens = useProfileLens();
   const profiles = useProfiles();
   useProfileEventStream();
   return (
     <ProfileLifecycleDialogs
       profiles={profiles.data ?? []}
-      lens={lens}
       onSetAutomationEnabled={onSetAutomationEnabled}
     />
   );

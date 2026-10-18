@@ -13,16 +13,15 @@ import (
 // List returns the current in-memory session snapshot without performing I/O.
 // ListAll may perform I/O to return the authoritative session set, so it accepts a context.
 type SessionManager interface {
-	UsageEvents(context.Context, string) ([]session.UsageEventEnvelope, error)
-	Deliveries(context.Context, string) ([]session.DeliveryEventEnvelope, error)
-	Compactions(context.Context, string) ([]session.CompactionEnvelope, error)
-	LatestSettledTurn(context.Context, string) (session.SettledTurn, error)
+	ContextEvents(context.Context, string) (session.ContextEvents, error)
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	List() []*session.Info
 	ListAll(ctx context.Context) ([]*session.Info, error)
+	ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	ActivePromptRun(ctx context.Context, id string) (session.PromptRunIdentity, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
+	EventMetadata(ctx context.Context, id string, query store.EventQuery) ([]store.EventMetadata, error)
 	LatestSessionEventByType(ctx context.Context, id string, eventType string) (*store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptPage(ctx context.Context, id string, query transcript.PageQuery) (transcript.Page, error)

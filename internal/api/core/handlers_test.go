@@ -1750,6 +1750,38 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 
 func TestSessionUsageEndpoint(t *testing.T) {
 	t.Parallel()
+	t.Run("Should read context through one snapshot per usage request", func(t *testing.T) {
+		t.Parallel()
+		reads := 0
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
+			ContextEventsFn: func(_ context.Context, id string) (session.ContextEvents, error) {
+				if id != "sess-a" {
+					t.Fatalf("context session=%q", id)
+				}
+				reads++
+				return session.ContextEvents{Usage: []session.UsageEventEnvelope{{
+					Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
+				}}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		for _, suffix := range []string{"usage", "usage/turns"} {
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/workspaces/ws-workspace/sessions/sess-a/"+suffix,
+				nil,
+			)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "42") {
+				t.Fatalf("%s status=%d, body=%s", suffix, response.Code, response.Body.String())
+			}
+		}
+		if reads != 2 {
+			t.Fatalf("context snapshot reads=%d, want one per request", reads)
+		}
+	})
 	t.Run(
 		"Should expose freshness cause only until a same-turn occupancy report and optional marker after",
 		func(t *testing.T) {
@@ -5765,6 +5797,8 @@ func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
 // The richer reader preserves the first terminal boundary even when a marker is corrected.
 type usageBoundarySessionManager struct{ testutil.StubSessionManager }
 
-func (usageBoundarySessionManager) CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error) {
-	return &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}, nil
+func (s usageBoundarySessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
+	snapshot, err := s.StubSessionManager.ContextEvents(ctx, id)
+	snapshot.ClearedBy = &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}
+	return snapshot, err
 }

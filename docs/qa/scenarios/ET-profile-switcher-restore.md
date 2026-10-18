@@ -4,7 +4,7 @@ area: ET
 title: Create, switch, and restore profiles from the dock-foot switcher
 persona: Ada
 journey: J-operate-profiles
-expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and restores each project's remembered profile on return without ever force-switching an already-open client.
+expected: The switcher is a neutral icon button while only default exists, becomes an identity element once a second profile is created, switches through the canonical selection route, answers the boundary question in one sentence, offers the All-profiles state, and keeps one global selection (a profile or All profiles) across project switches and reloads without ever force-switching an already-open client.
 entry_points: dock-foot profile switcher; Create profile… dialog; command palette Profiles view; profile.use; GET|PUT /api/profiles/selection; GET /api/logs/stream?component=profile
 qa_status: blocked-verify
 bug_ids: BUG-20261003-profile-project-restoration; BUG-20261003-profile-archive-event-rejected; BUG-20261003-profile-delete-live-stream-owner; BUG-20261003-profile-dialog-validation-toast; BUG-20261003-profile-create-stale-name-error; BUG-20261003-profile-emoji-keyboard-unreachable
@@ -28,13 +28,14 @@ Walk:
    active.
 3. Switch profiles and confirm listings refilter, the boundary sentence is present verbatim, and the
    project picker lists the same projects in every profile.
-4. Leave the project, return, and confirm the remembered profile is restored; repeat for the Global
-   lens and confirm it keeps its own slot.
+4. Switch to another project and to the Global breadth and confirm the selected profile stays; change
+   it there, return, and confirm the new choice is the selection in every project.
 5. With the browser open on one profile, run `compozy profile use <other>` in a terminal. Confirm the
    remembered choice updates in Settings while the open client keeps showing the profile the operator
    was already looking at.
-6. Turn on All profiles, confirm the neutral layered mark replaces the identity, then leave and
-   return to a project and confirm it lands on a real profile rather than the aggregate.
+6. Turn on All profiles, confirm the neutral layered mark replaces the identity, switch projects and
+   reload, and confirm All profiles stays selected. Open New session and confirm the destination chip
+   names the last concrete profile you selected.
 
 Expected evidence: screenshots of the quiet and plural states, the switcher menu, selection-route
 request/response pairs, terminal transcript for the cross-surface switch, and the restored state after
@@ -105,3 +106,7 @@ the real project-switch/remembered-selection replay, which passes on the final p
 build alongside both restart/zsh scenarios (three passes, 1.4 minutes). Repair evidence is tracked
 in [the dependency report](../reports/2026-10-05-dependency-upgrades.md); the pre-existing
 spoken-output limitation is unchanged.
+
+qa-impact: 2026-10-18 issue #792. Profile selection is now one global choice: project switches and
+reloads keep the selected profile or All profiles, and per-project restoration is retired. Steps 4
+and 6 were rewritten; re-walk them against the global contract.

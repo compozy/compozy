@@ -1220,7 +1220,6 @@ export const profilesTestIds = {
   page: "settings-page-profiles",
   pageLine: "settings-page-profiles-line",
   pageArchived: "settings-page-profiles-archived",
-  pageSelectionMap: "settings-page-profiles-selection-map",
   activeList: "profiles-active-list",
   archivedList: "profiles-archived-list",
   createOpen: "profile-create-open",
@@ -1258,7 +1257,6 @@ export interface ProfilesOperatorSelectors {
   page: Locator;
   pageLine: Locator;
   pageArchived: Locator;
-  pageSelectionMap: Locator;
   activeList: Locator;
   archivedList: Locator;
   row: (name: string) => Locator;
@@ -1324,7 +1322,6 @@ export function profilesOperatorSelectors(
     page: scope.getByTestId(profilesTestIds.page),
     pageLine: scope.getByTestId(profilesTestIds.pageLine),
     pageArchived: scope.getByTestId(profilesTestIds.pageArchived),
-    pageSelectionMap: scope.getByTestId(profilesTestIds.pageSelectionMap),
     activeList: scope.getByTestId(profilesTestIds.activeList),
     archivedList: scope.getByTestId(profilesTestIds.archivedList),
     row: (name: string) => scope.getByTestId(`profile-row-${name}`),

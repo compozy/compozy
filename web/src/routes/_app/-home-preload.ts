@@ -9,19 +9,14 @@ import { sessionsListOptions } from "@/systems/session";
 import { taskDashboardOptions } from "@/systems/tasks/lib/query-options";
 
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
-import {
-  actingProfile,
-  readProfileLens,
-  readProfileScopeParams,
-  readProfileView,
-} from "@/systems/profiles";
+import { readActingProfile, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> {
   await preloadHomeWorkspace(queryClient);
 }
 
 export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
   let resolution: Awaited<ReturnType<typeof resolveActiveWorkspaceSelection>>;
   try {
@@ -39,10 +34,7 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
 
   await settleRouteQueries([
     queryClient.ensureQueryData(
-      agentsListOptions(
-        agentWorkspaceId,
-        actingProfile(readProfileView(queryClient, readProfileLens()))
-      )
+      agentsListOptions(agentWorkspaceId, readActingProfile(queryClient))
     ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
@@ -57,7 +49,7 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
       homeOverviewOptions({
         workspace: scope.workspaceParam || undefined,
         usageWindow,
-        receiptProfile: actingProfile(readProfileView(queryClient, readProfileLens())),
+        receiptProfile: readActingProfile(queryClient),
         ...("all_profiles" in profileScope
           ? { allProfiles: true }
           : { profile: profileScope.profile }),

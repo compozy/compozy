@@ -56,23 +56,34 @@ func (m *Manager) UsageEvents(ctx context.Context, id string) ([]UsageEventEnvel
 		if err != nil {
 			return nil, err
 		}
-		for _, row := range rows {
-			event, err := transcript.UnmarshalAgentEvent(row.Content)
-			if err != nil {
-				return nil, fmt.Errorf("session: decode usage event %d: %w", row.Sequence, err)
-			}
-			if event.Usage == nil {
-				continue
-			}
-			usage := *event.Usage
-			usage.Sequence = row.Sequence
-			result = append(
-				result,
-				UsageEventEnvelope{Sequence: row.Sequence, At: row.Timestamp, TurnID: row.TurnID, Usage: usage},
-			)
+		result, err = appendUsageEventsFromRows(result, rows)
+		if err != nil {
+			return nil, err
 		}
 	}
 	slices.SortFunc(result, func(a, b UsageEventEnvelope) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return result, nil
+}
+
+func appendUsageEventsFromRows(result []UsageEventEnvelope, rows []store.SessionEvent) ([]UsageEventEnvelope, error) {
+	for _, row := range rows {
+		if row.Type != acp.EventTypeUsage && row.Type != acp.EventTypeDone {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return nil, fmt.Errorf("session: decode usage event %d: %w", row.Sequence, err)
+		}
+		if event.Usage == nil {
+			continue
+		}
+		usage := *event.Usage
+		usage.Sequence = row.Sequence
+		result = append(
+			result,
+			UsageEventEnvelope{Sequence: row.Sequence, At: row.Timestamp, TurnID: row.TurnID, Usage: usage},
+		)
+	}
 	return result, nil
 }
 
@@ -81,8 +92,17 @@ func (m *Manager) Deliveries(ctx context.Context, id string) ([]DeliveryEventEnv
 	if err != nil {
 		return nil, err
 	}
-	result := make([]DeliveryEventEnvelope, 0, len(rows))
+	return appendDeliveryEventsFromRows(make([]DeliveryEventEnvelope, 0, len(rows)), rows)
+}
+
+func appendDeliveryEventsFromRows(
+	result []DeliveryEventEnvelope,
+	rows []store.SessionEvent,
+) ([]DeliveryEventEnvelope, error) {
 	for _, row := range rows {
+		if row.Type != acp.EventTypePromptDelivery {
+			continue
+		}
 		event, err := transcript.UnmarshalAgentEvent(row.Content)
 		if err != nil {
 			return nil, fmt.Errorf("session: decode delivery event %d: %w", row.Sequence, err)
@@ -108,6 +128,10 @@ func compactionMarkers(ctx context.Context, read sessionEventsByType) ([]Compact
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
+	return compactionMarkersFromRows(rows)
+}
+
+func compactionMarkersFromRows(rows []store.SessionEvent) ([]CompactionEnvelope, error) {
 	boundaries, err := firstCompactionBoundaries(rows)
 	if err != nil {
 		return nil, err
@@ -249,6 +273,10 @@ func (m *Manager) CompactionClearBoundary(ctx context.Context, id string) (*cont
 	if err != nil {
 		return nil, err
 	}
+	return compactionClearBoundaryFromRows(rows)
+}
+
+func compactionClearBoundaryFromRows(rows []store.SessionEvent) (*contextusage.ClearedBy, error) {
 	boundaries, err := firstCompactionBoundaries(rows)
 	if err != nil {
 		return nil, err

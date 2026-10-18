@@ -32,6 +32,43 @@ func BenchmarkSessionDBQuery(b *testing.B) {
 	}
 }
 
+func BenchmarkSessionDBUsageChangeRead(b *testing.B) {
+	db := openBenchmarkSessionDB(b, "sess-bench-usage-changes")
+	content := fmt.Sprintf(`{"type":"tool_result","tool_result":{"content":%q}}`, strings.Repeat("x", 16*1024))
+	events := make([]store.SessionEvent, 384)
+	for index := range events {
+		events[index] = store.SessionEvent{
+			ID: fmt.Sprintf("event-%d", index), TurnID: fmt.Sprintf("turn-%d", index),
+			Type: "tool_result", AgentName: "coder", Content: content,
+			Timestamp: time.Date(2026, 10, 17, 0, 0, index, 0, time.UTC),
+		}
+	}
+	if _, err := db.RecordPersistedBatch(b.Context(), events); err != nil {
+		b.Fatal(err)
+	}
+	query := store.EventQuery{AfterSequence: 128}
+	b.Run("full", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			rows, err := db.Query(b.Context(), query)
+			if err != nil || len(rows) != 256 {
+				b.Fatalf("Query() rows=%d error=%v", len(rows), err)
+			}
+		}
+		b.ReportMetric(float64(256*len(content)), "content-B/op")
+	})
+	b.Run("metadata", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			rows, err := db.QueryEventMetadata(b.Context(), query)
+			if err != nil || len(rows) != 256 {
+				b.Fatalf("QueryEventMetadata() rows=%d error=%v", len(rows), err)
+			}
+		}
+		b.ReportMetric(0, "content-B/op")
+	})
+}
+
 func BenchmarkSessionDBHistory(b *testing.B) {
 	b.ReportAllocs()
 

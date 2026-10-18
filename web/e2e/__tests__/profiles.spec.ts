@@ -349,7 +349,7 @@ test.describe("Profiles", () => {
 
   // Invariant: project entry restores its remembered profile, including after aggregate viewing.
   // Owner: Web profile selection; canonical suite: Profiles E2E-013.
-  test("E2E-013: switcher stays quiet, then carries identity, switch, and per-project remembered profile", async ({
+  test("E2E-013: switcher stays quiet, then carries identity, switch, and one global selection across projects", async ({
     appPage,
     runtime,
   }) => {
@@ -424,37 +424,45 @@ test.describe("Profiles", () => {
       await runtime.requestJSON<Array<{ profile: string }>>("/api/profiles/selection");
     expect(remembered.some(entry => entry.profile === "marketing")).toBe(true);
 
-    // A different project starts from its own slot, and returning restores this one.
+    // The selection is global: another project keeps it, and so does returning.
     await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
-    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
 
-    // Aggregate is an ephemeral view; re-entry uses the remembered real identity.
+    // A change made in one project is the selection everywhere.
+    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
+    await ui.switcher.click();
+    await ui.switcherOption("default").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
+    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    await ui.switcher.click();
+    await ui.switcherOption("marketing").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+
+    // All profiles stays selected across projects and survives a reload.
     await ui.switcher.click();
     await ui.switcherAll.click();
     await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
     await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
-    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
-    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
-    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(ui.switcher).toHaveAccessibleName("Profile: All profiles");
 
-    // A fresh client resolves the same remembered choice.
+    // Leaving the aggregate returns to a real profile, and a fresh client resolves it.
+    await ui.switcher.click();
+    await ui.switcherOption("marketing").click();
+    await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await expect(ui.switcher).toHaveAccessibleName("Profile: marketing");
-
-    // An external choice for an inactive project applies on entry, even with cached data.
-    await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
-    await runtime.requestJSON("/api/profiles/selection", {
-      method: "PUT",
-      body: JSON.stringify({
-        scope: "workspace",
-        workspace_id: originalWorkspace.id,
-        profile: "default",
-      }),
-    });
-    await switchWorkspace(appPage, originalWorkspace.id, originalWorkspace.name);
-    await expect(ui.switcher).toHaveAccessibleName("Profile: default");
+    const selections =
+      await runtime.requestJSON<Array<{ scope: string; profile: string }>>(
+        "/api/profiles/selection"
+      );
+    expect(selections).toEqual(
+      expect.arrayContaining([expect.objectContaining({ scope: "global", profile: "marketing" })])
+    );
   });
 
   test("E2E-014: settings lists, creates, and edits identity behind disclosure", async ({

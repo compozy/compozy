@@ -204,7 +204,7 @@ func (m *Manager) persistCreatedProfile(
 	if err != nil {
 		return fmt.Errorf("profile: activate created profile %q: %w", created.Name, err)
 	}
-	return nil
+	return supersedeWorkspaceSelections(ctx, exec, activate.Kind)
 }
 
 func (m *Manager) existingDeclaredProfile(

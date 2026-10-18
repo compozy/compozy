@@ -1910,6 +1910,99 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve activity across nullable run timestamps and stable page boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+		cases := []struct {
+			id       string
+			status   taskpkg.RunStatus
+			times    [4]int
+			updated  int
+			activity int
+			want     taskpkg.Status
+		}{
+			{id: "no-runs", times: [4]int{-1, -1, -1, -1}, want: taskpkg.TaskStatusReady},
+			{id: "queued", status: taskpkg.TaskRunStatusQueued, times: [4]int{1, -1, -1, -1}, activity: 1,
+				want: taskpkg.TaskStatusReady},
+			{id: "claimed", status: taskpkg.TaskRunStatusClaimed, times: [4]int{1, 3, -1, -1}, activity: 3,
+				want: taskpkg.TaskStatusReady},
+			{id: "started", status: taskpkg.TaskRunStatusRunning, times: [4]int{1, 3, 5, -1}, activity: 5,
+				want: taskpkg.TaskStatusInProgress},
+			{id: "completed", status: taskpkg.TaskRunStatusCompleted, times: [4]int{1, 3, 5, 7}, activity: 7,
+				want: taskpkg.TaskStatusCompleted},
+			{id: "canceled", status: taskpkg.TaskRunStatusCanceled, times: [4]int{1, -1, -1, 9}, activity: 9,
+				want: taskpkg.TaskStatusCanceled},
+			{id: "historical", status: taskpkg.TaskRunStatusFailed, times: [4]int{1, 3, 5, 11}, activity: 11,
+				want: taskpkg.TaskStatusReady},
+			{id: "task-update", status: taskpkg.TaskRunStatusCompleted, times: [4]int{1, 3, 5, 7},
+				updated: 13, activity: 13, want: taskpkg.TaskStatusCompleted},
+		}
+		for _, item := range cases {
+			record := taskRecordForTest(item.id)
+			record.Status = taskpkg.TaskStatusReady
+			record.CreatedAt = base
+			record.UpdatedAt = base.Add(time.Duration(item.updated) * time.Minute)
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%s): %v", item.id, err)
+			}
+			if item.status == taskpkg.TaskRunStatusUnknown {
+				continue
+			}
+			run := taskRunForTest("run-"+item.id, item.id)
+			run.Status = item.status
+			for index, target := range []*time.Time{&run.QueuedAt, &run.ClaimedAt, &run.StartedAt, &run.EndedAt} {
+				if item.times[index] >= 0 {
+					*target = base.Add(time.Duration(item.times[index]) * time.Minute)
+				}
+			}
+			if err := db.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%s): %v", item.id, err)
+			}
+		}
+		retry := taskRunForTest("run-historical-retry", "historical")
+		retry.Attempt = 2
+		retry.QueuedAt = base.Add(2 * time.Minute)
+		if err := db.CreateTaskRun(ctx, retry); err != nil {
+			t.Fatalf("CreateTaskRun(retry): %v", err)
+		}
+
+		query := taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 2}
+		seen := 0
+		for {
+			page, err := db.ListTaskCatalog(ctx, query)
+			if err != nil {
+				t.Fatalf("ListTaskCatalog(): %v", err)
+			}
+			if page.Total != len(cases) || len(page.Tasks) != 2 {
+				t.Fatalf("page totals = %d, %d, want %d, 2", page.Total, len(page.Tasks), len(cases))
+			}
+			for _, item := range page.Tasks {
+				want := cases[len(cases)-1-seen]
+				if item.ID != want.id || item.Status != want.want ||
+					!item.LastActivityAt.Equal(base.Add(time.Duration(want.activity)*time.Minute)) {
+					t.Fatalf(
+						"catalog item = %#v, want id=%s status=%s activity=%d",
+						item,
+						want.id,
+						want.want,
+						want.activity,
+					)
+				}
+				seen++
+			}
+			if !page.HasMore {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if seen != len(cases) {
+			t.Fatalf("read %d tasks, want %d", seen, len(cases))
+		}
+	})
+
 	t.Run("Should normalize an empty migrated resolved worktree mode to workspace root", func(t *testing.T) {
 		t.Parallel()
 
@@ -5865,4 +5958,74 @@ func sqlNullStringForTest(value string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: value, Valid: true}
+}
+
+func BenchmarkGlobalDBTaskCatalogHistory(b *testing.B) {
+	for _, inbox := range []bool{false, true} {
+		name := "catalog"
+		if inbox {
+			name = "inbox"
+		}
+		b.Run(name, func(b *testing.B) {
+			db := benchmarkTaskCatalogHistoryDB(b)
+			ctx := b.Context()
+			catalogQuery := taskpkg.CatalogQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     taskpkg.CatalogScopeGlobal,
+				Limit:     50,
+			}
+			inboxQuery := taskpkg.InboxQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     taskpkg.CatalogScopeGlobal,
+				Limit:     50,
+			}
+			actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "benchmark"}
+			b.ReportAllocs()
+			for b.Loop() {
+				if inbox {
+					page, err := db.ListTaskInbox(ctx, inboxQuery, actor)
+					if err != nil || page.Total != 500 {
+						b.Fatalf("ListTaskInbox() total=%d error=%v", page.Total, err)
+					}
+				} else {
+					page, err := db.ListTaskCatalog(ctx, catalogQuery)
+					if err != nil || page.Total != 500 || len(page.Tasks) != 50 {
+						b.Fatalf("ListTaskCatalog() total=%d rows=%d error=%v", page.Total, len(page.Tasks), err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func benchmarkTaskCatalogHistoryDB(b *testing.B) *GlobalDB {
+	b.Helper()
+	ctx := b.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(b.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+			b.Error(err)
+		}
+	})
+	const tasks = `WITH RECURSIVE n(value) AS (VALUES(0) UNION ALL SELECT value + 1 FROM n WHERE value < 499)
+ INSERT INTO tasks(id, profile_id, scope, title, status, created_by_kind, created_by_ref,
+ origin_kind, origin_ref, owner_kind, owner_ref, created_at, updated_at)
+ SELECT 'task-' || value, ?, 'global', 'Task ' || value, 'ready', 'human', 'benchmark',
+ 'web', '', 'human', 'benchmark', ?, ? FROM n`
+	at := store.FormatTimestamp(time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC))
+	if _, err := db.db.ExecContext(ctx, tasks, store.DefaultProfileID, at, at); err != nil {
+		b.Fatal(err)
+	}
+	const runs = `WITH RECURSIVE n(value) AS (VALUES(0) UNION ALL SELECT value + 1 FROM n WHERE value < 14999)
+ INSERT INTO task_runs(id, task_id, status, attempt, origin_kind, origin_ref,
+ queued_at, claimed_at, started_at, ended_at, error)
+ SELECT 'run-' || value, 'task-' || (value % 500), 'failed', value / 500 + 1, 'web', '',
+ ?, ?, ?, ?, printf('%0300d', 0) FROM n`
+	if _, err := db.db.ExecContext(ctx, runs, at, at, at, at); err != nil {
+		b.Fatal(err)
+	}
+	return db
 }

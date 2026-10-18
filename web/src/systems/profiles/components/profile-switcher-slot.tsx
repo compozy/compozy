@@ -1,4 +1,3 @@
-import { useProfileLens } from "../hooks/use-profile-lens";
 import { useProfileSwitcher } from "../hooks/use-profile-switcher";
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import { ProfileSwitcher } from "./profile-switcher";
@@ -12,11 +11,10 @@ export interface ProfileSwitcherSlotProps {
  * The menubar switcher, connected.
  *
  * The bar itself stays presentational: it offers a slot, and this resolves the
- * lens, the rows, and the switch against the canonical selection routes.
+ * the rows and the switch against the canonical selection routes.
  */
 export function ProfileSwitcherSlot({ onOpenSettings }: ProfileSwitcherSlotProps) {
-  const lens = useProfileLens();
-  const model = useProfileSwitcher(lens);
+  const model = useProfileSwitcher();
   return (
     <ProfileSwitcher
       rows={model.rows}

@@ -17,15 +17,23 @@ func (h *BaseHandlers) writeUsageChangedEvents(
 	afterSequence int64,
 	events []store.SessionEvent,
 ) (int64, error) {
+	var metadata []store.EventMetadata
 	if events == nil {
 		var err error
-		events, err = h.Sessions.Events(ctx, sessionID, store.EventQuery{AfterSequence: afterSequence})
+		metadata, err = h.Sessions.EventMetadata(ctx, sessionID, store.EventQuery{AfterSequence: afterSequence})
 		if err != nil {
 			return afterSequence, fmt.Errorf("query session usage changes: %w", err)
 		}
+	} else {
+		metadata = make([]store.EventMetadata, 0, len(events))
+		for _, event := range events {
+			metadata = append(metadata, store.EventMetadata{
+				Sequence: event.Sequence, TurnID: event.TurnID, Type: event.Type,
+			})
+		}
 	}
 	cursor := afterSequence
-	for _, event := range events {
+	for _, event := range metadata {
 		if event.Sequence <= afterSequence {
 			continue
 		}

@@ -113,7 +113,7 @@ describe("useAgentInstructionsTab", () => {
   it.each(["default", "open-design"])(
     "Should fetch both authored files before either file tab is opened in profile %s",
     profile => {
-      setProfileView({ scope: "global" }, { kind: "profile", profile });
+      setProfileView({ kind: "profile", profile });
       const { result } = renderHook(
         () =>
           useAgentInstructionsTab({
@@ -139,7 +139,7 @@ describe("useAgentInstructionsTab", () => {
   it.each(["default", "open-design"])(
     "Should round-trip workspace, profile %s, and CAS inputs for validate, save, restore, retry, and wake",
     async profile => {
-      setProfileView({ scope: "global" }, { kind: "profile", profile });
+      setProfileView({ kind: "profile", profile });
       const session = { ...primarySessionFixture, id: "sess-active", state: "active" as const };
       const { result } = renderHook(
         () =>

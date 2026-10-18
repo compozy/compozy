@@ -21,19 +21,10 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	if err != nil {
 		return err
 	}
-	eligible := store.AppendWhere("SELECT id, workspace_id FROM sessions", where)
-	// dynamic-sql: eligible sessions share the owning catalog scope and visibility filters.
-	var statement strings.Builder
-	statement.WriteString(`SELECT eligible.workspace_id, COUNT(1)
- FROM session_pending_interactions AS interactions
- JOIN (`)
-	statement.WriteString(eligible)
-	statement.WriteString(`) AS eligible ON eligible.id = interactions.session_id
- WHERE interactions.kind = 'permission' AND interactions.status = 'pending'
- AND instr(COALESCE(json_extract(interactions.payload_json, '$.tool_id'), ''), 'compozy__terminal_') = 1
- GROUP BY eligible.workspace_id ORDER BY eligible.workspace_id`)
+	statement := sessionTerminalApprovalFacetStatement(where)
 
-	rows, err := g.db.QueryContext(ctx, statement.String(), args...)
+	// dynamic-sql: eligible sessions share the owning catalog scope and visibility filters.
+	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return fmt.Errorf("store: query terminal approval facets: %w", err)
 	}
@@ -74,4 +65,20 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 		return strings.Compare(left.WorkspaceID, right.WorkspaceID)
 	})
 	return nil
+}
+
+func sessionTerminalApprovalFacetStatement(where []string) string {
+	eligible := store.AppendWhere("SELECT id, workspace_id FROM sessions", where)
+	var statement strings.Builder
+	statement.WriteString(`SELECT eligible.workspace_id, COUNT(1)
+ FROM session_pending_interactions AS interactions
+ JOIN (`)
+	statement.WriteString(eligible)
+	// The active-status predicate exposes the existing partial index to SQLite.
+	statement.WriteString(`) AS eligible ON eligible.id = interactions.session_id
+ WHERE interactions.kind = 'permission' AND interactions.status = 'pending'
+ AND interactions.status IN ('pending', 'orphaned')
+ AND instr(COALESCE(json_extract(interactions.payload_json, '$.tool_id'), ''), 'compozy__terminal_') = 1
+ GROUP BY eligible.workspace_id ORDER BY eligible.workspace_id`)
+	return statement.String()
 }

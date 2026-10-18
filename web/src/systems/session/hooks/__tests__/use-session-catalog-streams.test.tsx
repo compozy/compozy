@@ -2,6 +2,7 @@ import { notificationKeys } from "@/systems/notifications";
 import {
   QueryClient,
   QueryClientProvider,
+  QueryObserver,
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
@@ -209,7 +210,7 @@ describe("useSessionCatalogStreams", () => {
     );
     act(() => vi.advanceTimersByTime(10_000));
     expect(result.current).toBe("stale");
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "other" }));
+    act(() => setProfileView({ kind: "profile", profile: "other" }));
     expect(result.current).toBe("connecting");
     act(() => sources[0]!.emit("error"));
     act(() => sources[1]!.emit("open"));
@@ -281,10 +282,10 @@ describe("useSessionCatalogStreams", () => {
       expect.objectContaining({ queryKey: notificationKeys.attentionRoot() }),
       { cancelRefetch: false }
     );
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail("ws_beta", "sess_beta"),
-      exact: true,
-    });
+    expect(invalidate).toHaveBeenCalledWith(
+      { queryKey: sessionKeys.detail("ws_beta", "sess_beta"), exact: true },
+      { cancelRefetch: false }
+    );
     invalidate.mockClear();
     act(() => {
       sources[0]?.emit("session_catalog_changed", {
@@ -298,10 +299,10 @@ describe("useSessionCatalogStreams", () => {
       expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
       { cancelRefetch: false }
     );
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail("", "sess_global"),
-      exact: true,
-    });
+    expect(invalidate).toHaveBeenCalledWith(
+      { queryKey: sessionKeys.detail("", "sess_global"), exact: true },
+      { cancelRefetch: false }
+    );
     // A subagent transition upserts its parent: a cold subagent list re-reads (trailing window).
     expect(invalidate).toHaveBeenCalledWith(
       { queryKey: sessionKeys.subagents("", "sess_global") },
@@ -436,6 +437,108 @@ describe("useSessionCatalogStreams", () => {
     registrations.mockRestore();
     expect(catalogReads()).toBe(1);
     unmount();
+  });
+
+  it.each([false, true])(
+    "Should finish session reads during catalog bursts and retain the final wake (already fetching: %s)",
+    async alreadyFetching => {
+      const queryClient = createQueryClient();
+      const reads: Array<{ signal: AbortSignal; resolve: (value: SessionPayload) => void }> = [];
+      const keys = [
+        sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+        sessionKeys.byId(SESSION_ID, "default"),
+      ];
+      const unsubscribe = keys.map(queryKey =>
+        new QueryObserver(queryClient, {
+          queryKey,
+          initialData: sessionWithState("active"),
+          staleTime: Infinity,
+          queryFn: ({ signal }) =>
+            new Promise<SessionPayload>(resolve => reads.push({ signal, resolve })),
+        }).subscribe(() => {})
+      );
+      let source: FakeCatalogEventSource;
+      const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+      const { unmount } = renderHook(
+        () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+        { wrapper: wrapper(queryClient) }
+      );
+      if (alreadyFetching) {
+        for (const queryKey of keys) void queryClient.refetchQueries({ queryKey, exact: true });
+      }
+      act(() => {
+        for (let frame = 0; frame < 200; frame++)
+          source.emit("session_catalog_changed", {
+            kind: "upserted",
+            workspace_id: WORKSPACE_ID,
+            session_id: SESSION_ID,
+          });
+      });
+      expect({
+        started: reads.length,
+        aborted: reads.filter(read => read.signal.aborted).length,
+      }).toEqual({ started: 2, aborted: 0 });
+      await act(async () => {
+        for (const read of reads.slice(0, 2)) read.resolve(sessionWithState("active"));
+      });
+      await waitFor(() => expect(reads).toHaveLength(4));
+      await act(async () => {
+        for (const read of reads.slice(2)) read.resolve(sessionWithState("stopped"));
+      });
+      await waitFor(() => {
+        for (const key of keys)
+          expect(queryClient.getQueryData<SessionPayload>(key)?.state).toBe("stopped");
+      });
+      expect(reads.every(read => !read.signal.aborted)).toBe(true);
+      unmount();
+      for (const stop of unsubscribe) stop();
+      queryClient.clear();
+    }
+  );
+
+  it("Should retain an attention wake until an inactive session prefetch settles", async () => {
+    const queryClient = createQueryClient();
+    const queryKey = sessionKeys.byId(SESSION_ID, "default");
+    let resolveRead: (value: SessionPayload) => void = () => {};
+    const read = vi.fn(
+      () =>
+        new Promise<SessionPayload>(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    const options = { queryKey, queryFn: read, staleTime: Infinity };
+    const prefetch = queryClient.fetchQuery(options);
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => {
+      source.emit("session_attention_changed", {
+        session_id: SESSION_ID,
+        workspace_id: WORKSPACE_ID,
+        from: "running",
+        to: "done",
+        class: "finished",
+        at: "2026-10-17T12:00:00Z",
+      });
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveRead(sessionWithState("active"));
+      await prefetch;
+    });
+    await waitFor(() => expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true));
+    read.mockResolvedValue(sessionWithState("stopped"));
+    const unsubscribe = new QueryObserver(queryClient, options).subscribe(() => {});
+    await waitFor(() =>
+      expect(queryClient.getQueryData<SessionPayload>(queryKey)?.state).toBe("stopped")
+    );
+    expect(read).toHaveBeenCalledTimes(2);
+    unmount();
+    unsubscribe();
+    queryClient.clear();
   });
 
   it("Should preserve a final catalog wake after an in-flight snapshot finishes", async () => {
@@ -611,7 +714,7 @@ describe("useSessionCatalogStreams", () => {
     );
     expect(sources).toHaveLength(1);
 
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "marketing" }));
+    act(() => setProfileView({ kind: "profile", profile: "marketing" }));
 
     // A second socket opens under the new scope, and the first one is closed —
     // leaving a profile's scope stops its stream writes (US-010.EC-2).
@@ -622,7 +725,7 @@ describe("useSessionCatalogStreams", () => {
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
 
-    act(() => setProfileView({ scope: "global" }, { kind: "aggregate" }));
+    act(() => setProfileView({ kind: "aggregate" }));
     expect(sources[2]?.url).toBe(
       "/api/sessions/catalog-stream?all_workspaces=true&all_profiles=true"
     );
@@ -824,6 +927,57 @@ describe("useSessionCatalogStreams", () => {
     expect(sources).toHaveLength(1);
     expect(queryClient.getQueryData(foreignTranscriptKey)).toBe(foreignBefore);
     expect(queryClient.getQueryData(otherWorkspaceTranscriptKey)).toBe(otherWorkspaceBefore);
+  });
+
+  it("Should finish shared reads but discard old profile followups after the stream closes", async () => {
+    const queryClient = createQueryClient();
+    const detailKey = sessionKeys.detail(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData(detailKey, sessionWithState("active"));
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+      seededTranscript([textMessage("m1", "Working…")])
+    );
+    let resolveRead: (value: SessionPayload) => void = () => {};
+    vi.mocked(fetchSession).mockImplementation(
+      () =>
+        new Promise<SessionPayload>(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([textMessage("m1", "Working…"), postStopMarkerMessage("late-1")])
+    );
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { unmount } = renderHook(() => useMountedSessionPage(factory), {
+      wrapper: wrapper(queryClient),
+    });
+    const wake = { kind: "upserted", workspace_id: WORKSPACE_ID, session_id: SESSION_ID };
+    act(() => {
+      sources[0]!.emit("session_catalog_changed", wake);
+      sources[0]!.emit("session_catalog_changed", wake);
+      setProfileView({ kind: "profile", profile: "marketing" });
+    });
+    expect(sources).toHaveLength(2);
+    expect(sources[0]!.closed).toBe(true);
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+    const signal = vi.mocked(fetchSession).mock.calls[0]![2];
+    expect(signal?.aborted).toBe(false);
+    await act(async () => resolveRead(sessionWithState("stopped")));
+    expect(queryClient.getQueryData<SessionPayload>(detailKey)?.state).toBe("stopped");
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("stopped"));
+    act(() => sources[1]!.emit("session_catalog_changed", wake));
+    await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(1));
+    expect(fetchSession).toHaveBeenCalledTimes(2);
+    unmount();
+    queryClient.clear();
   });
 
   it("Should leave a live session's transcript to the live tail on a catalog wake", async () => {

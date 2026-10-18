@@ -1,5 +1,5 @@
 // Suite: profile create dialog
-// Invariant: creation rejects blank names and activates the new profile in exactly the selected lens.
+// Invariant: creation rejects blank names and activates the new profile as the one global selection.
 // Name validation describes the current input, retaining refusals for their submitted name.
 // Owning layer: web/src/systems/profiles/components/profile-create-dialog.tsx.
 // Boundary OUT: mutation transport and daemon-side name validation.
@@ -27,7 +27,6 @@ describe("ProfileCreateDialog", () => {
         open
         onOpenChange={vi.fn()}
         existingCount={1}
-        lens={{ scope: "global" }}
         isPending={false}
         onCreate={onCreate}
       />
@@ -53,7 +52,6 @@ describe("ProfileCreateDialog", () => {
         open
         onOpenChange={vi.fn()}
         existingCount={1}
-        lens={{ scope: "global" }}
         isPending={false}
         initialName="default"
         nameError={{ name: "default", message: "This name is reserved." }}
@@ -89,7 +87,6 @@ describe("ProfileCreateDialog", () => {
         open
         onOpenChange={vi.fn()}
         existingCount={1}
-        lens={{ scope: "global" }}
         isPending={false}
         initialName="research"
         error="Unable to reach the server."
@@ -113,7 +110,6 @@ describe("ProfileCreateDialog", () => {
         open
         onOpenChange={vi.fn()}
         existingCount={1}
-        lens={{ scope: "global" }}
         isPending
         initialName="research"
         onCreate={onCreate}
@@ -127,7 +123,7 @@ describe("ProfileCreateDialog", () => {
     expect(onCreate).not.toHaveBeenCalled();
   });
 
-  it("Should trim the name and activate a workspace profile", async () => {
+  it("Should trim the name and activate it as the global selection", async () => {
     const onCreate = vi.fn();
     renderWithClient(
       <ProfileCreateDialog
@@ -135,7 +131,6 @@ describe("ProfileCreateDialog", () => {
         open
         onOpenChange={vi.fn()}
         existingCount={1}
-        lens={{ scope: "workspace", workspaceId: "workspace:alpha" }}
         isPending={false}
         initialName="  marketing  "
         onCreate={onCreate}
@@ -147,36 +142,7 @@ describe("ProfileCreateDialog", () => {
     expect(onCreate).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         name: "marketing",
-        activate: {
-          scope: "workspace",
-          profile: "marketing",
-          workspace_id: "workspace:alpha",
-        },
-      })
-    );
-  });
-
-  it("Should activate a global profile without a workspace identifier", async () => {
-    const onCreate = vi.fn();
-    renderWithClient(
-      <ProfileCreateDialog
-        catalog={catalog}
-        open
-        onOpenChange={vi.fn()}
-        existingCount={2}
-        lens={{ scope: "global" }}
-        isPending={false}
-        initialName="research"
-        onCreate={onCreate}
-      />
-    );
-
-    await userEvent.click(screen.getByTestId("profile-create-confirm"));
-
-    expect(onCreate).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        name: "research",
-        activate: { scope: "global", profile: "research" },
+        activate: { scope: "global", profile: "marketing" },
       })
     );
   });

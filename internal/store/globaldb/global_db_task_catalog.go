@@ -110,8 +110,8 @@ func queryTaskCatalogMetadata(
 	ownerFacets []taskpkg.CatalogOwnerFacet,
 	err error,
 ) {
-	filtered := taskCatalogStatement("SELECT * FROM catalog", baseWhere, where)
-	statement := `WITH filtered_catalog AS (` + filtered + `)
+	filtered := taskCatalogStatement("SELECT status, owner_kind, owner_ref FROM catalog", baseWhere, where)
+	statement := `WITH filtered_catalog AS MATERIALIZED (` + filtered + `)
 		SELECT 'total', '', '', COUNT(*) FROM filtered_catalog
 		UNION ALL
 		SELECT 'status', status, '', COUNT(*)

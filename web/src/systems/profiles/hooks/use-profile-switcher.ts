@@ -9,7 +9,6 @@ import {
   type ProfileRow,
 } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
-import type { ProfileLens } from "../types";
 import { useGatewayAccessTier } from "@/systems/gateway";
 
 export interface ProfileSwitcherModel {
@@ -33,10 +32,10 @@ export interface ProfileSwitcherModel {
  * Only active profiles are offered: an archived one is not a place you can go,
  * and its work stays reachable through the aggregate instead.
  */
-export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
+export function useProfileSwitcher(): ProfileSwitcherModel {
   const profiles = useProfiles();
-  const view = useActiveProfileView(lens);
-  const switchProfile = useSwitchProfile(lens);
+  const view = useActiveProfileView();
+  const switchProfile = useSwitchProfile();
   const tier = useGatewayAccessTier();
 
   const all = profiles.data ?? [];

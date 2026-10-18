@@ -113,7 +113,8 @@ func sessionCreateDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionCreate,
 		"session_create",
 		"Session Create",
-		"Create an unbound logical user session. Select its runtime on the first prompt.",
+		"Create an unbound logical user session in the caller session's profile. "+
+			"Select its runtime on the first prompt.",
 		sessionCreateInputSchema,
 		toolspkg.RiskMutating,
 		false,

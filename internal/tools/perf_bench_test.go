@@ -145,19 +145,28 @@ func BenchmarkRuntimeRegistryNativeSessionProjection(b *testing.B) {
 	if err != nil {
 		b.Fatalf("NewNativeProvider() error = %v", err)
 	}
-	registry, err := NewRegistry(WithProviders(provider))
-	if err != nil {
-		b.Fatalf("NewRegistry() error = %v", err)
-	}
 	scope := Scope{WorkspaceID: "workspace-1", SessionID: "session-1"}
-	b.ReportAllocs()
-	for b.Loop() {
-		views, projectionErr := registry.SessionProjection(b.Context(), scope)
-		if projectionErr != nil {
-			b.Fatalf("SessionProjection() error = %v", projectionErr)
-		}
-		if len(views) != len(nativeTools) {
-			b.Fatalf("SessionProjection() returned %d tools, want %d", len(views), len(nativeTools))
-		}
+	for _, allowed := range []int{128, 8} {
+		b.Run(fmt.Sprintf("Allowed%d", allowed), func(b *testing.B) {
+			inputs := DefaultPolicyInputs()
+			inputs.Session.Enforced = true
+			for toolIndex := range allowed {
+				inputs.Session.Tools = append(inputs.Session.Tools, nativeTools[toolIndex].Descriptor.ID)
+			}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				b.Fatalf("NewRegistry() error = %v", err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				views, projectionErr := registry.SessionProjection(b.Context(), scope)
+				if projectionErr != nil {
+					b.Fatalf("SessionProjection() error = %v", projectionErr)
+				}
+				if len(views) != allowed {
+					b.Fatalf("SessionProjection() returned %d tools, want %d", len(views), allowed)
+				}
+			}
+		})
 	}
 }

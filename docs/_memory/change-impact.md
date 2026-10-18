@@ -14,6 +14,21 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
+## Role fallback after a provider refuses a title turn — 2026-10-18
+
+Owner: PR #662. Automatic title generation runs each prompt inside its role-owned fallback
+attempt. Typed authentication or rate-limit refusals before any output advance to the next route
+only after the refused child stops. A turn that produced output remains accepted; failed child
+cleanup retains ownership and ends the chain. Route account commands, ChainOwnerCaller, typed
+start acceptance, cancellation deadlines and role.fallback.used events retain their current owners.
+The retired checkpoint-summary and memory subsystems stay deleted. Existing auto-title and
+role-fallback suites own the rejection, partial-output and cleanup boundaries.
+
+Native tools, CLI/HTTP/UDS contracts, hooks, extension SDKs, config keys, workspace/profile data
+isolation and persisted state are unchanged. No migration or compatibility shim is needed. The site
+configuration reference describes the title-specific refusal boundary. Official skill commands and
+Web behavior are unchanged; title generation uses the existing title QA journey.
+
 ## Release integration repairs — 2026-10-18
 
 Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
@@ -126,6 +141,46 @@ are unchanged; no migration or compatibility adapter is needed. Workspace/profil
 unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
 the change. No site documentation changes are needed.
 
+## Concurrent-session responsiveness — 2026-10-17
+
+Owner: branch `perf/responsiveness-audit`; measured evidence, attempted experiments
+and verification limits live in
+`docs/qa/reports/2026-10-17-responsiveness.md`.
+
+Database reads retain task activity/facets, pending terminal approval scope and
+pagination. Workspace detail selects catalog IDs before hydrating their existing
+metadata. Missing-origin Goal outbox rows remain durable and undelivered; they are
+excluded before the delivery batch limit and become eligible if the origin is
+restored. No schema or persisted-state shape changes are involved. Context reads consume
+one ordered union of the five relevant ledger event types; usage notifications
+read event metadata while retaining all-event cursor progression, snapshot
+fences, cancellation and the existing store-owner retry behavior.
+
+Web retains the same server-state keys, envelopes, workspace/profile partitions,
+stream fences and visible-window ownership. Live catalog wakes coalesce canonical
+detail rereads without canceling in-flight work or dropping the final wake. Weak
+transcript-result retention releases obsolete arrays while held consumer views
+remain valid. Exact query lookups preserve custom hashes and all by-ID profile
+lenses when stream fallback timers are re-armed. Direct and permalink routes
+start the canonical transcript prefetch after identity/scope validation without
+blocking route entry on that optional data request.
+
+MCP projection changes are internal: policy-invisible tools avoid backend probes,
+unchanged stream projections avoid schema cloning, and extension availability is
+batched within one projection. Calls retain their policy and backend revalidation;
+no persistent availability cache or longer authorization staleness is introduced.
+Native tool IDs, HTTP/UDS/CLI wire contracts, extension RPC contracts, hooks,
+configuration and official skill behavior remain unchanged. Two paragraphs in
+`skills/compozy/references/native-tools.md` are shortened without removing their
+contracts so the startup manual fits its existing byte budget. No site guide,
+compatibility adapter or migration is required. Generated SQL query code follows
+the existing generator.
+
+Affected QA legs are tracked in the owning workspace, live-session,
+hidden-window, task catalog, attention catalog, usage/context, deep-link, Goal
+lineage and tool-projection scenarios. Historical passes do
+not prove this revision; the report records current checks and outstanding walks.
+
 ## Web runtime performance — 2026-10-17
 
 Owner: branch `perf/web-performance`. Evidence and limits:
@@ -149,6 +204,27 @@ change is needed. QA impact is flagged in `RT-047`,
 `MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
 Focused canonical suites and differential probes provide local slice evidence;
 heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
+
+## Profile inheritance and global profile selection — 2026-10-18
+
+Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
+back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
+added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
+global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
+from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
+(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
+with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
+a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
+`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
+surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
+workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
+All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
+it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
+keys are unchanged. Scoped reads still return not found across profiles. Official skill
+(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
+scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
+contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
+on.
 
 ## Profile-bound session actions — 2026-10-17
 

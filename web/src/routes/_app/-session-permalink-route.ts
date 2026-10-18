@@ -4,7 +4,7 @@ import { redirect } from "@tanstack/react-router";
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 
 import type { TopbarRouteContext } from "@/types/topbar";
-import { resolveActiveWorkspaceSelection } from "./-route-preload";
+import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -17,7 +17,7 @@ import {
   type SessionPayload,
   sessionTranscriptOptions,
 } from "@/systems/session";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;
@@ -112,7 +112,7 @@ export async function resolveSessionPermalink({
     // workspaces without the operator's confirmation.
     await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
     session = await queryClient.ensureQueryData(
-      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient, readProfileLens()))
+      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
@@ -126,7 +126,7 @@ export async function resolveSessionPermalink({
     throw error;
   }
 
-  await Promise.allSettled([
+  await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, session.id)),
   ]);
   return { status: "resolved", session };
@@ -148,7 +148,7 @@ async function resolveForeignPermalink(
   }
   if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
     const session = await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
-    await Promise.allSettled([
+    await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
     return { status: "resolved", session };

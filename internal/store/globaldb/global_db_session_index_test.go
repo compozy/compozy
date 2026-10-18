@@ -247,10 +247,45 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil || facets.Facets.TerminalApprovals != 109 {
 			t.Fatalf("resolved approval facets=%#v error=%v", facets, err)
 		}
+		if _, err := db.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+			InteractionID: "terminal-count-002-approval",
+			Status:        store.PendingInteractionStatusOrphaned,
+			At:            base.Add(2 * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 108 {
+			t.Fatalf("orphaned approval facets=%#v error=%v", facets, err)
+		}
+		query.ExcludeIDs = nil
+		where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(base))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan := explainQueryPlan(t, db.db, sessionTerminalApprovalFacetStatement(where), args...)
+		if !strings.Contains(plan, "uq_session_pending_interactions_active_provider_request") {
+			t.Fatalf("terminal approval query plan = %s, want the active interaction index", plan)
+		}
 		query.ReadScope = store.ReadScope{ProfileID: foreignProfile}
 		facets, err = db.SessionCatalogFacets(ctx, query)
 		if err != nil || facets.Facets.TerminalApprovals != 1 {
 			t.Fatalf("foreign profile facets=%#v error=%v", facets, err)
+		}
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 109 {
+			t.Fatalf("all profile facets=%#v error=%v", facets, err)
+		}
+		query.WorkspaceID = ""
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 110 || len(facets.ByWorkspace) != 2 {
+			t.Fatalf("all workspace facets=%#v error=%v", facets, err)
+		}
+		query.WorkspaceID = registerWorkspaceForGlobalTests(t, db, "terminal-empty", t.TempDir())
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 0 || len(facets.ByWorkspace) != 0 {
+			t.Fatalf("empty workspace facets=%#v error=%v", facets, err)
 		}
 	})
 

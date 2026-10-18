@@ -79,7 +79,7 @@ describe("useAgentDeleteFlow", () => {
   });
 
   it("Should toast with unshadowed_origin and navigate to /agents on success", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const user = userEvent.setup();
     mockMutate.mockImplementation((_vars, opts) => {
       opts.onSuccess({

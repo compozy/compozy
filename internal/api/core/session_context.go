@@ -17,44 +17,16 @@ func (h *BaseHandlers) sessionContextInput(
 	info *session.Info,
 ) (contextusage.Input, error) {
 	input := contextusage.Input{}
-	usage, err := h.Sessions.UsageEvents(ctx, id)
+	snapshot, err := h.Sessions.ContextEvents(ctx, id)
 	if err != nil {
 		return input, err
 	}
-	deliveries, err := h.Sessions.Deliveries(ctx, id)
-	if err != nil {
-		return input, err
+	populateContextEvents(&input, snapshot.Usage, snapshot.Deliveries, snapshot.Compactions)
+	input.ClearedBy = snapshot.ClearedBy
+	if snapshot.ClearedBy != nil {
+		input.CompactionBoundary = new(snapshot.ClearedBy.Sequence)
 	}
-	compactions, err := h.Sessions.Compactions(ctx, id)
-	if err != nil {
-		return input, err
-	}
-	settled, err := h.Sessions.LatestSettledTurn(ctx, id)
-	if err != nil {
-		return input, err
-	}
-	populateContextEvents(&input, usage, deliveries, compactions)
-	switch reader := h.Sessions.(type) {
-	case interface {
-		CompactionClearBoundary(context.Context, string) (*contextusage.ClearedBy, error)
-	}:
-		boundary, err := reader.CompactionClearBoundary(ctx, id)
-		if err != nil {
-			return input, err
-		}
-		input.ClearedBy = boundary
-		if boundary != nil {
-			input.CompactionBoundary = new(boundary.Sequence)
-		}
-	case interface {
-		CompactionBoundary(context.Context, string) (*int64, error)
-	}:
-		boundary, err := reader.CompactionBoundary(ctx, id)
-		if err != nil {
-			return input, err
-		}
-		input.CompactionBoundary = boundary
-	}
+	settled := snapshot.Settled
 	if settled.Sequence > 0 {
 		input.Settled = &contextusage.SettledTurn{TurnID: settled.TurnID, Sequence: settled.Sequence}
 	}

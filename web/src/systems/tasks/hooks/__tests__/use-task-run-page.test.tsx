@@ -31,7 +31,7 @@ import {
 } from "@/systems/tasks/adapters/tasks-api";
 
 import { useTaskRunPage } from "../use-task-run-page";
-import { readProfileLens, resetProfileViews, setProfileView } from "@/systems/profiles";
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -73,8 +73,7 @@ afterEach(() => {
 
 describe("useTaskRunPage", () => {
   it("Should scope every run-page read and isolate cached results after a profile switch", async () => {
-    const lens = readProfileLens();
-    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    setProfileView({ kind: "profile", profile: "marketing" });
     const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
       wrapper: createWrapper(),
     });
@@ -96,7 +95,7 @@ describe("useTaskRunPage", () => {
     );
 
     vi.mocked(getTaskRun).mockRejectedValue(new Error("Task run not found: run_001"));
-    act(() => setProfileView(lens, { kind: "profile", profile: "default" }));
+    act(() => setProfileView({ kind: "profile", profile: "default" }));
     await waitFor(() => expect(result.current.notFound).toBe(true));
     expect(result.current.run).toBeNull();
     expect(getTaskRun).toHaveBeenLastCalledWith(
@@ -106,7 +105,7 @@ describe("useTaskRunPage", () => {
     );
 
     vi.mocked(getTaskRun).mockResolvedValue(runDetailFixture as never);
-    act(() => setProfileView(lens, { kind: "aggregate" }));
+    act(() => setProfileView({ kind: "aggregate" }));
     await waitFor(() => expect(result.current.run?.run.id).toBe("run_001"));
     expect(getTaskRun).toHaveBeenLastCalledWith(
       "run_001",

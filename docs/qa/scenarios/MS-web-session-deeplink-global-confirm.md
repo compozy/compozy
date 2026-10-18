@@ -36,3 +36,14 @@ original three lifecycle events and physical database owner. Current affected ga
 lab evidence audit pass; both exact-manifest Global labs have clean teardown receipts. The fixture
 has no authored provider narrative, and no such rendering claim is made. See the final Global
 closure in the cycle report for the complete earlier scope-control legs and evidence.
+
+
+QA impact 2026-10-17 (concurrent-session responsiveness): direct and permalink
+routes begin canonical transcript prefetch without waiting for it before opening
+the session. Identity, profile/workspace ownership and Global-scope confirmation
+still complete first. Hold the transcript response pending and confirm the
+validated route opens; its consumer must reuse the same request and show the
+eventual history or existing error state. Retain foreign-workspace privacy and
+remembered-project behavior. The canonical router integration suite owns these
+checks; [the responsiveness report](../reports/2026-10-17-responsiveness.md) records
+current evidence separately from the historical released-fixture walk above.

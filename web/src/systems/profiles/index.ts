@@ -4,7 +4,6 @@ export type {
   CreateProfileParams,
   DeleteProfilePlan,
   ProfileDialogIntent,
-  ProfileLens,
   ProfileLifecycleFlow,
   ProfileLifecycleTargetFlow,
   ProfileOperation,
@@ -26,7 +25,7 @@ export { PROFILE_AGGREGATE } from "./types";
 export { ProfileApiError } from "./adapters/profiles-api";
 
 // Query infrastructure
-export { profileKeys, profileLensKey } from "./lib/query-keys";
+export { profileKeys } from "./lib/query-keys";
 export {
   isAggregateView,
   ownerFromRow,
@@ -39,7 +38,7 @@ export {
   type ProfileScopeParams,
 } from "./lib/profile-scope";
 export {
-  readProfileLens,
+  readActingProfile,
   readProfileScopeParams,
   readProfileView,
 } from "./lib/profile-scope-resolver";
@@ -48,7 +47,6 @@ export {
   deletePlanOptions,
   profileDetailOptions,
   profileOperationsOptions,
-  profileSelectionMapOptions,
   profileSelectionOptions,
   profilesListOptions,
   renamePlanOptions,
@@ -113,9 +111,10 @@ export {
 
 // Stores
 export {
+  isProfileViewStoreHydrated,
   localProfileView,
-  profileViewSelectors,
   profileViewStore,
+  rehydrateProfileViewStore,
   resetProfileViews,
   restoreProfileView,
   setProfileView,
@@ -129,12 +128,7 @@ export {
 } from "./stores/profile-dialog-store";
 
 // Hooks
-export {
-  useProfile,
-  useProfileOperations,
-  useProfileSelectionMap,
-  useProfiles,
-} from "./hooks/use-profiles";
+export { useProfile, useProfileOperations, useProfiles } from "./hooks/use-profiles";
 export {
   useActiveProfileView,
   useRememberedProfile,
@@ -155,7 +149,6 @@ export {
   lifecycleErrorMessage,
   useProfileLifecycle,
 } from "./hooks/use-profile-lifecycle";
-export { useProfileLens } from "./hooks/use-profile-lens";
 export {
   useAggregateDestination,
   useProfileReadScope,
@@ -200,7 +193,6 @@ export {
 } from "./components/workspace-profiles-hint";
 export { ProfileSwitcherSlot } from "./components/profile-switcher-slot";
 export { ProfileSettingsList } from "./components/profile-settings-list";
-export { ProfileSelectionMap } from "./components/profile-selection-map";
 export { ProfilePaletteRow } from "./components/profile-palette-row";
 export { ProfileOwnerTag, type ProfileOwnerTagProps } from "./components/profile-owner-tag";
 export {
