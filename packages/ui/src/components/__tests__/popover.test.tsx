@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Popover,
@@ -33,18 +33,29 @@ function PopoverExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
 
 describe("Popover", () => {
   it("Should close on Escape", async () => {
+    // Owns exit accessibility: retained content is hidden and inert, then removed.
+    // Freeze only animation time so userEvent can drain its real zero-delay timers.
+    vi.useFakeTimers({ toFake: ["performance", "requestAnimationFrame", "cancelAnimationFrame"] });
     const user = userEvent.setup();
-    render(<PopoverExample defaultOpen />);
-    await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
-    await user.keyboard("{Escape}");
+    const { unmount } = render(<PopoverExample defaultOpen />);
+    try {
+      await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      await user.keyboard("{Escape}");
 
-    const exitingPopup = document.querySelector('[data-slot="popover-content"]');
-    expect(exitingPopup).toHaveAttribute("aria-hidden", "true");
-    expect(exitingPopup).toHaveAttribute("inert");
+      const exitingPopup = document.querySelector('[data-slot="popover-content"]');
+      expect(exitingPopup).toBeInTheDocument();
+      expect(exitingPopup).toHaveAttribute("aria-hidden", "true");
+      expect(exitingPopup).toHaveAttribute("inert");
 
-    await waitFor(() => expect(screen.queryByText("Filters")).not.toBeInTheDocument(), {
-      timeout: 1500,
-    });
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      await waitFor(() => expect(screen.queryByText("Filters")).not.toBeInTheDocument(), {
+        timeout: 1500,
+      });
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("Should throw when PopoverContent is rendered outside <Popover>", () => {
