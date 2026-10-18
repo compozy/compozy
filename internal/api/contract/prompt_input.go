@@ -103,21 +103,19 @@ func (r SteerPromptRequest) Validate() error {
 
 // Validate checks one atomic queued-input replacement.
 func (r ReplaceSessionInputRequest) Validate() error {
-	return validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey)
+	if strings.TrimSpace(r.Text) == "" {
+		return errors.New("text is required")
+	}
+	return validateSessionInputMutationIdentity(r.MessageID, r.IdempotencyKey)
 }
 
 // Validate checks one atomic queue-to-steer replacement and its active-turn fence.
 func (r PromoteSessionInputRequest) Validate() error {
-	if err := validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey); err != nil {
-		return err
-	}
-	return nil
+	// The queue owns the attachment snapshot and validates that the replacement has content.
+	return validateSessionInputMutationIdentity(r.MessageID, r.IdempotencyKey)
 }
 
-func validateSessionInputMutation(text string, messageID string, idempotencyKey string) error {
-	if strings.TrimSpace(text) == "" {
-		return errors.New("text is required")
-	}
+func validateSessionInputMutationIdentity(messageID string, idempotencyKey string) error {
 	if strings.TrimSpace(messageID) == "" {
 		return errors.New("message_id is required")
 	}

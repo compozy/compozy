@@ -2917,20 +2917,20 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 		}
 	})
 
-	t.Run("Should atomically promote queued input with an expected turn fence", func(t *testing.T) {
+	t.Run("Should forward attachment-only promotion with an expected turn fence", func(t *testing.T) {
 		recorder := performRequest(
 			t,
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue/inq-1/steer",
 			[]byte(
-				`{"text":"steer now","message_id":"msg-3","idempotency_key":"idem-3","expected_turn_id":"turn-live"}`,
+				`{"text":"","message_id":"msg-3","idempotency_key":"idem-3","expected_turn_id":"turn-live"}`,
 			),
 		)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want 202; body=%s", recorder.Code, recorder.Body.String())
 		}
-		if promoteOpts.Text != "steer now" || promoteOpts.ExpectedTurnID != "turn-live" ||
+		if promoteOpts.Text != "" || promoteOpts.ExpectedTurnID != "turn-live" ||
 			promoteOpts.MessageID != "msg-3" || promoteOpts.IdempotencyKey != "idem-3" {
 			t.Fatalf("PromotePendingInputToSteer() opts = %#v", promoteOpts)
 		}

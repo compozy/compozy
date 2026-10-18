@@ -4360,7 +4360,7 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 				t.Fatalf("steer lost durable attachments: %#v", entry.Attachments)
 			}
 			steerer := h.manager.driver.(*steeringTestDriver)
-			if len(steerer.attachments) != 1 || string(steerer.attachments[0].Data) != string(data) {
+			if len(steerer.attachments) != 1 || !bytes.Equal(steerer.attachments[0].Data, data) {
 				t.Fatalf("injection attachments = %#v", steerer.attachments)
 			}
 			if entry.SteerDelivery != tc.delivery {
@@ -4440,7 +4440,14 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			}
 			changed := opts
 			changed.Attachments = nil
-			if _, err := h.manager.SendPrompt(t.Context(), sess.ID, changed); !errors.Is(err, store.ErrSessionPromptIdempotencyConflict) {
+			if _, err := h.manager.SendPrompt(
+				t.Context(),
+				sess.ID,
+				changed,
+			); !errors.Is(
+				err,
+				store.ErrSessionPromptIdempotencyConflict,
+			) {
 				t.Fatalf("changed attachment identity error = %v", err)
 			}
 			if tc.delivery != store.SteerDeliveryInterruptFallback && !tc.lateFailure {
@@ -4462,7 +4469,8 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 			}
 			if tc.delivery == store.SteerDeliveryInterruptFallback || tc.lateFailure {
 				calls := managerPromptCalls(h)
-				if len(calls) < 2 || len(calls[1].Attachments) != 1 || string(calls[1].Attachments[0].Data) != string(data) {
+				if len(calls) < 2 || len(calls[1].Attachments) != 1 ||
+					!bytes.Equal(calls[1].Attachments[0].Data, data) {
 					t.Fatalf("fallback attachments were not delivered: %#v", calls)
 				}
 			}
@@ -4698,7 +4706,9 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 				t.Context(),
 				sess.ID,
 				SendPromptOpts{
-					Attachments:      []AttachmentMeta{promptAttachmentMeta(t, attachmentID, "notes.txt", "text/plain", data)},
+					Attachments: []AttachmentMeta{
+						promptAttachmentMeta(t, attachmentID, "notes.txt", "text/plain", data),
+					},
 					Message:          "Q?",
 					MessageID:        "msg-origin",
 					IdempotencyKey:   "key-origin",
@@ -4743,7 +4753,8 @@ func TestManagerPromptOriginDelivery(t *testing.T) {
 			}
 			select {
 			case req := <-sent:
-				if len(req.Attachments) != 1 || string(req.Attachments[0].Data) != string(data) || managerCancelCalls(h) != 0 {
+				if len(req.Attachments) != 1 || !bytes.Equal(req.Attachments[0].Data, data) ||
+					managerCancelCalls(h) != 0 {
 					t.Fatalf("agent message attachments/cancellation = %#v/%d", req.Attachments, managerCancelCalls(h))
 				}
 				reply := `To reply, call compozy__session_prompt with session_id "sender".`

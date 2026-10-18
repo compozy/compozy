@@ -30,7 +30,12 @@ type wireSteerResponse struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-func (d *Driver) Steer(ctx context.Context, proc *AgentProcess, turnID, text string, attachments []PromptAttachment) (SteerResult, error) {
+func (d *Driver) Steer(
+	ctx context.Context,
+	proc *AgentProcess,
+	turnID, text string,
+	attachments []PromptAttachment,
+) (SteerResult, error) {
 	if ctx == nil {
 		return SteerResult{Attempt: SteerAttemptUnsupported}, errors.New("acp: steer context is required")
 	}

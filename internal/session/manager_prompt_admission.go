@@ -37,7 +37,13 @@ func (m *Manager) submitAdmittedSteerCommand(
 		return *replayed, nil
 	}
 	if !found {
-		if err := m.canonicalizeAdmissionPromptAttachments(ctx, workspaceID, session.ID, &req, &admissionReq); err != nil {
+		if err := m.canonicalizeAdmissionPromptAttachments(
+			ctx,
+			workspaceID,
+			session.ID,
+			&req,
+			&admissionReq,
+		); err != nil {
 			return SendPromptResult{}, err
 		}
 	}

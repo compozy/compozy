@@ -3211,14 +3211,21 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 				if id != "sess-1" || path != "screen.png" {
 					t.Fatalf("unexpected upload %q/%q", id, path)
 				}
-				return SessionAttachmentRecord{ID: "att-image", Name: "screen.png", MIMEType: "image/png", Kind: "image", Bytes: 42}, nil
+				return SessionAttachmentRecord{
+					ID:       "att-image",
+					Name:     "screen.png",
+					MIMEType: "image/png",
+					Kind:     "image",
+					Bytes:    42,
+				}, nil
 			},
 			steerSessionPromptFn: func(
 				_ context.Context,
 				id string,
 				request contract.SteerPromptRequest,
 			) (SessionPromptRecord, error) {
-				if len(request.Attachments) != 1 || request.Attachments[0].ID != "att-image" || request.Attachments[0].Bytes != 42 {
+				if len(request.Attachments) != 1 || request.Attachments[0].ID != "att-image" ||
+					request.Attachments[0].Bytes != 42 {
 					t.Fatalf("steer attachments = %#v", request.Attachments)
 				}
 				gotID = id

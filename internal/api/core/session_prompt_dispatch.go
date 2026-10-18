@@ -168,7 +168,10 @@ func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptR
 		h.respondError(c, http.StatusBadRequest, err)
 		return session.SendPromptResult{}, false
 	}
-	if err := contract.ValidatePromptAttachments(request.Attachments, h.Config.Session.Attachments.MaxFilesPerPrompt); err != nil {
+	if err := contract.ValidatePromptAttachments(
+		request.Attachments,
+		h.Config.Session.Attachments.MaxFilesPerPrompt,
+	); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return session.SendPromptResult{}, false
 	}

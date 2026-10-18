@@ -146,13 +146,13 @@ func TestServiceMutateAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve attachments when promoting queued input to steer", func(t *testing.T) {
+	t.Run("Should preserve attachments when promoting attachment-only input to steer", func(t *testing.T) {
 		t.Parallel()
 
 		source := store.SessionInputQueueEntry{
 			ID:          "inq-source",
 			SessionID:   "sess-mutate",
-			Text:        "queued",
+			Text:        "",
 			Mode:        store.SessionInputQueueModeQueue,
 			Delivery:    store.SessionInputDeliveryAfterTurn,
 			Status:      store.SessionInputQueueStatusQueued,
@@ -164,7 +164,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 			t.Context(),
 			"sess-mutate",
 			"inq-source",
-			"steer now",
+			"",
 			"turn-1",
 			"msg-promote",
 			"idem-promote",

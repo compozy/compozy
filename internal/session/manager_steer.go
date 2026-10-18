@@ -70,7 +70,13 @@ func (m *Manager) activateSteeringInputText(
 		if providerText != "" {
 			text = providerText
 		}
-		attempt, steerErr := steerer.Steer(steerCtx, proc, entry.TargetTurnID, promptOriginMessage(origin, text), attachments)
+		attempt, steerErr := steerer.Steer(
+			steerCtx,
+			proc,
+			entry.TargetTurnID,
+			promptOriginMessage(origin, text),
+			attachments,
+		)
 		cancel()
 		if steerErr == nil {
 			completion = attempt.Completion

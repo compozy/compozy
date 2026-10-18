@@ -135,7 +135,10 @@ func (m *Manager) PromotePendingInputToSteer(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := validatePromptAttachmentCaps(attachmentMetaFromStore(source.Attachments), session.processHandle().CapsSnapshot()); err != nil {
+	if err := validatePromptAttachmentCaps(
+		attachmentMetaFromStore(source.Attachments),
+		session.processHandle().CapsSnapshot(),
+	); err != nil {
 		return SendPromptResult{}, err
 	}
 	entry, _, err := m.inputQueue.PromoteToSteer(

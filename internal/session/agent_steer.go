@@ -7,7 +7,12 @@ import (
 )
 
 type AgentSteerer interface {
-	Steer(ctx context.Context, proc *AgentProcess, turnID, text string, attachments []acp.PromptAttachment) (acp.SteerResult, error)
+	Steer(
+		ctx context.Context,
+		proc *AgentProcess,
+		turnID, text string,
+		attachments []acp.PromptAttachment,
+	) (acp.SteerResult, error)
 }
 
 var _ AgentSteerer = (*ACPDriverAdapter)(nil)

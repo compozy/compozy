@@ -3168,6 +3168,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		t.Parallel()
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
+		applyApprovedAdditiveSchemaChanges(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3409,6 +3410,20 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 	}
 	t.Fatalf("missing raw stream frame component %s", name)
 	return nil
+}
+
+// #788: optional additive field; no required/type/removal change.
+func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	prompt := paths[prefix+"/prompt"].(map[string]any)["post"].(map[string]any)
+	steer := paths[prefix+"/steer"].(map[string]any)["post"].(map[string]any)
+	promptBody := prompt["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	steerBody := steer["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	promptProperties := promptBody["schema"].(map[string]any)["properties"].(map[string]any)
+	steerProperties := steerBody["schema"].(map[string]any)["properties"].(map[string]any)
+	steerProperties["attachments"] = promptProperties["attachments"]
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {

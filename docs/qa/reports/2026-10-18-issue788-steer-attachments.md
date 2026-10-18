@@ -43,6 +43,21 @@ history survived a restart of the isolated lab and a fresh Web load.
 
 ![Image, Steered provenance and visual response after reload](../assets/2026-10-18-issue788-steer-image-history.png)
 
+## Review remediation re-walk
+
+Greptile identified that image-only queue promotion still returned HTTP 400 because the request DTO
+required text before the manager could inspect stored attachments. The existing HTTP regression
+reproduced the failure before the fix. Promotion now validates request identity at ingress and leaves
+content validation to the queue, which owns the attachment snapshot and still rejects truly empty
+input. Focused HTTP, queue, manager and OpenAPI compatibility race suites passed.
+
+A fresh real Web walk queued an image with no text during Claude's eight foreground waits, then
+clicked Steer. The queue disappeared, the image rendered with live-turn Steered provenance, and an
+independent CLI read confirmed an empty queue. Claude answered: "The image you sent mid-turn shows a
+purple triangle and an orange rectangle stacked on the left, with a teal circle on the right."
+
+![Image-only promotion and same-turn response](../assets/2026-10-18-issue788-image-only-promotion.png)
+
 ## Verification
 
 - Focused Web suites: 19 passed; the queue-promotion follow-up suite passed 5 selected cases.
