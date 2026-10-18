@@ -147,10 +147,13 @@ func (m *Manager) replyMessageTurn(
 		}
 	}
 	// A batched follower is marked sent in the head's turn even when its own input event could not be
-	// written; the sent receipt still names the turn that consumed the message.
+	// written; the sent receipt still names the turn that consumed the message. A steer still pending
+	// injection is sent but not consumed: it may fall back to the queue.
 	for i := range inputs {
-		if inputs[i].Status == store.SessionInputQueueStatusSent && inputs[i].TurnID != "" {
-			return inputs[i].TurnID, nil
+		input := &inputs[i]
+		if input.Status == store.SessionInputQueueStatusSent && input.TurnID != "" &&
+			input.SteerDelivery != store.SteerDeliveryPendingInjection {
+			return input.TurnID, nil
 		}
 	}
 	if !recovering {

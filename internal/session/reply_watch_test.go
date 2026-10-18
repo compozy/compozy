@@ -1222,6 +1222,23 @@ func TestReplyWatchBatchedDispatch(t *testing.T) {
 			t.Fatalf("watch = %+v, %v; want it bound to the consuming turn batch-turn", got, err)
 		}
 	})
+	t.Run("Should not treat a steer still pending injection as consumed", func(t *testing.T) {
+		t.Parallel()
+		h, db, _, _, target, w := replyWatchFixture(t)
+		admission, _, err := db.ReplyWatchEvidence(t.Context(), w)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending := []store.SessionInputQueueEntry{{
+			ID: "pending-steer", SessionID: target.ID, Status: store.SessionInputQueueStatusSent,
+			Mode: store.SessionInputQueueModeSteer, SteerDelivery: store.SteerDeliveryPendingInjection,
+			TurnID: "live-turn",
+		}}
+		turn, err := h.manager.replyMessageTurn(t.Context(), w, admission, pending, false)
+		if err != nil || turn != "" {
+			t.Fatalf("replyMessageTurn() = %q, %v; want no consuming turn while injection is pending", turn, err)
+		}
+	})
 	t.Run("Should dispatch a released follower on its own after the batched head fails to start", func(t *testing.T) {
 		t.Parallel()
 		h, db, _, sender, target, _ := replyWatchFixture(t)
