@@ -204,13 +204,24 @@ func raiseBatchedPromptHops(session *Session, inputs []batchedPromptInput) {
 func (m *Manager) recordBatchedPromptInputs(ctx context.Context, session *Session, inputs []batchedPromptInput) {
 	for index := range inputs {
 		follower := inputs[index].request
-		if err := m.recordPromptInputEvent(ctx, session, &follower); err != nil {
+		var err error
+		// The provider already has the message: retry only the idempotent event write, never the send.
+		for range batchedInputEventAttempts {
+			if err = m.recordPromptInputEvent(ctx, session, &follower); err == nil {
+				break
+			}
+		}
+		if err != nil {
+			// The sent receipt keeps the consuming turn, so the reply watch still binds without the event.
 			m.sessionLogger(session).Error(
 				"session: record batched input event failed", "message_id", follower.messageID, "error", err,
 			)
 		}
 	}
 }
+
+// batchedInputEventAttempts bounds the retries of one batched follower's input event write.
+const batchedInputEventAttempts = 3
 
 // requestDispatchMessage builds the provider prompt of req's turn: its own attributed input followed by
 // every batched message it carries.

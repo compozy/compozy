@@ -1203,6 +1203,24 @@ func TestReplyWatchBatchedDispatch(t *testing.T) {
 		default:
 		}
 	})
+	t.Run("Should bind a watch through the sent receipt when the input event is missing", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, _, target, w := replyWatchFixture(t)
+		entry := replyQueuedInput(t, h, db, target, w)
+		if _, ok, err := db.ClaimNextSessionInput(t.Context(), target.ID, h.manager.now()); err != nil || !ok {
+			t.Fatalf("claim = %v, %v", ok, err)
+		}
+		// The follower was delivered in the head's turn, but its own input event was never written.
+		if err := db.MarkSessionInputSentInTurn(t.Context(), target.ID, entry.ID, "batch-turn", h.manager.now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Reconcile(t.Context(), w.ID); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := db.GetReplyWatch(t.Context(), w.ID); err != nil || got.TurnID != "batch-turn" {
+			t.Fatalf("watch = %+v, %v; want it bound to the consuming turn batch-turn", got, err)
+		}
+	})
 	t.Run("Should dispatch a released follower on its own after the batched head fails to start", func(t *testing.T) {
 		t.Parallel()
 		h, db, _, sender, target, _ := replyWatchFixture(t)

@@ -146,6 +146,13 @@ func (m *Manager) replyMessageTurn(
 			return events[0].TurnID, nil
 		}
 	}
+	// A batched follower is marked sent in the head's turn even when its own input event could not be
+	// written; the sent receipt still names the turn that consumed the message.
+	for i := range inputs {
+		if inputs[i].Status == store.SessionInputQueueStatusSent && inputs[i].TurnID != "" {
+			return inputs[i].TurnID, nil
+		}
+	}
 	if !recovering {
 		return "", nil
 	}
