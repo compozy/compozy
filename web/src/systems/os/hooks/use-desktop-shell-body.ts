@@ -279,6 +279,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
           folders: options.sessionListView.layout?.folders,
           collapsedFolderIds: new Set(collapsedFolderIds),
           archived: options.sessionListView.archived,
+          filtering: (options.sessionListView.search ?? "").trim() !== "",
           workspaceGroups: options.sessionListView.workspaceGroups.map(group => ({
             ...group,
             // Expanded groups own these exact pages. Read their current cursor at

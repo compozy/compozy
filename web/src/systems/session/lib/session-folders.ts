@@ -98,12 +98,15 @@ export interface VisibleSessionOrderOptions {
   folders?: readonly SessionFolderPayload[];
   collapsedFolderIds?: ReadonlySet<string>;
   archived?: boolean;
+  /** A search is narrowing the list, which opens every folder holding a match. */
+  filtering?: boolean;
 }
 
 /**
- * Projects the same unfiltered row order the shared session catalog renders.
- * Closed groups, folders, and threads are excluded because the cycle shortcut
- * must never focus a row the operator cannot currently see.
+ * Projects the row order the shared session catalog renders for the served
+ * sessions. Closed groups, folders, and threads are excluded because the cycle
+ * shortcut must never focus a row the operator cannot currently see; a search
+ * forces folders open exactly as the list does.
  */
 export function visibleSessionOrder(
   sessions: readonly SessionPayload[],
@@ -116,14 +119,15 @@ export function visibleSessionOrder(
   }
 
   const threads = buildSessionListThreads(sessions, "");
+  const filtering = options.filtering ?? false;
   const visibleThreads = options.folders
     ? sectionsVisibleThreads(
         buildSessionListSections(threads, options.folders, {
-          filtering: false,
+          filtering,
           archived: options.archived ?? false,
         }),
         options.collapsedFolderIds ?? new Set(),
-        false
+        filtering
       )
     : threads;
   const byId = new Map(sessions.map(session => [session.id, session]));

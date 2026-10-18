@@ -209,4 +209,20 @@ describe("visibleSessionOrder", () => {
       order(visibleSessionOrder(page, { ...options, collapsedFolderIds: new Set(["fa"]) }))
     ).toEqual(["b1", "r1"]);
   });
+
+  it("Should keep a search match inside a collapsed folder, as the list shows it", () => {
+    const results = [session("a1", "fa"), session("r1")];
+    const options = {
+      ...base,
+      scope: "workspace" as const,
+      folders: [folder("fa"), folder("fb")],
+      collapsedFolderIds: new Set(["fa"]),
+    };
+
+    expect(order(visibleSessionOrder(results, { ...options, filtering: true }))).toEqual([
+      "a1",
+      "r1",
+    ]);
+    expect(order(visibleSessionOrder(results, options))).toEqual(["r1"]);
+  });
 });
