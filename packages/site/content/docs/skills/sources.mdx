@@ -94,7 +94,7 @@ compozy skill sources -o json
           "skipped_links": [],
           "collisions": [],
           "verification": { "blocked": 0, "warned": 0 },
-          "native_readers": ["openclaw"]
+          "native_readers": []
         }
       ]
     }
@@ -105,8 +105,9 @@ compozy skill sources -o json
 `scanned_count` is how many candidate `SKILL.md` files the root contains; `skill_count` is how many
 won a place in the catalog. A gap can come from shadowing, rejected links, or failed verification;
 inspect `collisions`, `skipped_links`, and `verification` to identify the cause. `native_readers` names the agent CLIs that
-read this exact directory themselves — it is per root, so the project-level `.agents/skills` root
-lists `["openclaw", "hermes"]` while the user-level one lists only `["openclaw"]`.
+read this exact directory themselves — it is per root. The Claude Code convention roots list
+`["claude"]`. The Agents convention roots list `[]` because no provider reads `.agents/skills`
+natively, so CompozyOS injects those skills for every provider.
 
 A directory that does not exist reports `"exists": false`. A directory that exists but cannot be
 read reports `"readable": false` with its counts omitted — never as zero, because zero would be a

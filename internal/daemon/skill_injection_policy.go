@@ -67,8 +67,6 @@ const (
 	maxSkillInjectionProfiles = 512
 	maxSkillRootCacheEntries  = 256
 	nativeProviderClaude      = "claude"
-	nativeProviderHermes      = "hermes"
-	nativeProviderOpenClaw    = "openclaw"
 )
 
 func newSkillInjectionPolicyResolver() skillInjectionPolicyResolver {
@@ -217,10 +215,6 @@ func canonicalNativeSkillProvider(provider string) string {
 	switch compozyconfig.CanonicalProviderName(provider) {
 	case nativeProviderClaude:
 		return nativeProviderClaude
-	case nativeProviderOpenClaw:
-		return nativeProviderOpenClaw
-	case nativeProviderHermes:
-		return nativeProviderHermes
 	default:
 		return ""
 	}
@@ -241,14 +235,7 @@ func nativeProviderHome(
 }
 
 func nativeProviderReadsOrigin(provider string, origin string) bool {
-	switch strings.TrimSpace(origin) {
-	case compozyconfig.SkillSourceAgents:
-		return provider == nativeProviderOpenClaw || provider == nativeProviderHermes
-	case compozyconfig.SkillSourceClaude:
-		return provider == nativeProviderClaude
-	default:
-		return false
-	}
+	return strings.TrimSpace(origin) == compozyconfig.SkillSourceClaude && provider == nativeProviderClaude
 }
 
 func canonicalNativeSkillRoots(roots []string) []string {

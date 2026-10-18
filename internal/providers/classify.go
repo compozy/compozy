@@ -352,7 +352,6 @@ func outputLooksAuthenticated(outcome ProbeOutcome) bool {
 		"logged in",
 		"login ok",
 		"authorized",
-		"hermes acp check ok",
 	)
 }
 

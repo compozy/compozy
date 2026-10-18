@@ -10,7 +10,7 @@ CompozyOS turns that entire agent stack into one product, a complete environment
 automate, and supervise agent work without scripts, plugin chains, or orchestration frameworks.
 
 These docs cover the runtime you install and the surfaces you drive it from. CompozyOS runs the
-agent CLIs you already use (Claude Code, OpenClaw, and Hermes among them) as daemon-owned sessions,
+agent CLIs you already use (Claude Code, Codex, and Cursor among them) as daemon-owned sessions,
 and the loops, triggers, permissions, automation, and supervision around them come built in.
 
 _Why it holds:_ one runtime, one state model. Loops and approvals are core objects, not
@@ -146,8 +146,8 @@ are.
 ### Run real agent CLIs as durable work
 
 CompozyOS does not reimplement agent logic behind API wrappers. It orchestrates real agent CLIs as
-managed sessions, so Claude Code stays Claude Code, OpenClaw stays OpenClaw, and Hermes stays
-Hermes.
+managed sessions, so Claude Code stays Claude Code, Codex stays Codex, and Cursor stays
+Cursor.
 
 That matters because you keep the native tools, context behavior, and interaction style of each
 agent instead of flattening everything into one abstraction layer.

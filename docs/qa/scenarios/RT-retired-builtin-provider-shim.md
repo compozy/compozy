@@ -1,0 +1,70 @@
+---
+id: RT-retired-builtin-provider-shim
+area: RT
+title: Keep a retired built-in provider reference working for one release with a replacement warning
+persona: Ada
+journey:
+expected: "`compozy provider list` on an isolated lab daemon lists only the kept built-ins (claude, codex, gemini, opencode, kimi-cli, qwen-code, copilot, cursor, pi, openrouter, zai, moonshot, vercel-ai-gateway, xai) plus declared custom providers; a config with `defaults.provider = \"hermes\"` still resolves with the former built-in definition and the daemon log records one `provider.retired_builtin` warning for `hermes` with `removed_in=v0.5.0` and a `replacement` field holding the exact `[providers.hermes]` entry; after declaring `[providers.hermes]` with its own `command`, the provider resolves as a plain custom provider and no new warning is logged."
+entry_points: compozy provider list -o json; compozy provider inspect hermes -o json; compozy config set defaults.provider hermes; $COMPOZY_HOME/config.toml; $COMPOZY_HOME/logs/compozy.log; GET /api/providers over HTTP and UDS; https://compozy.com/docs/agents/providers#retired-built-in-providers
+qa_status: pass
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-retired-provider-auth-20261017-225721-034868-lab/qa-artifacts/qa/retired-provider-auth-evidence.md
+last_report:
+overlaps: MS-028; RT-081
+---
+
+Added for issue #761 (removal of 12 long-tail built-in providers). Bootstrap an isolated lab with
+`eng-qa-bootstrap`; the walk needs no real Hermes executable because it observes config resolution
+and the daemon log, not a Hermes session.
+
+1. Start the lab daemon with no `[providers.*]` entries. `compozy provider list -o json` returns only
+   the kept built-ins. None of `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`,
+   `openhands`, `qoder`, `mistral`, `groq`, or `minimax` (or their aliases) appears.
+2. Set `defaults.provider = "hermes"`, restart the daemon, and resolve the default (provider inspect
+   or a session create that stops at provider launch). Resolution succeeds with
+   `command = "hermes acp"`. `compozy.log` holds exactly one `provider.retired_builtin` line for
+   `provider=hermes` with `removed_in=v0.5.0` and a `replacement` holding the `[providers.hermes]`
+   TOML entry. Resolving it again in the same daemon run logs no second warning.
+3. Follow the logged `action`: add the `replacement` (or merge it into existing `[providers.<id>]` tables, keeping set values) and restart. Resolution
+   still succeeds with the declared command, and the daemon log records no new
+   `provider.retired_builtin` warning.
+4. Repeat step 2 with an alias (`hermes-agent`) and with a pi-backed ID (`mistral`) to confirm the
+   alias canonicalizes to `hermes` and the pi-backed warning's replacement carries
+   `harness = "pi_acp"`, `runtime_provider = "mistral"`, and the `MISTRAL_API_KEY` credential slot.
+
+2026-10-17 targeted lab walk: PASS for steps 1-3 and the pi-backed half of step 4. Base `main`
+listed 26 built-ins; the branch listed 14. With `defaults.provider = "hermes"` and a partial
+`[providers.mistral]` override the daemon started, the CLI and daemon each logged one
+`provider.retired_builtin` line per ID with `removed_in=v0.5.0` and the full replacement, and
+`provider inspect mistral` matched the pre-change bound-secret shape. Declaring `[providers.hermes]`
+listed Hermes as a custom provider and silenced its warning. Alias canonicalization (`hermes-agent`)
+is covered by `internal/config` unit tests, not by this walk.
+
+2026-10-17 final-head re-walk (ca72b2405, after the daemon-logger and redaction fixes): PASS for
+steps 1-4. A clean config listed the 14 kept built-ins. With `defaults.provider = "hermes-agent"` and
+a partial `[providers.mistral.models]`, `compozy.log` held exactly one `provider.retired_builtin`
+record per ID with no `[REDACTED]` markers. The `mistral` replacement kept `codestral-latest`, and its
+`action` spelled out the `env` / `MISTRAL_API_KEY` secret reference. Applying both logged replacements as
+instructed restarted the daemon with no retired warnings. `hermes` and `mistral` were then listed as
+declared providers, and `provider inspect mistral` showed `bound_secret` with
+`env:MISTRAL_API_KEY`.
+
+2026-10-17 re-walk after the warning stopped echoing operator values (logged replacement = former
+definition, `action` = add or merge): PASS. The old config combined `defaults.provider =
+"hermes-agent"` with a partial `[providers.mistral]` that set `auth_login_command = "provider login
+raw-login-secret"` and `models.default = "codestral-latest"`. `compozy.log` held one record per ID,
+with no `[REDACTED]` marker and no occurrence of `raw-login-secret` or `codestral-latest`. Hermes's
+`action` said to add the replacement. Mistral's said to merge into the existing tables and add the
+`env` / `MISTRAL_API_KEY` secret_ref. After following both, the daemon restarted with no retired
+warnings. The merged Mistral entry kept `codestral-latest` and the login command, and `provider
+inspect mistral` showed `bound_secret` with `env:MISTRAL_API_KEY`.
+
+2026-10-17 re-walk with auth-aware merge guidance: PASS. When an existing `[providers.mistral]` sets
+`auth_mode = "native_cli"`, the logged replacement adds no `credential_slots` and the `action` asks
+for no `secret_ref`. Following it restarted the daemon with no retired warnings, and `provider
+inspect mistral` showed `native_cli` with no credentials. The login-command plus model override case
+was re-walked on the same binary: still no operator values in the log, and `bound_secret` with
+`env:MISTRAL_API_KEY` after the merge.

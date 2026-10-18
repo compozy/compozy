@@ -213,7 +213,7 @@ describe("useSettingsRolesPage", () => {
   it("Should preserve an edited roles draft when a newer baseline arrives", () => {
     const baseline = { auto_title: { agent: "claude" } } as SettingsRolesConfig;
     const edited = { auto_title: { agent: "codex" } } as SettingsRolesConfig;
-    const replacement = { auto_title: { agent: "hermes" } } as SettingsRolesConfig;
+    const replacement = { auto_title: { agent: "gemini" } } as SettingsRolesConfig;
     const store = settingsRolesDraftLogic.createStore({ baseline, lastAppliedLabel: null });
 
     store.trigger.draftChanged({ draft: edited });

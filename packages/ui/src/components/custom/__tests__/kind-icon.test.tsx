@@ -6,20 +6,12 @@ import { KindIcon } from "../kind-icon";
 import { providerKindIconRegistry } from "../kind-icon-registry";
 
 const providerKeys = [
-  "blackbox",
   "claude",
-  "cline",
   "codex",
   "gemini",
-  "goose",
-  "hermes",
-  "junie",
   "kimi-cli",
   "ollama",
   "openai",
-  "openclaw",
-  "openhands",
-  "qoder",
   "qwen-code",
 ] as const;
 

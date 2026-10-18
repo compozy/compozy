@@ -26,7 +26,7 @@ Anyone can prompt an agent. Making agents work continuously is still an engineer
 triggers, cron, permissions, approvals, observability, and the glue scripts that hold them
 together. CompozyOS turns that entire agent stack into one product, a complete environment to
 create, automate, and supervise agent work with the agent CLIs you already use (Claude Code,
-OpenClaw, and Hermes). Built first for developers and technical operators.
+Codex, and Cursor). Built first for developers and technical operators.
 
 > [!WARNING]
 > The v0.3 line is in beta. The previous v0.2.15 product is deprecated and maintained only for
@@ -46,7 +46,7 @@ OpenClaw, and Hermes). Built first for developers and technical operators.
   while work continues in the background.
 - **Work survives the terminal.** Sessions and Loop runs belong to the daemon, so closing one client
   does not erase the work.
-- **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, OpenClaw, and Hermes)
+- **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, Codex, and Cursor)
   operate the same daemon-owned state.
 - **Batteries included.** One runtime, one state model: loops and approvals are core
   objects, not plugins, reachable from web, CLI, HTTP/SSE, UDS, MCP, and native tools.
