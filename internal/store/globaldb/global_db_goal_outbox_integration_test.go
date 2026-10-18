@@ -14,6 +14,77 @@ import (
 )
 
 func TestGoalSessionOutboxIntegration(t *testing.T) {
+	t.Run("Should retain orphan projections without starving deliverable sessions", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-outbox")
+		now := time.Date(2026, 7, 10, 19, 0, 0, 0, time.UTC)
+		for _, id := range []string{"session-deleted", "session-stopped", "session-bound"} {
+			info := goalSessionInfoForTest(id, "ws-goal-outbox", now)
+			info.State = "stopped"
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", id, err)
+			}
+		}
+		for _, origin := range []string{"session-deleted", "session-stopped"} {
+			runID := "run-" + origin
+			insertGoalSchemaLoopRun(t, globalDB, runID, "ws-goal-outbox", "session", &origin)
+			if _, err := globalDB.EnqueueGoalSessionOutbox(ctx, goal.EnqueueSessionOutboxRequest{
+				EventID: "event-" + origin, WorkspaceID: "ws-goal-outbox", OriginSessionID: origin,
+				LoopRunID: looppkg.RunID(runID), BoundSessionID: new("session-bound"),
+				Cause: goal.SessionOutboxCauseStatus, CreatedAt: now,
+			}); err != nil {
+				t.Fatalf("EnqueueGoalSessionOutbox(%q) error = %v", origin, err)
+			}
+		}
+		for _, id := range []string{"session-deleted", "session-bound"} {
+			if err := globalDB.DeleteSession(ctx, id); err != nil {
+				t.Fatalf("DeleteSession(%q) error = %v", id, err)
+			}
+		}
+		path := globalDB.Path()
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		globalDB = openGlobalDBForTest(t, path)
+
+		pending, err := globalDB.ClaimGoalSessionOutbox(ctx, 1)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionOutbox(after reopen) error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].EventID != "event-session-stopped" {
+			t.Fatalf("pending = %#v, want stopped origin despite deleted bound session", pending)
+		}
+		if err := globalDB.AcknowledgeGoalSessionOutbox(ctx, pending[0].EventID, now); err != nil {
+			t.Fatalf("AcknowledgeGoalSessionOutbox() error = %v", err)
+		}
+		pending, err = globalDB.ClaimGoalSessionOutbox(ctx, 1)
+		if err != nil || len(pending) != 0 {
+			t.Fatalf("ClaimGoalSessionOutbox(orphan only) = %#v, %v, want empty", pending, err)
+		}
+		retained, err := loadGoalSessionOutboxByEventID(ctx, globalDB.db, "event-session-deleted")
+		if err != nil {
+			t.Fatalf("loadGoalSessionOutboxByEventID(deleted origin) error = %v", err)
+		}
+		if retained.DeliveredAt != nil {
+			t.Fatalf("orphan delivered_at = %v, want undelivered", retained.DeliveredAt)
+		}
+		if err := globalDB.RegisterSession(
+			ctx,
+			goalSessionInfoForTest("session-deleted", "ws-goal-outbox", now),
+		); err != nil {
+			t.Fatalf("RegisterSession(restored origin) error = %v", err)
+		}
+		pending, err = globalDB.ClaimGoalSessionOutbox(ctx, 1)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionOutbox(restored origin) error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].EventID != retained.EventID || pending[0].ID != retained.ID {
+			t.Fatalf("pending = %#v, want retained event %#v after catalog restoration", pending, retained)
+		}
+	})
+
 	t.Run("Should claim retry and acknowledge deterministic events exactly once", func(t *testing.T) {
 		t.Parallel()
 

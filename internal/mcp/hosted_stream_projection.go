@@ -20,11 +20,12 @@ type hostedUnversionedProjection struct {
 
 // StreamProjection serves projection-stream polls. Authoritative generations reuse the per-bind
 // cache; an unversioned projection, and its generation lookup, run at most once per refresh
-// interval unless the daemon projection epoch advanced. Projection stays fresh for one-shot reads.
+// interval unless the daemon projection epoch advanced. An unchanged digest omits tool copies.
 func (s *HostedService) StreamProjection(
 	ctx context.Context,
 	bindID string,
 	peer PeerInfo,
+	lastDigest string,
 ) (HostedProjectionResponse, error) {
 	record, err := s.recordForBind(ctx, bindID, peer)
 	if err != nil {
@@ -33,7 +34,7 @@ func (s *HostedService) StreamProjection(
 	// A fresh unversioned entry exists only after the generation was unknown; serving it first
 	// skips repeating that lookup inside the refresh window.
 	if cached, ok := s.projectionCache.loadUnversioned(
-		record.bindID, s.currentProjectionEpoch(), s.now(),
+		record.bindID, s.currentProjectionEpoch(), s.now(), lastDigest,
 	); ok {
 		return cached, nil
 	}
@@ -41,16 +42,24 @@ func (s *HostedService) StreamProjection(
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	return s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	unversioned := func(ctx context.Context, registry tools.Registry, record *hostedBindRecord) (HostedProjectionResponse, error) {
+		return s.boundedUnversionedProjection(ctx, registry, record, lastDigest)
+	}
+	response, err := s.projectionForGeneration(ctx, record, registry, unversioned, lastDigest)
+	if lastDigest != "" && response.Digest == lastDigest {
+		response.Tools = nil
+	}
+	return response, err
 }
 
 func (s *HostedService) boundedUnversionedProjection(
 	ctx context.Context,
 	registry tools.Registry,
 	record *hostedBindRecord,
+	lastDigest string,
 ) (HostedProjectionResponse, error) {
 	epoch := s.currentProjectionEpoch()
-	if cached, ok := s.projectionCache.loadUnversioned(record.bindID, epoch, s.now()); ok {
+	if cached, ok := s.projectionCache.loadUnversioned(record.bindID, epoch, s.now(), lastDigest); ok {
 		return cached, nil
 	}
 	var response HostedProjectionResponse
@@ -67,7 +76,7 @@ func (s *HostedService) boundedUnversionedProjection(
 		}
 		if attempt+1 >= hostedProjectionGenerationRetries {
 			// Keep the fresher build but leave it uncached so the next poll rebuilds.
-			return cloneHostedProjectionResponse(response), nil
+			return cloneHostedProjectionAfter(response, lastDigest), nil
 		}
 		epoch = after
 	}
@@ -78,7 +87,7 @@ func (s *HostedService) boundedUnversionedProjection(
 		})
 	}
 	s.mu.Unlock()
-	return cloneHostedProjectionResponse(response), nil
+	return cloneHostedProjectionAfter(response, lastDigest), nil
 }
 
 func (s *HostedService) currentProjectionEpoch() uint64 {
@@ -99,6 +108,7 @@ func (c *hostedProjectionCache) loadUnversioned(
 	bindID string,
 	epoch uint64,
 	now time.Time,
+	lastDigest string,
 ) (HostedProjectionResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,7 +117,7 @@ func (c *hostedProjectionCache) loadUnversioned(
 		now.Before(entry.builtAt) {
 		return HostedProjectionResponse{}, false
 	}
-	return cloneHostedProjectionResponse(entry.response), true
+	return cloneHostedProjectionAfter(entry.response, lastDigest), true
 }
 
 func (c *hostedProjectionCache) storeUnversioned(bindID string, entry hostedUnversionedProjection) {

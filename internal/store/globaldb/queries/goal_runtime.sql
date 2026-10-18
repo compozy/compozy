@@ -3,6 +3,11 @@ SELECT id, event_id, workspace_id, origin_session_id, loop_run_id, bound_session
        cause, created_at, delivered_at
 FROM loop_goal_session_outbox
 WHERE delivered_at IS NULL
+  AND EXISTS (
+    SELECT 1 FROM sessions
+    WHERE sessions.id = loop_goal_session_outbox.origin_session_id
+      AND sessions.workspace_id = loop_goal_session_outbox.workspace_id
+  )
 ORDER BY id ASC
 LIMIT sqlc.arg(claim_limit);
 

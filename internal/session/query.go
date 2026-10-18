@@ -43,7 +43,21 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		return nil, fmt.Errorf("session: read sessions directory %q: %w", m.homePaths.SessionsDir, err)
 	}
 
-	infos, seen, err := m.mergePersistedSessionInfos(ctx, entries, activeByID)
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			ids = append(ids, entry.Name())
+		}
+	}
+	return m.mergePersistedSessionInfos(ctx, ids, activeByID)
+}
+
+func (m *Manager) mergePersistedSessionInfos(
+	ctx context.Context,
+	ids []string,
+	activeByID map[string]*Info,
+) ([]*Info, error) {
+	infos, seen, err := m.readPersistedSessionInfos(ctx, ids, activeByID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,22 +72,19 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	return sortSessionInfos(infos), nil
 }
 
-func (m *Manager) mergePersistedSessionInfos(
+func (m *Manager) readPersistedSessionInfos(
 	ctx context.Context,
-	entries []os.DirEntry,
+	ids []string,
 	activeByID map[string]*Info,
 ) ([]*Info, map[string]struct{}, error) {
-	infos := make([]*Info, 0, len(entries)+len(activeByID))
-	seen := make(map[string]struct{}, len(entries))
+	infos := make([]*Info, 0, len(ids)+len(activeByID))
+	seen := make(map[string]struct{}, len(ids))
 	var failures loggerpkg.FailureSummary
-	for _, entry := range entries {
+	for _, id := range ids {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, fmt.Errorf("session: list sessions canceled: %w", err)
 		}
-		if !entry.IsDir() {
-			continue
-		}
-		id := strings.TrimSpace(entry.Name())
+		id = strings.TrimSpace(id)
 		if id == "" || strings.HasPrefix(id, sessionDeleteTombstonePrefix) {
 			continue
 		}

@@ -6568,6 +6568,13 @@ func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
 	return append([]*session.Info(nil), f.infos...), f.listAllErr
 }
 
+func (f *fakeSessionManager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error) {
+	infos, err := f.ListAll(ctx)
+	return slices.DeleteFunc(infos, func(info *session.Info) bool {
+		return info == nil || info.WorkspaceID != workspaceID
+	}), err
+}
+
 func (f *fakeSessionManager) ExpireRestartInteractions(_ context.Context, sessionID string) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -6609,6 +6616,10 @@ func (f *blockingStatusSessionManager) Status(ctx context.Context, id string) (*
 	}
 	// Only the active routing lookup blocks; shutdown's summary lookup can finish.
 	return f.fakeSessionManager.Status(ctx, id)
+}
+
+func (f *fakeSessionManager) EventMetadata(context.Context, string, store.EventQuery) ([]store.EventMetadata, error) {
+	return nil, nil
 }
 
 func (f *fakeSessionManager) Events(
@@ -10720,4 +10731,8 @@ func (f *fakeSessionManager) Compactions(context.Context, string) ([]session.Com
 
 func (f *fakeSessionManager) LatestSettledTurn(context.Context, string) (session.SettledTurn, error) {
 	return session.SettledTurn{}, nil
+}
+
+func (f *fakeSessionManager) ContextEvents(context.Context, string) (session.ContextEvents, error) {
+	return session.ContextEvents{}, nil
 }

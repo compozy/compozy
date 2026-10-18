@@ -6,12 +6,17 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -107,6 +112,169 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 	if got, want := len(infos), 256; got != want {
 		b.Fatalf("len(ListAll()) = %d, want %d", got, want)
 	}
+}
+
+func BenchmarkManagerWorkspaceSessions(b *testing.B) {
+	manager := newWorkspaceSessionReadFixture(b, 256, 16)
+	for _, scoped := range []bool{false, true} {
+		name := "all_then_filter"
+		if scoped {
+			name = "workspace_catalog"
+		}
+		b.Run(name, func(b *testing.B) {
+			metadataReads := 0
+			manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+				metadataReads++
+				return store.ReadSessionMeta(path)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				var infos []*Info
+				var err error
+				if scoped {
+					infos, err = manager.ListForWorkspace(b.Context(), "ws-read-00")
+				} else {
+					infos, err = manager.ListAll(b.Context())
+					infos = slices.DeleteFunc(infos, func(info *Info) bool { return info.WorkspaceID != "ws-read-00" })
+				}
+				if err != nil || len(infos) != 16 {
+					b.Fatalf("workspace sessions = %d, %v", len(infos), err)
+				}
+			}
+			b.ReportMetric(float64(metadataReads)/float64(b.N), "metadata_reads/op")
+		})
+	}
+}
+
+func BenchmarkManagerContextEvents(b *testing.B) {
+	manager := newWorkspaceSessionReadFixture(b, 1, 1)
+	manager.lifecycleCtx = b.Context()
+	owner := store.SessionDBOwner{SessionID: "sess-read-000", WorkspaceID: "ws-read-00"}
+	path := store.SessionDBFile(filepath.Join(manager.homePaths.SessionsDir, owner.SessionID))
+	database, err := sessiondb.OpenSessionDB(b.Context(), owner, path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := database.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	for index := range 400 {
+		var event acp.AgentEvent
+		switch index {
+		case 100:
+			event = acp.AgentEvent{
+				Type: events.SessionCompactionFired,
+				Raw:  []byte(`{"compaction_id":"c1","trigger":"agent"}`),
+			}
+		case 101:
+			event = acp.AgentEvent{Type: acp.EventTypeCompaction, Compaction: &acp.CompactionObservation{
+				CompactionID: "c1", Status: "completed", Terminal: true,
+			}}
+		default:
+			event = acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{
+				ContextUsed: new(int64(index)), ContextSize: new(int64(200000)), TotalTokens: new(int64(100)),
+			}}
+			if index%10 == 9 {
+				event.Type = acp.EventTypeDone
+			}
+		}
+		event.TurnID, event.Timestamp = fmt.Sprintf("turn-%d", index/10), benchmarkSessionTime
+		content, err := transcript.MarshalAgentEvent(event)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := database.Record(b.Context(), store.SessionEvent{
+			SessionID: owner.SessionID, TurnID: event.TurnID, Type: event.Type, AgentName: "coder",
+			Content: content, Timestamp: event.Timestamp,
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if err := database.Close(b.Context()); err != nil {
+		b.Fatal(err)
+	}
+	runtime := newDefaultQueryStoreRuntime(manager.logger)
+	b.Cleanup(func() {
+		if err := runtime.Shutdown(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	manager.openQueryStore = runtime.Open
+	want, err := readBenchmarkContextSeparately(b.Context(), manager, owner.SessionID)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, snapshot := range []bool{false, true} {
+		name := "separate_reads"
+		if snapshot {
+			name = "union_snapshot"
+		}
+		b.Run(name, func(b *testing.B) {
+			queries, rows := 0, 0
+			manager.openQueryStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventReadCloser, error) {
+				reader, err := runtime.Open(ctx, owner, path)
+				if err != nil {
+					return nil, err
+				}
+				return &benchmarkContextReader{EventReadCloser: reader, queries: &queries, rows: &rows}, nil
+			}
+			var got ContextEvents
+			b.ReportAllocs()
+			for b.Loop() {
+				if snapshot {
+					got, err = manager.ContextEvents(b.Context(), owner.SessionID)
+				} else {
+					got, err = readBenchmarkContextSeparately(b.Context(), manager, owner.SessionID)
+				}
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+			b.ReportMetric(float64(queries)/float64(b.N), "queries/op")
+			b.ReportMetric(float64(rows)/float64(b.N), "rows/op")
+			if !reflect.DeepEqual(got, want) {
+				b.Fatal("context snapshot changed the projected history")
+			}
+		})
+	}
+}
+
+type benchmarkContextReader struct {
+	EventReadCloser
+	queries *int
+	rows    *int
+}
+
+func (r *benchmarkContextReader) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+	*r.queries++
+	rows, err := r.EventReadCloser.Query(ctx, query)
+	*r.rows += len(rows)
+	return rows, err
+}
+
+func readBenchmarkContextSeparately(ctx context.Context, manager *Manager, id string) (ContextEvents, error) {
+	var result ContextEvents
+	var err error
+	result.Usage, err = manager.UsageEvents(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Deliveries, err = manager.Deliveries(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Compactions, err = manager.Compactions(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Settled, err = manager.LatestSettledTurn(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.ClearedBy, err = manager.CompactionClearBoundary(ctx, id)
+	return result, err
 }
 
 func BenchmarkManagerListAllActiveCatalog(b *testing.B) {

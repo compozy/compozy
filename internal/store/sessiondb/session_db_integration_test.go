@@ -194,6 +194,19 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 				t.Error(err)
 			}
 		})
+		metadataReader, ok := lease.(store.EventMetadataReader)
+		if !ok {
+			t.Fatalf("pooled history has no event metadata reader: %T", lease)
+		}
+		metadata, err := metadataReader.QueryEventMetadata(ctx, store.EventQuery{AfterSequence: 0})
+		if err != nil || len(metadata) != 1 || metadata[0].SessionID != owner.SessionID ||
+			metadata[0].Sequence != 1 || metadata[0].TurnID != "turn-guide" || metadata[0].ID != "event-guide" {
+			t.Fatalf("pooled metadata=%#v/%v", metadata, err)
+		}
+		maximum, err := metadataReader.MaxEventSequence(ctx)
+		if err != nil || maximum != 1 {
+			t.Fatalf("pooled maximum sequence=%d/%v", maximum, err)
+		}
 		reader, ok := lease.(transcript.NavigationReader)
 		if !ok {
 			t.Fatalf("pooled history cannot navigate: %T", lease)

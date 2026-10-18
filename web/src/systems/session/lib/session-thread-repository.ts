@@ -18,7 +18,7 @@ const threadMessageBySource = new WeakMap<SessionMessage, ThreadMessage>();
 
 interface ThreadMessageSequenceCacheNode {
   children: WeakMap<SessionMessage, ThreadMessageSequenceCacheNode>;
-  result?: ThreadMessage[];
+  result?: WeakRef<ThreadMessage[]>;
 }
 
 const emptyThreadMessages: ThreadMessage[] = [];
@@ -349,6 +349,12 @@ export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMess
     node = child;
   }
 
-  node.result ??= messages.map(toReadonlyThreadMessage);
-  return node.result;
+  const cached = node.result?.deref();
+  if (cached) return cached;
+
+  const result = messages.map(toReadonlyThreadMessage);
+  // Loaded messages keep every prefix key alive. A strong result would retain
+  // all prior transcript arrays as the stream grows, even after views drop them.
+  node.result = new WeakRef(result);
+  return result;
 }

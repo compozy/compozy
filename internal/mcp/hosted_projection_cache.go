@@ -50,6 +50,7 @@ func (s *HostedService) projectionForGeneration(
 	record *hostedBindRecord,
 	registry tools.Registry,
 	unversioned hostedProjectionBuilder,
+	lastDigest string,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
 		return unversioned(ctx, registry, record)
@@ -61,14 +62,14 @@ func (s *HostedService) projectionForGeneration(
 		if !known {
 			return unversioned(ctx, registry, record)
 		}
-		if cached, ok := s.projectionCache.load(record.bindID, generation); ok {
+		if cached, ok := s.projectionCache.load(record.bindID, generation, lastDigest); ok {
 			return cached, nil
 		}
 
 		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		flight, leader := s.projectionCache.begin(key)
 		if !leader {
-			response, retry, err := waitHostedProjectionFlight(ctx, flight)
+			response, retry, err := waitHostedProjectionFlight(ctx, flight, lastDigest)
 			if retry {
 				continue
 			}
@@ -85,7 +86,7 @@ func (s *HostedService) projectionForGeneration(
 		stored := s.finishProjectionGeneration(key, record, response, stable)
 		if stable {
 			if stored {
-				return cloneHostedProjectionResponse(response), nil
+				return cloneHostedProjectionAfter(response, lastDigest), nil
 			}
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
@@ -123,7 +124,11 @@ func buildHostedProjection(
 	return hostedProjectionResponse(views, record.digestMemo), nil
 }
 
-func (c *hostedProjectionCache) load(bindID string, generation string) (HostedProjectionResponse, bool) {
+func (c *hostedProjectionCache) load(
+	bindID string,
+	generation string,
+	lastDigest string,
+) (HostedProjectionResponse, bool) {
 	if c == nil {
 		return HostedProjectionResponse{}, false
 	}
@@ -133,7 +138,7 @@ func (c *hostedProjectionCache) load(bindID string, generation string) (HostedPr
 	if !ok || entry.generation != generation {
 		return HostedProjectionResponse{}, false
 	}
-	return cloneHostedProjectionResponse(entry.response), true
+	return cloneHostedProjectionAfter(entry.response, lastDigest), true
 }
 
 func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedProjectionFlight, bool) {
@@ -194,13 +199,21 @@ func (c *hostedProjectionCache) size() int {
 func waitHostedProjectionFlight(
 	ctx context.Context,
 	flight *hostedProjectionFlight,
+	lastDigest string,
 ) (HostedProjectionResponse, bool, error) {
 	select {
 	case <-ctx.Done():
 		return HostedProjectionResponse{}, false, ctx.Err()
 	case <-flight.done:
-		return cloneHostedProjectionResponse(flight.response), flight.retry, flight.err
+		return cloneHostedProjectionAfter(flight.response, lastDigest), flight.retry, flight.err
 	}
+}
+
+func cloneHostedProjectionAfter(response HostedProjectionResponse, lastDigest string) HostedProjectionResponse {
+	if lastDigest != "" && response.Digest == lastDigest {
+		return HostedProjectionResponse{Digest: response.Digest}
+	}
+	return cloneHostedProjectionResponse(response)
 }
 
 func cloneHostedProjectionResponse(response HostedProjectionResponse) HostedProjectionResponse {

@@ -10,6 +10,7 @@ import (
 )
 
 type sessionManagerStub struct {
+	contextEvents       func(context.Context, string) (session.ContextEvents, error)
 	UsageEventsFn       func(context.Context, string) ([]session.UsageEventEnvelope, error)
 	DeliveriesFn        func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
 	CompactionsFn       func(context.Context, string) ([]session.CompactionEnvelope, error)
@@ -17,10 +18,12 @@ type sessionManagerStub struct {
 	create              func(context.Context, session.CreateOpts) (*session.Session, error)
 	list                func() []*session.Info
 	listAll             func(context.Context) ([]*session.Info, error)
+	listForWorkspace    func(context.Context, string) ([]*session.Info, error)
 	listPage            func(context.Context, session.ListQuery) (session.ListPage, error)
 	status              func(context.Context, string) (*session.Info, error)
 	activePromptRun     func(context.Context, string) (session.PromptRunIdentity, error)
 	events              func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	eventMetadata       func(context.Context, string, store.EventQuery) ([]store.EventMetadata, error)
 	latestEvent         func(context.Context, string, string) (*store.SessionEvent, error)
 	history             func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	transcriptPage      func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
@@ -52,6 +55,28 @@ type sessionManagerStub struct {
 	approvePermission func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 }
 
+func (s sessionManagerStub) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
+	if s.contextEvents != nil {
+		return s.contextEvents(ctx, id)
+	}
+	var result session.ContextEvents
+	var err error
+	result.Usage, err = s.UsageEvents(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Deliveries, err = s.Deliveries(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Compactions, err = s.Compactions(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	result.Settled, err = s.LatestSettledTurn(ctx, id)
+	return result, err
+}
+
 func (s sessionManagerStub) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
 	if s.create != nil {
 		return s.create(ctx, opts)
@@ -80,6 +105,14 @@ func (s sessionManagerStub) ListPage(ctx context.Context, query session.ListQuer
 	return session.ListPage{}, nil
 }
 
+func (s sessionManagerStub) ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error) {
+	if s.listForWorkspace != nil {
+		return s.listForWorkspace(ctx, workspaceID)
+	}
+	infos, err := s.ListAll(ctx)
+	return filterSessionInfosByWorkspaceIDInternal(infos, workspaceID), err
+}
+
 func (s sessionManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
 	if s.status != nil {
 		return s.status(ctx, id)
@@ -106,6 +139,28 @@ func (s sessionManagerStub) Events(
 		return s.events(ctx, id, query)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) EventMetadata(
+	ctx context.Context,
+	id string,
+	query store.EventQuery,
+) ([]store.EventMetadata, error) {
+	if s.eventMetadata != nil {
+		return s.eventMetadata(ctx, id, query)
+	}
+	events, err := s.Events(ctx, id, query)
+	if err != nil {
+		return nil, err
+	}
+	metadata := make([]store.EventMetadata, 0, len(events))
+	for _, event := range events {
+		metadata = append(metadata, store.EventMetadata{
+			ID: event.ID, SessionID: event.SessionID, Sequence: event.Sequence, TurnID: event.TurnID,
+			Type: event.Type, AgentName: event.AgentName, Timestamp: event.Timestamp,
+		})
+	}
+	return metadata, nil
 }
 
 func (s sessionManagerStub) LatestSessionEventByType(

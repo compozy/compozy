@@ -13,9 +13,10 @@ type registryIndex struct {
 }
 
 type registryEntry struct {
-	descriptor Descriptor
-	provider   Provider
-	conflicts  []ReasonCode
+	descriptor    Descriptor
+	provider      Provider
+	providerIndex int
+	conflicts     []ReasonCode
 }
 
 func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registryIndex, error) {
@@ -32,14 +33,14 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		entries: make([]*registryEntry, 0),
 		byID:    make(map[ToolID]*registryEntry),
 	}
-	for _, provider := range r.providers {
+	for providerIndex, provider := range r.providers {
 		if include != nil && !include(provider) {
 			continue
 		}
 		if native, ok := provider.(*NativeProvider); ok {
 			// Native descriptors are validated and privately cloned at construction.
 			for _, id := range native.ids {
-				index.add(native.tools[id].Descriptor, provider)
+				index.add(native.tools[id].Descriptor, provider, providerIndex)
 			}
 			continue
 		}
@@ -55,7 +56,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			if err := descriptor.Validate(); err != nil {
 				return nil, indexValidationError(descriptor.ID, err)
 			}
-			index.add(cloneDescriptor(*descriptor), provider)
+			index.add(cloneDescriptor(*descriptor), provider, providerIndex)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
@@ -68,13 +69,13 @@ func (r *RuntimeRegistry) buildIndexMatching(
 }
 
 // add retains the first descriptor for each ID and records conflicts from subsequent providers.
-func (i *registryIndex) add(descriptor Descriptor, provider Provider) {
+func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int) {
 	if existing, ok := i.byID[descriptor.ID]; ok {
 		reason := conflictReason(&existing.descriptor, &descriptor)
 		existing.conflicts = appendReason(existing.conflicts, reason)
 		return
 	}
-	entry := &registryEntry{descriptor: descriptor, provider: provider}
+	entry := &registryEntry{descriptor: descriptor, provider: provider, providerIndex: providerIndex}
 	i.byID[descriptor.ID] = entry
 	i.entries = append(i.entries, entry)
 }

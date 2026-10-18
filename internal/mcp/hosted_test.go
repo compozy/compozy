@@ -609,6 +609,48 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
 
+	for _, versioned := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should omit unchanged stream tools and deliver changed tools with versioned=%t", versioned),
+			func(t *testing.T) {
+				t.Parallel()
+
+				executable := hostedTestExecutable(t, "compozy")
+				registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+				var generation atomic.Uint64
+				generation.Store(1)
+				service := newHostedTestServiceWithProjectionGeneration(t, executable, registry,
+					func(context.Context, tools.Scope) (string, bool) {
+						return fmt.Sprint(generation.Load()), versioned
+					},
+				)
+				service.projectionEpoch = generation.Load
+				peer := hostedTestPeer(executable)
+				bind := hostedTestBind(t, service, "sess-stream-digest", peer)
+				first, err := service.StreamProjection(t.Context(), bind.BindID, peer, "")
+				if err != nil || len(first.Tools) != 1 {
+					t.Fatalf("initial projection = %#v, error = %v", first, err)
+				}
+				unchanged, err := service.StreamProjection(t.Context(), bind.BindID, peer, first.Digest)
+				if err != nil || unchanged.Digest != first.Digest || unchanged.Tools != nil {
+					t.Fatalf("unchanged projection = %#v, error = %v", unchanged, err)
+				}
+				registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+				generation.Add(1)
+				changed, err := service.StreamProjection(t.Context(), bind.BindID, peer, first.Digest)
+				if err != nil || changed.Digest == first.Digest ||
+					!slices.Equal(hostedToolIDs(changed.Tools), []string{"compozy__beta"}) {
+					t.Fatalf("changed projection = %#v, error = %v", changed, err)
+				}
+				changed.Tools[0].Descriptor.Description = "caller mutation"
+				fresh, err := service.Projection(t.Context(), bind.BindID, peer)
+				if err != nil || len(fresh.Tools) != 1 || fresh.Tools[0].Descriptor.Description == "caller mutation" {
+					t.Fatalf("isolated one-shot projection = %#v, error = %v", fresh, err)
+				}
+			},
+		)
+	}
+
 	t.Run("Should retain the bootstrap projection until its generation advances", func(t *testing.T) {
 		t.Parallel()
 
@@ -942,7 +984,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		baselineLookups := generationLookups.Load()
 		stream := func(label string) HostedProjectionResponse {
 			t.Helper()
-			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer, "")
 			if err != nil {
 				t.Fatalf("StreamProjection(%s) error = %v", label, err)
 			}
@@ -1007,7 +1049,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		registry.mu.Unlock()
 
 		for _, label := range []string{"invalidated build", "cached rebuild"} {
-			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer, "")
 			if err != nil {
 				t.Fatalf("StreamProjection(%s) error = %v", label, err)
 			}

@@ -45,7 +45,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			UpdatedAt: time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 		}
 		resolved := workspacepkg.ResolvedWorkspace{
-			Workspace: workspace,
+			Workspace: workspace, WorkspaceID: workspace.ID,
 			Config: compozyconfig.Config{
 				Providers: map[string]compozyconfig.ProviderConfig{
 					"alpha": {Command: "alpha --acp"},
@@ -105,7 +105,10 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			},
 		}
 		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
+			ListForWorkspaceFn: func(_ context.Context, workspaceID string) ([]*session.Info, error) {
+				if workspaceID != workspace.ID {
+					t.Fatalf("ListForWorkspace id = %q, want %q", workspaceID, workspace.ID)
+				}
 				info := testutil.NewSessionInfo("sess-a")
 				info.WorkspaceID = workspace.ID
 				info.State = session.StateStopped

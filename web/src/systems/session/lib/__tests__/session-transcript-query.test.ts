@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { flattenTranscriptMessages, type SessionTranscriptData } from "../session-transcript-query";
+import { toReadonlyThreadMessages } from "../session-thread-repository";
 import type { SessionMessage, SessionTranscriptPage } from "../../types";
 
 function message(id: string, parts: NonNullable<SessionMessage["parts"]>): SessionMessage {
@@ -26,6 +27,41 @@ function transcriptData(messages: SessionMessage[]): SessionTranscriptData {
 }
 
 describe("session transcript presentation", () => {
+  // Invariant: immutable replacements, reordered history, and another session's
+  // projection cannot change a view already held by a transcript consumer.
+  // Owning layer: thread projection; canonical suite: transcript presentation.
+  it("Should isolate held thread views when messages are replaced, removed, or reordered", () => {
+    const first = message("first", [{ type: "text", text: "First answer" }]);
+    const second = message("second", [{ type: "text", text: "Streaming answer" }]);
+    const initial = toReadonlyThreadMessages([first, second]);
+    const replacement = message("second", [{ type: "text", text: "Completed answer" }]);
+    const completed = toReadonlyThreadMessages([first, replacement]);
+    const removed = toReadonlyThreadMessages([first]);
+    const reordered = toReadonlyThreadMessages([replacement, first]);
+    toReadonlyThreadMessages([message("other-session", [{ type: "text", text: "Unrelated" }])]);
+
+    const view = (messages: ReturnType<typeof toReadonlyThreadMessages>) =>
+      messages.map(({ id, content }) => ({ id, content }));
+    const text = (id: string, value: string) => ({
+      id,
+      content: [expect.objectContaining({ type: "text", text: value })],
+    });
+    expect(view(initial)).toEqual([
+      text("first", "First answer"),
+      text("second", "Streaming answer"),
+    ]);
+    expect(view(completed)).toEqual([
+      text("first", "First answer"),
+      text("second", "Completed answer"),
+    ]);
+    expect(view(removed)).toEqual([text("first", "First answer")]);
+    expect(view(reordered)).toEqual([
+      text("second", "Completed answer"),
+      text("first", "First answer"),
+    ]);
+    expect(view(toReadonlyThreadMessages([first, second]))).toEqual(view(initial));
+  });
+
   // Invariant: provider failure precedence is recomputed across the current
   // page set, including mixed prose, replaced parts, and removed diagnostics.
   // Owning layer: transcript projection; canonical suite: this file.

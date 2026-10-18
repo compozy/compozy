@@ -1185,19 +1185,22 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				{Sequence: 15, TurnID: "A", Type: eventspkg.SessionCompactionFired},
 				{Sequence: 16, TurnID: "A", Type: acp.EventTypeDone},
 				{Sequence: 17, TurnID: "A", Type: acp.EventTypePromptDelivery},
+				{Sequence: 18, TurnID: "A", Type: acp.EventTypeAgentMessage},
 			}
 			calls := 0
 			handlers := &BaseHandlers{
 				Sessions: sessionManagerStub{
-					events: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+					eventMetadata: func(_ context.Context, id string, query store.EventQuery) ([]store.EventMetadata, error) {
 						calls++
 						if id != "sess-a" || query.AfterSequence != 10 {
 							t.Fatalf("poll scope=%s %#v", id, query)
 						}
-						var result []store.SessionEvent
+						var result []store.EventMetadata
 						for _, event := range events {
 							if (query.Type == "" || event.Type == query.Type) && event.Sequence > query.AfterSequence {
-								result = append(result, event)
+								result = append(result, store.EventMetadata{
+									Sequence: event.Sequence, TurnID: event.TurnID, Type: event.Type,
+								})
 							}
 						}
 						return result, nil
@@ -1214,7 +1217,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			body := writer.String()
-			if cursor != 17 || strings.Count(body, "event: session_usage_changed") != 6 ||
+			if cursor != 18 || strings.Count(body, "event: session_usage_changed") != 6 ||
 				strings.Contains(body, "id:") ||
 				strings.Contains(body, `"sequence":10`) {
 				t.Fatalf("usage frames=%s", body)
@@ -1264,7 +1267,7 @@ func TestWriteUsageChangedEvents(t *testing.T) {
 		failure := errors.New("ledger unavailable")
 		h := &BaseHandlers{
 			Sessions: sessionManagerStub{
-				events: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) { return nil, failure },
+				eventMetadata: func(context.Context, string, store.EventQuery) ([]store.EventMetadata, error) { return nil, failure },
 			},
 		}
 		if _, err := h.writeUsageChangedEvents(

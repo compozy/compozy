@@ -3049,50 +3049,91 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 	t.Run("Should apply identical cursor bounds to full and metadata projections", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
+		ctx := t.Context()
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		writer, err := OpenSessionDB(ctx, testSessionDBOwner("sess-read-only-projections"), path)
+		owner := testSessionDBOwner("sess-read-only-projections")
+		writer, err := OpenSessionDB(ctx, owner, path)
 		if err != nil {
-			t.Fatalf("OpenSessionDB() error = %v", err)
-		}
-		for _, turnID := range []string{"turn-1", "turn-2", "turn-3"} {
-			if err := writer.Record(ctx, SessionEvent{
-				TurnID:    turnID,
-				Type:      "agent_message",
-				AgentName: "coder",
-				Content:   `{"text":"persisted"}`,
-			}); err != nil {
-				t.Fatalf("Record(%s) error = %v", turnID, err)
-			}
-		}
-		if err := writer.Close(ctx); err != nil {
-			t.Fatalf("Close(writer) error = %v", err)
-		}
-
-		reader, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-read-only-projections"), path)
-		if err != nil {
-			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
+			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if closeErr := reader.Close(testutil.Context(t)); closeErr != nil {
-				t.Fatalf("Close(reader) error = %v", closeErr)
+			if err := writer.Close(context.Background()); err != nil {
+				t.Error(err)
 			}
 		})
-
-		query := EventQuery{BeforeSequence: 3, Limit: 1}
-		fullEvents, err := reader.Query(ctx, query)
+		for index, turnID := range []string{"turn-1", "turn-2", "turn-3"} {
+			if err := writer.Record(ctx, SessionEvent{
+				ID: fmt.Sprintf("event-%d", index), TurnID: turnID, Type: "agent_message", AgentName: "coder",
+				Content: `{"text":"persisted"}`, Timestamp: time.Date(2026, 10, 17, 0, index, 0, 0, time.UTC),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		assertMetadata := func(reader interface {
+			store.EventReader
+			store.EventMetadataReader
+		}) {
+			t.Helper()
+			for _, tc := range []struct {
+				query     store.EventQuery
+				sequences []int64
+			}{
+				{query: store.EventQuery{BeforeSequence: 3, Limit: 1}, sequences: []int64{2}},
+				{query: store.EventQuery{AfterSequence: 1, Limit: 1}, sequences: []int64{2}},
+				{query: store.EventQuery{TurnID: "turn-2"}, sequences: []int64{2}},
+				{query: store.EventQuery{Type: "agent_message", AgentName: "coder", Forward: true, Limit: 2}, sequences: []int64{1, 2}},
+				{query: store.EventQuery{AfterSequence: 3}},
+			} {
+				metadata, err := reader.QueryEventMetadata(ctx, tc.query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				full, err := reader.Query(ctx, tc.query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := metadataEventSequences(metadata); !equalInt64Slices(got, tc.sequences) {
+					t.Fatalf("metadata sequences=%v, want %v", got, tc.sequences)
+				}
+				if got := eventSequences(full); !equalInt64Slices(got, tc.sequences) {
+					t.Fatalf("full sequences=%v, want %v", got, tc.sequences)
+				}
+				if len(metadata) != len(full) {
+					t.Fatalf("metadata=%#v, full=%#v", metadata, full)
+				}
+				for index, event := range full {
+					want := store.EventMetadata{ID: event.ID, SessionID: owner.SessionID, Sequence: event.Sequence,
+						TurnID: event.TurnID, Type: event.Type, AgentName: event.AgentName, Timestamp: event.Timestamp}
+					if metadata[index] != want {
+						t.Fatalf("metadata[%d]=%#v, want=%#v", index, metadata[index], want)
+					}
+				}
+			}
+			maximum, err := reader.MaxEventSequence(ctx)
+			if err != nil || maximum != 3 {
+				t.Fatalf("MaxEventSequence()=%d/%v", maximum, err)
+			}
+		}
+		assertMetadata(writer)
+		reader, err := OpenSessionDBReadOnly(ctx, owner, path)
 		if err != nil {
-			t.Fatalf("Query() error = %v", err)
+			t.Fatal(err)
 		}
-		metadata, err := reader.QueryEventMetadata(ctx, query)
-		if err != nil {
-			t.Fatalf("QueryEventMetadata() error = %v", err)
+		t.Cleanup(func() {
+			if err := reader.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		assertMetadata(reader)
+		if err := writer.Close(ctx); err != nil {
+			t.Fatal(err)
 		}
-		if got, want := eventSequences(fullEvents), []int64{2}; !equalInt64Slices(got, want) {
-			t.Fatalf("Query() sequences = %#v, want %#v", got, want)
+		assertMetadata(reader)
+		if _, err := writer.QueryEventMetadata(ctx, store.EventQuery{}); !errors.Is(err, store.ErrClosed) {
+			t.Fatalf("QueryEventMetadata(closed) error=%v", err)
 		}
-		if got, want := metadataEventSequences(metadata), []int64{2}; !equalInt64Slices(got, want) {
-			t.Fatalf("QueryEventMetadata() sequences = %#v, want %#v", got, want)
+		if _, err := writer.MaxEventSequence(ctx); !errors.Is(err, store.ErrClosed) {
+			t.Fatalf("MaxEventSequence(closed) error=%v", err)
 		}
 	})
 
@@ -3589,6 +3630,24 @@ func TestSessionDBQueryFilters(t *testing.T) {
 			query:     EventQuery{Type: "agent_message"},
 			wantSeqs:  []int64{1, 3},
 			wantTypes: []string{"agent_message", "agent_message"},
+		},
+		{
+			name:      "Should filter a union of event types without duplicating rows",
+			query:     EventQuery{Types: []string{" agent_message ", "tool_call", "agent_message"}},
+			wantSeqs:  []int64{1, 2, 3},
+			wantTypes: []string{"agent_message", "tool_call", "agent_message"},
+		},
+		{
+			name:      "Should intersect the single type and multiple type filters",
+			query:     EventQuery{Type: "tool_call", Types: []string{"agent_message", "tool_call"}},
+			wantSeqs:  []int64{2},
+			wantTypes: []string{"tool_call"},
+		},
+		{
+			name:      "Should retain the cursor and limit within the event type union",
+			query:     EventQuery{Types: []string{"agent_message", "error"}, AfterSequence: 1, Limit: 1},
+			wantSeqs:  []int64{3},
+			wantTypes: []string{"agent_message"},
 		},
 		{
 			name:      "since filter",

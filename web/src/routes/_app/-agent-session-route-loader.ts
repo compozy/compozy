@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveActiveWorkspaceSelection } from "./-route-preload";
+import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -69,7 +69,7 @@ export async function prefetchAgentSessionRoute({
     throw error;
   }
 
-  await Promise.allSettled([
+  await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
   ]);
 
@@ -92,7 +92,7 @@ async function resolveForeignSession(
   }
   if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
     await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
-    await Promise.allSettled([
+    await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
     return { status: "loaded", workspaceId: owner.workspaceId };
