@@ -569,7 +569,7 @@ describe("SessionList subagents", () => {
 
     await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
     await expectFetchRequest({
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?limit=200`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=200`,
     });
     expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
