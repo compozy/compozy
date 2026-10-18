@@ -358,17 +358,32 @@ describe.skipIf(process.platform === "win32")("Node daemon lifecycle", () => {
     const directory = await home({ neverReady: true, ignoreTerm: true });
     await mkdir(join(directory, "logs"));
     await writeFile(join(directory, "logs", "daemon-stdio.log"), "old startup error\n");
-    const before = Date.now();
-    const error = await Compozy.start({
+    const before = performance.now();
+    const startupAt = Date.now();
+    // Control the deadline until the real child has emitted the stderr being tested.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(startupAt);
+    const startup = Compozy.start({
       home: directory,
       binaryPath: await binary(),
       timeoutMs: 300,
     }).catch((cause: unknown) => cause);
-    expect(error).toBeInstanceOf(CompozyUnavailableError);
-    expect((error as Error).message).toContain("test initialization blocked");
-    expect((error as Error).message).not.toContain("old startup error");
-    expect(Date.now() - before).toBeLessThan(2500);
-    expect(alive((await started(directory)).pid)).toBe(false);
+    try {
+      await expect
+        .poll(() => readFile(join(directory, "logs", "daemon-stdio.log"), "utf8"), {
+          timeout: 2500,
+        })
+        .toContain("test initialization blocked");
+      clock.mockReturnValue(startupAt + 300);
+      const error = await startup;
+      expect(error).toBeInstanceOf(CompozyUnavailableError);
+      expect((error as Error).message).toContain("test initialization blocked");
+      expect((error as Error).message).not.toContain("old startup error");
+      expect(performance.now() - before).toBeLessThan(2500);
+      expect(alive((await started(directory)).pid)).toBe(false);
+    } finally {
+      clock.mockRestore();
+      await startup;
+    }
   });
 
   it("rejects invalid homes and deadlines before spawning", async () => {

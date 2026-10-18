@@ -60,6 +60,7 @@ func TestGlobalDBSessionAttentionMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("upgrade through 00065 error = %v", err)
 		}
+		ctx = globalMigrationTestContext(t)
 		upgradedClosed := false
 		t.Cleanup(func() {
 			if upgradedClosed {
@@ -117,6 +118,7 @@ func TestGlobalDBSessionAttentionMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reopen migrated database error = %v", err)
 		}
+		ctx = globalMigrationTestContext(t)
 		t.Cleanup(func() {
 			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
 				t.Errorf("close reopened database error = %v", closeErr)
