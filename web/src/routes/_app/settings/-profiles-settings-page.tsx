@@ -5,7 +5,6 @@ import { Button } from "@compozy/ui";
 import {
   PROFILE_REMOTE_MANAGEMENT_LINE,
   PROFILE_SEPARATION_LINE,
-  ProfileSelectionMap,
   ProfileSettingsList,
   useProfilesSettingsPage,
 } from "@/systems/profiles";
@@ -22,8 +21,7 @@ const TEST_PREFIX = "settings-page-profiles";
  * Settings → Profiles.
  *
  * The default read is the active list plus one honest sentence. Everything an
- * operator asks less often — the archived list, and where each profile is
- * currently active — sits one disclosure deeper.
+ * operator asks less often — the archived list — sits one disclosure deeper.
  */
 export function ProfilesSettingsPage() {
   const page = useProfilesSettingsPage();
@@ -91,17 +89,6 @@ export function ProfilesSettingsPage() {
             />
           </SettingsAdvancedFold>
         ) : null}
-        <SettingsAdvancedFold
-          data-testid={`${TEST_PREFIX}-selection-map`}
-          label="Where each profile is active"
-          padded
-        >
-          <ProfileSelectionMap
-            selections={page.selections}
-            profiles={[...page.active, ...page.archived]}
-            projectName={page.projectName}
-          />
-        </SettingsAdvancedFold>
       </div>
     </SettingsPageFrame>
   );

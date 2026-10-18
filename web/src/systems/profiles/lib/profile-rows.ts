@@ -94,7 +94,12 @@ export function viewLabel(view: ProfileView, aggregateLabel: string): string {
   return view.kind === "aggregate" ? aggregateLabel : view.profile;
 }
 
-/** The profile a view acts as. The aggregate always creates into `default` (ADR-005). */
-export function actingProfile(view: ProfileView): string {
-  return view.kind === "aggregate" ? PERMANENT_PROFILE : view.profile;
+/**
+ * The profile a view acts as. The aggregate creates into the remembered Global
+ * choice — the last concrete profile the operator selected — and into `default`
+ * only when none is remembered, so the destination is deterministic.
+ */
+export function actingProfile(view: ProfileView, remembered?: string): string {
+  if (view.kind === "profile") return view.profile;
+  return remembered?.trim() || PERMANENT_PROFILE;
 }

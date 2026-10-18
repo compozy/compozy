@@ -10,13 +10,12 @@ import {
   workspaceDetailOptions,
 } from "@/systems/workspace";
 import {
-  actingProfile,
+  isProfileViewStoreHydrated,
   localProfileView,
-  profileLensKey,
   profileSelectionOptions,
-  readProfileLens,
-  readProfileView,
+  readActingProfile,
   readProfileScopeParams,
+  rehydrateProfileViewStore,
 } from "@/systems/profiles";
 
 /** Resolve identity before parallel loaders or mounted consumers can read work. */
@@ -24,13 +23,15 @@ export async function prepareAppProfile(queryClient: QueryClient): Promise<void>
   if (!isActiveWorkspaceStoreHydrated()) {
     await rehydrateActiveWorkspaceStore();
   }
+  // A persisted All profiles view must win before any scoped read is issued.
+  if (!isProfileViewStoreHydrated()) {
+    await rehydrateProfileViewStore();
+  }
+  const options = profileSelectionOptions();
   for (;;) {
-    const lens = readProfileLens();
-    if (localProfileView(lens)) return;
-    const options = profileSelectionOptions(lens);
+    if (localProfileView()) return;
     try {
       await queryClient.fetchQuery(options);
-      if (profileLensKey(readProfileLens()) !== profileLensKey(lens)) continue;
       return;
     } catch (error) {
       // A joined TanStack fetch can expose the old promise's silent cancellation
@@ -62,9 +63,9 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
     return;
   }
   const workspaceId = workspaceResult.value;
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
 
-  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profile = readActingProfile(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1, profile })),

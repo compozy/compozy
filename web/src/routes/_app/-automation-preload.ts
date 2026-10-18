@@ -15,7 +15,7 @@ import {
   automationTriggerRunsOptions,
   automationTriggersListOptions,
 } from "@/systems/automation";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 /**
  * Both lists with the shared filters minus `start`: a Start view only decides which kind
@@ -25,7 +25,7 @@ export async function preloadAutomationsRoute(
   queryClient: QueryClient,
   search: AutomationsRouteSearch
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const activeWorkspaceID =
     search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
   if (search.scope === "workspace" && !activeWorkspaceID) return;
@@ -66,7 +66,7 @@ export async function preloadAutomationJobDetailRoute(
   jobId: string
 ): Promise<void> {
   if (!jobId) return;
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const [job, activeWorkspaceId] = await Promise.all([
     queryClient.ensureQueryData(automationJobDetailOptions(jobId, profileScope)).catch(() => null),
     resolveActiveWorkspaceId(queryClient),
@@ -82,7 +82,7 @@ export async function preloadAutomationTriggerDetailRoute(
   triggerId: string
 ): Promise<void> {
   if (!triggerId) return;
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const [trigger, activeWorkspaceId] = await Promise.all([
     queryClient
       .ensureQueryData(automationTriggerDetailOptions(triggerId, profileScope))

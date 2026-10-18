@@ -49,7 +49,6 @@ export const CreateInvalidName: Story = {
       open
       onOpenChange={fn()}
       existingCount={4}
-      lens={{ scope: "global" }}
       isPending={false}
       initialName="all"
       nameError={{ name: "all", message: "Profile name is reserved." }}

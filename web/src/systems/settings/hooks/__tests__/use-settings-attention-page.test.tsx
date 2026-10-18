@@ -135,7 +135,7 @@ describe("useSettingsAttentionPage", () => {
     resetSettingsRestartStore();
     resetProfileViews();
     enableGlobalScope();
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "marketing" });
+    setProfileView({ kind: "profile", profile: "marketing" });
     serverConfigs = {
       marketing: structuredClone(storedConfig),
       consulting: structuredClone(storedConfig),
@@ -207,7 +207,7 @@ describe("useSettingsAttentionPage", () => {
 
     act(() => result.current.setToasts(false));
     await waitFor(() => expect(result.current.isSaving).toBe(true));
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "consulting" }));
+    act(() => setProfileView({ kind: "profile", profile: "consulting" }));
     await waitFor(() => expect(result.current.config).toEqual(storedConfig));
     expect(result.current.isSaving).toBe(true);
     await act(async () => pending.resolve(mutationResult));

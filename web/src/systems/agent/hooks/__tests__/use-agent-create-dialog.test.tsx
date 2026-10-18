@@ -210,7 +210,7 @@ describe("useAgentCreateDialog", () => {
   });
 
   it("submits a workspace create request and navigates to the created agent", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
 
     act(() => {
@@ -408,7 +408,7 @@ describe("useAgentCreateDialog", () => {
   });
 
   it("Should submit duplicate override diff and never call create", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
     const source = {
       name: "release-captain",

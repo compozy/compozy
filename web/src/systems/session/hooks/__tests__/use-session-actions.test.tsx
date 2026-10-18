@@ -194,7 +194,7 @@ describe("session actions", () => {
   });
 
   it("useCreateSession seeds detail without replacing infinite list caches", async () => {
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" }));
+    act(() => setProfileView({ kind: "profile", profile: "open-design" }));
     vi.mocked(createSession).mockResolvedValue(createdSession);
 
     const queryClient = new QueryClient({
@@ -253,7 +253,7 @@ describe("session actions", () => {
   });
 
   it("Should announce the acting profile after aggregate session creation", async () => {
-    act(() => setProfileView({ scope: "global" }, { kind: "aggregate" }));
+    act(() => setProfileView({ kind: "aggregate" }));
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

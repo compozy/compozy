@@ -15,7 +15,6 @@ import {
 import { NAME_REQUIRED_MESSAGE, PROFILE_SEPARATION_LINE } from "../lib/profile-copy";
 import { starterIdentity } from "../lib/profile-identity";
 import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
-import type { ProfileLens } from "../types";
 import { ProfileIdentityFields } from "./profile-identity-fields";
 
 export interface ProfileCreateDialogProps {
@@ -24,7 +23,6 @@ export interface ProfileCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Drives the starter identity so two profiles made back to back differ. */
   existingCount: number;
-  lens: ProfileLens;
   isPending: boolean;
   /** Name refusal from the daemon, tied to the value it rejected. */
   nameError?: { name: string; message: string } | null;
@@ -43,7 +41,6 @@ export function ProfileCreateDialog({
   open,
   onOpenChange,
   existingCount,
-  lens,
   isPending,
   nameError = null,
   error = null,
@@ -79,11 +76,8 @@ export function ProfileCreateDialog({
       name: trimmed,
       color: identity.color,
       symbol: identity.symbol,
-      activate: {
-        scope: lens.scope,
-        profile: trimmed,
-        ...(lens.scope === "workspace" ? { workspace_id: lens.workspaceId } : {}),
-      },
+      // Profile selection is one global choice shared by every workspace.
+      activate: { scope: "global", profile: trimmed },
     });
   };
 

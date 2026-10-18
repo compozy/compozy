@@ -4,8 +4,8 @@ area: ET
 title: Resolve profiles with stable precedence and immutable session binding
 persona: Ada
 journey: J-operate-profiles
-expected: A command resolves --profile before COMPOZY_PROFILE, remembered workspace or Global selection, and default; archived remembered choices fall back with a note, sessions retain their creation profile, and daemon, doctor, and update ignore selection.
-entry_points: root --profile; COMPOZY_PROFILE; compozy profile current|use|list; compozy session create|list; compozy daemon|doctor|update; compozy__profile_list|current
+expected: A command resolves --profile before COMPOZY_PROFILE, the one remembered selection shared by every workspace, and default; archived remembered choices fall back with a note, sessions retain their creation profile, sessions created by an agent session bind the caller's profile, and daemon, doctor, and update ignore selection.
+entry_points: root --profile; COMPOZY_PROFILE; compozy profile current|use|list; compozy session create|list; compozy daemon|doctor|update; compozy__profile_list|current; compozy__session_create|session_spawn|subagent_delegate
 qa_status: pass
 bug_ids: BUG-20261002-session-jsonl-profile-resolution; BUG-20261002-profile-archive-fallback-provenance
 fix_status: fixed
@@ -20,14 +20,19 @@ Flagged by Profiles task 04. The final QA tasks own the real-user walk, evidence
 
 Walk:
 
-1. Set different Global and workspace remembered choices, then override them with
-   `COMPOZY_PROFILE` and root `--profile`; verify `profile current -o json` source and workspace.
+1. Run `compozy profile use <name>` inside a workspace and confirm `profile current -o json` reports
+   the same remembered choice from every workspace and from outside any workspace; then override it
+   with `COMPOZY_PROFILE` and root `--profile` and verify source and workspace.
 2. Archive the remembered profile and verify fallback to `default` with
    `archived_remembered_fallback`; explicit selection of the archived profile must fail.
 3. Start sessions under two profiles from separate terminals, change remembered selection, and prove
    each session remains bound to its creation profile through CLI/API/native reads.
-4. Produce an empty JSONL listing and retain the `profile_resolution` frame.
-5. Set an invalid profile environment value and prove `daemon`, `doctor`, and `update` behave exactly
+4. From an agent session bound to a non-default profile, create children with
+   `compozy__session_create`, `compozy__session_spawn`, `compozy__subagent_delegate`, and an in-session
+   `compozy session create`; confirm every child binds the caller's profile and appears in that
+   profile's Web session list.
+5. Produce an empty JSONL listing and retain the `profile_resolution` frame.
+6. Set an invalid profile environment value and prove `daemon`, `doctor`, and `update` behave exactly
    as they do without profile selection.
 
 Expected evidence: paired terminal transcripts, selection rows, session status payloads, native-tool
@@ -39,3 +44,7 @@ BUG-20261002-session-jsonl-profile-resolution. Archive fallback and machine-comm
 pending after this session ended for repair.
 
 2026-10-02 completed replay: Profile selection, archived fallback, immutable session owners, empty/populated JSONL, and machine-command parity passed through real CLI/HTTP/UDS/native surfaces. Fix 42db6579f; affected local gate passed. See the current dated report for exact receipts and limitations.
+
+qa-impact: 2026-10-18 issue #792. The remembered selection is one global slot (legacy per-workspace
+slots no longer resolve), and agent-created sessions bind the caller's profile. Steps 1 and 4 changed;
+re-walk them.

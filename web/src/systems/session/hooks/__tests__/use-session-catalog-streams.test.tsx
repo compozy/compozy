@@ -209,7 +209,7 @@ describe("useSessionCatalogStreams", () => {
     );
     act(() => vi.advanceTimersByTime(10_000));
     expect(result.current).toBe("stale");
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "other" }));
+    act(() => setProfileView({ kind: "profile", profile: "other" }));
     expect(result.current).toBe("connecting");
     act(() => sources[0]!.emit("error"));
     act(() => sources[1]!.emit("open"));
@@ -611,7 +611,7 @@ describe("useSessionCatalogStreams", () => {
     );
     expect(sources).toHaveLength(1);
 
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "marketing" }));
+    act(() => setProfileView({ kind: "profile", profile: "marketing" }));
 
     // A second socket opens under the new scope, and the first one is closed —
     // leaving a profile's scope stops its stream writes (US-010.EC-2).
@@ -622,7 +622,7 @@ describe("useSessionCatalogStreams", () => {
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
 
-    act(() => setProfileView({ scope: "global" }, { kind: "aggregate" }));
+    act(() => setProfileView({ kind: "aggregate" }));
     expect(sources[2]?.url).toBe(
       "/api/sessions/catalog-stream?all_workspaces=true&all_profiles=true"
     );

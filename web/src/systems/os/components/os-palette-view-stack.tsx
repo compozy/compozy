@@ -15,7 +15,7 @@ import {
 } from "../lib/palette-view-registry";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
-import { useProfileLens, useProfilesPaletteView } from "@/systems/profiles";
+import { useProfilesPaletteView } from "@/systems/profiles";
 
 import { OsPaletteViewShell } from "./os-palette-view-shell";
 import type { OsPaletteDomainRow } from "../lib/os-palette-domain-search";
@@ -59,8 +59,7 @@ function ProfilesPaletteViewFrame({
   onDismiss,
   ...shell
 }: PaletteViewFrameProps) {
-  const lens = useProfileLens();
-  const content = useProfilesPaletteView({ query: shell.query, lens, onDismiss });
+  const content = useProfilesPaletteView({ query: shell.query, onDismiss });
   const definition = paletteViewDefinition("profiles");
   if (definition === null) return null;
   return <OsPaletteViewShell definition={definition} content={content} {...shell} />;

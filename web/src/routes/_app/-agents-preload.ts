@@ -10,19 +10,14 @@ import {
 } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
 import { workspaceDetailOptions } from "@/systems/workspace";
-import {
-  actingProfile,
-  readProfileLens,
-  readProfileView,
-  readProfileScopeParams,
-} from "@/systems/profiles";
+import { readActingProfile, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadAgentsRoute(
   queryClient: QueryClient,
   filters: AgentCatalogStableFilter
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profile = readActingProfile(queryClient);
   await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(
       agentCatalogOptions(workspaceId ?? "", { ...filters, profile })
@@ -35,7 +30,7 @@ export async function preloadAgentSettingsRoute(
   name: string
 ): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profile = readActingProfile(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
     ...(workspaceId ? [queryClient.ensureQueryData(workspaceDetailOptions(workspaceId))] : []),
@@ -47,11 +42,11 @@ export async function preloadAgentDetailRoute(
   queryClient: QueryClient,
   name: string
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   const workspaceScope = workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true };
 
-  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profile = readActingProfile(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(

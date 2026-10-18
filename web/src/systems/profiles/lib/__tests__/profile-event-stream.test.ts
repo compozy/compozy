@@ -149,8 +149,7 @@ describe("applyProfileEvent", () => {
   it("Should leave the active view untouched when the switch happened elsewhere", () => {
     const queryClient = new QueryClient();
     vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
-    const lens = { scope: "workspace", workspaceId: "ws-acme" } as const;
-    setProfileView(lens, { kind: "profile", profile: "consulting" });
+    setProfileView({ kind: "profile", profile: "consulting" });
     const before = profileViewStore.getSnapshot().context;
 
     applyProfileEvent(queryClient, {
@@ -161,7 +160,7 @@ describe("applyProfileEvent", () => {
 
     // The remembered choice moved; what this client is looking at did not.
     expect(profileViewStore.getSnapshot().context).toEqual(before);
-    expect(localProfileView(lens)).toEqual({ kind: "profile", profile: "consulting" });
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "consulting" });
   });
 
   it("Should refresh the list and the row for a lifecycle event", () => {
@@ -182,8 +181,7 @@ describe("applyProfileEvent", () => {
   it("Should clear an unavailable profile view after an external lifecycle change", () => {
     const queryClient = new QueryClient();
     vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
-    const lens = { scope: "workspace", workspaceId: "ws-acme" } as const;
-    setProfileView(lens, { kind: "profile", profile: "marketing" });
+    setProfileView({ kind: "profile", profile: "marketing" });
 
     applyProfileEvent(queryClient, {
       name: "profile.renamed",
@@ -191,6 +189,6 @@ describe("applyProfileEvent", () => {
       previousProfileName: "marketing",
     });
 
-    expect(localProfileView(lens)).toBeNull();
+    expect(localProfileView()).toBeNull();
   });
 });

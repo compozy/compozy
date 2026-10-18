@@ -11,7 +11,7 @@ import {
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
-import { useProfileLens, useSwitchProfile } from "@/systems/profiles";
+import { useSwitchProfile } from "@/systems/profiles";
 import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
@@ -198,8 +198,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
   const paletteRegistry = usePaletteRegistry();
-  const profileLens = useProfileLens();
-  const switchProfile = useSwitchProfile(profileLens);
+  const switchProfile = useSwitchProfile();
   const { collapsedThreadIds } = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
