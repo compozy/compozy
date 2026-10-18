@@ -19,6 +19,7 @@ func applyToolArtifactContract(operations []OperationSpec) []OperationSpec {
 	return append(operations, OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "readToolArtifact",
 		Summary:     "Read one retained oversized tool-result page",
 		Tags:        []string{specToolsKey},

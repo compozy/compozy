@@ -6,6 +6,7 @@ func getObserveOverviewOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/observe/overview",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getObserveOverview",
 		Summary:     "Get the observer-backed home overview",
 		Tags:        []string{specObserveKey},

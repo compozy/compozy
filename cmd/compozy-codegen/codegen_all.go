@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 type allGeneratedArtifacts struct {
-	files   []generatedArtifact
-	goFiles map[string][]byte
+	files           []generatedArtifact
+	goFiles         map[string][]byte
+	clientFiles     map[string][]byte
+	clientPath      string
+	typescriptFiles map[string][]byte
+	typescriptPath  string
 }
 
 type generatedTreeSnapshot struct {
@@ -48,11 +54,23 @@ func prepareAllGeneratedArtifacts(
 	if err != nil {
 		return allGeneratedArtifacts{}, fmt.Errorf("generate openapi: %w", err)
 	}
+	typescript, err := generateSDKTypeScript(ctx, openapiContent)
+	if err != nil {
+		return allGeneratedArtifacts{}, err
+	}
 	sdkContent, err := generateFormattedSDKContracts(ctx, sdkContractsPath)
 	if err != nil {
 		return allGeneratedArtifacts{}, err
 	}
 	goContracts, err := generateSDKGoContracts()
+	if err != nil {
+		return allGeneratedArtifacts{}, err
+	}
+	client, err := generateSDKClient()
+	if err != nil {
+		return allGeneratedArtifacts{}, err
+	}
+	samples, err := generateSDKSamples()
 	if err != nil {
 		return allGeneratedArtifacts{}, err
 	}
@@ -73,6 +91,7 @@ func prepareAllGeneratedArtifacts(
 	return allGeneratedArtifacts{
 		files: []generatedArtifact{
 			{path: openapiPath, content: openapiContent},
+			{path: sdkSamplesPathFor(openapiPath), content: samples},
 			{path: sdkContractsPath, content: sdkContent},
 			{path: lifecycleMatrixPath, content: generateLifecycleMatrixMDX()},
 			{path: loopPath, content: loopContent},
@@ -81,7 +100,11 @@ func prepareAllGeneratedArtifacts(
 			{path: wirePaths.docsOutput, content: wireDocs},
 			{path: nativeToolCatalogPath, content: nativeCatalog},
 		},
-		goFiles: goContracts.Files,
+		goFiles:         goContracts.Files,
+		clientFiles:     client.Files,
+		clientPath:      sdkClientPathFor(openapiPath),
+		typescriptFiles: typescript,
+		typescriptPath:  sdkTypeScriptPathFor(openapiPath),
 	}, nil
 }
 
@@ -91,51 +114,82 @@ func publishAllGeneratedArtifacts(
 	publishFile func(string, []byte) error,
 	publishTree func(string, map[string][]byte) error,
 ) error {
-	treePath := filepath.Clean(sdkGoContractsPath)
+	files := slices.Clone(artifacts.files)
+	if artifacts.clientPath != "" {
+		client, err := sdkClientArtifacts(artifacts.clientPath, artifacts.clientFiles)
+		if err != nil {
+			return err
+		}
+		files = append(files, client...)
+	}
+	trees := []generatedTreeArtifact{{path: filepath.Clean(sdkGoContractsPath), files: artifacts.goFiles}}
+	if artifacts.typescriptPath != "" {
+		trees = append(trees, generatedTreeArtifact{path: artifacts.typescriptPath, files: artifacts.typescriptFiles})
+	}
 	companion := &generatedPublicationCompanion{
 		snapshot: func() (func() error, error) {
-			snapshot, err := snapshotGeneratedTree(treePath)
-			if err != nil {
-				return nil, err
+			snapshots := make([]generatedTreeSnapshot, 0, len(trees))
+			for _, tree := range trees {
+				snapshot, err := snapshotGeneratedTree(tree.path)
+				if err != nil {
+					return nil, err
+				}
+				snapshots = append(snapshots, snapshot)
 			}
-			return func() error { return restoreGeneratedTreeSnapshot(treePath, snapshot) }, nil
+			return func() (err error) {
+				for index := range slices.Backward(trees) {
+					err = errors.Join(err, restoreGeneratedTreeSnapshot(trees[index].path, snapshots[index]))
+				}
+				return err
+			}, nil
 		},
 		publish: func() error {
-			if err := publishTree(treePath, artifacts.goFiles); err != nil {
-				return fmt.Errorf("publish Go SDK contracts: %w", err)
+			for _, tree := range trees {
+				if err := publishTree(tree.path, tree.files); err != nil {
+					return fmt.Errorf("publish generated tree %q: %w", tree.path, err)
+				}
 			}
 			return nil
 		},
 	}
-	return publishGeneratedArtifactTransaction(artifacts.files, publishFile, companion)
+	return publishGeneratedArtifactTransaction(files, publishFile, companion)
+}
+
+type generatedTreeArtifact struct {
+	path  string
+	files map[string][]byte
 }
 
 func snapshotGeneratedTree(path string) (generatedTreeSnapshot, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return generatedTreeSnapshot{}, nil
 		}
 		return generatedTreeSnapshot{}, fmt.Errorf("snapshot generated tree %q: %w", path, err)
 	}
-	files := make(map[string][]byte, len(entries))
-	for _, entry := range entries {
+	files := make(map[string][]byte)
+	if err := filepath.WalkDir(path, func(file string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
 		if entry.IsDir() {
-			return generatedTreeSnapshot{}, fmt.Errorf(
-				"snapshot generated tree %q: unexpected directory %q",
-				path,
-				entry.Name(),
-			)
+			return nil
 		}
-		content, readErr := os.ReadFile(filepath.Join(path, entry.Name()))
-		if readErr != nil {
-			return generatedTreeSnapshot{}, fmt.Errorf(
-				"snapshot generated tree file %q: %w",
-				entry.Name(),
-				readErr,
-			)
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("generated tree file %q must be regular", file)
 		}
-		files[entry.Name()] = content
+		name, err := filepath.Rel(path, file)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		files[filepath.ToSlash(name)] = content
+		return nil
+	}); err != nil {
+		return generatedTreeSnapshot{}, fmt.Errorf("snapshot generated tree %q: %w", path, err)
 	}
 	return generatedTreeSnapshot{files: files, existed: true}, nil
 }
@@ -143,12 +197,12 @@ func snapshotGeneratedTree(path string) (generatedTreeSnapshot, error) {
 func restoreGeneratedTreeSnapshot(path string, snapshot generatedTreeSnapshot) error {
 	if !snapshot.existed {
 		if err := os.RemoveAll(path); err != nil {
-			return fmt.Errorf("remove newly published Go SDK tree %q: %w", path, err)
+			return fmt.Errorf("remove newly published generated tree %q: %w", path, err)
 		}
 		return nil
 	}
 	if err := publishGeneratedTree(path, snapshot.files); err != nil {
-		return fmt.Errorf("restore Go SDK tree %q: %w", path, err)
+		return fmt.Errorf("restore generated tree %q: %w", path, err)
 	}
 	return nil
 }

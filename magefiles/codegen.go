@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/internal/codegen/openapits"
 	"github.com/compozy/compozy/internal/codegen/storeschema"
 )
 
@@ -26,15 +25,6 @@ func Codegen() error {
 	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "all"); err != nil {
 		return err
-	}
-	artifacts, err := webOpenAPIArtifactsForGeneration()
-	if err != nil {
-		return err
-	}
-	for _, artifact := range artifacts {
-		if err := openapits.Generate(context.Background(), artifact); err != nil {
-			return err
-		}
 	}
 	if err := CLIDocs(); err != nil {
 		return err
@@ -81,15 +71,6 @@ func CodegenCheck() error {
 	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-manifest-check"); err != nil {
 		return err
-	}
-	artifacts, err := webOpenAPIArtifactsForCheck()
-	if err != nil {
-		return err
-	}
-	for _, artifact := range artifacts {
-		if err := openapits.Check(context.Background(), artifact); err != nil {
-			return err
-		}
 	}
 	if err := CLIDocsCheck(); err != nil {
 		return err

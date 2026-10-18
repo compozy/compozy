@@ -7,7 +7,7 @@
  * the daemon has no opinion about (the resolved projection the client renders)
  * are declared locally.
  */
-import type { operations } from "@/generated/compozy-openapi";
+import type { operations } from "@compozy/client";
 
 type CommandsResponse =
   operations["listCmdPaletteCommands"]["responses"][200]["content"]["application/json"];

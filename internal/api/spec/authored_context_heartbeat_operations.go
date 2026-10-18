@@ -18,6 +18,7 @@ func getAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        authoredContextAPIAgentsAgentNameHeartbeatPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentHeartbeat",
 		Summary:     "Inspect the resolved Heartbeat policy for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
@@ -52,6 +53,7 @@ func validateAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/heartbeat/validate",
+		AppAccess:   AppAccessDenied,
 		OperationID: "validateAgentHeartbeat",
 		Summary:     "Validate a proposed HEARTBEAT.md body",
 		Tags:        []string{authoredContextAgentsKey},
@@ -90,6 +92,7 @@ func putAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        authoredContextAPIAgentsAgentNameHeartbeatPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putAgentHeartbeat",
 		Summary:     "Create or replace HEARTBEAT.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -133,6 +136,7 @@ func deleteAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        authoredContextAPIAgentsAgentNameHeartbeatPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteAgentHeartbeat",
 		Summary:     "Delete HEARTBEAT.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -168,6 +172,7 @@ func listAgentHeartbeatHistoryOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/agents/{name}/heartbeat/history",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listAgentHeartbeatHistory",
 		Summary:     "List managed HEARTBEAT.md authoring revisions",
 		Tags:        []string{authoredContextAgentsKey},
@@ -204,6 +209,7 @@ func rollbackAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/heartbeat/rollback",
+		AppAccess:   AppAccessDenied,
 		OperationID: "rollbackAgentHeartbeat",
 		Summary:     "Rollback HEARTBEAT.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -247,6 +253,7 @@ func getAgentHeartbeatStatusOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        authoredContextAPIAgentsAgentNameHeartbeatStatusPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentHeartbeatStatus",
 		Summary:     "Read Heartbeat policy status, wake state, and optional session health",
 		Tags:        []string{authoredContextAgentsKey},
@@ -280,6 +287,7 @@ func wakeAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/heartbeat/wake",
+		AppAccess:   AppAccessDenied,
 		OperationID: "wakeAgentHeartbeat",
 		Summary:     "Request one advisory Heartbeat wake for an eligible session",
 		Tags:        []string{authoredContextAgentsKey},

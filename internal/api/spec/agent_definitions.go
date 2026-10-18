@@ -8,6 +8,7 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 	{
 		Method:      httpMethodPut,
 		Path:        specAPIAgentsNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateAgent",
 		Summary:     "Replace one effective AGENT.md definition with digest CAS",
 		Tags:        []string{specAgentsKey},
@@ -34,6 +35,7 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 	{
 		Method:      httpMethodDelete,
 		Path:        specAPIAgentsNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteAgent",
 		Summary:     "Durably delete one effective authored agent definition",
 		Tags:        []string{specAgentsKey},
@@ -62,6 +64,7 @@ var agentDefinitionMutationOperationRegistry = []OperationSpec{
 	{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/duplicate",
+		AppAccess:   AppAccessDenied,
 		OperationID: "duplicateAgent",
 		Summary:     "Duplicate one effective authored agent definition server-side",
 		Tags:        []string{specAgentsKey},

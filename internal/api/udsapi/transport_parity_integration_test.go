@@ -3693,3 +3693,376 @@ func assertTransportNavigationBoundaries(
 		}
 	}
 }
+
+func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run(
+		"Should manage one durable credential through both transports and enforce browser boundaries [IT-001 IT-002 IT-009]",
+		func(t *testing.T) {
+			t.Parallel()
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+			clients, err := harness.TransportClients()
+			if err != nil {
+				t.Fatalf("TransportClients() error = %v", err)
+			}
+			request := func(uds bool, method, path, body string, headers map[string]string, status int) []byte {
+				t.Helper()
+				client, target := clients.HTTPClient, harness.HTTPURL(path)
+				if uds {
+					client, target = clients.UDSClient, harness.UDSURL(path)
+				}
+				response := mustUnixRequest(t, client, method, target, []byte(body), headers)
+				payload := readAndCloseHTTPBody(t, response)
+				if response.StatusCode != status {
+					t.Fatalf("UDS=%t %s %s = %d/%s, want %d", uds, method, path, response.StatusCode, payload, status)
+				}
+				return payload
+			}
+			decodeError := func(body []byte, code string) {
+				t.Helper()
+				var payload compozycontract.ErrorPayload
+				if err := json.Unmarshal(body, &payload); err != nil {
+					t.Fatalf("decode error response: %v; body=%s", err, body)
+				}
+				if payload.Code != code || payload.Error == "" {
+					t.Fatalf("error payload = %#v, want %s with message", payload, code)
+				}
+			}
+			committed, err := os.ReadFile("../../../openapi/compozy.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, uds := range []bool{false, true} {
+				if body := request(
+					uds,
+					http.MethodGet,
+					"/api/openapi.json",
+					"",
+					nil,
+					http.StatusOK,
+				); !bytes.Equal(
+					body,
+					committed,
+				) {
+					t.Fatalf("UDS=%t runtime OpenAPI differs from committed contract", uds)
+				}
+			}
+			created := request(true, http.MethodPost, "/api/app-tokens",
+				`{"name":"Transport browser","origins":["http://localhost:3000"]}`, nil, http.StatusCreated)
+			var issued compozycontract.AppTokenIssuedResponse
+			if err := json.Unmarshal(created, &issued); err != nil {
+				t.Fatalf("decode issued token: %v", err)
+			}
+			if !strings.HasPrefix(issued.Token, "cpz_app_") || !strings.HasPrefix(issued.AppToken.ID, "apt_") ||
+				issued.AppToken.Name != "Transport browser" || issued.AppToken.LastUsedAt != nil {
+				t.Fatalf("issued token = %#v", issued.AppToken)
+			}
+			path := "/api/app-tokens/" + issued.AppToken.ID
+			listed := request(false, http.MethodGet, "/api/app-tokens", "", nil, http.StatusOK)
+			var tokens compozycontract.AppTokensResponse
+			if err := json.Unmarshal(listed, &tokens); err != nil {
+				t.Fatalf("decode listed tokens: %v", err)
+			}
+			if len(tokens.AppTokens) != 1 || tokens.AppTokens[0].ID != issued.AppToken.ID ||
+				bytes.Contains(listed, []byte("cpz_app_")) {
+				t.Fatalf("listed tokens = %s, want one secret-free credential", listed)
+			}
+			browserHeaders := map[string]string{
+				"Origin":        "http://localhost:3000",
+				"Authorization": "Bearer " + issued.Token,
+			}
+			preflight := mustUnixRequest(
+				t,
+				clients.HTTPClient,
+				http.MethodOptions,
+				harness.HTTPURL("/api/sessions"),
+				nil,
+				map[string]string{"Origin": browserHeaders["Origin"], "Access-Control-Request-Method": http.MethodGet},
+			)
+			preflightBody := readAndCloseHTTPBody(t, preflight)
+			if preflight.StatusCode != http.StatusNoContent || len(preflightBody) != 0 ||
+				preflight.Header.Get("Access-Control-Allow-Origin") != browserHeaders["Origin"] ||
+				preflight.Header.Get("Access-Control-Allow-Credentials") != "" {
+				t.Fatalf("preflight = %d/%s headers=%v", preflight.StatusCode, preflightBody, preflight.Header)
+			}
+			listPath := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID)
+			localBody := request(false, http.MethodGet, listPath, "", nil, http.StatusOK)
+			ownOriginBody := request(
+				false,
+				http.MethodGet,
+				listPath,
+				"",
+				map[string]string{"Origin": harness.HTTPBaseURL},
+				http.StatusOK,
+			)
+			browserBody := request(false, http.MethodGet, listPath, "", browserHeaders, http.StatusOK)
+			if !bytes.Equal(localBody, ownOriginBody) || !bytes.Equal(localBody, browserBody) {
+				t.Fatalf("session reads differ across local, own-origin and app-token requests")
+			}
+			// Existing local privileges remain unchanged, including mutations and vault reads.
+			resolveBody, err := json.Marshal(compozycontract.ResolveWorkspaceRequest{Path: harness.WorkspaceRoot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			request(false, http.MethodPost, "/api/workspaces/resolve", string(resolveBody), nil, http.StatusOK)
+			request(false, http.MethodGet, "/api/vault/secrets", "", nil, http.StatusOK)
+			ownHeaders := map[string]string{"Origin": harness.HTTPBaseURL}
+			for _, test := range []struct{ method, path, body string }{
+				{http.MethodPost, "/api/sessions", `{}`},
+				{http.MethodPatch, "/api/settings/general", `{}`},
+			} {
+				local := request(false, test.method, test.path, test.body, nil, http.StatusBadRequest)
+				own := request(false, test.method, test.path, test.body, ownHeaders, http.StatusBadRequest)
+				if !jsonEqual(local, own) {
+					t.Fatalf(
+						"own-origin %s %s differs from tokenless local: %s / %s",
+						test.method,
+						test.path,
+						local,
+						own,
+					)
+				}
+			}
+			settingsPath := "/api/settings/general"
+			terminalsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/terminals"
+			settingsBefore := request(false, http.MethodGet, settingsPath, "", nil, http.StatusOK)
+			terminalsBefore := request(false, http.MethodGet, terminalsPath, "", nil, http.StatusOK)
+			for _, test := range []struct{ method, path, body string }{
+				{http.MethodPost, terminalsPath + "/exec", `{"command":"echo forbidden"}`},
+				{http.MethodPatch, settingsPath, `{"config":{"limits":{"max_concurrent_agents":99}}}`},
+				{http.MethodPost, "/api/tools/compozy__session_list/invoke", `{}`},
+				{http.MethodPost, "/api/extensions", `{"source":"forbidden"}`},
+				{http.MethodPost, "/api/agent/tasks/claim-next", `{}`},
+			} {
+				decodeError(
+					request(false, test.method, test.path, test.body, browserHeaders, http.StatusForbidden),
+					"app_token_route_forbidden",
+				)
+			}
+			if after := request(
+				false,
+				http.MethodGet,
+				settingsPath,
+				"",
+				nil,
+				http.StatusOK,
+			); !jsonEqual(
+				settingsBefore,
+				after,
+			) {
+				t.Fatal("denied app mutation changed settings")
+			}
+			if after := request(
+				false,
+				http.MethodGet,
+				terminalsPath,
+				"",
+				nil,
+				http.StatusOK,
+			); !jsonEqual(
+				terminalsBefore,
+				after,
+			) {
+				t.Fatal("denied app mutation created a terminal")
+			}
+			decodeError(request(
+				false,
+				http.MethodOptions,
+				"/api/sessions",
+				"",
+				map[string]string{
+					"Origin":                        "http://localhost:4000",
+					"Access-Control-Request-Method": http.MethodGet,
+				},
+				http.StatusForbidden,
+			), "app_origin_not_allowed")
+			for _, endpoint := range []string{"/api/app-tokens", "/api/vault/secrets", "/api/gateway/devices", "/api/agent/me", "/api/fs/browse"} {
+				decodeError(
+					request(false, http.MethodGet, endpoint, "", browserHeaders, http.StatusForbidden),
+					"app_token_route_forbidden",
+				)
+			}
+			decodeError(request(false, http.MethodPost, "/api/app-tokens",
+				`{"name":"Forbidden"}`, browserHeaders, http.StatusForbidden), "app_token_route_forbidden")
+			updated := request(false, http.MethodPatch, path,
+				`{"name":"Updated browser","origins":["https://dash.example.com"]}`, nil, http.StatusOK)
+			var update compozycontract.AppTokenResponse
+			if err := json.Unmarshal(updated, &update); err != nil {
+				t.Fatalf("decode updated token: %v", err)
+			}
+			if update.AppToken.Name != "Updated browser" ||
+				!slices.Equal(update.AppToken.Origins, []string{"https://dash.example.com"}) ||
+				update.AppToken.LastUsedAt == nil {
+				t.Fatalf(
+					"updated token = %#v, want origin replacement and successful-read attribution",
+					update.AppToken,
+				)
+			}
+			decodeError(
+				request(false, http.MethodGet, "/api/sessions", "", browserHeaders, http.StatusForbidden),
+				"app_origin_not_allowed",
+			)
+			decodeError(
+				request(false, http.MethodOptions, "/api/sessions", "", browserHeaders, http.StatusForbidden),
+				"app_origin_not_allowed",
+			)
+			newPreflight := request(
+				false,
+				http.MethodOptions,
+				"/api/sessions",
+				"",
+				map[string]string{
+					"Origin":                        "https://dash.example.com",
+					"Access-Control-Request-Method": http.MethodGet,
+				},
+				http.StatusNoContent,
+			)
+			if len(newPreflight) != 0 {
+				t.Fatalf("new-origin preflight body = %s, want empty", newPreflight)
+			}
+			for _, uds := range []bool{false, true} {
+				decodeError(
+					request(uds, http.MethodGet, "/api/app-tokens?state=expired", "", nil, http.StatusBadRequest),
+					"app_token_state_invalid",
+				)
+			}
+			revoked := request(true, http.MethodDelete, path, "", nil, http.StatusOK)
+			var result compozycontract.AppTokenRevokeResponse
+			if err := json.Unmarshal(revoked, &result); err != nil {
+				t.Fatalf("decode revoked token: %v", err)
+			}
+			if !result.Changed || result.AppToken.RevokedAt == nil || result.AppToken.ID != issued.AppToken.ID {
+				t.Fatalf("revoked response = %#v", result)
+			}
+			for _, uds := range []bool{false, true} {
+				decodeError(
+					request(uds, http.MethodPatch, path, `{"name":"Revoked update"}`, nil, http.StatusConflict),
+					"app_token_revoked",
+				)
+				decodeError(
+					request(uds, http.MethodDelete, "/api/app-tokens/apt_missing", "", nil, http.StatusNotFound),
+					"app_token_not_found",
+				)
+				for _, state := range []string{"active", "revoked", "all"} {
+					body := request(uds, http.MethodGet, "/api/app-tokens?state="+state, "", nil, http.StatusOK)
+					if err := json.Unmarshal(body, &tokens); err != nil {
+						t.Fatalf("decode state %s: %v", state, err)
+					}
+					want := 1
+					if state == "active" {
+						want = 0
+					}
+					if len(tokens.AppTokens) != want || bytes.Contains(body, []byte("cpz_app_")) {
+						t.Fatalf("state %s = %s, want %d secret-free rows", state, body, want)
+					}
+				}
+			}
+			decodeError(request(
+				false,
+				http.MethodGet,
+				"/api/sessions",
+				"",
+				map[string]string{
+					"Origin":        "https://dash.example.com",
+					"Authorization": "Bearer " + issued.Token,
+				},
+				http.StatusUnauthorized,
+			),
+				"app_token_revoked")
+			var localOnly compozycontract.AppTokenIssuedResponse
+			if err := json.Unmarshal(
+				request(
+					true,
+					http.MethodPost,
+					"/api/app-tokens",
+					`{"name":"Local attribution"}`,
+					nil,
+					http.StatusCreated,
+				),
+				&localOnly,
+			); err != nil {
+				t.Fatal(err)
+			}
+			request(
+				false,
+				http.MethodGet,
+				"/api/status",
+				"",
+				map[string]string{"Authorization": "Bearer " + localOnly.Token},
+				http.StatusOK,
+			)
+			for _, origin := range []string{"https://dash.example.com", "http://localhost:3000", "null"} {
+				decodeError(request(
+					false,
+					http.MethodOptions,
+					"/api/sessions",
+					"",
+					map[string]string{
+						"Origin":                        origin,
+						"Access-Control-Request-Method": http.MethodGet,
+					},
+					http.StatusForbidden,
+				), "app_origin_not_allowed")
+				decodeError(request(
+					false,
+					http.MethodGet,
+					"/api/sessions",
+					"",
+					map[string]string{
+						"Origin":        origin,
+						"Authorization": "Bearer " + localOnly.Token,
+					},
+					http.StatusForbidden,
+				), "app_origin_not_allowed")
+			}
+			var limiterToken compozycontract.AppTokenIssuedResponse
+			if err := json.Unmarshal(request(
+				true,
+				http.MethodPost,
+				"/api/app-tokens",
+				`{"name":"Rate isolation","origins":["http://a.test","http://b.test"]}`,
+				nil,
+				http.StatusCreated,
+			), &limiterToken); err != nil {
+				t.Fatal(err)
+			}
+			for range 10 {
+				decodeError(request(
+					false,
+					http.MethodGet,
+					"/api/status",
+					"",
+					map[string]string{
+						"Origin":        "http://a.test",
+						"Authorization": "Bearer cpz_app_invalid",
+					},
+					http.StatusUnauthorized,
+				), "app_token_unauthenticated")
+			}
+			decodeError(request(
+				false,
+				http.MethodGet,
+				"/api/status",
+				"",
+				map[string]string{
+					"Origin":        "http://a.test",
+					"Authorization": "Bearer " + limiterToken.Token,
+				},
+				http.StatusTooManyRequests,
+			), "app_token_rate_limited")
+			request(
+				false,
+				http.MethodGet,
+				"/api/status",
+				"",
+				map[string]string{
+					"Origin":        "http://b.test",
+					"Authorization": "Bearer " + limiterToken.Token,
+				},
+				http.StatusOK,
+			)
+
+		},
+	)
+}

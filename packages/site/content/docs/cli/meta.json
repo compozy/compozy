@@ -53,6 +53,7 @@
         "gateway",
         "pair",
         "device",
+        "app-token",
         "connect",
         "---Configuration & System---",
         "install",

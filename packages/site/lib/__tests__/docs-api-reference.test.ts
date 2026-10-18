@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { compozyGo } from "@/components/docs/openapi-page";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AppAllowedOperations } from "@/components/docs/app-allowed-operations";
+import { generateSDKCodeSamples, type SDKSampleManifest } from "../sdk-samples";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
 
@@ -64,28 +67,57 @@ describe("api reference", () => {
     expect(dangling).toEqual([]);
   });
 
-  it("Should generate a current Go request sample that handles request failures", () => {
-    const sample = compozyGo.generate(
-      {
-        body: { workspace_id: "workspace_demo" },
-        bodyMediaType: "application/json",
-        cookie: {},
-        header: { Authorization: { value: "Bearer demo-token" } },
-        method: "post",
-        path: {},
-        query: {},
-        url: "https://compozy.com/api/v1/sessions",
+  it("Should use the generated SDK calls for JSON, prompt, and streaming operations", () => {
+    const manifest: SDKSampleManifest = {
+      version: 1,
+      operations: {
+        listTasks: {
+          typescript:
+            'const compozy = await Compozy.connect();\nawait compozy.tasks.listTasks({ query: { status: "in_progress" } });',
+          go: "c.ListTasks(ctx, client.ListTasksParams{})",
+          kind: "json",
+          app_access: "allowed",
+        },
+        sendSessionPrompt: {
+          typescript: "await compozy.prompt({ workspaceId, sessionId, message });",
+          go: "c.Prompt(ctx, input)",
+          kind: "prompt",
+          app_access: "allowed",
+        },
+        streamTask: {
+          typescript: 'for await (const frame of compozy.events("streamTask", options)) {}',
+          go: "frame, err := stream.Next()",
+          kind: "sse",
+          app_access: "allowed",
+        },
+        unsupportedGo: {
+          typescript: "// use the documented transport",
+          kind: "json",
+          app_access: "denied",
+        },
       },
-      { custom: undefined, mediaAdapters: {} }
-    );
+    };
 
-    expect(sample).toContain('"io"');
-    expect(sample).toContain("http.NewRequest");
-    expect(sample).toContain("Timeout: 30 * time.Second");
-    expect(sample).toContain("defer func()");
-    expect(sample).toContain("io.ReadAll(res.Body)");
-    expect(sample).toContain('req.Header.Set("Authorization", "Bearer demo-token")');
-    expect(sample).not.toContain("ioutil");
-    expect(sample).not.toContain("_ :=");
+    for (const [operationId, expected] of Object.entries(manifest.operations)) {
+      const samples = generateSDKCodeSamples(manifest, operationId);
+      expect(samples[0]).toMatchObject({ label: "TypeScript SDK", source: expected.typescript });
+      expect(samples[1]).toMatchObject({ label: "Go SDK", source: expected.go || false });
+    }
+    expect(
+      generateSDKCodeSamples(manifest, "missing").every(sample => sample.source === false)
+    ).toBe(true);
+  });
+
+  it("Should render only operations that the generated contract allows for browser apps", () => {
+    const samples: SDKSampleManifest = {
+      version: 1,
+      operations: {
+        listTasks: { kind: "json", app_access: "allowed" },
+        execTerminal: { kind: "json", app_access: "denied" },
+      },
+    };
+    const html = renderToStaticMarkup(createElement(AppAllowedOperations, { samples }));
+    expect(html).toContain("listTasks");
+    expect(html).not.toContain("execTerminal");
   });
 });

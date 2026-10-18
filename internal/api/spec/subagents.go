@@ -10,6 +10,7 @@ func registrySubagentOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "listSessionSubagents", Summary: "List a session's subagents", Tags: []string{specSessionsKey},
 			Transports: []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
@@ -24,6 +25,7 @@ func registrySubagentOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        subagentPath,
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getSubagent",
 			Summary:     "Read one subagent",
 			Tags:        []string{specSessionsKey},
@@ -37,6 +39,7 @@ func registrySubagentOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        subagentPath + "/cancel",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "cancelSubagent",
 			Summary:     "Cancel a delegated subagent",
 			Tags:        []string{specSessionsKey},

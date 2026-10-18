@@ -23,6 +23,7 @@ func uploadSessionAttachmentOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:             httpMethodPost,
 		Path:               specSessionAttachmentsPath,
+		AppAccess:          AppAccessAllowed,
 		OperationID:        "uploadSessionAttachment",
 		Summary:            "Upload a session attachment",
 		Tags:               []string{specSessionsKey},
@@ -49,6 +50,7 @@ func readSessionAttachmentBytesOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specSessionAttachmentBytesPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "readSessionAttachmentBytes",
 		Summary:     "Read session attachment bytes",
 		Tags:        []string{specSessionsKey},
@@ -77,6 +79,7 @@ func deleteSessionAttachmentOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specSessionAttachmentPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteSessionAttachment",
 		Summary:     "Delete a session attachment",
 		Tags:        []string{specSessionsKey},

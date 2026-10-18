@@ -6,6 +6,7 @@ func attachSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "attachSession",
 		Summary:     "Attach to a resumable live session",
 		Tags:        []string{specSessionsKey},

@@ -158,3 +158,8 @@ type PromoteSessionInputRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
 }
+
+// PromptStreamChunk carries the extensible AI SDK UI message stream discriminator.
+type PromptStreamChunk struct {
+	Type string `json:"type"`
+}

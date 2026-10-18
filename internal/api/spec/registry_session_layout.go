@@ -63,6 +63,7 @@ func sessionLayoutOperation(
 	return OperationSpec{
 		Method:      method,
 		Path:        path,
+		AppAccess:   AppAccessAllowed,
 		OperationID: operationID,
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},

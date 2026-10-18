@@ -19,7 +19,7 @@ const (
 	cliBinary                 = "compozy"
 	versionPackage            = "github.com/compozy/compozy/internal/version"
 	openAPISpecPath           = "openapi/compozy.json"
-	webOpenAPITypePath        = "web/src/generated/compozy-openapi.d.ts"
+	webOpenAPITypePath        = "sdk/client/src/generated/openapi/compozy-openapi.d.ts"
 	webDistDir                = "web/dist"
 	webDistIndex              = "web/dist/index.html"
 	webDistDirEnvVar          = "COMPOZY_WEB_DIST_DIR"

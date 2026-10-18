@@ -6,16 +6,99 @@ import (
 	"net/netip"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/spec"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/gin-gonic/gin"
 )
+
+type appAccessGatewayStub struct{ core.GatewayService }
 
 type gatewayListenerStoreStub struct {
 	gateway.Store
 	mu       sync.Mutex
 	snapshot gateway.Snapshot
+}
+
+func TestAppAccessPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should require every operation served by a physical route to allow app access", func(t *testing.T) {
+		t.Parallel()
+		policy := buildAppAccessPolicy([]spec.OperationSpec{
+			{Method: "GET", Path: "/api/catalog/read", AppAccess: spec.AppAccessAllowed},
+			{Method: "GET", Path: "/api/catalog/admin", AppAccess: spec.AppAccessDenied},
+			{Method: "GET", Path: "/api/sessions/{session_id}", AppAccess: spec.AppAccessAllowed},
+			{Method: "GET", Path: "/api/tasks/{task_id}", AppAccess: spec.AppAccessAllowed},
+			{Method: "GET", Path: "/api/tasks/{id}", AppAccess: spec.AppAccessDenied},
+			{Method: "GET", Path: "/api/unset"},
+		})
+		for _, test := range []struct {
+			method  string
+			route   string
+			allowed bool
+		}{
+			{"GET", "/api/catalog/read", true},
+			{"GET", "/api/catalog/*path", false},
+			{"GET", "/api/sessions/:id", true},
+			{"DELETE", "/api/sessions/:id", false},
+			{"GET", "/api/tasks/:id", false},
+			{"GET", "/api/unset", false},
+			{"GET", "/api/unknown", false},
+			{"GET", "", false},
+		} {
+			if allowed := policy(test.method, test.route); allowed != test.allowed {
+				t.Errorf("app access %s %s = %v, want %v", test.method, test.route, allowed, test.allowed)
+			}
+		}
+	})
+
+	t.Run("Should bind the real operation registry to the local listener routes", func(t *testing.T) {
+		t.Parallel()
+		policy := appAccessPolicy()
+		router := gin.New()
+		httpapi.RegisterRoutes(
+			router,
+			&httpapi.Handlers{
+				BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{Gateway: appAccessGatewayStub{}}),
+			},
+		)
+		operations := spec.Operations()
+		for _, route := range router.Routes() {
+			matched, allowed := false, true
+			physical := strings.Split(strings.Trim(route.Path, "/"), "/")
+			for _, operation := range operations {
+				if operation.Method != route.Method {
+					continue
+				}
+				canonical := strings.Split(strings.Trim(operation.Path, "/"), "/")
+				matches := len(physical) == len(canonical)
+				for index, segment := range physical {
+					if strings.HasPrefix(segment, "*") {
+						matches = index < len(canonical)
+						break
+					}
+					if index >= len(canonical) || (segment != canonical[index] &&
+						!(strings.HasPrefix(segment, ":") && strings.HasPrefix(canonical[index], "{"))) {
+						matches = false
+						break
+					}
+				}
+				if matches {
+					matched = true
+					allowed = allowed && operation.AppAccess == spec.AppAccessAllowed
+				}
+			}
+			if got, want := policy(route.Method, route.Path), matched && allowed; got != want {
+				t.Errorf("app access %s %s = %v, want %v", route.Method, route.Path, got, want)
+			}
+		}
+
+	})
 }
 
 func (s *gatewayListenerStoreStub) Snapshot(context.Context) (gateway.Snapshot, error) {

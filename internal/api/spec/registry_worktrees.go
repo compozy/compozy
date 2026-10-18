@@ -33,7 +33,7 @@ func registryWorktreeOperations() []OperationSpec {
 
 func listWorktreesOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreesPath, OperationID: "listWorktrees",
+		Method: httpMethodGet, Path: specAPIWorktreesPath, AppAccess: AppAccessDenied, OperationID: "listWorktrees",
 		Summary: "List registered and discovered worktrees", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeWorkspaceParams(), boolQueryParam("refresh", "Refresh Git discovery and status")),
@@ -49,7 +49,7 @@ func listWorktreesOperationSpec() OperationSpec {
 
 func createWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodPost, Path: specAPIWorktreesPath, OperationID: "createWorktree",
+		Method: httpMethodPost, Path: specAPIWorktreesPath, AppAccess: AppAccessDenied, OperationID: "createWorktree",
 		Summary: "Accept a worktree creation", Tags: []string{specWorktreesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
@@ -62,8 +62,11 @@ func createWorktreeOperationSpec() OperationSpec {
 
 func adoptWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodPost, Path: specAPIWorktreesPath + "/adopt", OperationID: "adoptWorktree",
-		Summary: "Adopt an existing linked worktree", Tags: []string{specWorktreesKey},
+		Method:      httpMethodPost,
+		Path:        specAPIWorktreesPath + "/adopt",
+		AppAccess:   AppAccessDenied,
+		OperationID: "adoptWorktree",
+		Summary:     "Adopt an existing linked worktree", Tags: []string{specWorktreesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
 		RequestBody: contract.AdoptWorktreeRequest{},
@@ -75,7 +78,7 @@ func adoptWorktreeOperationSpec() OperationSpec {
 
 func inspectWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreePath, OperationID: "inspectWorktree",
+		Method: httpMethodGet, Path: specAPIWorktreePath, AppAccess: AppAccessDenied, OperationID: "inspectWorktree",
 		Summary: "Inspect one worktree", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeRouteParams(),
 		Responses: []ResponseSpec{
@@ -89,7 +92,7 @@ func inspectWorktreeOperationSpec() OperationSpec {
 
 func worktreeStatusOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeStatusPath, OperationID: "getWorktreeStatus",
+		Method: httpMethodGet, Path: specAPIWorktreeStatusPath, AppAccess: AppAccessDenied, OperationID: "getWorktreeStatus",
 		Summary: "Read or refresh worktree status", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeRouteParams(),
@@ -112,6 +115,7 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIWorktreeExitPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getWorktreeExitPlan",
 		Summary:     "Read the worktree exit plan",
 		Tags:        []string{specWorktreesKey},
@@ -142,6 +146,7 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 func runWorktreeExitActionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIWorktreeExitPath + "/actions",
+		AppAccess:   AppAccessDenied,
 		OperationID: "runWorktreeExitAction", Summary: "Run a worktree exit action",
 		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: worktreeRouteParams(), RequestBody: contract.RunWorktreeExitActionRequest{},
@@ -159,6 +164,7 @@ func runWorktreeExitActionOperationSpec() OperationSpec {
 func cancelWorktreeExitActionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIWorktreeExitPath + "/cancel",
+		AppAccess:   AppAccessDenied,
 		OperationID: "cancelWorktreeExitAction", Summary: "Cancel a worktree exit action",
 		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: worktreeRouteParams(), RequestBody: contract.CancelWorktreeExitActionRequest{},
@@ -191,6 +197,7 @@ func removeWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPIWorktreePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "removeWorktree",
 		Summary:     "Remove a worktree",
 		Tags:        []string{specWorktreesKey},
@@ -225,7 +232,7 @@ func dismissWorktreeOperationSpec() OperationSpec {
 
 func streamWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeStreamPath, OperationID: "streamWorktree",
+		Method: httpMethodGet, Path: specAPIWorktreeStreamPath, AppAccess: AppAccessDenied, OperationID: "streamWorktree",
 		Summary: "Stream durable worktree lifecycle events", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeRouteParams(),
@@ -249,8 +256,11 @@ func streamWorktreeOperationSpec() OperationSpec {
 
 func streamWorktreeCatalogOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreeCatalogPath, OperationID: "streamWorktreeCatalog",
-		Summary: "Stream worktree catalog changes across workspaces", Tags: []string{specWorktreesKey},
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreeCatalogPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "streamWorktreeCatalog",
+		Summary:     "Stream worktree catalog changes across workspaces", Tags: []string{specWorktreesKey},
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 101, Description: specEventStreamUpgrade},
@@ -264,7 +274,8 @@ func streamWorktreeCatalogOperationSpec() OperationSpec {
 
 func worktreeNoContentOperation(method, path, operationID, summary string) OperationSpec {
 	return OperationSpec{
-		Method: method, Path: path, OperationID: operationID, Summary: summary,
+		AppAccess: AppAccessDenied,
+		Method:    method, Path: path, OperationID: operationID, Summary: summary,
 		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: worktreeRouteParams(),
 		Responses: append(worktreeMutationResponses(),

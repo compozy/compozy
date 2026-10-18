@@ -19,6 +19,7 @@ func getAgentSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        authoredContextAPIAgentSoulPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentSoul",
 		Summary:     "Inspect the resolved Soul read model for the calling agent",
 		Tags:        []string{authoredContextAgentKey},
@@ -45,6 +46,7 @@ func validateAgentSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agent/soul/validate",
+		AppAccess:   AppAccessDenied,
 		OperationID: "validateAgentSoul",
 		Summary:     "Validate a proposed Soul body or the calling agent's current Soul",
 		Tags:        []string{authoredContextAgentKey},
@@ -76,6 +78,7 @@ func getAgentDefinitionSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        authoredContextAPIAgentsAgentNameSoulPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getAgentDefinitionSoul",
 		Summary:     "Inspect the resolved Soul read model for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
@@ -110,6 +113,7 @@ func validateAgentDefinitionSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/soul/validate",
+		AppAccess:   AppAccessDenied,
 		OperationID: "validateAgentDefinitionSoul",
 		Summary:     "Validate a proposed Soul body for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
@@ -148,6 +152,7 @@ func putAgentSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        authoredContextAPIAgentsAgentNameSoulPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putAgentSoul",
 		Summary:     "Create or replace SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -187,6 +192,7 @@ func deleteAgentSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        authoredContextAPIAgentsAgentNameSoulPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteAgentSoul",
 		Summary:     "Delete SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -218,6 +224,7 @@ func listAgentSoulHistoryOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/agents/{name}/soul/history",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listAgentSoulHistory",
 		Summary:     "List managed SOUL.md authoring revisions",
 		Tags:        []string{authoredContextAgentsKey},
@@ -254,6 +261,7 @@ func rollbackAgentSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/agents/{name}/soul/rollback",
+		AppAccess:   AppAccessDenied,
 		OperationID: "rollbackAgentSoul",
 		Summary:     "Rollback SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
@@ -289,6 +297,7 @@ func refreshSessionSoulOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "refreshSessionSoul",
 		Summary:     "Refresh an idle session's Soul snapshot through body-level CAS",
 		Tags:        []string{authoredContextSessionsKey},

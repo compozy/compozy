@@ -14,6 +14,7 @@ import (
 const schemaStabilityExperimental = "experimental"
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[contract.PromptStreamChunk](): func(schema *openapi3.Schema) { schema.WithAnyAdditionalProperties() },
 	reflect.TypeFor[contract.SessionCompactionContextAfterPayload](): func(schema *openapi3.Schema) {
 		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
 		schema.Description = "Experimental: first occupancy observation after this compaction's first terminal snapshot " +
@@ -96,7 +97,10 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.UpdateSettingsCmdPaletteRequest]():        customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsCmdPaletteResponse]():             customizeClosedObjectSchema,
 	reflect.TypeFor[windowmanager.ShortcutBinding](): func(schema *openapi3.Schema) {
-		schema.Type = &openapi3.Types{openapi3.TypeArray, openapi3.TypeString}
+		*schema = openapi3.Schema{Nullable: schema.Nullable, OneOf: openapi3.SchemaRefs{
+			{Value: openapi3.NewStringSchema()},
+			{Value: openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())},
+		}}
 	},
 	reflect.TypeFor[contract.UpdateSettingsAttentionRequest](): customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionResponse]():      customizeClosedObjectSchema,

@@ -17,6 +17,7 @@ func listToolsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tools",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listTools",
 		Summary:     "List operator-visible registry tools",
 		Tags:        []string{specToolsKey},
@@ -41,6 +42,7 @@ func searchToolsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tools/search",
+		AppAccess:   AppAccessDenied,
 		OperationID: "searchTools",
 		Summary:     "Search operator-visible registry tools",
 		Tags:        []string{specToolsKey},
@@ -61,6 +63,7 @@ func getToolOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tools/{id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getTool",
 		Summary:     "Get one operator-visible registry tool",
 		Tags:        []string{specToolsKey},
@@ -86,6 +89,7 @@ func createToolApprovalOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tools/{id}/approvals",
+		AppAccess:   AppAccessDenied,
 		OperationID: "createToolApproval",
 		Summary:     "Mint a local single-use approval token for one tool invocation",
 		Tags:        []string{specToolsKey},
@@ -107,6 +111,7 @@ func invokeToolOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/tools/{id}/invoke",
+		AppAccess:   AppAccessDenied,
 		OperationID: "invokeTool",
 		Summary:     "Invoke a registry tool through executable dispatch",
 		Tags:        []string{specToolsKey},
@@ -131,6 +136,7 @@ func listSessionToolsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listSessionTools",
 		Summary:     "List session-callable registry tools",
 		Tags:        []string{specSessionsKey, specToolsKey},
@@ -151,6 +157,7 @@ func searchSessionToolsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "searchSessionTools",
 		Summary:     "Search session-callable registry tools",
 		Tags:        []string{specSessionsKey, specToolsKey},

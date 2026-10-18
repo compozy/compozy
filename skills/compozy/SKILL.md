@@ -44,6 +44,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Create, inspect, bind sessions to, exit, publish, remove, or recover workspace worktrees                                       | references/worktrees.md + references/native-tools.md               |
 | Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets         | references/runtime-operations.md + references/configuration.md     |
 | List, select, create, update, rename, archive, unarchive, delete, or retry profile lifecycle operations                        | references/profiles.md + references/native-tools.md                |
+| Build an external app with the TypeScript or Go client, or create, audit, update, and revoke app tokens                        | references/app-sdk.md                                              |
 | Read or change CompozyOS configuration: config.toml keys, defaults, scopes, and the settings apply lifecycle                   | references/configuration.md                                        |
 
 ## Reference Index
@@ -59,6 +60,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, command palette entries, and structured workflows.
+- references/app-sdk.md - external TypeScript and Go apps, daemon discovery, prompt/event streams, local app-token management, browser origin boundaries, and runtime OpenAPI.
 - references/configuration.md - layered config.toml desired state, profile credentials, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, session rebuild, role, and window-manager settings.
 - references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
 - references/profiles.md - operator-profile selection, immutable session binding, lifecycle plans, local-only mutations, errors, events, and public management surfaces.

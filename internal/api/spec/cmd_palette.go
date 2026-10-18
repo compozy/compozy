@@ -21,6 +21,7 @@ var (
 	cmdPaletteOperationSpecs = []OperationSpec{
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/commands",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listCmdPaletteCommands", Summary: "List command palette commands",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(
@@ -35,6 +36,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/clients",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listCmdPaletteClients", Summary: "List attached command palette clients",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
@@ -46,6 +48,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/rank-signals",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getCmdPaletteRankSignals", Summary: "Get command palette rank signals",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
@@ -57,6 +60,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/usage",
+			AppAccess:   AppAccessDenied,
 			OperationID: "recordCmdPaletteUsage", Summary: "Record command palette usage",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters:  withProfileScope(),
@@ -70,6 +74,7 @@ var (
 		},
 		{
 			Method: httpMethodPut, Path: "/api/cmd-palette/pins/{id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "pinCmdPaletteCommand", Summary: "Pin one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileSelector(
@@ -85,6 +90,7 @@ var (
 		},
 		{
 			Method: httpMethodDelete, Path: "/api/cmd-palette/pins/{id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "unpinCmdPaletteCommand", Summary: "Unpin one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileSelector(
@@ -100,6 +106,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/personalization",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getCmdPalettePersonalization", Summary: "Get command palette personalization summary",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
@@ -111,6 +118,7 @@ var (
 		},
 		{
 			Method: httpMethodDelete, Path: "/api/cmd-palette/personalization",
+			AppAccess:   AppAccessDenied,
 			OperationID: "resetCmdPalettePersonalization", Summary: "Reset command palette personalization",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileSelector(queryParam("workspace", "Workspace id, name, or path", true)),
@@ -122,6 +130,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/commands/{id}/invoke",
+			AppAccess:   AppAccessDenied,
 			OperationID: cmdPaletteInvokeOperationID, Summary: "Invoke one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileSelector(
@@ -143,6 +152,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getCmdPaletteView", Summary: "Get one declarative command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(
@@ -159,6 +169,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}/stream",
+			AppAccess:   AppAccessDenied,
 			OperationID: "streamCmdPaletteView", Summary: "Stream declarative command palette view patches",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(
@@ -180,6 +191,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/views/{id}/open",
+			AppAccess:   AppAccessDenied,
 			OperationID: cmdPaletteOpenViewOperationID, Summary: "Open one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileSelector(
@@ -198,6 +210,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/view-sessions/{session}/stream",
+			AppAccess:   AppAccessDenied,
 			OperationID: "streamCmdPaletteViewSession", Summary: "Stream one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
@@ -215,6 +228,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/view-sessions/{session}/events",
+			AppAccess:   AppAccessDenied,
 			OperationID: cmdPaletteAdmitViewEventOperationID, Summary: "Send one programmable view event",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
@@ -232,6 +246,7 @@ var (
 		},
 		{
 			Method: httpMethodDelete, Path: "/api/cmd-palette/view-sessions/{session}",
+			AppAccess:   AppAccessDenied,
 			OperationID: cmdPaletteCloseViewOperationID, Summary: "Close one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
@@ -245,6 +260,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/stream",
+			AppAccess:   AppAccessDenied,
 			OperationID: "streamCmdPalette", Summary: "Stream command palette catalog invalidations",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
@@ -259,6 +275,7 @@ var (
 		},
 		{
 			Method: httpMethodGet, Path: "/api/tools/approvals/{id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getPendingToolApproval", Summary: "Get one pending tool approval lifecycle",
 			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
@@ -273,6 +290,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/tools/approvals/{id}/resolve",
+			AppAccess:   AppAccessDenied,
 			OperationID: "resolvePendingToolApproval", Summary: "Approve or deny one pending tool approval",
 			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
@@ -295,6 +313,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/tools/approvals/{id}/cancel",
+			AppAccess:   AppAccessDenied,
 			OperationID: "cancelPendingToolApproval", Summary: "Cancel one pending tool approval",
 			Tags: []string{specToolsKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{

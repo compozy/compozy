@@ -30,6 +30,7 @@ func getSettingsRolesOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsRolesPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsRoles",
 		Summary:     "Read the background-role routing settings section",
 		Tags:        []string{specSettingsKey},
@@ -45,6 +46,7 @@ func updateSettingsRolesOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsRolesPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsRoles",
 		Summary:     "Update the background-role routing settings section",
 		Tags:        []string{specSettingsKey},
@@ -63,6 +65,7 @@ func getSettingsObservabilityOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsObservabilityPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsObservability",
 		Summary:     "Read the observability settings section",
 		Tags:        []string{specSettingsKey},
@@ -77,6 +80,7 @@ func updateSettingsObservabilityOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsObservabilityPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsObservability",
 		Summary:     "Update the observability settings section",
 		Tags:        []string{specSettingsKey},
@@ -95,6 +99,7 @@ func streamSettingsObservabilityLogTailOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/observability/log-tail",
+		AppAccess:   AppAccessDenied,
 		OperationID: "streamSettingsObservabilityLogTail",
 		Summary:     "Stream daemon log output for the observability settings screen",
 		Tags:        []string{specSettingsKey},
@@ -109,6 +114,7 @@ func listSettingsProvidersOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/providers",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listSettingsProviders",
 		Summary:     "List settings-backed providers",
 		Tags:        []string{specSettingsKey},
@@ -123,6 +129,7 @@ func getSettingsProviderOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsProvidersNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsProvider",
 		Summary:     "Read one settings-backed provider",
 		Tags:        []string{specSettingsKey},
@@ -141,6 +148,7 @@ func putSettingsProviderOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPISettingsProvidersNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putSettingsProvider",
 		Summary:     "Create or replace one settings-backed provider overlay",
 		Tags:        []string{specSettingsKey},
@@ -162,6 +170,7 @@ func deleteSettingsProviderOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPISettingsProvidersNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteSettingsProvider",
 		Summary:     "Delete one settings-backed provider overlay",
 		Tags:        []string{specSettingsKey},
@@ -181,6 +190,7 @@ func getSettingsSkillsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsSkillsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsSkills",
 		Summary:     "Read the skills settings section",
 		Tags:        []string{specSettingsKey},
@@ -204,6 +214,7 @@ func updateSettingsSkillsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsSkillsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsSkills",
 		Summary:     "Update the skills settings section",
 		Tags:        []string{specSettingsKey},

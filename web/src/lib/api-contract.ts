@@ -1,70 +1,12 @@
-import type { operations as compozyOperations } from "@/generated/compozy-openapi";
+import type { OperationRequestBody } from "@compozy/client";
 
-type OperationResponses<Operation> = Operation extends { responses: infer Responses }
-  ? Responses
-  : never;
-
-type OperationRequestBodyContent<RequestBody> = RequestBody extends {
-  content: { "application/json": infer Body };
-}
-  ? Body
-  : never;
-
-type OperationRequest<Operation> = Operation extends { requestBody: infer RequestBody }
-  ? OperationRequestBodyContent<RequestBody>
-  : Operation extends { requestBody?: infer RequestBody }
-    ? OperationRequestBodyContent<RequestBody>
-    : never;
-
-type OperationQueryParams<Operation> = Operation extends {
-  parameters?: { query?: infer Query };
-}
-  ? Query
-  : never;
-
-type OperationPathParams<Operation> = Operation extends {
-  parameters?: { path?: infer Path };
-}
-  ? Path
-  : never;
-
-type ContentBody<T> = T extends { content: { "application/json": infer Body } }
-  ? Body
-  : T extends { content: { "text/plain": infer Body } }
-    ? Body
-    : T extends { content: { "text/event-stream": infer Body } }
-      ? Body
-      : never;
-
-type OperationResponseFor<
-  Operations,
-  Id extends keyof Operations,
-  Status extends keyof OperationResponses<Operations[Id]>,
-> = ContentBody<OperationResponses<Operations[Id]>[Status]>;
-
-type OperationRequestBodyFor<Operations, Id extends keyof Operations> = OperationRequest<
-  Operations[Id]
->;
-
-type OperationQueryFor<Operations, Id extends keyof Operations> = OperationQueryParams<
-  Operations[Id]
->;
-
-type OperationPathFor<Operations, Id extends keyof Operations> = OperationPathParams<
-  Operations[Id]
->;
-
-export type OperationId = keyof compozyOperations;
-
-export type OperationResponse<
-  Id extends OperationId,
-  Status extends keyof OperationResponses<compozyOperations[Id]>,
-> = OperationResponseFor<compozyOperations, Id, Status>;
-
-export type OperationRequestBody<Id extends OperationId> = OperationRequestBodyFor<
-  compozyOperations,
-  Id
->;
+export type {
+  OperationId,
+  OperationResponse,
+  OperationRequestBody,
+  OperationQuery,
+  OperationPath,
+} from "@compozy/client";
 
 type PromptRuntimeSelection = NonNullable<OperationRequestBody<"sendSessionPrompt">["runtime"]>;
 
@@ -83,7 +25,3 @@ export type RuntimeSpeed = NonNullable<PromptRuntimeSelection["speed"]>;
 export function isReasoningEffort(value: string): value is ReasoningEffort {
   return value.length > 0 && !/[\s\p{Cc}]/u.test(value);
 }
-
-export type OperationQuery<Id extends OperationId> = OperationQueryFor<compozyOperations, Id>;
-
-export type OperationPath<Id extends OperationId> = OperationPathFor<compozyOperations, Id>;

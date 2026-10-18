@@ -6,6 +6,7 @@ func marketplaceRefreshOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/marketplace/refresh",
+		AppAccess:   AppAccessDenied,
 		OperationID: "refreshMarketplaceCatalog",
 		Summary:     "Refresh the extension catalog",
 		Tags:        []string{specMarketplaceKey},

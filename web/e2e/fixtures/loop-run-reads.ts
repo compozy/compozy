@@ -1,4 +1,4 @@
-import type { operations } from "../../src/generated/compozy-openapi";
+import type { operations } from "@compozy/client";
 
 export type LoopRunNodesContract =
   operations["getLoopRunNodes"]["responses"][200]["content"]["application/json"];

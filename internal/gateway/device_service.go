@@ -23,6 +23,7 @@ const DefaultStreamTicketLimit = 256
 // DeviceService owns pairing, authentication, device inventory, tickets, and live revocation.
 type DeviceService struct {
 	store       DeviceStore
+	appTokens   appTokenService
 	pairings    *pairingStore
 	tickets     *streamTicketStore
 	connections ConnectionRegistry
@@ -34,6 +35,7 @@ type DeviceService struct {
 type DeviceServiceOption func(*deviceServiceConfig) error
 
 type deviceServiceConfig struct {
+	appTokens         AppTokenStore
 	now               func() time.Time
 	entropy           io.Reader
 	pairingTTL        time.Duration
@@ -73,6 +75,7 @@ func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceSe
 	}
 	return &DeviceService{
 		store: store, pairings: pairings, tickets: tickets,
+		appTokens:   appTokenService{store: config.appTokens},
 		connections: config.connections, mutations: newMutationGate(), now: config.now, entropy: config.entropy,
 	}, nil
 }
@@ -249,46 +252,12 @@ func (s *DeviceService) RenameDevice(ctx context.Context, deviceID, name string)
 }
 
 func (s *DeviceService) RevokeDevice(ctx context.Context, deviceID string) (RevokeResult, error) {
-	operationCtx := ctx
-	if releaseMutationForDevice(ctx, deviceID) {
-		operationCtx = context.WithoutCancel(ctx)
-	}
-	finishRevocation, err := s.mutations.beginRevocation(operationCtx, deviceID)
-	if err != nil {
-		return RevokeResult{}, err
-	}
-	revocationCommitted := false
-	defer func() { finishRevocation(revocationCommitted) }()
-
-	var (
-		device   DeviceSession
-		changed  bool
-		storeErr error
-	)
-	now := s.now()
-	if actor, ok := DeviceFromContext(operationCtx); ok {
-		device, changed, storeErr = s.store.RevokeDeviceForActor(
-			operationCtx,
-			actor.ID,
-			actor.RevokeEpoch,
-			deviceID,
-			now,
-		)
-	} else {
-		device, changed, storeErr = s.store.RevokeDevice(operationCtx, deviceID, now)
-	}
-	if storeErr != nil {
-		return RevokeResult{}, fmt.Errorf("gateway: revoke device: %w", storeErr)
-	}
-	revocationCommitted = true
-	terminationCtx, cancelTermination := context.WithTimeout(operationCtx, defaultConnectionTerminationTimeout)
-	defer cancelTermination()
-	canceled, cancelErr := s.connections.CancelDevice(terminationCtx, deviceID)
-	result := RevokeResult{Device: device, Changed: changed, Canceled: canceled}
-	if cancelErr != nil {
-		return result, fmt.Errorf("gateway: terminate revoked device connections: %w", cancelErr)
-	}
-	return result, nil
+	return s.revokeSession(ctx, deviceID, func(operationCtx context.Context) (DeviceSession, bool, error) {
+		if actor, ok := DeviceFromContext(operationCtx); ok {
+			return s.store.RevokeDeviceForActor(operationCtx, actor.ID, actor.RevokeEpoch, deviceID, s.now())
+		}
+		return s.store.RevokeDevice(operationCtx, deviceID, s.now())
+	})
 }
 
 func (s *DeviceService) MintStreamTicket(ctx context.Context, deviceID string) (StreamTicket, error) {
@@ -329,6 +298,10 @@ func (s *DeviceService) ConsumeStreamTicket(ctx context.Context, ticket string) 
 }
 
 func (s *DeviceService) RevalidateForCommit(ctx context.Context, deviceID string, epoch uint64) error {
+	// A self-revocation has surrendered its valid lease and sealed this identity before its final write.
+	if revokingID, ok := ctx.Value(selfRevocationContextKey{}).(string); ok && revokingID == deviceID {
+		return nil
+	}
 	if err := s.mutations.validate(deviceID); err != nil {
 		return fmt.Errorf("gateway: validate device mutation gate: %w", err)
 	}

@@ -1,0 +1,143 @@
+---
+title: Build with Go
+description: Discover the daemon, create a session, and read prompt and event streams with the Go client.
+icon: FileCode
+---
+
+> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+The Go client uses only the standard library and lives at
+`github.com/compozy/compozy/sdk/go/client`. It shares the extension SDK's module and release tag,
+while exposing an HTTP/UDS client for apps outside extension subprocesses.
+
+You need a running CompozyOS daemon and an authenticated agent named `claude`. Follow
+[Getting started](/docs/getting-started) first, or substitute a configured agent name below.
+
+## Install the matching version
+
+In your Go module:
+
+```bash
+COMPOZY_SDK_VERSION="$(compozy version | awk '{print $2}')"
+go get "github.com/compozy/compozy/sdk/go/client@v${COMPOZY_SDK_VERSION#v}"
+```
+
+The command reads your installed CompozyOS version and pins the corresponding Go module version.
+Keep the running daemon on that same release. Expected result: `go.mod` records
+`github.com/compozy/compozy/sdk/go` at that exact version; the repository tag has the form
+`sdk/go/v<version>`. Development builds need a local module replacement instead of a published tag.
+
+## Create a session and prompt it
+
+Save this as `main.go` in the workspace you want the agent to inspect:
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "io"
+    "log"
+    "os"
+
+    "github.com/compozy/compozy/sdk/go/client"
+)
+
+func main() {
+    ctx := context.Background()
+    c, err := client.New(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    cwd, err := os.Getwd()
+    if err != nil {
+        log.Fatal(err)
+    }
+    ws, err := c.ResolveWorkspace(ctx, client.ResolveWorkspaceRequest{Path: cwd})
+    if err != nil {
+        log.Fatal(err)
+    }
+    created, err := c.CreateSession(ctx, client.CreateSessionParams{}, client.CreateSessionRequest{
+        Workspace: ws.Workspace.ID,
+        AgentName: "claude",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    stream, err := c.Prompt(ctx, client.PromptInput{
+        WorkspaceID: ws.Workspace.ID,
+        SessionID: created.Session.ID,
+        Message: "List the three largest files in this repo.",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer stream.Close()
+    for {
+        chunk, err := stream.Next()
+        if errors.Is(err, io.EOF) {
+            break
+        }
+        if err != nil {
+            log.Fatal(err)
+        }
+        if chunk.Type == "text-delta" {
+            fmt.Print(chunk.TextDelta())
+        }
+    }
+}
+```
+
+Run `go run .`. Expected result: the agent's answer is printed as chunks arrive; names and sizes match
+your workspace. The session remains in CompozyOS after the process exits.
+
+`client.New(ctx)` discovers the daemon's Unix socket first, using `COMPOZY_HOME` or `~/.compozy`, and
+then its TCP record. Select TCP with `client.WithBaseURL("http://127.0.0.1:2123")`, a socket with
+`client.WithSocket(path)`, or a home with `client.WithHome(dir)`. `WithToken`, `WithHTTPClient`,
+`WithLogger`, and `WithClientID` customize authentication and transport. `c.DaemonVersion()` returns
+the connected version. A major/minor mismatch logs a warning but still connects.
+
+## Handle queued work and events
+
+When prompting a busy session with `Mode: "queue"`, check `stream.Accepted()` before reading. It
+returns the accepted payload and a boolean; `Next()` immediately returns `io.EOF` for an accepted
+result. The payload includes the queue status and position.
+
+Generated JSON methods retain the operation ID in Go form, such as `ListTasks`. Parameters go in a
+`ListTasksParams` struct and the request body, where needed, is the final argument. Generated SSE
+methods return streams whose `Next()` yields frames with `Event`, `ID`, and decoded `Data`:
+
+```go
+stream, err := c.StreamSession(ctx, client.StreamSessionParams{
+    WorkspaceID: workspaceID,
+    SessionID: sessionID,
+})
+if err != nil {
+    return err
+}
+defer stream.Close()
+for {
+    frame, err := stream.Next()
+    if errors.Is(err, io.EOF) {
+        break
+    }
+    if err != nil {
+        return err
+    }
+    fmt.Println(frame.Event, frame.ID, frame.Data)
+}
+```
+
+Use this block inside a function returning `error`, with your existing client and IDs. Expected
+result: transcript snapshot and delta frames for that session. Raw WebSocket upgrade operations
+are outside the generated Go client.
+
+A daemon error is a `*client.APIError` with `Status`, `Code`, `Message`, and `Details`. Missing daemon
+discovery wraps `client.ErrUnavailable`. Canceling the stream context makes `Next()` return
+`context.Canceled`; it detaches the reader without canceling the agent's turn. Recover the transcript
+before resubmitting interrupted work, and explicitly cancel the session prompt when that is your intent.
+
+The [API reference](/docs/api) includes generated Go calls per operation. Full package documentation
+is published on [pkg.go.dev](https://pkg.go.dev/github.com/compozy/compozy/sdk/go/client).

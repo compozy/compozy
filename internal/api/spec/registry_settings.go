@@ -40,6 +40,7 @@ func listSettingsApplyRecordsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/apply",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listSettingsApplyRecords",
 		Summary:     "List config apply records for desired and active generation reconciliation",
 		Tags:        []string{specSettingsKey},
@@ -60,6 +61,7 @@ func reloadSettingsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/settings/reload",
+		AppAccess:   AppAccessDenied,
 		OperationID: "reloadSettings",
 		Summary:     "Reconcile config.toml with the daemon active generation",
 		Tags:        []string{specSettingsKey},
@@ -76,6 +78,7 @@ func getSettingsRestartStatusOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/actions/restart/{operation_id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsRestartStatus",
 		Summary:     "Get the persisted status for one daemon restart operation",
 		Tags:        []string{specSettingsKey},
@@ -94,6 +97,7 @@ func getSettingsUpdateOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/update",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsUpdate",
 		Summary:     "Read the current CompozyOS software update status",
 		Tags:        []string{specSettingsKey},
@@ -110,6 +114,7 @@ func applySettingsUpdateOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/settings/update/apply",
+		AppAccess:   AppAccessDenied,
 		OperationID: "applySettingsUpdate",
 		Summary:     "Durably acquire an asynchronous software update operation",
 		Tags:        []string{specSettingsKey},
@@ -133,6 +138,7 @@ func cancelSettingsUpdateOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/settings/update/cancel",
+		AppAccess:   AppAccessDenied,
 		OperationID: "cancelSettingsUpdate",
 		Summary:     "Cancel and archive a dormant software update operation",
 		Tags:        []string{specSettingsKey},
@@ -153,6 +159,7 @@ func triggerSettingsRestartOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/settings/actions/restart",
+		AppAccess:   AppAccessDenied,
 		OperationID: "triggerSettingsRestart",
 		Summary:     "Trigger a daemon restart using the persisted relaunch helper flow",
 		Tags:        []string{specSettingsKey},
@@ -168,6 +175,7 @@ func getSettingsAutomationOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsAutomationPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsAutomation",
 		Summary:     "Read the automation settings section",
 		Tags:        []string{specSettingsKey},
@@ -182,6 +190,7 @@ func updateSettingsAutomationOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsAutomationPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsAutomation",
 		Summary:     "Update the automation settings section",
 		Tags:        []string{specSettingsKey},
@@ -201,6 +210,7 @@ func getSettingsGeneralOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsGeneralPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsGeneral",
 		Summary:     "Read the general settings section",
 		Tags:        []string{specSettingsKey},
@@ -215,6 +225,7 @@ func updateSettingsGeneralOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsGeneralPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsGeneral",
 		Summary:     "Update the general settings section",
 		Tags:        []string{specSettingsKey},
@@ -233,6 +244,7 @@ func listSettingsHooksOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/hooks",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listSettingsHooks",
 		Summary:     "List settings-backed hook declarations",
 		Tags:        []string{specSettingsKey},
@@ -248,6 +260,7 @@ func putSettingsHookOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPISettingsHooksNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putSettingsHook",
 		Summary:     "Create or replace one settings-backed hook declaration",
 		Tags:        []string{specSettingsKey},
@@ -269,6 +282,7 @@ func deleteSettingsHookOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPISettingsHooksNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteSettingsHook",
 		Summary:     "Delete one settings-backed hook declaration",
 		Tags:        []string{specSettingsKey},
@@ -288,6 +302,7 @@ func getSettingsHooksExtensionsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsHooksExtensionsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsHooksExtensions",
 		Summary:     "Read the hooks and extensions settings section",
 		Tags:        []string{specSettingsKey},
@@ -302,6 +317,7 @@ func updateSettingsHooksExtensionsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsHooksExtensionsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsHooksExtensions",
 		Summary:     "Update the hooks and extensions settings section",
 		Tags:        []string{specSettingsKey},
@@ -320,6 +336,7 @@ func listSettingsMCPServersOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/settings/mcp-servers",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listSettingsMCPServers",
 		Summary:     "List manual and extension-owned MCP servers",
 		Tags:        []string{specSettingsKey},
@@ -337,6 +354,7 @@ func putSettingsMCPServerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPISettingsMCPServersNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "putSettingsMCPServer",
 		Summary:     "Replace a manual MCP server or its extension override",
 		Tags:        []string{specSettingsKey},
@@ -362,6 +380,7 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPISettingsMCPServersNamePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "deleteSettingsMCPServer",
 		Summary:     "Delete a manual MCP server or reset its extension override",
 		Tags:        []string{specSettingsKey},

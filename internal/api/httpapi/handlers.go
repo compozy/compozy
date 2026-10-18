@@ -79,6 +79,8 @@ type handlerConfig struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	deadEntities          doctor.DeadEntitySource
+	appTokens             core.AppTokenManager
+	openAPI               *core.OpenAPIDocument
 	gateway               core.GatewayService
 	gatewayAdmission      gateway.AdmissionController
 	deviceAuth            gateway.DeviceAuthenticator
@@ -249,6 +251,8 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SkillResources:         cfg.skillResources,
 		RuntimeMemory:          cfg.runtimeMemory,
 		DeadEntities:           cfg.deadEntities,
+		AppTokens:              cfg.appTokens,
+		OpenAPI:                cfg.openAPI,
 		Gateway:                cfg.gateway,
 		HomePaths:              cfg.homePaths,
 		AgentLoader:            cfg.agentLoader,
@@ -298,5 +302,12 @@ func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
 	if h != nil {
 		boundHost = h.boundHost
 	}
-	return loopbackMutationGuard(boundHost)
+	loopback := loopbackMutationGuard(boundHost)
+	return func(c *gin.Context) {
+		if c.GetString(appTokenOriginKey) != "" {
+			core.RespondAppTokenError(c, gateway.ErrAppTokenRouteForbidden, true)
+			return
+		}
+		loopback(c)
+	}
 }

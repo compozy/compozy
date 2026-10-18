@@ -6,6 +6,7 @@ func getSessionCommandsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getSessionCommands",
 		Summary:     "List commands available to a session",
 		Tags:        []string{specSessionsKey},
@@ -27,6 +28,7 @@ func setSessionRuntimeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "setSessionRuntime",
 		Summary:     "Select the default runtime for future prompts",
 		Tags:        []string{specSessionsKey},
@@ -50,6 +52,7 @@ func clearSessionRuntimeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "clearSessionRuntime",
 		Summary:     "Clear the default runtime for future prompts",
 		Tags:        []string{specSessionsKey},

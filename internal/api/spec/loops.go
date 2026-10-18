@@ -363,6 +363,7 @@ func loopOperation(
 	return OperationSpec{
 		Method:      method,
 		Path:        path,
+		AppAccess:   AppAccessAllowed,
 		OperationID: operationID,
 		Summary:     summary,
 		Tags:        []string{specLoopsKey},

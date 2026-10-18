@@ -10,6 +10,34 @@ import (
 )
 
 func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {
+	names, err := operationComponentNames()
+	if err != nil {
+		return nil, err
+	}
+	return schemaRefForValueWithNames(value, schemas, names)
+}
+
+func schemaRefForValueWithNames(
+	value any,
+	schemas openapi3.Schemas,
+	names map[reflect.Type]string,
+) (*openapi3.SchemaRef, error) {
+	schemaRef, sources, err := reflectSchemaValue(value, schemas, names)
+	if err != nil {
+		return nil, err
+	}
+	if err := componentizeSchema(schemaRef, sources, names, schemas, make(map[*openapi3.Schema]struct{})); err != nil {
+		return nil, err
+	}
+	return schemaRef, nil
+}
+
+func reflectSchemaValue(
+	value any,
+	schemas openapi3.Schemas,
+	names map[reflect.Type]string,
+) (*openapi3.SchemaRef, map[*openapi3.Schema]reflect.Type, error) {
+	// Reflection runs only while building the cached contract, never on a request path.
 	var rootType reflect.Type
 	if value != nil {
 		rootType = reflect.TypeOf(value)
@@ -18,17 +46,33 @@ func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef
 			value = reflect.New(rootType).Interface()
 		}
 	}
+	sources := make(map[*openapi3.Schema]reflect.Type)
 	schemaRef, err := openapi3gen.NewSchemaRefForValue(
 		value,
 		schemas,
-		openapi3gen.SchemaCustomizer(schemaCustomizer),
+		openapi3gen.CreateTypeNameGenerator(func(t reflect.Type) string {
+			if name := names[t]; name != "" {
+				return name
+			}
+			return t.Name()
+		}),
+		openapi3gen.SchemaCustomizer(func(name string, t reflect.Type, tag reflect.StructTag, schema *openapi3.Schema) error {
+			sources[schema] = t
+			if err := schemaCustomizer(name, t, tag, schema); err != nil {
+				return err
+			}
+			if isComponentSchema(t) {
+				schema.Origin = &openapi3.Origin{Key: &openapi3.Location{File: t.PkgPath(), Name: t.Name()}}
+			}
+			return nil
+		}),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	applySchemaRequirements(schemaRef, rootType)
 	resolveSchemaReferences(schemaRef, schemas, make(map[*openapi3.Schema]struct{}))
-	return schemaRef, nil
+	applySchemaRequirements(schemaRef, rootType)
+	return schemaRef, sources, nil
 }
 
 func schemaRefForType(typeOf reflect.Type, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {
@@ -139,6 +183,11 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 }
 
 func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *openapi3.Schema) error {
+	if t.Kind() == reflect.Uint64 {
+		schema.Format = "uint64"
+		schema.Min = new(float64(0))
+		schema.Max = nil
+	}
 	if customizer, ok := schemaCustomizers[t]; ok {
 		customizer(schema)
 		return nil

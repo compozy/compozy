@@ -116,6 +116,7 @@ export const DOCS_ICONS: Record<string, LucideIcon> = {
  */
 export const API_TAG_ICONS: Record<string, string> = {
   agent: "MessageSquare",
+  "app-tokens": "Key",
   agents: "FileText",
   automation: "Activity",
   bundles: "Package",

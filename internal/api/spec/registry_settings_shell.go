@@ -6,6 +6,7 @@ func getSettingsShellOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsShellPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsShell",
 		Summary:     "Read the operator shell settings section",
 		Tags:        []string{specSettingsKey},
@@ -21,6 +22,7 @@ func updateSettingsShellOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsShellPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsShell",
 		Summary:     "Update the operator shell settings section",
 		Tags:        []string{specSettingsKey},

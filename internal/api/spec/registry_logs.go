@@ -6,6 +6,7 @@ func registryLogOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/logs",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listLogs",
 		Summary:     "List runtime logs",
 		Tags:        []string{specLogsKey},
@@ -20,6 +21,7 @@ func registryLogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/logs/stream",
+			AppAccess:   AppAccessDenied,
 			OperationID: "streamLogs",
 			Summary:     "Stream runtime logs",
 			Tags:        []string{specLogsKey},

@@ -6,6 +6,7 @@ func registryHookOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/hooks/catalog",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getHookCatalog",
 		Summary:     "List the resolved hook catalog",
 		Tags:        []string{specHooksKey},
@@ -27,6 +28,7 @@ func registryHookOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/hooks/runs",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getHookRuns",
 			Summary:     "List hook run history for one session",
 			Tags:        []string{specHooksKey},
@@ -49,6 +51,7 @@ func registryHookOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/hooks/events",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getHookEvents",
 			Summary:     "List supported hook taxonomy metadata",
 			Tags:        []string{specHooksKey},

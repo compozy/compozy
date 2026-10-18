@@ -6,7 +6,7 @@ import {
   type ResponseResolverInfo,
 } from "openapi-msw";
 
-import type { paths as compozyPaths } from "@/generated/compozy-openapi";
+import type { paths as compozyPaths } from "@compozy/client";
 
 export const compozyApiMock = createOpenApiHttp<compozyPaths>({ baseUrl: "*" });
 

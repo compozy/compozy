@@ -14,6 +14,7 @@ func marketplaceListOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/marketplace",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listMarketplace",
 		Summary:     "List the extension catalog with source state and a content revision",
 		Tags:        []string{specMarketplaceKey},
@@ -51,6 +52,7 @@ func marketplaceCatalogEntryOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/marketplace/entries/{entry_id}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getMarketplaceCatalogEntry",
 		Summary:     "Get a catalog entry or an explicitly selected installed extension",
 		Tags:        []string{specMarketplaceKey},

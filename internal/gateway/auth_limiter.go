@@ -136,3 +136,24 @@ func (l *AuthFailureLimiter) Success(source string) {
 	}
 	l.mu.Unlock()
 }
+
+// Complete releases an attempt without forgiving earlier failures in its window.
+func (l *AuthFailureLimiter) Complete(source string) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	entry, exists := l.failures[source]
+	if !exists {
+		return
+	}
+	if entry.inFlight > 0 {
+		entry.inFlight--
+	}
+	if entry.failures == 0 && entry.inFlight == 0 {
+		delete(l.failures, source)
+		return
+	}
+	l.failures[source] = entry
+}

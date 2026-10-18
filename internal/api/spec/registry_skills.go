@@ -19,6 +19,7 @@ func exposeSkillOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/skills/{name}/expose",
+		AppAccess:   AppAccessDenied,
 		OperationID: "exposeSkill",
 		Summary:     "Expose one user- or workspace-owned skill to provider roots",
 		Tags:        []string{specSkillsKey},
@@ -40,6 +41,7 @@ func unexposeSkillOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/skills/{name}/unexpose",
+		AppAccess:   AppAccessDenied,
 		OperationID: "unexposeSkill",
 		Summary:     "Remove owned provider-root links for one skill",
 		Tags:        []string{specSkillsKey},
@@ -60,6 +62,7 @@ func listSkillsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/skills",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listSkills",
 		Summary:     "List effective skills for the selected global, workspace, or agent scope",
 		Tags:        []string{specSkillsKey},
@@ -83,6 +86,7 @@ func getSkillOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/skills/{name}",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSkill",
 		Summary:     "Get one skill definition",
 		Tags:        []string{specSkillsKey},
@@ -107,6 +111,7 @@ func getSkillContentOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/skills/{name}/content",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSkillContent",
 		Summary:     "Get the raw content for one skill",
 		Tags:        []string{specSkillsKey},
@@ -131,6 +136,7 @@ func getSkillShadowsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/skills/{name}/shadows",
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSkillShadows",
 		Summary:     "Get resolver provenance and shadow declarations for one skill",
 		Tags:        []string{specSkillsKey},
@@ -155,6 +161,7 @@ func enableSkillOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/skills/{name}/enable",
+		AppAccess:   AppAccessDenied,
 		OperationID: "enableSkill",
 		Summary:     "Enable one skill",
 		Tags:        []string{specSkillsKey},
@@ -179,6 +186,7 @@ func disableSkillOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/skills/{name}/disable",
+		AppAccess:   AppAccessDenied,
 		OperationID: "disableSkill",
 		Summary:     "Disable one skill",
 		Tags:        []string{specSkillsKey},

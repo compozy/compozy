@@ -70,6 +70,7 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	})
 
 	info := Info{
+		HTTPHost:  state.cfg.HTTP.Host,
 		PID:       d.pid(),
 		Port:      resolveDaemonPort(state.cfg.HTTP.Port, httpServer),
 		StartedAt: state.startedAt,

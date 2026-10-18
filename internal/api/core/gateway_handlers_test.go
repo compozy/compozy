@@ -611,3 +611,47 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 		},
 	)
 }
+
+func TestAppTokenErrorContract(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name           string
+		err            error
+		authentication bool
+		status         int
+		code           string
+	}{
+		{"Should reject invalid names", gateway.ErrAppTokenNameInvalid, false, http.StatusBadRequest, "app_token_name_invalid"},
+		{"Should reject invalid origins", gateway.ErrAppTokenOriginInvalid, false, http.StatusBadRequest, "app_token_origin_invalid"},
+		{"Should report too many origins", gateway.ErrAppTokenOriginLimit, false, http.StatusBadRequest, "app_token_origin_limit"},
+		{"Should report the active token limit", gateway.ErrAppTokenLimit, false, http.StatusConflict, "app_token_limit"},
+		{"Should report missing tokens", gateway.ErrAppTokenNotFound, false, http.StatusNotFound, "app_token_not_found"},
+		{"Should reject invalid state filters", gateway.ErrAppTokenStateInvalid, false, http.StatusBadRequest, "app_token_state_invalid"},
+		{"Should reject unknown credentials", gateway.ErrAppTokenUnauthenticated, true, http.StatusUnauthorized, "app_token_unauthenticated"},
+		{"Should require browser bearer credentials", gateway.ErrAppTokenRequired, true, http.StatusUnauthorized, "app_token_required"},
+		{"Should reject unauthorized browser origins", gateway.ErrAppOriginNotAllowed, true, http.StatusForbidden, "app_origin_not_allowed"},
+		{"Should reject forbidden browser routes", gateway.ErrAppTokenRouteForbidden, true, http.StatusForbidden, "app_token_route_forbidden"},
+		{"Should reject excessive failed authentication", gateway.ErrAppTokenRateLimited, true, http.StatusTooManyRequests, "app_token_rate_limited"},
+		{"Should reject tokens on gateway tiers", gateway.ErrAppTokenLocalOnly, true, http.StatusForbidden, "gateway_app_token_local_only"},
+		{"Should reject revoked authentication", gateway.ErrAppTokenRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
+		{"Should reject updates to revoked tokens", gateway.ErrAppTokenRevoked, false, http.StatusConflict, "app_token_revoked"},
+		{"Should translate the shared revocation fence for authentication", gateway.ErrDeviceRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			router := gin.New()
+			router.GET("/failure", func(c *gin.Context) {
+				RespondAppTokenError(c, test.err, test.authentication)
+			})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/failure", http.NoBody))
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode app-token error: %v; body=%s", err, response.Body.String())
+			}
+			if response.Code != test.status || payload.Code != test.code || payload.Error == "" {
+				t.Fatalf("response = %d/%#v, want %d/%s with message", response.Code, payload, test.status, test.code)
+			}
+		})
+	}
+}

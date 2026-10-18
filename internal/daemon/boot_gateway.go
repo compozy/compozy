@@ -48,17 +48,27 @@ func (d *Daemon) bootDeviceGateway(
 	gatewayStore gateway.Store,
 	deviceStore gateway.DeviceStore,
 ) error {
-	devices, err := gateway.NewDeviceService(
-		deviceStore,
+	deviceOptions := []gateway.DeviceServiceOption{
 		gateway.WithDeviceClock(d.now),
 		gateway.WithPairingLimits(
 			state.cfg.Gateway.Pairing.MaxPending,
 			state.cfg.Gateway.Pairing.TTL,
 		),
 		gateway.WithStreamTicketLimits(gateway.DefaultStreamTicketLimit, state.cfg.Gateway.StreamTicket.TTL),
-	)
+	}
+	appTokenStore, hasAppTokens := state.registry.(gateway.AppTokenStore)
+	if hasAppTokens {
+		deviceOptions = append(deviceOptions, gateway.WithAppTokenStore(appTokenStore))
+	}
+	devices, err := gateway.NewDeviceService(deviceStore, deviceOptions...)
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway device service: %w", err)
+	}
+	if hasAppTokens {
+		if err := devices.LoadAppTokenOrigins(ctx); err != nil {
+			return fmt.Errorf("daemon: load app token origins: %w", err)
+		}
+		state.deps.AppTokens = devices
 	}
 	state.deps.GatewayAuthLimiter = gateway.NewAuthFailureLimiter(
 		state.cfg.Gateway.Auth.RateLimit.MaxFails,

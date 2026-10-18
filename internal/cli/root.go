@@ -226,6 +226,9 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func renderHumanExecutionError(err error) (string, bool) {
+	if rendered, ok := renderAppTokenExecutionError(err); ok {
+		return rendered, true
+	}
 	if rendered, ok := renderSkillExposureExecutionError(err); ok {
 		return rendered, true
 	}

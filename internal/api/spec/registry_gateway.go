@@ -40,6 +40,7 @@ func registryGatewayOperations() []OperationSpec {
 func gatewayAuditOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodGet, Path: specAPIGatewayAuditPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getGatewayAudit", Summary: "Audit the current gateway security posture",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -57,6 +58,7 @@ func gatewayAuditOperation() OperationSpec {
 func gatewayIngressBindOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayIngressPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "bindGatewayIngress", Summary: "Confirm one subject against the verified public endpoint",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(), RequestBody: contract.GatewayIngressBindRequest{},
@@ -99,6 +101,7 @@ func gatewayIngressBindOperation() OperationSpec {
 func gatewayIngressUnbindOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodDelete, Path: specAPIGatewayIngressSubjectPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "unbindGatewayIngress", Summary: "Remove one public ingress confirmation",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -134,6 +137,7 @@ func gatewayManagementAuth() map[Transport]OperationAuth {
 func gatewayStatusOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodGet, Path: specAPIGatewayStatusPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getGatewayStatus", Summary: "Get the operator-global gateway posture",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -151,6 +155,7 @@ func gatewayStatusOperation() OperationSpec {
 func gatewaySurfaceOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewaySurfacesPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "setGatewaySurface", Summary: "Set durable exposure for one gateway surface",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth:        gatewayManagementAuth(),
@@ -180,6 +185,7 @@ func gatewaySurfaceOperation() OperationSpec {
 func gatewayProviderEnableOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayProvidersNamePath + "/enable",
+		AppAccess:   AppAccessDenied,
 		OperationID: "enableGatewayProvider", Summary: "Enable one connectivity provider for a gateway tier",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth:        gatewayManagementAuth(),
@@ -206,6 +212,7 @@ func gatewayProviderEnableOperation() OperationSpec {
 func gatewayProviderDisableOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayProvidersNamePath + "/disable",
+		AppAccess:   AppAccessDenied,
 		OperationID: "disableGatewayProvider", Summary: "Disable one named connectivity provider for a gateway tier",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -230,6 +237,7 @@ func gatewayProviderDisableOperation() OperationSpec {
 func gatewayPairingMintOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayPairingsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "mintGatewayPairing", Summary: "Mint a bounded one-time gateway pairing artifact",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -253,6 +261,7 @@ func gatewayPairingMintOperation() OperationSpec {
 func gatewayPairingRedeemOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayPairingRedeemPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "redeemGatewayPairing", Summary: "Redeem a one-time gateway pairing artifact",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: map[Transport]OperationAuth{
@@ -284,6 +293,7 @@ func gatewayPairingRedeemOperation() OperationSpec {
 func gatewayDeviceListOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodGet, Path: specAPIGatewayDevicesPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listGatewayDevices", Summary: "List the operator-global paired device inventory",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth: gatewayManagementAuth(),
@@ -301,6 +311,7 @@ func gatewayDeviceListOperation() OperationSpec {
 func gatewayDeviceRenameOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPatch, Path: specAPIGatewayDevicesIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "renameGatewayDevice", Summary: "Rename one paired gateway device",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth:        gatewayManagementAuth(),
@@ -326,6 +337,7 @@ func gatewayDeviceRenameOperation() OperationSpec {
 func gatewayDeviceRevokeOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodDelete, Path: specAPIGatewayDevicesIDPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "revokeGatewayDevice", Summary: "Revoke one paired gateway device and its live streams",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Auth:       gatewayManagementAuth(),
@@ -345,6 +357,7 @@ func gatewayDeviceRevokeOperation() OperationSpec {
 func gatewayStreamTicketOperation() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIGatewayStreamTicketsPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "mintGatewayStreamTicket", Summary: "Mint a short-lived single-use stream ticket",
 		Tags: []string{specGatewayKey}, Transports: []Transport{TransportHTTP},
 		Auth: map[Transport]OperationAuth{TransportHTTP: OperationAuthDevice},

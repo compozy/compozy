@@ -112,18 +112,23 @@ func publishGeneratedTree(path string, files map[string][]byte) error {
 }
 
 func stageGeneratedTree(parent string, files map[string][]byte) (string, error) {
-	temporary, err := os.MkdirTemp(parent, ".sdk-go-contracts-")
+	temporary, err := os.MkdirTemp(parent, ".codegen-tree-")
 	if err != nil {
 		return "", fmt.Errorf("create generated tree staging directory: %w", err)
 	}
 	for name, content := range files {
-		if filepath.Base(name) != name {
+		relative := filepath.FromSlash(name)
+		if !filepath.IsLocal(relative) || relative == "." {
 			return "", cleanupGeneratedTree(
 				temporary,
-				fmt.Errorf("generated file name %q must be a base name", name),
+				fmt.Errorf("generated file name %q must stay within its tree", name),
 			)
 		}
-		if err := fileutil.AtomicWriteFile(filepath.Join(temporary, name), content, 0o600); err != nil {
+		target := filepath.Join(temporary, relative)
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return "", cleanupGeneratedTree(temporary, fmt.Errorf("create generated file parent %q: %w", name, err))
+		}
+		if err := fileutil.AtomicWriteFile(target, content, 0o600); err != nil {
 			return "", cleanupGeneratedTree(
 				temporary,
 				fmt.Errorf("stage generated file %q: %w", name, err),
@@ -158,7 +163,7 @@ func cleanupGeneratedTree(path string, cause error) error {
 }
 
 func reserveBackupPath(parent string) (string, error) {
-	path, err := os.MkdirTemp(parent, ".sdk-go-contracts-backup-")
+	path, err := os.MkdirTemp(parent, ".codegen-tree-backup-")
 	if err != nil {
 		return "", fmt.Errorf("create generated tree backup placeholder: %w", err)
 	}

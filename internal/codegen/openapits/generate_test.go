@@ -450,3 +450,128 @@ func assertNoTemporaryOutputs(t *testing.T, dir string) {
 		}
 	}
 }
+
+// The generated API is the product contract; openapits owns naming, partitioning, and drift checks.
+func TestSDKGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should generate named resources and isolate streams with drift detection", func(t *testing.T) {
+		t.Parallel()
+
+		_, source, _, ok := runtime.Caller(0)
+		if !ok {
+			t.Fatal("runtime.Caller() failed")
+		}
+		root := filepath.Clean(filepath.Join(filepath.Dir(source), "../../.."))
+		dir := t.TempDir()
+		artifact := SDKArtifact{
+			SpecPath:   filepath.Join(dir, "spec.json"),
+			ConfigPath: filepath.Join(root, "sdk/client/openapi-ts.config.ts"),
+			OutputPath: filepath.Join(dir, "generated"),
+		}
+		writeSDKTestSpec(t, artifact.SpecPath)
+		if err := GenerateSDK(t.Context(), artifact); err != nil {
+			t.Fatalf("GenerateSDK() error = %v", err)
+		}
+		for _, expected := range []struct{ file, declaration string }{
+			{"sdk/sdk.gen.ts", "export class Compozy extends HeyApiClient"},
+			{"sdk/sdk.gen.ts", "get sessions()"},
+			{"sdk/sdk.gen.ts", "get appTokens()"},
+			{"sdk/sdk.gen.ts", "@stability experimental"},
+			{"sdk/sdk.gen.ts", "public createSession<"},
+			{"sdk/sdk.gen.ts", "public getMCPStatus<"},
+			{"sdk/types.gen.ts", "export type CreateSessionData ="},
+			{"sdk/types.gen.ts", "export type CreateSessionResponse ="},
+			{"sdk/types.gen.ts", "export type SessionPayload ="},
+			{"sse/sdk.gen.ts", "export const streamSession ="},
+			{"sse/sdk.gen.ts", "export const streamExtension ="},
+		} {
+			content, err := os.ReadFile(filepath.Join(artifact.OutputPath, expected.file))
+			if err != nil {
+				t.Fatalf("read %s: %v", expected.file, err)
+			}
+			if !strings.Contains(string(content), expected.declaration) {
+				t.Errorf("%s omitted %q", expected.file, expected.declaration)
+			}
+		}
+		if err := CheckSDK(t.Context(), artifact); err != nil {
+			t.Fatalf("CheckSDK() error = %v", err)
+		}
+		stale := filepath.Join(artifact.OutputPath, "sdk", "obsolete.ts")
+		if err := os.WriteFile(stale, []byte("export {};\n"), 0o600); err != nil {
+			t.Fatalf("write obsolete file: %v", err)
+		}
+		if err := CheckSDK(t.Context(), artifact); !errors.Is(err, ErrStaleGeneratedFile) {
+			t.Fatalf("CheckSDK() error = %v, want ErrStaleGeneratedFile", err)
+		}
+	})
+
+	t.Run("Should restore both SDK jobs when the second publication fails", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		generated := filepath.Join(dir, "staged")
+		output := filepath.Join(dir, "committed")
+		for _, root := range []string{generated, output} {
+			for _, job := range []string{"sdk", "sse"} {
+				path := filepath.Join(root, job)
+				if err := os.MkdirAll(path, 0o755); err != nil {
+					t.Fatalf("create SDK job: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(path, "sdk.gen.ts"), []byte(root), 0o600); err != nil {
+					t.Fatalf("write SDK job: %v", err)
+				}
+			}
+		}
+		publishErr := errors.New("second SDK publication failed")
+		err := publishSDKOutput(generated, output, func(from, to string) error {
+			if from == filepath.Join(generated, "sse") {
+				return publishErr
+			}
+			return os.Rename(from, to)
+		})
+		if !errors.Is(err, publishErr) {
+			t.Fatalf("publishSDKOutput() error = %v, want publication failure", err)
+		}
+		for _, job := range []string{"sdk", "sse"} {
+			content, err := os.ReadFile(filepath.Join(output, job, "sdk.gen.ts"))
+			if err != nil {
+				t.Fatalf("read restored SDK job: %v", err)
+			}
+			if string(content) != output {
+				t.Errorf("SDK job %s was not restored", job)
+			}
+		}
+	})
+
+	t.Run("Should reject an SDK without a generator config", func(t *testing.T) {
+		t.Parallel()
+
+		err := GenerateSDK(t.Context(), SDKArtifact{SpecPath: "spec.json", OutputPath: "generated"})
+		if !errors.Is(err, ErrInvalidArtifact) {
+			t.Fatalf("GenerateSDK() error = %v, want ErrInvalidArtifact", err)
+		}
+	})
+}
+
+func writeSDKTestSpec(t *testing.T, path string) {
+	t.Helper()
+
+	const spec = `{
+  "openapi":"3.0.3",
+  "info":{"title":"SDK test","version":"1.0.0"},
+  "components":{"schemas":{"SessionPayload":{"type":"object","required":["id"],"properties":{"id":{"type":"string"}}}}},
+  "paths":{
+    "/sessions":{"post":{"operationId":"createSession","tags":["sessions"],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionPayload"}}}},"responses":{"201":{"description":"Created","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionPayload"}}}}}}},
+    "/app-tokens":{"post":{"operationId":"createAppToken","tags":["app-tokens"],"x-stability":"experimental","responses":{"201":{"description":"Created","content":{"application/json":{"schema":{"type":"object"}}}}}}},
+    "/mcp":{"get":{"operationId":"getMCPStatus","tags":["settings"],"responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}}}}},
+    "/prompt":{"post":{"operationId":"sendSessionPrompt","tags":["sessions"],"responses":{"200":{"description":"Stream","content":{"text/event-stream":{"schema":{"type":"object"}}}}}}},
+    "/stream":{"get":{"operationId":"streamSession","tags":["sessions"],"responses":{"101":{"description":"Optional upgrade"},"200":{"description":"Stream","content":{"text/event-stream":{"schema":{"$ref":"#/components/schemas/SessionPayload"}}}}}}},
+    "/extension":{"get":{"operationId":"streamExtension","tags":["extensions"],"x-compozy-stream":"events","responses":{"200":{"description":"Stream","content":{"text/event-stream":{"schema":{"type":"object"}}}}}}},
+    "/socket":{"get":{"operationId":"streamTerminal","tags":["workspaces"],"responses":{"101":{"description":"Upgrade"}}}}
+  }
+}`
+	if err := os.WriteFile(path, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write SDK spec: %v", err)
+	}
+}

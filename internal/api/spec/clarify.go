@@ -17,6 +17,7 @@ func clarifyOperationSpecs() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "listSessionClarifications",
 			Summary:     "List the live pending clarification for a session",
 			Tags:        []string{specSessionsKey},
@@ -34,6 +35,7 @@ func clarifyOperationSpecs() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "answerSessionClarification",
 			Summary:     "Answer a live session clarification",
 			Tags:        []string{specSessionsKey},

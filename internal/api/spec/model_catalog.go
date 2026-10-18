@@ -20,6 +20,7 @@ func openAIModelCatalogOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/openai/v1/models",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listOpenAIModels",
 		Summary:     "List provider models using the OpenAI-compatible model shape",
 		Tags:        []string{specOpenAIKey},
@@ -55,6 +56,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/model-catalog/models",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listProviderModels",
 			Summary:     "List provider model catalog entries across providers",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -65,6 +67,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/model-catalog/providers/{provider_id}/models",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listProviderModelsByProvider",
 			Summary:     "List provider model catalog entries for one provider",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -75,6 +78,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:              httpMethodPost,
 			Path:                "/api/model-catalog/models/refresh",
+			AppAccess:           AppAccessDenied,
 			OperationID:         "refreshProviderModels",
 			Summary:             "Refresh provider model catalog sources across providers",
 			Tags:                []string{modelCatalogProvidersKey},
@@ -86,6 +90,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:              httpMethodPost,
 			Path:                "/api/model-catalog/providers/{provider_id}/models/refresh",
+			AppAccess:           AppAccessDenied,
 			OperationID:         "refreshProviderModelsByProvider",
 			Summary:             "Refresh provider model catalog sources for one provider",
 			Tags:                []string{modelCatalogProvidersKey},
@@ -99,6 +104,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/model-catalog/sources/status",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getProviderModelStatus",
 			Summary:     "List provider model catalog source status across providers",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -108,6 +114,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/model-catalog/providers/{provider_id}/models/status",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getProviderModelStatusByProvider",
 			Summary:     "List provider model catalog source status for one provider",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -122,6 +129,7 @@ func modelCatalogCurationOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/model-catalog/providers/{provider_id}/models/curate",
+		AppAccess:   AppAccessDenied,
 		OperationID: "curateProviderModel",
 		Summary:     "Curate one provider model through the live settings lifecycle",
 		Tags:        []string{modelCatalogProvidersKey},

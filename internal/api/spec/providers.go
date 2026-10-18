@@ -7,6 +7,7 @@ func providerOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/providers",
+			AppAccess:   AppAccessDenied,
 			OperationID: "listProviders",
 			Summary:     "List providers and declared auth status",
 			Tags:        []string{specProvidersKey},
@@ -19,6 +20,7 @@ func providerOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/providers/{provider_id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getProvider",
 			Summary:     "Get one provider and declared auth status",
 			Tags:        []string{specProvidersKey},
@@ -33,6 +35,7 @@ func providerOperations() []OperationSpec {
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/providers/{provider_id}/auth/probe",
+			AppAccess:   AppAccessDenied,
 			OperationID: "probeProviderAuth",
 			Summary:     "Run a non-interactive provider auth status probe",
 			Tags:        []string{specProvidersKey},

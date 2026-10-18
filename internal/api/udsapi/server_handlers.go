@@ -84,6 +84,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SkillExposureEvents:          cfg.skillExposureEvents,
 		RuntimeMemory:                cfg.runtimeMemory,
 		DeadEntities:                 cfg.deadEntities,
+		AppTokens:                    cfg.appTokens,
+		OpenAPI:                      cfg.openAPI,
 		Gateway:                      cfg.gateway,
 		GatewayPairingSource:         string(gateway.PairingSourceLocal),
 		HomePaths:                    cfg.homePaths,

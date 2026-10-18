@@ -17,6 +17,7 @@ const daemonInfoMaxBytes = 64 << 10
 // Info is the persisted daemon discovery record written to daemon.json.
 type Info struct {
 	PID       int       `json:"pid"`
+	HTTPHost  string    `json:"http_host,omitempty"`
 	Port      int       `json:"port"`
 	StartedAt time.Time `json:"started_at"`
 }

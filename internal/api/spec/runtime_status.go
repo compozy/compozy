@@ -7,6 +7,7 @@ func runtimeStatusOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/doctor",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getDoctor",
 			Summary:     "Run runtime diagnostics",
 			Tags:        []string{specDiagnosticsKey},
@@ -24,6 +25,7 @@ func runtimeStatusOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/status",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getStatus",
 			Summary:     "Get the runtime status snapshot",
 			Tags:        []string{specDiagnosticsKey},
@@ -36,6 +38,7 @@ func runtimeStatusOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/status/identity",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getRuntimeIdentity",
 			Summary:     "Get the bounded runtime identity",
 			Tags:        []string{specDiagnosticsKey},
@@ -53,6 +56,7 @@ func drainStateOperation(method string, path string, operationID string, summary
 	return OperationSpec{
 		Method:      method,
 		Path:        path,
+		AppAccess:   AppAccessDenied,
 		OperationID: operationID,
 		Summary:     summary,
 		Tags:        []string{specDiagnosticsKey},

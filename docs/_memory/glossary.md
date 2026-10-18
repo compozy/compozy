@@ -205,6 +205,15 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 ## Identity
 
+### App token
+
+A named, revocable bearer credential (`cpz_app_…`) for an external app calling the local daemon.
+Its public identifier is `apt_…`; the secret is returned once at creation and stored only as a hash.
+The token's origin allowlist grants browser access to the explicit app-access operation set, not to
+local management or privileged operations. An empty origin list permits non-browser use only.
+App tokens are global operator credentials, separate from paired devices and operator profiles;
+they do not widen an agent's workspace or tool permissions and never authenticate Gateway listeners.
+
 ### Caller Identity (operational)
 
 Inside CompozyOS, agent-facing CLI commands resolve identity from `COMPOZY_SESSION_ID` / `COMPOZY_AGENT` through `internal/agentidentity`. **Operator endpoints MUST NOT infer agent identity from environment variables.** Agent → identity-implicit. Operator → identity-explicit.
@@ -403,7 +412,7 @@ PR CI is the required full delivery gate at the exact head SHA. `make gate-full`
 
 ### `make codegen` / `make codegen-check`
 
-Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`. Mandatory after any `internal/api/contract` change.
+Regenerate / verify drift on `openapi/compozy.json`, `sdk/client/src/generated/`, `sdk/go/client/`, and `openapi/sdk-samples.json`. The Web app imports API types from `@compozy/client`. Mandatory after any `internal/api/contract` change.
 
 ### Test Layers
 

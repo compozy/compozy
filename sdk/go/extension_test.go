@@ -1002,17 +1002,33 @@ func connectivitySDKReachability(tier string) compozysdk.ConnectivityReachabilit
 
 func TestSDKHasNoDaemonInternalImports(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep the public app client dependency graph standard library only", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "go", "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", "./client")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("list client dependencies: %v\n%s", err, output)
+		}
+		for dependency := range strings.FieldsSeq(string(output)) {
+			if dependency != "github.com/compozy/compozy/sdk/go/client" {
+				t.Fatalf("app client imports non-standard dependency %q", dependency)
+			}
+		}
+	})
+
 	t.Run("Should keep daemon internal packages out of the SDK", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, "go", "list", "-deps", ".")
+		cmd := exec.CommandContext(ctx, "go", "list", "-deps", "./...")
 		cmd.Dir = "."
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			t.Fatalf("go list -deps . error = %v\n%s", err, string(output))
+			t.Fatalf("go list -deps ./... error = %v\n%s", err, string(output))
 		}
 		for line := range strings.SplitSeq(string(output), "\n") {
 			if strings.HasPrefix(line, "github.com/compozy/compozy/internal/") {

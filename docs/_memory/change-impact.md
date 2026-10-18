@@ -1,5 +1,53 @@
 # Compozy Change Impact
 
+## App SDK — 2026-10-12
+
+Owner: `.compozy/tasks/app-sdk/_spec.md`; implementation recorded 2026-10-17. This is the canonical
+cross-surface audit for the spec and its delivery PR.
+
+- **Public clients and contracts:** additive `@compozy/client`, Node-only `@compozy/client/node`, and
+  `sdk/go/client` clients; resource methods, named request/response types, prompt streaming, typed SSE,
+  daemon discovery, and version diagnostics. `GET /api/openapi.json` serves the release contract with
+  ETag/gzip over local HTTP and UDS. OpenAPI componentization preserves wire JSON; prompt metadata now
+  describes the existing UI message stream. One codegen path owns the document, TS/Go clients, and
+  `openapi/sdk-samples.json`. Raw WebSocket upgrade clients remain outside the SDK scope.
+- **App authorization and data isolation:** additive global app-token state stores secret hashes,
+  metadata, origin sets, and revocation/last-use timestamps separately from paired devices and
+  profiles. The schema migration preserves existing state. The local listener requires matching
+  origin-scoped bearer authentication only for foreign browser requests and an explicit operation
+  allowlist; management and privileged routes remain denied. Preflight does not authenticate the
+  actual call. Opaque `null` origins are denied. Gateway rejects app tokens without last-use mutation.
+  Existing local tokenless callers and the same-origin Web app retain their access. A token does not
+  expand a session's workspace or tool permissions. Revocation closes token streams; disconnecting a
+  client alone does not cancel an admitted turn.
+- **Native tools:** no new `compozy__*` IDs or catalog shapes. Agents manage app tokens through
+  structured `compozy app-token create|list|update|revoke -o json` or local HTTP/UDS. Existing prompt
+  cancellation tools remain the explicit runtime cancellation path.
+- **Extensibility, hooks, and configuration:** extension SDK packages remain separate from external
+  app clients and keep their existing API. No token mutation hook, config key, or settings editor is
+  added. SDK connection options and `COMPOZY_URL`, `COMPOZY_APP_TOKEN`, `COMPOZY_HOME`, and
+  `COMPOZY_BIN` govern app connection/lifecycle; private Node homes isolate spawned daemons.
+- **Web and Docs:** the Web app consumes `paths` from `@compozy/client`; its duplicate generated type
+  file is removed as an internal hard cut. API reference samples consume the generated manifest with
+  no method-name inference; browser documentation renders allowed operations from `app_access`.
+  `packages/site/content/docs/apps/` covers Node, chat proxy, browser, Go, and token management with
+  observable outcomes. The official skill routes to `references/app-sdk.md`; the glossary defines
+  App token. SDK READMEs and pkg.go.dev link to the same tutorials and generated reference.
+- **Compatibility and release:** SDK facade/resource layout, Node subpath, Go client, app-token
+  CLI/HTTP, and browser-access error codes are experimental for the shipping minor release per
+  ADR-004; all affected docs/help carry the explicit label. Runtime OpenAPI and generated operation
+  types retain route stability. No legacy public surface is removed or shimmed. Release publication
+  co-ships the npm client with the daemon and existing SDK; notes live in
+  `.release-notes/app-sdk-and-browser-tokens-1792286400.md`.
+- **Verification ownership:** SDK tests own transport/discovery/stream contracts; contract/gateway
+  suites own authorization; codegen check owns full operation/sample agreement. The existing site
+  `docs-api-reference.test.ts` owns SDK sample projection and browser allowlist rendering. Living QA
+  journeys `J-build-external-app` and `J-authorize-browser-app` cover the end-to-end app and operator
+  flows. Scenario status remains `untested` until a recorded real walk; authored plans and focused
+  tests are not runtime evidence. Heavy gates and broad runtime/browser suites run in CI for this
+  delivery, as requested.
+
+
 ## Session folders and manual order — 2026-10-17
 
 Issue #781 adds daemon-owned session folders and manual session order. Persisted state: global

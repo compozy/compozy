@@ -6,6 +6,7 @@ func registryToolsetOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        "/api/toolsets",
+		AppAccess:   AppAccessDenied,
 		OperationID: "listToolsets",
 		Summary:     "List named toolsets and expansion status",
 		Tags:        []string{specToolsetsKey},
@@ -28,6 +29,7 @@ func registryToolsetOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/toolsets/{id}",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getToolset",
 			Summary:     "Inspect one named toolset expansion",
 			Tags:        []string{specToolsetsKey},

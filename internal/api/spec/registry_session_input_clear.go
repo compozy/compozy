@@ -6,6 +6,7 @@ func clearSessionInputsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "clearSessionInputs", Summary: "Clear queued input with attributed per-entry traces",
 		Tags: []string{specSessionsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{pathParam("workspace_id", "Workspace id"), pathParam("session_id", "Session id")},

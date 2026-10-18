@@ -1,0 +1,117 @@
+---
+title: Manage app tokens
+description: Create, audit, update, and revoke access for apps that call your local daemon.
+icon: Key
+---
+
+> Experimental in 0.4: names and shapes may change in 0.5 without a deprecation window. Pin the exact version.
+
+An app token is a named, revocable bearer credential for the local daemon. Its origin allowlist grants
+[direct browser access](/docs/apps/browser); non-browser processes can use it for attribution without
+an origin. These commands run in a local terminal. Foreign browser apps cannot manage their own tokens.
+
+## Create a token
+
+```bash
+compozy app-token create "My dashboard" --origin http://localhost:3000 -o json
+```
+
+Expected shape, with illustrative values:
+
+```json
+{
+  "app_token": {
+    "id": "apt_example",
+    "name": "My dashboard",
+    "origins": ["http://localhost:3000"],
+    "created_at": "2026-10-17T12:00:00Z",
+    "last_used_at": null,
+    "revoked_at": null
+  },
+  "token": "cpz_app_<secret>"
+}
+```
+
+Store the secret securely now. Only create returns `token`; list, update, and revoke never reveal it.
+Repeat `--origin` to allow multiple origins, up to 16. Omitting it creates a non-browser token:
+
+```bash
+compozy app-token create "CI bot" -o json
+```
+
+Expected result: the same response shape with `origins: []`. Token names must contain 1–64 characters;
+the daemon permits at most 64 active tokens. Origins must be `http://` or `https://` plus a host and
+optional port. Paths, queries, wildcards, and `null` are invalid. Hosts are normalized and a trailing
+slash is removed; bracketed IPv6 origins such as `http://[::1]:3000` are accepted.
+
+## Audit access
+
+```bash
+compozy app-token list -o json
+compozy app-token list --state all -o json
+```
+
+Expected result: `{"app_tokens": [...]}` with metadata and last-use timestamps, never secrets. The
+first command lists active tokens; `--state all` includes revoked tokens. `--state revoked` lists only
+revoked entries. Active entries precede revoked entries, with the newest first in each group.
+`compozy device list` lists paired devices separately.
+
+## Replace origins or rename
+
+```bash
+compozy app-token update apt_example --origin https://app.example.com -o json
+```
+
+Expected result: `{"app_token": {...}}` whose `origins` contains only `https://app.example.com`.
+`--origin` replaces the whole set; callers at the previous origin fail their next request. To retain
+multiple origins, pass each one again.
+
+```bash
+compozy app-token update apt_example --name "Dashboard service" --clear-origins -o json
+```
+
+Expected result: the new name and an empty origin list. The token can still identify a non-browser
+caller, while every foreign browser origin is denied. `--clear-origins` and `--origin` cannot be
+combined. An omitted field is left unchanged.
+
+## Revoke access
+
+```bash
+compozy app-token revoke apt_example -o json
+```
+
+Expected result: the revoked metadata, `changed: true`, and `canceled`, the number of open token
+streams closed. The next request rejects the secret; open streams close within five seconds.
+Repeating revoke is safe and reports `changed: false`. A revoked token cannot be updated; create a
+new token if the app needs access again.
+
+## Automate through HTTP or UDS
+
+The same management contract is available at:
+
+| Method and route | Result |
+| --- | --- |
+| `POST /api/app-tokens` with `{name, origins}` | `201` with `app_token` and the one-time `token` |
+| `GET /api/app-tokens?state=active` | `200` with `app_tokens` |
+| `PATCH /api/app-tokens/{app_token_id}` with optional `{name, origins}` | `200` with `app_token` |
+| `DELETE /api/app-tokens/{app_token_id}` | `200` with `app_token`, `changed`, and `canceled` |
+
+Use local HTTP without a foreign `Origin`, or the daemon's Unix socket. App-token management is not
+exposed on Gateway listeners. The [API reference](/docs/api) supplies TypeScript and Go SDK calls.
+No native `compozy__*` tools or `config.toml` keys are introduced for app tokens; agents use the
+structured CLI or local HTTP/UDS surfaces.
+
+## Resolve errors
+
+| Code | Meaning |
+| --- | --- |
+| `app_token_name_invalid` | Name is blank or longer than 64 characters. |
+| `app_token_origin_invalid` | An origin has an unsupported shape. |
+| `app_token_origin_limit` | More than 16 origins were supplied. |
+| `app_token_limit` | Revoke an active token before creating another. |
+| `app_token_not_found` | The ID is unknown; CLI exits with `69`. |
+| `app_token_revoked` | Updating a revoked token is not allowed (`409`). |
+| `app_token_state_invalid` | HTTP `state` must be `active`, `revoked`, or `all` (`400`). |
+
+The CLI rejects invalid `--state` and conflicting flags before sending a request, with exit code `2`.
+HTTP error bodies retain `error`, `code`, and optional `details` so automation can branch on the code.

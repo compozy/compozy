@@ -1,0 +1,5 @@
+{
+    "title": "Build an app",
+    "icon": "AppWindow",
+    "pages": ["index", "chat-ui", "browser", "go", "app-tokens"]
+}

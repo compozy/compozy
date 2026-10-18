@@ -472,6 +472,12 @@ type ExtensionProfileMarker struct {
 	CreatedByExtension sql.NullInt64 `json:"created_by_extension"`
 }
 
+type GatewayDeviceOrigin struct {
+	DeviceID  string `json:"device_id"`
+	Origin    string `json:"origin"`
+	CreatedAt string `json:"created_at"`
+}
+
 type GatewayDeviceSession struct {
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`

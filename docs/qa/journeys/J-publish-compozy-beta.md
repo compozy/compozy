@@ -15,12 +15,12 @@ flowchart TD
     C3 --> D[Sole finalizer publishes the GitHub release]
     D --> D1[Install the prepared CLI package on macOS and Linux; postinstall downloads the public GitHub archives]
     D1 -->|archive download or binary check fails| X5[Abandon: keep npm unpublished and preserve the public GitHub release for repair]
-    D1 --> D2[Publish the verified CLI package, extension SDK, and eligible Homebrew formula]
+    D1 --> D2[Publish the verified CLI package, extension SDK, app SDK, and eligible Homebrew formula]
     D2 --> E{Read published npm channel policy}
     E -->|requested dist-tag is stale or absent| F[Wait and read the registry again within the deadline]
     F --> E
     E -->|terminal query or policy error| X1[Abandon: stop for incident review without republishing]
-    E -->|both packages converge and latest is unchanged| G[True end: production job is green and public channels name the exact beta]
+    E -->|all three packages converge and latest is unchanged| G[True end: production job is green and public channels name the exact beta]
     F -.->|deadline expires| X2[Abandon: preserve the last observation for incident review]
 ```
 
@@ -50,11 +50,11 @@ journey:
       expected_observable: "Incomplete signing material hard-fails before desktop builds; every immutable payload and signed compatibility catalog verifies before one audited channel-beta commit and ref CAS; a partial platform failure leaves the channel ref unchanged and the GitHub release draft with explicit evidence; package managers remain unpublished"
     - step: 5
       verb: "Confirm the release from a fresh public read"
-      expected_observable: "A prepared CLI package installs against public GitHub archives on macOS and Linux before npm publication; both packages then expose the requested beta version, latest remains unchanged, and the production job is green"
+      expected_observable: "A prepared CLI package installs against public GitHub archives on macOS and Linux before npm publication; all three packages then expose the requested beta version, latest remains unchanged, and the production job is green"
   goal:
     observable: "One production run publishes the exact candidate and closes only after every public channel policy is observable"
     side_effects: [git-tags-created, github-release-published, npm-packages-published]
-  true_end_state: "The production workflow is green, the GitHub release is a prerelease, both npm beta dist-tags name the exact version, and neither immutable package needs to be republished."
+  true_end_state: "The production workflow is green, the GitHub release is a prerelease, all three npm beta dist-tags name the exact version, and no immutable package needs to be republished."
   exit:
     natural: "Hand the published version to the post-release install and provenance checks."
   abandonment:
@@ -64,5 +64,5 @@ journey:
     - at_step: 3
       how: "The registry query fails, a beta moves latest, malformed policy data is returned, or the readiness deadline expires."
       resume: "Stop for incident review with the last observation; never overwrite tags or republish an immutable npm version."
-  crosses: [release-workflow, github-releases, sigstore, npm-cli-package, npm-extension-sdk, desktop-release-lane, desktop-channel-branch]
+  crosses: [release-workflow, github-releases, sigstore, npm-cli-package, npm-extension-sdk, npm-app-sdk, desktop-release-lane, desktop-channel-branch]
 ```

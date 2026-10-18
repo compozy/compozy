@@ -12,6 +12,8 @@ type udsExtendedServices struct {
 	mcpHostAPI    mcppkg.HostAPIInvoker
 	windowManager core.WindowManagerProvider
 	terminal      core.TerminalProvider
+	appTokens     core.AppTokenManager
+	openAPI       *core.OpenAPIDocument
 	gateway       core.GatewayService
 }
 

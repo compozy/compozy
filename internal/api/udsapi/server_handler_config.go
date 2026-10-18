@@ -57,6 +57,8 @@ func (s *Server) handlerConfig() *handlerConfig {
 		skillResources:        s.skillResources,
 		runtimeMemory:         s.runtimeMemory,
 		deadEntities:          s.deadEntities,
+		appTokens:             s.appTokens,
+		openAPI:               s.openAPI,
 		gateway:               s.gateway,
 		homePaths:             s.homePaths,
 		config:                s.config,

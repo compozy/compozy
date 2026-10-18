@@ -42,6 +42,7 @@ func inspectRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPIRunsIDInspectPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "inspectRun",
 		Summary:     "Inspect one task run with diagnostics",
 		Tags:        []string{specTasksKey},
@@ -62,6 +63,7 @@ func fanOutTaskRunsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDRunsFanOutPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "fanOutTaskRuns",
 		Summary:     "Enqueue designated sibling runs for one task",
 		Tags:        []string{specTasksKey},
@@ -84,6 +86,7 @@ func forceReleaseTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsIDReleasePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "forceReleaseTaskRun",
 		Summary:     "Force release one claimed task run",
 		Tags:        []string{specTasksKey},
@@ -108,6 +111,7 @@ func forceFailTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsIDFailPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "forceFailTaskRun",
 		Summary:     "Force fail one queued or claimed task run",
 		Tags:        []string{specTasksKey},
@@ -132,6 +136,7 @@ func retryTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsIDRetryPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "retryTaskRun",
 		Summary:     "Retry one failed task run",
 		Tags:        []string{specTasksKey},
@@ -156,6 +161,7 @@ func recoverTaskRunOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsIDRecoverPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "recoverTaskRun",
 		Summary:     "Recover one needs_attention task run",
 		Tags:        []string{specTasksKey},
@@ -180,6 +186,7 @@ func bulkForceReleaseTaskRunsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsBulkReleasePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "bulkForceReleaseTaskRuns",
 		Summary:     "Force release a bounded set of claimed task runs",
 		Tags:        []string{specTasksKey},
@@ -199,6 +206,7 @@ func bulkForceFailTaskRunsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIRunsBulkFailPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "bulkForceFailTaskRuns",
 		Summary:     "Force fail a bounded set of queued or claimed task runs",
 		Tags:        []string{specTasksKey},
@@ -218,6 +226,7 @@ func getSchedulerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISchedulerPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getScheduler",
 		Summary:     "Get scheduler pause state and queue pressure",
 		Tags:        []string{specTasksKey},
@@ -234,6 +243,7 @@ func pauseSchedulerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:              httpMethodPost,
 		Path:                specAPISchedulerPausePath,
+		AppAccess:           AppAccessDenied,
 		OperationID:         "pauseScheduler",
 		Summary:             "Pause scheduler dispatch and task-run claims",
 		Tags:                []string{specTasksKey},
@@ -253,6 +263,7 @@ func resumeSchedulerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:              httpMethodPost,
 		Path:                specAPISchedulerResumePath,
+		AppAccess:           AppAccessDenied,
 		OperationID:         "resumeScheduler",
 		Summary:             "Resume scheduler dispatch and task-run claims",
 		Tags:                []string{specTasksKey},
@@ -272,6 +283,7 @@ func drainSchedulerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:              httpMethodPost,
 		Path:                specAPISchedulerDrainPath,
+		AppAccess:           AppAccessDenied,
 		OperationID:         "drainScheduler",
 		Summary:             "Pause the scheduler and wait for active claims to drain",
 		Tags:                []string{specTasksKey},
@@ -292,6 +304,7 @@ func getSchedulerBacklogOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISchedulerBacklogPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSchedulerBacklog",
 		Summary:     "List queued scheduler backlog rows",
 		Tags:        []string{specTasksKey},
@@ -315,6 +328,7 @@ func requestTaskRunReviewOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITaskRunsIDReviewsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "requestTaskRunReview",
 		Summary:     "Request review for one terminal task run",
 		Tags:        []string{specTasksKey},
@@ -338,6 +352,7 @@ func listTaskRunReviewsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITaskRunsIDReviewsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listTaskRunReviews",
 		Summary:     "List reviews for one task run",
 		Tags:        []string{specTasksKey},
@@ -361,6 +376,7 @@ func getTaskRunReviewOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/task-reviews/{id}",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskRunReview",
 		Summary:     "Get one task-run review",
 		Tags:        []string{specTasksKey},
@@ -380,6 +396,7 @@ func submitTaskRunReviewVerdictOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/task-reviews/{id}/verdict",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "submitTaskRunReviewVerdict",
 		Summary:     "Submit one task-run review verdict",
 		Tags:        []string{specTasksKey},

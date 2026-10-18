@@ -13,6 +13,7 @@ func toolApprovalGrantOperationSpecs() []OperationSpec {
 		{
 			Method:      httpMethodPut,
 			Path:        specAPIToolApprovalGrantsPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "setToolApprovalGrant",
 			Summary:     "Set an explicit agent-wide or tool-wide native-tool approval decision",
 			Tags:        []string{specToolsKey},
@@ -32,6 +33,7 @@ func toolApprovalGrantOperationSpecs() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        specAPIToolApprovalGrantsPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "listToolApprovalGrants",
 			Summary:     "List remembered native-tool approval decisions for one workspace",
 			Tags:        []string{specToolsKey},
@@ -50,6 +52,7 @@ func toolApprovalGrantOperationSpecs() []OperationSpec {
 		{
 			Method:      httpMethodDelete,
 			Path:        specAPIToolApprovalGrantsIDPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "revokeToolApprovalGrant",
 			Summary:     "Revoke one remembered native-tool approval decision in one workspace",
 			Tags:        []string{specToolsKey},

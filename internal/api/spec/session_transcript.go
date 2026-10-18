@@ -14,6 +14,7 @@ func sessionTranscriptOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getSessionTranscript",
 			Summary:     "Get a bounded materialized transcript page",
 			Tags:        []string{specSessionsKey},
@@ -40,6 +41,7 @@ func sessionTranscriptOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "streamSession",
 			Summary:     "Stream raw session events or fenced transcript changes",
 			Tags:        []string{specSessionsKey},
@@ -67,7 +69,7 @@ func sessionTranscriptOperations() []OperationSpec {
 				{
 					Status:      200,
 					Description: "Session event stream",
-					Body:        contract.SessionStreamPayload{},
+					Bodies:      sessionStreamBodies(),
 					ContentType: specContentTypeEventStream,
 				},
 				{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
@@ -109,4 +111,19 @@ func transcriptFenceQueryParam(name string, description string) ParameterSpec {
 		Kind:        specIntegerKey,
 		Format:      specFormatInt64,
 	}
+}
+
+func sessionStreamBodies() responseBodies {
+	return overlappingResponseBodiesOf(
+		responseBodyOf[contract.SubagentsSnapshotEvent](),
+		responseBodyOf[contract.SubagentUpdatedEvent](),
+		responseBodyOf[contract.SessionUsageChangedPayload](),
+		responseBodyOf[contract.SessionConsumerDegradedPayload](),
+		responseBodyOf[contract.SessionEventPayload](),
+		responseBodyOf[contract.TranscriptSnapshotPayload](),
+		responseBodyOf[contract.TranscriptDeltaPayload](),
+		responseBodyOf[contract.GoalSnapshotChangedPayload](),
+		responseBodyOf[contract.SessionCommandsChangedPayload](),
+		responseBodyOf[contract.ErrorPayload](),
+	)
 }

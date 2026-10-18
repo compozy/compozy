@@ -30,10 +30,18 @@ while IFS= read -r tag; do
   fi
 done < <(git tag --list "v${base}-beta.*")
 
-for package_name in @compozy/cli @compozy/extension-sdk; do
-  registry_versions="$(
-    npm view "${package_name}" versions --json --registry=https://registry.npmjs.org
-  )" || fail "could not read published ${package_name} versions"
+registry_error="$(mktemp)"
+trap 'rm -f "$registry_error"' EXIT
+for package_name in @compozy/cli @compozy/extension-sdk @compozy/client; do
+  if ! registry_versions="$(
+    npm view "${package_name}" versions --json --registry=https://registry.npmjs.org 2>"$registry_error"
+  )"; then
+    if grep -Eq 'E404|404 Not Found' "$registry_error"; then
+      continue
+    fi
+    cat "$registry_error" >&2
+    fail "could not read published ${package_name} versions"
+  fi
   published_versions="$(
     node -e '
       const value = JSON.parse(process.argv[1]);
@@ -42,7 +50,7 @@ for package_name in @compozy/cli @compozy/extension-sdk; do
         if (typeof version !== "string") {
           throw new Error("npm returned a non-string package version");
         }
-        process.stdout.write(`${version}\n`);
+        process.stdout.write(version + "\n");
       }
     ' "$registry_versions"
   )" || fail "npm returned invalid ${package_name} version metadata"

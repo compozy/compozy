@@ -1,0 +1,58 @@
+{
+    "name": "@compozy/client",
+    "version": "0.3.0",
+    "private": false,
+    "description": "Experimental zero-dependency TypeScript client for CompozyOS applications",
+    "homepage": "https://compozy.com/docs/apps",
+    "bugs": "https://github.com/compozy/compozy/issues",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/compozy/compozy.git",
+        "directory": "sdk/client"
+    },
+    "files": [
+        "dist/**/*"
+    ],
+    "sideEffects": false,
+    "main": "./dist/cjs/index-node.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "node": {
+                "require": "./dist/cjs/index-node.js",
+                "import": "./dist/esm/index-node.js"
+            },
+            "default": {
+                "require": "./dist/cjs/index.js",
+                "import": "./dist/esm/index.js"
+            }
+        },
+        "./node": {
+            "types": "./dist/types/node.d.ts",
+            "browser": null,
+            "node": {
+                "require": "./dist/cjs/node.js",
+                "import": "./dist/esm/node.js"
+            }
+        },
+        "./package.json": "./package.json"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org"
+    },
+    "scripts": {
+        "build": "rm -rf dist && tsc -p tsconfig.types.json && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node ./scripts/postbuild.mjs",
+        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --config vitest.config.ts",
+        "coverage": "vitest run --config vitest.config.ts --coverage",
+        "test:package": "node ./scripts/check-package.mjs"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

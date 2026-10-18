@@ -6,6 +6,7 @@ func registryVaultOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodGet,
 		Path:        specAPIVaultEntriesPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "listVaultSecrets",
 		Summary:     "List redacted vault secret metadata",
 		Tags:        []string{specVaultKey},
@@ -25,6 +26,7 @@ func registryVaultOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/vault/secrets/metadata",
+			AppAccess:   AppAccessDenied,
 			OperationID: "getVaultSecretMetadata",
 			Summary:     "Read redacted vault secret metadata",
 			Tags:        []string{specVaultKey},
@@ -44,6 +46,7 @@ func registryVaultOperations() []OperationSpec {
 		{
 			Method:      httpMethodPut,
 			Path:        specAPIVaultEntriesPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "putVaultSecret",
 			Summary:     "Create or update one write-only vault secret",
 			Tags:        []string{specVaultKey},
@@ -60,6 +63,7 @@ func registryVaultOperations() []OperationSpec {
 		{
 			Method:      httpMethodDelete,
 			Path:        specAPIVaultEntriesPath,
+			AppAccess:   AppAccessDenied,
 			OperationID: "deleteVaultSecret",
 			Summary:     "Delete one vault secret",
 			Tags:        []string{specVaultKey},

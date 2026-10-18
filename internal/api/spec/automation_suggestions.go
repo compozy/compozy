@@ -19,6 +19,7 @@ func automationSuggestionListOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        automationSuggestionsPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listAutomationSuggestions",
 		Summary:     "List consent-first automation suggestions for one workspace",
 		Tags:        []string{specAutomationKey},
@@ -44,6 +45,7 @@ func automationSuggestionAcceptOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        automationSuggestionsPath + "/{suggestion_id}/accept",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "acceptAutomationSuggestion",
 		Summary:     "Accept one automation suggestion and create its Job",
 		Tags:        []string{specAutomationKey},
@@ -76,6 +78,7 @@ func automationSuggestionDismissOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        automationSuggestionsPath + "/{suggestion_id}/dismiss",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "dismissAutomationSuggestion",
 		Summary:     "Durably dismiss one automation suggestion",
 		Tags:        []string{specAutomationKey},

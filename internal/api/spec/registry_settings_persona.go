@@ -6,6 +6,7 @@ func getSettingsPersonaOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsPersonaPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsPersona",
 		Summary:     "Read profile-layerable persona defaults",
 		Tags:        []string{specSettingsKey},
@@ -24,6 +25,7 @@ func updateSettingsPersonaOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsPersonaPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsPersona",
 		Summary:     "Update profile-layerable persona defaults",
 		Tags:        []string{specSettingsKey},

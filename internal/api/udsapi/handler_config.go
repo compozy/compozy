@@ -71,6 +71,8 @@ type handlerConfig struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	deadEntities          doctor.DeadEntitySource
+	appTokens             core.AppTokenManager
+	openAPI               *core.OpenAPIDocument
 	gateway               core.GatewayService
 	homePaths             compozyconfig.HomePaths
 	config                compozyconfig.Config

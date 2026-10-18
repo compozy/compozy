@@ -11,12 +11,13 @@ VALUES (
 -- name: FindActiveGatewayDeviceByTokenHash :one
 UPDATE gateway_device_sessions
 SET last_seen_at = sqlc.arg(last_seen_at)
-WHERE token_hash = sqlc.arg(token_hash) AND revoked_at IS NULL
+WHERE token_hash = sqlc.arg(token_hash) AND revoked_at IS NULL AND actor_kind <> 'app_token'
 RETURNING *;
 
 -- name: ListGatewayDevices :many
 SELECT *
 FROM gateway_device_sessions
+WHERE actor_kind <> 'app_token'
 ORDER BY
   CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END,
   CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END,
@@ -27,18 +28,19 @@ ORDER BY
 -- name: GetGatewayDevice :one
 SELECT *
 FROM gateway_device_sessions
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id) AND actor_kind <> 'app_token';
 
 -- name: RenameGatewayDevice :one
 UPDATE gateway_device_sessions
 SET name = sqlc.arg(name)
-WHERE id = sqlc.arg(id)
+WHERE id = sqlc.arg(id) AND actor_kind <> 'app_token'
 RETURNING *;
 
 -- name: RenameGatewayDeviceForActor :one
 UPDATE gateway_device_sessions
 SET name = sqlc.arg(name)
 WHERE gateway_device_sessions.id = sqlc.arg(target_id)
+  AND gateway_device_sessions.actor_kind <> 'app_token'
   AND EXISTS (
     SELECT 1
     FROM gateway_device_sessions AS actor
@@ -51,13 +53,14 @@ RETURNING *;
 -- name: RevokeGatewayDevice :one
 UPDATE gateway_device_sessions
 SET revoked_at = sqlc.arg(revoked_at), revoke_epoch = revoke_epoch + 1
-WHERE id = sqlc.arg(id) AND revoked_at IS NULL
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND actor_kind <> 'app_token'
 RETURNING *;
 
 -- name: RevokeGatewayDeviceForActor :one
 UPDATE gateway_device_sessions
 SET revoked_at = sqlc.arg(revoked_at), revoke_epoch = revoke_epoch + 1
 WHERE gateway_device_sessions.id = sqlc.arg(target_id)
+  AND gateway_device_sessions.actor_kind <> 'app_token'
   AND gateway_device_sessions.revoked_at IS NULL
   AND EXISTS (
     SELECT 1
@@ -80,10 +83,10 @@ SELECT EXISTS (
 -- name: CountActiveGatewayDeviceSessions :one
 SELECT count(*)
 FROM gateway_device_sessions
-WHERE revoked_at IS NULL;
+WHERE revoked_at IS NULL AND actor_kind <> 'app_token';
 
 -- name: ListActiveGatewayDeviceSessions :many
 SELECT *
 FROM gateway_device_sessions
-WHERE revoked_at IS NULL
+WHERE revoked_at IS NULL AND actor_kind <> 'app_token'
 ORDER BY CASE WHEN last_seen_at IS NULL THEN 1 ELSE 0 END, last_seen_at DESC, created_at DESC, id;

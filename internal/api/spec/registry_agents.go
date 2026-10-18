@@ -6,6 +6,7 @@ func registryAgentOperations() []OperationSpec {
 	return []OperationSpec{{
 		Method:      httpMethodPost,
 		Path:        "/api/agents",
+		AppAccess:   AppAccessDenied,
 		OperationID: "createAgent",
 		Summary:     "Create a global or workspace-local AGENT.md definition",
 		Tags:        []string{specAgentsKey},
@@ -26,6 +27,7 @@ func registryAgentOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/agents",
+			AppAccess:   AppAccessAllowed,
 			OperationID: "listAgents",
 			Summary:     "List all readable agent definitions, optionally resolved for a workspace",
 			Tags:        []string{specAgentsKey},
@@ -45,6 +47,7 @@ func registryAgentOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        specAPIAgentsNamePath,
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getAgent",
 			Summary:     "Get one agent definition by name, optionally resolved for a workspace",
 			Tags:        []string{specAgentsKey},

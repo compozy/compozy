@@ -317,3 +317,25 @@ persona:
 - **Who:** the person who owns the daemon: restarts and deploys it, reads `compozy status`/`compozy doctor`, sets config keys, and answers for the security posture and the bill. Operates mostly through CLI/HTTP/UDS with the Web settings pages as secondary surface.
 - **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, process-memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
 - **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained, J-expose-and-pair-gateway, and J-audit-and-teardown-gateway; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).
+
+
+## Ana — External App Builder
+
+```yaml
+persona:
+  name: Ana
+  base: Power User
+  goal: "Build an external Node, browser, or Go app that runs agent work on a user's existing CompozyOS daemon."
+  device: desktop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 30
+```
+
+- **Who:** a developer who knows application code but is new to CompozyOS discovery, prompt admission,
+  and stream recovery. Uses the published quickstarts and generated API samples as the contract.
+- **What they reveal:** missing methods, non-working copy/paste examples, mismatched package versions,
+  queued replies treated as streams, reconnection that duplicates work, and browser authorization
+  failures without an actionable cause.
+- **Owns journeys:** `J-build-external-app`; pairs with Dora for `J-authorize-browser-app`.

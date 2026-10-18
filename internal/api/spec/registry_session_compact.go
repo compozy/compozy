@@ -6,6 +6,7 @@ func compactSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/compact",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "compactSession",
 		Summary:     "Request advertised native agent compaction (experimental)",
 		Stability:   "experimental",

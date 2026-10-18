@@ -34,6 +34,7 @@ func listTasksOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listTasks",
 		Summary:     "List a bounded task catalog page",
 		Tags:        []string{specTasksKey},
@@ -70,6 +71,7 @@ func createTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "createTask",
 		Summary:     "Create a task",
 		Tags:        []string{specTasksKey},
@@ -91,6 +93,7 @@ func getTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTask",
 		Summary:     "Get one task with detail",
 		Tags:        []string{specTasksKey},
@@ -111,6 +114,7 @@ func inspectTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDInspectPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "inspectTask",
 		Summary:     "Inspect one task with diagnostics",
 		Tags:        []string{specTasksKey},
@@ -131,6 +135,7 @@ func deleteTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPITasksIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteTask",
 		Summary:     "Delete one task",
 		Tags:        []string{specTasksKey},
@@ -151,6 +156,7 @@ func updateTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPITasksIDPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "updateTask",
 		Summary:     "Update one task",
 		Tags:        []string{specTasksKey},
@@ -173,6 +179,7 @@ func blockTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDBlocksPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "blockTask",
 		Summary:     "Create one typed task block",
 		Tags:        []string{specTasksKey},
@@ -195,6 +202,7 @@ func listTaskBlocksOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDBlocksPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listTaskBlocks",
 		Summary:     "List typed task blocks",
 		Tags:        []string{specTasksKey},
@@ -217,6 +225,7 @@ func clearTaskBlockOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDBlocksBlockIDClearPath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "clearTaskBlock",
 		Summary:     "Clear one typed task block",
 		Tags:        []string{specTasksKey},
@@ -240,6 +249,7 @@ func recoverTaskOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPITasksIDRecoverPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "recoverTask",
 		Summary:     "Recover one task from needs_attention",
 		Tags:        []string{specTasksKey},
@@ -262,6 +272,7 @@ func getTaskExecutionProfileOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDExecutionProfilePath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "getTaskExecutionProfile",
 		Summary:     "Get one task execution profile",
 		Tags:        []string{specTasksKey},
@@ -282,6 +293,7 @@ func setTaskExecutionProfileOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
 		Path:        specAPITasksIDExecutionProfilePath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "setTaskExecutionProfile",
 		Summary:     "Replace one task execution profile",
 		Tags:        []string{specTasksKey},
@@ -304,6 +316,7 @@ func setTaskWorktreePolicyOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPITasksIDExecutionProfileWorktreePath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "setTaskWorktreePolicy",
 		Summary:     "Set one task worktree policy",
 		Tags:        []string{specTasksKey},
@@ -326,6 +339,7 @@ func deleteTaskExecutionProfileOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
 		Path:        specAPITasksIDExecutionProfilePath,
+		AppAccess:   AppAccessAllowed,
 		OperationID: "deleteTaskExecutionProfile",
 		Summary:     "Delete one task execution profile",
 		Tags:        []string{specTasksKey},
@@ -347,6 +361,7 @@ func listTaskReviewsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        "/api/tasks/{id}/reviews",
+		AppAccess:   AppAccessAllowed,
 		OperationID: "listTaskReviews",
 		Summary:     "List task-run reviews for one task",
 		Tags:        []string{specTasksKey},

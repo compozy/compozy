@@ -497,7 +497,11 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"ensure_annotated_tag \"${RELEASE_TAG}\"",
 		"sdk_go_tag=\"sdk/go/${RELEASE_TAG}\"",
 		"git push origin \"refs/tags/${RELEASE_TAG}\" \"refs/tags/${sdk_go_tag}\"",
-		"scripts/publish-extension-sdk.sh \"${RELEASE_VERSION}\" \"${NPM_TAG}\"",
+		"scripts/publish-sdk-package.sh sdk/typescript \"${RELEASE_VERSION}\" \"${NPM_TAG}\"",
+		"scripts/publish-sdk-package.sh sdk/client \"${RELEASE_VERSION}\" \"${NPM_TAG}\"",
+		"scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta",
+		"client_sdk_state: ${{ steps.publication.outputs.client_sdk_state }}",
+		"if: needs.release.outputs.client_sdk_state == 'missing'",
 		"scripts/release-npm-readiness.sh",
 		"GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}",
 		"RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}",
@@ -641,6 +645,17 @@ case "$2" in
   @compozy/extension-sdk)
     printf '%s\n' '["0.3.0-beta.13","0.3.0-beta.15"]'
     ;;
+  @compozy/client)
+    if [ "${FAKE_CLIENT_REGISTRY_STATE}" = missing ]; then
+      echo 'npm error E404 404 Not Found' >&2
+      exit 1
+    fi
+    if [ "${FAKE_CLIENT_REGISTRY_STATE}" = unavailable ]; then
+      echo 'npm error E503 service unavailable' >&2
+      exit 1
+    fi
+    printf '%s\n' '["0.3.0-beta.17"]'
+    ;;
   *)
     exit 9
     ;;
@@ -669,18 +684,33 @@ esac
 			runReleasePreflightFixtureCommand(t, repo, "git", "tag", tag)
 		}
 
-		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
-		cmd.Dir = repo
-		cmd.Env = append(
-			os.Environ(),
-			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("resolve-auto-beta-version.sh error = %v, output = %s", err, output)
-		}
-		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.16"; got != want {
-			t.Fatalf("resolved beta version = %q, want %q", got, want)
+		for _, testCase := range []struct {
+			name      string
+			state     string
+			want      string
+			wantError bool
+		}{
+			{name: "Should include immutable app SDK versions", state: "published", want: "0.3.0-beta.18"},
+			{name: "Should allow the first app SDK release", state: "missing", want: "0.3.0-beta.16"},
+			{name: "Should reject uncertain app SDK registry state", state: "unavailable", wantError: true,
+				want: "could not read published @compozy/client versions"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
+				cmd.Dir = repo
+				cmd.Env = append(os.Environ(), "FAKE_CLIENT_REGISTRY_STATE="+testCase.state,
+					"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+				output, err := cmd.CombinedOutput()
+				if (err != nil) != testCase.wantError {
+					t.Fatalf("resolve-auto-beta-version.sh error = %v, output = %s", err, output)
+				}
+				if testCase.wantError {
+					assertContainsText(t, "beta resolver failure", string(output), testCase.want)
+				} else if got := strings.TrimSpace(string(output)); got != testCase.want {
+					t.Fatalf("resolved beta version = %q, want %q", got, testCase.want)
+				}
+			})
 		}
 	})
 
@@ -1261,26 +1291,35 @@ func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *tes
 		name           string
 		cliState       string
 		extensionState string
+		clientSDKState string
 		releases       string
 		wantState      string
 		wantStage      string
 		wantDesktop    string
+		wantError      string
 	}{
 		{
 			name:           "Should repair a missing GitHub release without rebuilding desktop",
 			cliState:       "published",
 			extensionState: "published",
+			clientSDKState: "published",
 			releases:       `[]`,
-			wantState:      "missing_published_published",
+			wantState:      "missing_published_published_published",
 			wantStage:      "true",
 			wantDesktop:    "false",
+		},
+		{
+			name:     "Should reject app SDK publication without its CLI release",
+			cliState: "missing", extensionState: "missing", clientSDKState: "published", releases: `[]`,
+			wantError: "@compozy/client is published while @compozy/cli is missing",
 		},
 		{
 			name:           "Should require desktop validation for a fresh release",
 			cliState:       "missing",
 			extensionState: "missing",
+			clientSDKState: "missing",
 			releases:       `[]`,
-			wantState:      "missing_missing_missing",
+			wantState:      "missing_missing_missing_missing",
 			wantStage:      "true",
 			wantDesktop:    "true",
 		},
@@ -1288,12 +1327,13 @@ func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *tes
 			name:           "Should resume an orphaned draft without presenting its old desktop as fixed",
 			cliState:       "published",
 			extensionState: "published",
+			clientSDKState: "published",
 			releases: `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit",` +
 				`"draft":true,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},` +
 				`{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},` +
 				`{"id":3,"name":"install.sh","state":"uploaded","size":1},` +
 				`{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
-			wantState:   "draft_published_published",
+			wantState:   "draft_published_published_published",
 			wantStage:   "false",
 			wantDesktop: "false",
 		},
@@ -1301,14 +1341,25 @@ func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *tes
 			name:           "Should resume npm publication from an already public GitHub release",
 			cliState:       "missing",
 			extensionState: "missing",
+			clientSDKState: "missing",
 			releases: `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit",` +
 				`"draft":false,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},` +
 				`{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},` +
 				`{"id":3,"name":"install.sh","state":"uploaded","size":1},` +
 				`{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
-			wantState:   "published_missing_missing",
+			wantState:   "published_missing_missing_missing",
 			wantStage:   "false",
 			wantDesktop: "false",
+		},
+		{
+			name:           "Should recover app SDK publication after the other packages succeeded",
+			cliState:       "published",
+			extensionState: "published",
+			clientSDKState: "missing",
+			releases:       `[]`,
+			wantState:      "missing_published_published_missing",
+			wantStage:      "true",
+			wantDesktop:    "false",
 		},
 	}
 
@@ -1326,6 +1377,7 @@ fi
 package="$2"
 state="${CLI_STATE}"
 if [[ "${package}" == @compozy/extension-sdk@* ]]; then state="${EXTENSION_STATE}"; fi
+if [[ "${package}" == @compozy/client@* ]]; then state="${CLIENT_SDK_STATE}"; fi
 if [[ "${state}" == "published" ]]; then printf '%s\n' "${RELEASE_VERSION}"; exit 0; fi
 echo 'npm error E404 404 Not Found' >&2
 exit 1
@@ -1358,6 +1410,7 @@ printf '[%s]\n' "${GH_RELEASES}"
 				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"CLI_STATE="+tt.cliState,
 				"EXTENSION_STATE="+tt.extensionState,
+				"CLIENT_SDK_STATE="+tt.clientSDKState,
 				"GH_RELEASES="+tt.releases,
 				"GITHUB_OUTPUT="+outputPath,
 				"GITHUB_REPOSITORY=compozy/compozy",
@@ -1367,7 +1420,15 @@ printf '[%s]\n' "${GH_RELEASES}"
 				"RUNNER_TEMP="+t.TempDir(),
 			)
 			cmd.Env = baseEnv
-			if output, err := cmd.CombinedOutput(); err != nil {
+			output, err := cmd.CombinedOutput()
+			if tt.wantError != "" {
+				if err == nil {
+					t.Fatalf("invalid publication state succeeded: %s", output)
+				}
+				assertContainsText(t, "publication state failure", string(output), tt.wantError)
+				return
+			}
+			if err != nil {
 				t.Fatalf("release-publication-state.sh error = %v, output = %s", err, output)
 			}
 			decision, err := os.ReadFile(outputPath)
@@ -1375,6 +1436,7 @@ printf '[%s]\n' "${GH_RELEASES}"
 				t.Fatalf("os.ReadFile(GITHUB_OUTPUT) error = %v", err)
 			}
 			assertContainsText(t, "publication state", string(decision), "publication_state="+tt.wantState)
+			assertContainsText(t, "app SDK publication state", string(decision), "client_sdk_state="+tt.clientSDKState)
 			assertContainsText(t, "stage decision", string(decision), "stage_release="+tt.wantStage)
 			assertContainsText(t, "desktop decision", string(decision), "desktop_required="+tt.wantDesktop)
 		})
@@ -1537,7 +1599,7 @@ func TestReleaseWorkflowVerifiesGoReleaserWithCompatibleCosign(t *testing.T) {
 	})
 }
 
-func TestExtensionSDKPublisherAcceptsStrictSemVer(t *testing.T) {
+func TestSDKPublisher(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should accept prerelease and build metadata together", func(t *testing.T) {
@@ -1547,18 +1609,173 @@ func TestExtensionSDKPublisherAcceptsStrictSemVer(t *testing.T) {
 		cmd := exec.CommandContext(
 			t.Context(),
 			"bash",
-			filepath.Join(root, "scripts", "publish-extension-sdk.sh"),
+			filepath.Join(root, "scripts", "publish-sdk-package.sh"),
+			"sdk/client",
 			"1.2.3-rc.1+build.7",
 			"INVALID",
 		)
 		output, err := cmd.CombinedOutput()
 		if err == nil {
-			t.Fatal("publish-extension-sdk.sh error = nil, want invalid npm tag rejection")
+			t.Fatal("publish-sdk-package.sh error = nil, want invalid npm tag rejection")
 		}
 		if !strings.Contains(string(output), "npm tag is invalid") {
-			t.Fatalf("publish-extension-sdk.sh output = %s, want npm tag validation", output)
+			t.Fatalf("publish-sdk-package.sh output = %s, want npm tag validation", output)
 		}
 	})
+
+	for _, packageName := range []string{"@compozy/extension-sdk", "@compozy/client"} {
+		t.Run("Should stage the release version and provenance for "+packageName, func(t *testing.T) {
+			t.Parallel()
+			cmd, source, published, argsPath := newSDKPublisherFixture(t, packageName, "missing", false)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("SDK publisher = %v, output: %s", err, output)
+			}
+			manifest := readYAMLMap(t, published, "package.json")
+			assertEqualString(t, "published name", stringAt(t, manifest, "name"), packageName)
+			assertEqualString(t, "published version", stringAt(t, manifest, "version"), "0.4.0-beta.7")
+			original := readYAMLMap(t, source, "package.json")
+			assertEqualString(t, "source version", stringAt(t, original, "version"), "0.0.0")
+			assertEqualString(t, "published README", readTextFile(t, published, "README.md"), "SDK package documentation\n")
+			publishArgs := readTextFile(t, filepath.Dir(argsPath), filepath.Base(argsPath))
+			for _, want := range []string{"--access\npublic\n", "--tag\nbeta\n", "--provenance\n"} {
+				assertContainsText(t, "npm publish arguments", publishArgs, want)
+			}
+			assertNotContainsText(t, "live publish arguments", publishArgs, "--dry-run")
+			if packageName == "@compozy/client" {
+				versionCheck := exec.CommandContext(t.Context(), "node", "--input-type=module", "-e", `
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+const require = createRequire(import.meta.url);
+console.log(require(process.argv[1]).CLIENT_VERSION);
+console.log((await import(pathToFileURL(process.argv[2]))).CLIENT_VERSION);
+`, filepath.Join(published, "dist/cjs/version.js"), filepath.Join(published, "dist/esm/version.js"))
+				versions, err := versionCheck.CombinedOutput()
+				if err != nil || string(versions) != "0.4.0-beta.7\n0.4.0-beta.7\n" {
+					t.Fatalf("published runtime versions = %q, err = %v", versions, err)
+				}
+				assertContainsText(t, "published declaration", readTextFile(t, published, "dist/types/version.d.ts"), `"0.4.0-beta.7"`)
+				assertContainsText(t, "source runtime version", readTextFile(t, source, "src/version.ts"), `"0.0.0-dev"`)
+			}
+		})
+	}
+
+	t.Run("Should use dry-run publication for an unpublished app package", func(t *testing.T) {
+		t.Parallel()
+		cmd, _, _, argsPath := newSDKPublisherFixture(t, "@compozy/client", "registry-error", true)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("SDK publisher dry run = %v, output: %s", err, output)
+		}
+		assertContainsText(t, "npm dry run arguments", readTextFile(t, filepath.Dir(argsPath), filepath.Base(argsPath)), "--dry-run\n")
+	})
+
+	for _, testCase := range []struct {
+		name       string
+		state      string
+		wantError  bool
+		wantOutput string
+	}{
+		{name: "Should skip an immutable version that was already published", state: "published", wantOutput: "already published"},
+		{name: "Should stop on registry uncertainty before building or publishing", state: "registry-error", wantError: true,
+			wantOutput: "could not determine whether @compozy/client@0.4.0-beta.7 is published"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			cmd, source, _, argsPath := newSDKPublisherFixture(t, "@compozy/client", testCase.state, false)
+			output, err := cmd.CombinedOutput()
+			if (err != nil) != testCase.wantError {
+				t.Fatalf("SDK publisher = %v, want error %t; output: %s", err, testCase.wantError, output)
+			}
+			assertContainsText(t, "publisher result", string(output), testCase.wantOutput)
+			for _, marker := range []string{argsPath, filepath.Join(source, "build-called")} {
+				if _, err := os.Stat(marker); !os.IsNotExist(err) {
+					t.Fatalf("unexpected build/publication marker %s: %v", marker, err)
+				}
+			}
+		})
+	}
+
+	t.Run("Should stop publication when a runtime version artifact is missing", func(t *testing.T) {
+		t.Parallel()
+		cmd, source, _, argsPath := newSDKPublisherFixture(t, "@compozy/client", "missing", false)
+		if err := os.Remove(filepath.Join(source, "dist/cjs/version.js")); err != nil {
+			t.Fatalf("remove fixture artifact: %v", err)
+		}
+		if output, err := cmd.CombinedOutput(); err == nil {
+			t.Fatalf("SDK publisher unexpectedly accepted incomplete runtime: %s", output)
+		}
+		if _, err := os.Stat(argsPath); !os.IsNotExist(err) {
+			t.Fatalf("incomplete runtime reached npm publish: %v", err)
+		}
+	})
+}
+
+func newSDKPublisherFixture(t *testing.T, packageName, registryState string, dryRun bool) (*exec.Cmd, string, string, string) {
+	t.Helper()
+	root := findRepoRootForReleaseConfigTest(t)
+	fixture := t.TempDir()
+	source := filepath.Join(fixture, "sdk")
+	published := filepath.Join(fixture, "published")
+	bin := filepath.Join(fixture, "bin")
+	argsPath := filepath.Join(fixture, "publish-args")
+	files := map[string]string{
+		"sdk/package.json":      fmt.Sprintf(`{"name":%q,"private":false,"version":"0.0.0","license":"MIT"}`, packageName),
+		"sdk/LICENSE":           "MIT\n",
+		"sdk/README.md":         "SDK package documentation\n",
+		"sdk/dist/cjs/index.js": "module.exports = {};\n",
+		"bin/bun":               "#!/bin/sh\nexit 0\n",
+		"bin/bunx": `#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == "turbo run build --filter=${FAKE_PACKAGE_NAME}" ]]
+printf 'built\n' >"${FAKE_SOURCE}/build-called"
+`,
+		"bin/npm": `#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  view)
+    [[ "$2" == "${FAKE_PACKAGE_NAME}@0.4.0-beta.7" ]]
+    case "${FAKE_REGISTRY_STATE}" in
+      published) printf '0.4.0-beta.7\n' ;;
+      missing) echo 'npm error E404 404 Not Found' >&2; exit 1 ;;
+      *) echo 'npm error E503 service unavailable' >&2; exit 1 ;;
+    esac
+    ;;
+  publish)
+    mkdir -p "${FAKE_PUBLISHED}"
+    cp -R "$2/." "${FAKE_PUBLISHED}/"
+    printf '%s\n' "$@" >"${FAKE_PUBLISH_ARGS}"
+    ;;
+  *) echo 'unexpected npm invocation' >&2; exit 2 ;;
+esac
+`,
+	}
+	if packageName == "@compozy/client" {
+		files["sdk/src/version.ts"] = "export const CLIENT_VERSION = \"0.0.0-dev\";\n"
+		files["sdk/dist/esm/package.json"] = `{"type":"module"}`
+		files["sdk/dist/esm/version.js"] = files["sdk/src/version.ts"]
+		files["sdk/dist/cjs/version.js"] = "exports.CLIENT_VERSION = \"0.0.0-dev\";\n"
+		files["sdk/dist/types/version.d.ts"] = "export declare const CLIENT_VERSION = \"0.0.0-dev\";\n"
+	}
+	for name, contents := range files {
+		file := filepath.Join(fixture, name)
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatalf("create publisher fixture directory: %v", err)
+		}
+		if err := os.WriteFile(file, []byte(contents), 0o755); err != nil {
+			t.Fatalf("write publisher fixture: %v", err)
+		}
+	}
+	args := []string{filepath.Join(root, "scripts/publish-sdk-package.sh")}
+	if dryRun {
+		args = append(args, "--dry-run")
+	}
+	args = append(args, source, "0.4.0-beta.7", "beta")
+	cmd := exec.CommandContext(t.Context(), "bash", args...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"FAKE_PACKAGE_NAME="+packageName, "FAKE_REGISTRY_STATE="+registryState, "FAKE_SOURCE="+source,
+		"FAKE_PUBLISHED="+published, "FAKE_PUBLISH_ARGS="+argsPath)
+	return cmd, source, published, argsPath
 }
 
 func TestNPMReleasePolicyWaitsForRegistryReadiness(t *testing.T) {
@@ -1570,20 +1787,27 @@ func TestNPMReleasePolicyWaitsForRegistryReadiness(t *testing.T) {
 		root := findRepoRootForReleaseConfigTest(t)
 		binDir := t.TempDir()
 		counterPath := filepath.Join(binDir, "extension-sdk-queries")
+		clientCounterPath := filepath.Join(binDir, "client-sdk-queries")
 		npmStub := `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" != "view" || "${3:-}" != "dist-tags" ]]; then
   printf 'unexpected npm invocation: %s\n' "$*" >&2
   exit 64
 fi
-if [[ "${2:-}" == "@compozy/extension-sdk" ]]; then
+if [[ "${2:-}" == "@compozy/extension-sdk" || "${2:-}" == "@compozy/client" ]]; then
+  counter="${FAKE_NPM_SDK_COUNTER}"
+  stale_attempts=1
+  if [[ "$2" == "@compozy/client" ]]; then
+    counter="${FAKE_NPM_CLIENT_COUNTER}"
+    stale_attempts=2
+  fi
   query_count=0
-  if [[ -f "${FAKE_NPM_SDK_COUNTER}" ]]; then
-    query_count="$(<"${FAKE_NPM_SDK_COUNTER}")"
+  if [[ -f "${counter}" ]]; then
+    query_count="$(<"${counter}")"
   fi
   query_count=$((query_count + 1))
-  printf '%s\n' "${query_count}" >"${FAKE_NPM_SDK_COUNTER}"
-  if ((query_count == 1)); then
+  printf '%s\n' "${query_count}" >"${counter}"
+  if ((query_count <= stale_attempts)); then
     printf '{"latest":"0.3.0-beta.3","beta":"0.3.0-beta.5"}\n'
     exit 0
   fi
@@ -1605,25 +1829,29 @@ printf '{"latest":"0.2.15","beta":"0.3.0-beta.6"}\n'
 			"beta",
 			"@compozy/cli",
 			"@compozy/extension-sdk",
+			"@compozy/client",
 		)
 		cmd.Env = append(
 			os.Environ(),
 			"FAKE_NPM_SDK_COUNTER="+counterPath,
+			"FAKE_NPM_CLIENT_COUNTER="+clientCounterPath,
 			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("release-npm-readiness.sh error = %v, output = %s", err, output)
 		}
-		if !strings.Contains(string(output), "npm release policy converged after 2 attempts") {
+		if !strings.Contains(string(output), "npm release policy converged after 3 attempts") {
 			t.Fatalf("release-npm-readiness.sh output = %s, want convergence evidence", output)
 		}
-		counter, err := os.ReadFile(counterPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(extension SDK query counter) error = %v", err)
-		}
-		if got, want := string(counter), "2\n"; got != want {
-			t.Fatalf("extension SDK query count = %q, want %q", got, want)
+		for _, path := range []string{counterPath, clientCounterPath} {
+			counter, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read SDK query counter: %v", err)
+			}
+			if got, want := string(counter), "3\n"; got != want {
+				t.Fatalf("SDK query count = %q, want %q", got, want)
+			}
 		}
 	})
 

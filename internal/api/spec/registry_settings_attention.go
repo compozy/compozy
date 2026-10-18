@@ -6,6 +6,7 @@ func getSettingsAttentionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPISettingsAttentionPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "getSettingsAttention",
 		Summary:     "Read the operator attention settings section",
 		Tags:        []string{specSettingsKey},
@@ -25,6 +26,7 @@ func updateSettingsAttentionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
 		Path:        specAPISettingsAttentionPath,
+		AppAccess:   AppAccessDenied,
 		OperationID: "updateSettingsAttention",
 		Summary:     "Update the operator attention settings section",
 		Tags:        []string{specSettingsKey},
