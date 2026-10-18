@@ -7,7 +7,7 @@ import { useThemePreference } from "@/systems/theme";
 
 import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 
-export type ProfileGlyphSize = "sm" | "default" | "lg";
+export type ProfileGlyphSize = "xs" | "sm" | "default" | "lg";
 
 export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "children"> {
   name: string;
@@ -37,12 +37,14 @@ export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "childre
 }
 
 const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
+  xs: "size-3.5 rounded-xxs text-micro",
   sm: "size-profile-glyph-sm rounded-xs text-small-body",
   default: "size-topbar-glyph rounded-sm text-small-body",
   lg: "size-7 rounded-md text-item-title",
 };
 
 const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
+  xs: "size-2.5",
   sm: "size-3.5",
   default: "size-3.5",
   lg: "size-4",

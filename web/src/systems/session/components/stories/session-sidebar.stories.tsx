@@ -84,7 +84,7 @@ const meta: Meta<typeof SessionSidebar> = {
     docs: {
       description: {
         component:
-          "In-window sessions rail with provenance threads: child sessions nest under their origin behind a hairline connector.",
+          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the trailing chip and fold share line 2.",
       },
     },
   },
@@ -433,8 +433,9 @@ const MIXED_RUNTIMES: SessionPayload[] = [
 ];
 
 /**
- * Each row names its runtime with the provider's mark before the agent, in
- * neutral ink so only live state carries color; the unbound session shows none.
+ * Each row names its runtime with the provider's mark before the agent, in its
+ * brand ink as in the runtime selector; the unbound session shows none, and a
+ * child repeating its root's agent and provider collapses to one line.
  */
 export const MixedRuntimes: Story = {
   parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
@@ -463,5 +464,161 @@ export const MixedRuntimesSelection: Story = {
     await expect(canvas.getByTestId("session-sidebar-selection-count")).toHaveTextContent(
       "2 selected"
     );
+  },
+};
+
+const PROFILE_OWNERS = {
+  "00000000000000000000000000": {
+    id: "00000000000000000000000000",
+    name: "Personal",
+    color: "#8a8f98",
+    icon: "user-round",
+    archived: false,
+  },
+  "profile-design": {
+    id: "profile-design",
+    name: "Design",
+    color: "#c26ad6",
+    icon: "megaphone",
+    archived: false,
+  },
+} as const;
+
+function inProfile(
+  session: SessionPayload,
+  profileId: keyof typeof PROFILE_OWNERS
+): SessionPayload {
+  return { ...session, profile_id: profileId, profile_name: PROFILE_OWNERS[profileId].name };
+}
+
+/**
+ * All profiles: the owner glyph leads the meta line of roots only, a child in
+ * its root's profile repeats nothing, and the title keeps line 1 even with the
+ * subagent chip and the thread fold on the row.
+ */
+export const AllProfiles: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...MixedRuntimes.args,
+    view: {
+      ...ProvenanceThreads.args!.view!,
+      aggregate: true,
+      scopeLabel: "All profiles",
+      ownerOf: session =>
+        PROFILE_OWNERS[session.profile_id as keyof typeof PROFILE_OWNERS] ??
+        PROFILE_OWNERS["00000000000000000000000000"],
+    },
+    sessions: [
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            withSubagents(
+              sidebarSession("sess-qa", "Release v0.3.1 QA cycle", "general", "running"),
+              1,
+              14
+            ),
+            0
+          ),
+          "claude",
+          "claude-opus-5-5"
+        ),
+        "00000000000000000000000000"
+      ),
+      ...MIXED_RUNTIMES.map(session =>
+        inProfile(
+          session,
+          session.id === "sess-cart-2" ? "profile-design" : "00000000000000000000000000"
+        )
+      ),
+    ],
+  },
+};
+
+const LONG_AGENT = "open-design-designer-with-extended-review-loop";
+
+/**
+ * Bulletproof meta line: a long agent name gives way first, attention words and
+ * the trailing chip and fold never truncate, notes truncate before the agent.
+ */
+export const LongAgentNames: Story = {
+  parameters: { msw: { handlers: MIXED_RUNTIME_CATALOG } },
+  args: {
+    ...AllProfiles.args,
+    sessions: [
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            withSubagents(
+              sidebarSession(
+                "sess-long-root",
+                "Migrate the session store to the new schema",
+                LONG_AGENT,
+                "needs-attention"
+              ),
+              12,
+              148
+            ),
+            12
+          ),
+          "codex",
+          "gpt-6.1-sol"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            sidebarSession(
+              "sess-long-child",
+              "Slice 1 — migrate session rows",
+              LONG_AGENT,
+              "running",
+              "sess-long-root"
+            ),
+            1
+          ),
+          "codex",
+          "gpt-6.1-sol"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            sidebarSession(
+              "sess-long-other",
+              "Slice 2 — rebuild indexes",
+              "general",
+              "failed",
+              "sess-long-root"
+            ),
+            4
+          ),
+          "claude",
+          "claude-opus-5-5"
+        ),
+        "profile-design"
+      ),
+      inProfile(
+        onRuntime(
+          minutesAgo(
+            {
+              ...sidebarSession(
+                "sess-long-archived",
+                "fix/silent-idle-session-reclaim-and-runtime-rebind-after-session-load",
+                LONG_AGENT,
+                "stopped"
+              ),
+              archived_at: "2026-08-06T18:00:00Z",
+            },
+            60 * 24 * 40
+          ),
+          "claude",
+          "claude-sonnet-5-5"
+        ),
+        "00000000000000000000000000"
+      ),
+    ],
+    currentSessionId: "sess-long-child",
   },
 };

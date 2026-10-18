@@ -57,6 +57,36 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
   return formatAbsoluteTime(iso);
 }
 
+const COMPACT_THRESHOLDS = [
+  { limit: 3_600_000, divisor: 60_000, unit: "m" },
+  { limit: 86_400_000, divisor: 3_600_000, unit: "h" },
+  { limit: 604_800_000, divisor: 86_400_000, unit: "d" },
+  { limit: 2_592_000_000, divisor: 604_800_000, unit: "w" },
+  { limit: 31_536_000_000, divisor: 2_592_000_000, unit: "mo" },
+] as const;
+
+/**
+ * Renders the compact relative form for dense rows: `"now"` under a minute,
+ * then `"5m"`, `"2h"`, `"3d"`, `"2w"`, `"4mo"`, `"1y"`. No `"ago"` suffix; a
+ * future timestamp reads `"in 5m"`. Invalid ISO strings render the `—` sentinel.
+ */
+export function formatCompactRelativeTime(iso: string, now: number = Date.now()): string {
+  const target = parseIso(iso);
+  if (target === null) return FALLBACK;
+
+  const deltaMs = now - target;
+  const absMs = Math.abs(deltaMs);
+  if (absMs < 60_000) return "now";
+
+  const unitFor = (): string => {
+    for (const { limit, divisor, unit } of COMPACT_THRESHOLDS) {
+      if (absMs < limit) return `${Math.max(1, Math.floor(absMs / divisor))}${unit}`;
+    }
+    return `${Math.floor(absMs / 31_536_000_000)}y`;
+  };
+  return deltaMs < 0 ? `in ${unitFor()}` : unitFor();
+}
+
 /**
  * Renders an absolute timestamp using the runtime's default locale settings.
  * Invalid ISO strings render the `—` sentinel.

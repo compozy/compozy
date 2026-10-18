@@ -8,11 +8,12 @@ import {
   providerKindIconRegistry,
 } from "@compozy/ui";
 
-import { useSessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
-import type { SessionPayload } from "../../types";
+import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 
 export interface SessionListProviderMarkProps {
-  session: SessionPayload;
+  sessionId: string;
+  /** The row's resolved runtime; `null` before the first bind renders nothing. */
+  runtime: SessionRuntimeLabel | null;
   /**
    * Set while the row holds keyboard focus, fresh for every focus, so the
    * tooltip a keyboard user dismissed with Escape stays closed only for that focus.
@@ -27,43 +28,41 @@ export interface SessionListProviderMarkProps {
  *
  * The glyph is decorative and never a tab stop: the row's accessible name
  * carries `Provider · Model` as text, and the tooltip opens on the glyph's hover
- * or on the row's keyboard focus. Neutral ink keeps rows uncolored at rest, so
- * brand inks (Claude's orange is the accent's needs-you hue) drop to gray.
+ * or on the row's keyboard focus. Brand inks stay on, as in the runtime selector,
+ * so providers tell apart at a glance; the needs-you state never relies on hue
+ * alone (its word and haloed mark carry it).
  */
 export function SessionListProviderMark({
-  session,
+  sessionId,
+  runtime,
   keyboardFocus = null,
 }: SessionListProviderMarkProps) {
-  const runtime = useSessionRuntimeLabel(session.runtime?.effective);
   const [hovered, setHovered] = useState(false);
   const [dismissedFocus, setDismissedFocus] = useState<number | null>(null);
   if (runtime === null) return null;
   const open = hovered || (keyboardFocus !== null && keyboardFocus !== dismissedFocus);
   return (
-    <>
-      <span className="sr-only">{runtime.label}</span>
-      <Tooltip
-        open={open}
-        onOpenChange={next => {
-          setHovered(next);
-          if (!next && keyboardFocus !== null) setDismissedFocus(keyboardFocus);
-        }}
-      >
-        <TooltipTrigger
-          render={
-            <KindIcon
-              aria-hidden="true"
-              data-testid={`session-provider-mark-${session.id}`}
-              kind={runtime.provider}
-              registry={providerKindIconRegistry}
-              size="xs"
-              tone="muted"
-              className="grayscale"
-            />
-          }
-        />
-        <TooltipContent>{runtime.label}</TooltipContent>
-      </Tooltip>
-    </>
+    <Tooltip
+      open={open}
+      onOpenChange={next => {
+        setHovered(next);
+        if (!next && keyboardFocus !== null) setDismissedFocus(keyboardFocus);
+      }}
+    >
+      <TooltipTrigger
+        render={
+          <KindIcon
+            aria-hidden="true"
+            data-testid={`session-provider-mark-${sessionId}`}
+            kind={runtime.provider}
+            registry={providerKindIconRegistry}
+            size="xs"
+            tone="muted"
+            className="shrink-0"
+          />
+        }
+      />
+      <TooltipContent>{runtime.label}</TooltipContent>
+    </Tooltip>
   );
 }
