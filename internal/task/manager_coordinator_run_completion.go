@@ -45,6 +45,11 @@ func (m *Service) completeCoordinatorRun(
 	}
 	eventErr := m.recordCoordinatorCompletionEvents(ctx, &result, publicationEventIDs, actor)
 	m.dispatchCoordinatorTerminal(ctx, &result, actor)
+	if result.Settlement != nil {
+		publicationCtx, cancel := completedSettlementPublicationContext(ctx)
+		defer cancel()
+		m.autoEnqueueCompletedRunDependents(publicationCtx, result.Settlement, actor)
+	}
 	return &result.Run, errorsJoin(completionErr, postCommitErr, timerErr, eventErr)
 }
 
