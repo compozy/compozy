@@ -18,6 +18,8 @@ const (
 	ReplyOutcomeCanceled  = "canceled"
 	ReplyOutcomeDropped   = "dropped"
 	ReplyOutcomeUnknown   = "unknown"
+	// ReplyOutcomeExpired reports an armed watch released by its TTL before the target answered.
+	ReplyOutcomeExpired = "expired"
 )
 
 // DBTX allows registration to join the admission owner's transaction.
@@ -87,6 +89,8 @@ type ReplyWatchStore interface {
 	DeliverReplyWatch(context.Context, string, SessionInputQueueInsert) (bool, error)
 	AbandonReplyWatch(context.Context, string, string) error
 	ReplyWatchEvidence(context.Context, ReplyWatch) (SessionPromptAdmission, []SessionInputQueueEntry, error)
+	// ReplyWatchByMessage reads the watch armed for one message admitted into a target session.
+	ReplyWatchByMessage(context.Context, string, string) (ReplyWatch, bool, error)
 }
 
 // ReplyWatchID is stable across admission retries and process restarts.

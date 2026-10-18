@@ -21,7 +21,11 @@ func (s *replyWatchService) AwaitingReplySignals(
 		return nil, err
 	}
 	signals := make([]WorkSignal, 0, len(rows))
+	now := s.manager.now()
 	for _, w := range rows {
+		if s.replyWatchExpired(w, now) {
+			continue
+		}
 		if w.State == store.ReplyWatchArmed && !s.replyTargetLive(w.TargetSessionID) {
 			continue
 		}

@@ -9,4 +9,5 @@ type PromptOriginMeta struct {
 	Hop              int    `json:"hop"`
 	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
 	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
+	InReplyTo        string `json:"in_reply_to,omitempty"`
 }

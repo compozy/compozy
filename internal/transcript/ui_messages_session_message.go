@@ -22,6 +22,7 @@ type UISessionMessagePayload struct {
 	Delivery          string `json:"delivery,omitempty"`
 	SteerDelivery     string `json:"steer_delivery,omitempty"`
 	ReplyWatchID      string `json:"reply_watch_id,omitempty"`
+	InReplyTo         string `json:"in_reply_to,omitempty"`
 	State             string `json:"state"`
 }
 
@@ -108,6 +109,7 @@ func sessionMessagePartPayload(
 	input := sessionPromptArguments(event.ToolInput())
 	payload.TargetSessionID, payload.TargetWorkspaceID = input.SessionID, input.WorkspaceID
 	payload.MessageID, payload.Mode = input.MessageID, input.Mode
+	payload.InReplyTo = input.InReplyTo
 	switch decoded.parsed.Type {
 	case acp.EventTypeToolCall:
 	case acp.EventTypeToolResult:
@@ -174,6 +176,9 @@ func (p UISessionMessagePayload) WithFallback(prior UISessionMessagePayload) UIS
 	}
 	if p.Mode == "" {
 		p.Mode = prior.Mode
+	}
+	if p.InReplyTo == "" {
+		p.InReplyTo = prior.InReplyTo
 	}
 	return p
 }

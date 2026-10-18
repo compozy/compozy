@@ -45,7 +45,7 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 		ChildSessionID:   w.TargetSessionID,
 		Reason:           w.Outcome,
 		Summary:          replySummary(w.ReplyText),
-		Hop:              w.Hop,
+		Hop:              replyWakeHop(w),
 		ChildWorkspaceID: w.TargetWorkspaceID,
 		ChildAgentName:   agent,
 		ReplyTruncated:   w.ReplyTruncated,
@@ -84,6 +84,14 @@ func (s *replyWatchService) Deliver(ctx context.Context, id string) error {
 	s.manager.logger.InfoContext(ctx, "reply_watch.delivered", "id", id, "route", "queued")
 	s.manager.startTrackedPromptTask(func() { s.manager.startNextQueuedInputPrompt(sender.ID) })
 	return nil
+}
+
+// replyWakeHop is the hop a reply wake carries into the sender: the sender's own hop when it sent the
+// message (the message hop minus one). A completion wake hands control back to the sender, so a sequential
+// orchestration (stage done → dispatch next child) restarts from the sender's depth instead of adding one
+// per stage; forwarding A→B→C still adds one per send and stays bounded by MaxSessionMessageHops.
+func replyWakeHop(w store.ReplyWatch) int {
+	return max(w.Hop-1, 0)
 }
 
 func replyWakeText(w store.ReplyWatch, title string) string {

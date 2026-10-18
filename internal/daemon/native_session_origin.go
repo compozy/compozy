@@ -11,8 +11,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-type nativeSessionHopReader interface {
-	CurrentTurnEffectiveHop(context.Context, string) (int, error)
+type nativeSessionMessageOriginBuilder interface {
+	SessionMessageOrigin(context.Context, session.MessageOriginRequest) (*acp.PromptOriginMeta, error)
 }
 
 func (n *daemonNativeTools) sessionPromptOrigin(
@@ -20,10 +20,10 @@ func (n *daemonNativeTools) sessionPromptOrigin(
 	scope toolspkg.Scope,
 	toolID toolspkg.ToolID,
 	target string,
-	notify bool,
+	input sessionPromptInput,
 ) (*acp.PromptOriginMeta, error) {
 	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
-		if notify {
+		if input.NotifyOnComplete {
 			return nil, toolspkg.NewToolError(
 				toolspkg.ErrorCodeInvalidRequest,
 				toolID,
@@ -31,45 +31,57 @@ func (n *daemonNativeTools) sessionPromptOrigin(
 				toolspkg.ErrToolInvalidInput,
 			)
 		}
+		if strings.TrimSpace(input.InReplyTo) != "" {
+			return nil, toolspkg.NewToolError(
+				toolspkg.ErrorCodeInvalidRequest,
+				toolID,
+				"in_reply_to requires an agent session",
+				toolspkg.ErrToolInvalidInput,
+			)
+		}
+		if input.Supersede {
+			return nil, toolspkg.NewToolError(
+				toolspkg.ErrorCodeInvalidRequest,
+				toolID,
+				"supersede requires an agent session",
+				toolspkg.ErrToolInvalidInput,
+			)
+		}
 		return nil, nil
 	}
-	if target == scope.SessionID {
-		slog.WarnContext(ctx, "session.message.rejected", "reason", "self_target", "sender_session_id", scope.SessionID)
-		return nil, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidRequest,
-			toolID,
-			"session_prompt cannot target the calling session.",
-			toolspkg.ErrToolInvalidInput,
-		)
-	}
-	reader, ok := n.deps.Sessions.(nativeSessionHopReader)
+	builder, ok := n.deps.Sessions.(nativeSessionMessageOriginBuilder)
 	if !ok {
-		return nil, errors.New("session message hop reader is unavailable")
+		return nil, errors.New("session message origin builder is unavailable")
 	}
-	hop, err := reader.CurrentTurnEffectiveHop(ctx, scope.SessionID)
+	origin, err := builder.SessionMessageOrigin(ctx, session.MessageOriginRequest{
+		SenderSessionID: scope.SessionID, AgentName: scope.AgentName, TargetSessionID: target,
+		InReplyTo: input.InReplyTo, NotifyOnComplete: input.NotifyOnComplete,
+	})
 	if err != nil {
-		return nil, err
+		return nil, nativeSessionMessageError(toolID, err)
 	}
-	if hop >= acp.MaxSessionMessageHops {
-		slog.WarnContext(ctx, "session.message.rejected", "reason", "hop_limit", "sender_session_id", scope.SessionID)
-		return nil, toolspkg.NewToolError(
-			toolspkg.ErrorCodeSessionMessageHopLimit,
-			toolID,
-			session.ErrSessionMessageHopLimit.Error(),
-			session.ErrSessionMessageHopLimit,
+	return origin, nil
+}
+
+// nativeSessionMessageError maps the session message guards to their stable tool error codes.
+func nativeSessionMessageError(toolID toolspkg.ToolID, err error) error {
+	switch {
+	case errors.Is(err, session.ErrSessionMessageSelfTarget):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidRequest, toolID, err.Error(), toolspkg.ErrToolInvalidInput,
+		)
+	case errors.Is(err, session.ErrSessionMessageHopLimit):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeSessionMessageHopLimit, toolID, session.ErrSessionMessageHopLimit.Error(), err,
+		)
+	case errors.Is(err, session.ErrSessionMessageRateLimited):
+		return toolspkg.NewToolError(toolspkg.ErrorCodeSessionMessageRateLimited, toolID, err.Error(), err)
+	case errors.Is(err, acp.ErrInvalidPromptMetadata):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidRequest, toolID, err.Error(), toolspkg.ErrToolInvalidInput,
 		)
 	}
-	sender, err := n.deps.Sessions.Status(ctx, scope.SessionID)
-	if err != nil {
-		return nil, err
-	}
-	origin := acp.PromptOriginMeta{Kind: acp.PromptOriginKindSession, SessionID: scope.SessionID,
-		WorkspaceID: sender.WorkspaceID, AgentName: scope.AgentName, TitleAtSend: sender.Name,
-		Hop: hop + 1, NotifyOnComplete: notify}.Normalize()
-	if err := origin.Validate(); err != nil {
-		return nil, err
-	}
-	return &origin, nil
+	return err
 }
 
 func nativeSessionPromptCaller(scope toolspkg.Scope, toolID toolspkg.ToolID) session.PromptCaller {
@@ -102,6 +114,8 @@ func logSessionMessageSent(
 		origin.Hop,
 		"notify",
 		origin.NotifyOnComplete,
+		"in_reply_to",
+		origin.InReplyTo,
 		"mode",
 		mode,
 	)
@@ -118,7 +132,7 @@ type nativeSessionReplayReader interface {
 func (n *daemonNativeTools) sessionPromptReplayOrigin(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	workspaceID, target, messageID, idempotencyKey string,
+	workspaceID, target, messageID, idempotencyKey, inReplyTo string,
 	refusal error,
 ) (*acp.PromptOriginMeta, error) {
 	if scope.Operator || strings.TrimSpace(scope.SessionID) == "" {
@@ -134,6 +148,10 @@ func (n *daemonNativeTools) sessionPromptReplayOrigin(
 	}
 	if !found || (origin != nil && origin.SessionID != scope.SessionID) {
 		return nil, refusal
+	}
+	if origin != nil {
+		// The retry's own reply link joins the admission fingerprint, so changing it conflicts instead of replaying.
+		origin.InReplyTo = inReplyTo
 	}
 	return origin, nil
 }

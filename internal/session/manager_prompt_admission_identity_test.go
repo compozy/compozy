@@ -95,7 +95,8 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 	})
 }
 
-// UT-003 UT-015 UT-018: bind origin once, preserve replay identity, and retain the v4 boundary.
+// UT-003 UT-015 UT-018: bind origin once, preserve replay identity (including supersede and in_reply_to,
+// #760), and retain the v4 boundary.
 func TestPromptOriginAdmissionIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Should freeze sender origin and scope replay to actor and notify", func(t *testing.T) {
@@ -162,20 +163,26 @@ func TestPromptOriginAdmissionIdentity(t *testing.T) {
 		if err != nil || *queued.meta.Origin != *origin {
 			t.Fatal(queued.meta.Origin, err)
 		}
+		replying := *origin
+		replying.InReplyTo = "msg-question"
 		for _, tc := range []struct {
-			name   string
-			origin *acp.PromptOriginMeta
-			notify bool
+			name      string
+			origin    *acp.PromptOriginMeta
+			notify    bool
+			supersede bool
 		}{
-			{"Should reject a different sender", &acp.PromptOriginMeta{Kind: "session", SessionID: "sender-c", WorkspaceID: h.workspaceID, Hop: 1}, false},
-			{"Should reject operator replay", nil, false},
-			{"Should reject changed notification", origin, true},
+			{"Should reject a different sender", &acp.PromptOriginMeta{Kind: "session", SessionID: "sender-c", WorkspaceID: h.workspaceID, Hop: 1}, false, false},
+			{"Should reject operator replay", nil, false, false},
+			{"Should reject changed notification", origin, true, false},
+			{"Should reject a retry that adds supersede", origin, false, true},
+			{"Should reject a retry that adds in_reply_to", &replying, false, false},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				request := req
 				request.meta.Origin = tc.origin
 				request.notifyOnComplete = tc.notify
+				request.supersede = tc.supersede
 				collision, err := h.manager.newPromptAdmissionRequest(
 					h.workspaceID,
 					request,

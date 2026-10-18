@@ -4801,3 +4801,116 @@ func TestSessionCompactIntegration(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: session origin stamping from the CLI is opt-in this release: only --from-session auto (or an id)
+// stamps the daemon-validated sender origin; inside a managed session without the flag the prompt stays
+// operator input and stderr hints at --from-session auto; --from-session auto outside a session and
+// --in-reply-to without a calling session are refused. Owner: CLI integration (#760).
+func TestSessionPromptOriginIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should stamp the calling session origin only when --from-session opts in", func(t *testing.T) {
+		t.Parallel()
+
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		newSession := func(name string) SessionRecord {
+			out := mustExecuteRoot(
+				t, h.deps, "session", "new", "--agent", "coder", "--name", name, "--cwd", h.workspace, "-o", "json",
+			)
+			var record SessionRecord
+			if err := json.Unmarshal([]byte(out), &record); err != nil {
+				t.Fatalf("json.Unmarshal(session new) error = %v", err)
+			}
+			return record
+		}
+		sender, target := newSession("origin-sender"), newSession("origin-target")
+		inside := h.deps
+		inside.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return sender.ID
+			case agentidentity.EnvAgent:
+				return sender.AgentName
+			default:
+				return ""
+			}
+		}
+		prompt := func(deps commandDeps, message string, extra ...string) string {
+			t.Helper()
+			args := append([]string{"session", "prompt", target.ID, message, "-o", "json"}, extra...)
+			_, stderr, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatalf("session prompt %q error = %v", message, err)
+			}
+			return stderr
+		}
+		optIn := []string{"--from-session", "auto", "--in-reply-to", "msg-question"}
+		if hint := prompt(inside, "from inside the sender", optIn...); strings.Contains(hint, "--from-session auto") {
+			t.Fatalf("opted-in prompt stderr = %q, want no hint", hint)
+		}
+		if hint := prompt(inside, "explicit operator input"); !strings.Contains(hint, "--from-session auto") ||
+			!strings.Contains(hint, sender.ID) {
+			t.Fatalf("inside default stderr = %q, want the --from-session auto hint naming %s", hint, sender.ID)
+		}
+		if hint := prompt(h.deps, "plain operator input"); hint != "" {
+			t.Fatalf("outside stderr = %q, want no hint", hint)
+		}
+		for _, refused := range []struct {
+			deps commandDeps
+			args []string
+			want string
+		}{
+			{
+				deps: inside, args: []string{"--in-reply-to", "msg-question"},
+				want: "--in-reply-to requires a calling agent session",
+			},
+			{
+				deps: inside, args: []string{"--supersede"},
+				want: "--supersede requires a calling agent session",
+			},
+			{
+				deps: h.deps, args: []string{"--from-session", "auto"},
+				want: "--from-session auto requires a managed session",
+			},
+		} {
+			args := append([]string{"session", "prompt", target.ID, "refused"}, refused.args...)
+			if _, _, err := executeRootCommand(t, refused.deps, args...); err == nil ||
+				!strings.Contains(err.Error(), refused.want) {
+				t.Fatalf("session prompt %v error = %v, want %q", refused.args, err, refused.want)
+			}
+		}
+
+		eventsOut := mustExecuteRoot(t, h.deps, "session", "events", target.ID, "--type", "user_message", "-o", "json")
+		var events []SessionEventRecord
+		if err := json.Unmarshal([]byte(eventsOut), &events); err != nil {
+			t.Fatalf("json.Unmarshal(session events) error = %v; out=%s", err, eventsOut)
+		}
+		origins := map[string]*contract.PromptOriginMeta{}
+		for _, event := range events {
+			var payload struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal(event.Content, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(event content) error = %v", err)
+			}
+			for _, message := range []string{"from inside the sender", "explicit operator input", "plain operator input"} {
+				if strings.Contains(payload.Text, message) {
+					origins[message] = event.Origin
+				}
+			}
+		}
+		if len(origins) != 3 {
+			t.Fatalf("user messages = %v, want the three admitted prompts", origins)
+		}
+		stamped := origins["from inside the sender"]
+		if stamped == nil || stamped.SessionID != sender.ID || stamped.Hop != 1 || stamped.InReplyTo != "msg-question" {
+			t.Fatalf("inside origin = %+v, want sender %s at hop 1 replying to msg-question", stamped, sender.ID)
+		}
+		if origins["explicit operator input"] != nil || origins["plain operator input"] != nil {
+			t.Fatalf(
+				"operator origins = %+v / %+v, want none",
+				origins["explicit operator input"], origins["plain operator input"],
+			)
+		}
+	})
+}

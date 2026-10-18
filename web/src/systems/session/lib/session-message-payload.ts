@@ -32,10 +32,21 @@ export interface SessionMessageOrigin {
   hop: number;
   notifyOnComplete: boolean;
   replyWatchId: string | null;
+  /** The message id this one answers (`in_reply_to`); absent when it answers nothing. */
+  inReplyTo?: string;
 }
 
-/** How a reply ended (`reason` on the reply wake). Anything newer reads `unknown`. */
-export type SessionReplyOutcome = "completed" | "failed" | "canceled" | "dropped" | "unknown";
+/**
+ * How a reply ended (`reason` on the reply wake); `expired` is a watch its TTL
+ * released before the target answered. Anything newer reads `unknown`.
+ */
+export type SessionReplyOutcome =
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "dropped"
+  | "expired"
+  | "unknown";
 
 /** A `session_reply` wake (S2), from `metadata.custom.synthetic`. */
 export interface SessionReplyMeta {
@@ -68,6 +79,8 @@ export interface SessionSentMessagePart {
   messageId: string | null;
   mode: SessionMessageMode;
   replyWatchId: string | null;
+  /** The message id this send answers (`in_reply_to`); absent when it answers nothing. */
+  inReplyTo?: string;
   state: SessionSentCallState;
 }
 
@@ -76,6 +89,7 @@ const REPLY_OUTCOMES: ReadonlySet<string> = new Set<SessionReplyOutcome>([
   "failed",
   "canceled",
   "dropped",
+  "expired",
   "unknown",
 ]);
 
@@ -96,6 +110,7 @@ export function sessionMessageOriginFromPayload(
   if (!origin || origin.kind !== ORIGIN_KIND_SESSION) return null;
   const sessionId = origin.session_id.trim();
   if (!sessionId) return null;
+  const inReplyTo = trimmedOrNull(origin.in_reply_to);
   return {
     sessionId,
     workspaceId: origin.workspace_id.trim(),
@@ -104,6 +119,7 @@ export function sessionMessageOriginFromPayload(
     hop: Number.isFinite(origin.hop) ? origin.hop : 0,
     notifyOnComplete: origin.notify_on_complete === true,
     replyWatchId: trimmedOrNull(origin.reply_watch_id),
+    ...(inReplyTo ? { inReplyTo } : {}),
   };
 }
 
@@ -122,6 +138,7 @@ function originPayloadFromRecord(value: unknown): PromptOriginPayload | null {
     title_at_send: stringField(value, "title_at_send"),
     notify_on_complete: value.notify_on_complete === true,
     reply_watch_id: stringField(value, "reply_watch_id"),
+    in_reply_to: stringField(value, "in_reply_to"),
   };
 }
 
@@ -200,6 +217,7 @@ interface SessionMessagePartPayload {
   /** How a steer landed: `injected` · `pending_injection` · `interrupt_fallback`. */
   steer_delivery?: string;
   reply_watch_id?: string;
+  in_reply_to?: string;
   /** `running` while the call is in flight, `done` once it returned, `error` when it failed. */
   state: string;
 }
@@ -218,6 +236,7 @@ function sessionMessagePartPayload(data: unknown): SessionMessagePartPayload | n
     delivery: stringField(data, "delivery"),
     steer_delivery: stringField(data, "steer_delivery"),
     reply_watch_id: stringField(data, "reply_watch_id"),
+    in_reply_to: stringField(data, "in_reply_to"),
     state: stringField(data, "state") ?? "",
   };
 }
@@ -250,6 +269,7 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
   const part = sessionMessagePartPayload(data);
   const targetSessionId = trimmedOrNull(part?.target_session_id);
   if (!part || !targetSessionId) return null;
+  const inReplyTo = trimmedOrNull(part.in_reply_to);
   return {
     toolCallId: part.tool_call_id.trim(),
     targetSessionId,
@@ -257,6 +277,7 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
     messageId: trimmedOrNull(part.message_id),
     mode: sentMode(part.mode?.trim(), part.delivery?.trim(), part.steer_delivery?.trim()),
     replyWatchId: trimmedOrNull(part.reply_watch_id),
+    ...(inReplyTo ? { inReplyTo } : {}),
     // An unknown state from a newer daemon reads as admitted: no spinner it cannot end.
     state: SENT_CALL_STATE[part.state.trim()] ?? "sent",
   };

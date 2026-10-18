@@ -257,6 +257,18 @@ func (s *promptActivitySupervisor) evaluate(now time.Time) {
 	if !processUnhealthy && s.shouldEmitProgress(now) {
 		s.emitRuntimeEvent(acp.EventTypeRuntimeProgress, s.progressText(now), now, nil)
 	}
+	s.promoteQueuedInputAfterLongTurn(now)
+}
+
+// promoteQueuedInputAfterLongTurn lets a turn past session.messaging.queue_promote_after take the
+// queued messages from other sessions as injected steering.
+func (s *promptActivitySupervisor) promoteQueuedInputAfterLongTurn(now time.Time) {
+	if s.manager == nil || s.session == nil {
+		return
+	}
+	if after := s.manager.messagingConfig().QueuePromoteAfter; after > 0 && now.Sub(s.startedAt) >= after {
+		s.manager.schedulePromoteLongTurnQueuedInputs(s.session)
+	}
 }
 
 func (s *promptActivitySupervisor) shouldEmitProgress(now time.Time) bool {

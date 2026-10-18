@@ -150,7 +150,7 @@ test("E2E-001: a session message renders as a left-aligned card from its sender,
   await expect(sessionWindow(appPage, senderId)).toBeVisible();
 });
 
-test("E2E-002: a queued session message shows its sender with Remove only, and Remove drops it", async ({
+test("E2E-002: a queued session message shows its sender with Steer and Remove, no Edit, and Remove drops it", async ({
   appPage,
   runtime,
 }) => {
@@ -168,9 +168,12 @@ test("E2E-002: a queued session message shows its sender with Remove only, and R
   const row = receiver.window
     .getByTestId("composer-queued-prompt-row")
     .filter({ has: appPage.getByTestId("composer-queued-sender") });
-  // Agent-authored: no edit and no steer, only Remove.
+  // Agent-authored (#760): the operator may Steer or Remove it, never edit its text.
   await expect(row.getByRole("button", { name: "Edit queued message" })).toHaveCount(0);
-  await expect(row.getByRole("button")).toHaveCount(1);
+  await expect(
+    row.getByRole("button", { name: `Steer message from ${senderTitle}` })
+  ).toBeVisible();
+  await expect(row.getByRole("button")).toHaveCount(2);
   await row.getByRole("button", { name: `Remove message from ${senderTitle}` }).click();
   await expect(sender).toHaveCount(0);
   await expect

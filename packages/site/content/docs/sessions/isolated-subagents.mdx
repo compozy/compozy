@@ -184,8 +184,8 @@ billing.toml is per request or per job. Wait for its answer.
 ```
 
 The agent sends the question with `compozy__session_prompt` and `"notify_on_complete": true`, then
-ends its turn instead of polling. However long the reviewer takes, the waiting session is not stopped
-for inactivity while the reviewer is working:
+ends its turn instead of polling. Until the reply watch expires (24 hours by default), the waiting
+session is not stopped for inactivity while the reviewer is working:
 
 ```json
 {
@@ -268,15 +268,20 @@ files or unpushed commits, is refused instead of deleted. See
 
 ## Limits worth knowing
 
-- **Chains stop at 8 hops.** A message sent from a turn you started is hop 1; a message sent from a
-  turn that another agent's message (or reply) started is one hop higher. A send that would reach hop
-  9 fails with `message_hop_limit`: "Message chain limit reached (8 hops). Ask the operator to
-  continue." Steering a message into a running turn can't reset the count. A subagent or task wake
-  starts again at hop 0.
+- **Forwarding chains stop at 8 hops.** A message sent from a turn you started is hop 1. Forwarding
+  work to another session adds a hop; answering the session that started your turn, or sending with
+  `in_reply_to` to the message's sender, keeps the hop, so a back-and-forth conversation does not
+  climb. A send that would reach hop 9 fails with `message_hop_limit`: "Message chain limit reached
+  (8 hops). Ask the operator to continue." Steering a message into a running turn can't reset the
+  count. A subagent or task wake starts again at hop 0.
+- **Each sender→target pair has a rate budget.** Too many messages to one session within
+  `session.messaging.rate_limit_window` fail with `message_rate_limited` (HTTP 429) until the window
+  allows more. Send milestone-level updates instead of streaming status. See
+  [Messages between sessions](/docs/sessions/orchestration#messages-between-sessions).
 - **A session can't message itself.** `compozy__session_prompt` with the caller's own session id fails
   with `invalid_request`: "session_prompt cannot target the calling session." To keep working in the
-  same session, end the turn; to schedule work, use a subagent or `compozy session prompt` from the
-  terminal.
+  same session, end the turn; to schedule work, use a subagent or send `compozy__session_prompt` to
+  another session.
 - **`base_ref` needs isolation.** Passing `base_ref` without `"isolation": "worktree"` fails with
   "base_ref requires isolation \"worktree\"."
 - **Nesting.** A shared subagent of an isolated subagent works in its parent's worktree; an isolated
@@ -295,7 +300,7 @@ files or unpushed commits, is refused instead of deleted. See
 | `Could not create the subagent worktree: materialization_failed.`                  | Git could not create the worktree for another reason. Check the repository with `compozy worktree list --refresh` and try again. |
 | The card says "PR status unknown"                                                  | Set up a forge provider (for example, sign in to the GitHub CLI). The subagent's facts are taken once, when it settles.          |
 | The hover shows "2 changed"                                                        | The subagent left uncommitted files. Open its session and ask it to commit, or commit in the worktree yourself.                  |
-| `Message chain limit reached (8 hops). Ask the operator to continue.`              | Two agents kept messaging each other. Read both sessions and send the next prompt yourself.                                      |
+| `Message chain limit reached (8 hops). Ask the operator to continue.`              | Work was forwarded through 8 sessions in a row. Read the chain and send the next prompt yourself.                                |
 | `This message was sent by another session and can't be edited. Cancel it instead.` | Remove the queued message; the sender is told it was dropped.                                                                    |
 
 ## Next steps

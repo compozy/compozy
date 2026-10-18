@@ -73,6 +73,25 @@ func insertReplyWatchTx(
 	return replyWatchFromSQL(row)
 }
 
+// ReplyWatchByMessage reads the watch armed for one message admitted into a target session.
+func (g *SessionRepo) ReplyWatchByMessage(
+	ctx context.Context,
+	targetSessionID, messageID string,
+) (store.ReplyWatch, bool, error) {
+	row, err := g.queries.GetReplyWatchByMessage(
+		ctx,
+		sqlcgen.GetReplyWatchByMessageParams{TargetSessionID: targetSessionID, MessageID: messageID},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.ReplyWatch{}, false, nil
+	}
+	if err != nil {
+		return store.ReplyWatch{}, false, err
+	}
+	w, err := replyWatchFromSQL(row)
+	return w, err == nil, err
+}
+
 func (g *SessionRepo) GetReplyWatch(ctx context.Context, id string) (store.ReplyWatch, error) {
 	row, err := g.queries.GetReplyWatch(ctx, id)
 	if err != nil {
@@ -135,7 +154,8 @@ func (g *SessionRepo) FireReplyWatch(ctx context.Context, id string, f store.Rep
 		store.ReplyOutcomeFailed,
 		store.ReplyOutcomeCanceled,
 		store.ReplyOutcomeDropped,
-		store.ReplyOutcomeUnknown:
+		store.ReplyOutcomeUnknown,
+		store.ReplyOutcomeExpired:
 	default:
 		return false, errors.New("store: invalid reply outcome")
 	}
@@ -216,12 +236,8 @@ func (g *SessionRepo) DeliverReplyWatch(
 			return fmt.Errorf("store: read reply wake generation: %w", err)
 		}
 		entry.SessionGeneration = generation
-		count, err := countPendingSessionInputs(ctx, exec, entry.SessionID)
-		if err != nil {
+		if err := checkSessionInputQueueCap(ctx, exec, entry); err != nil {
 			return err
-		}
-		if count >= entry.QueueCap {
-			return &store.SessionInputQueueFullError{SessionID: entry.SessionID, Cap: entry.QueueCap, Count: count}
 		}
 		n, err := q.DeliverReplyWatch(
 			ctx,

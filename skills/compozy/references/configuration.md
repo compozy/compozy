@@ -15,6 +15,7 @@
 - Profile selection environment
 - Automation schedules
 - Session rebuild bounds
+- Session messaging
 - Retired memory and compaction settings
 - Session attachments
 - Auto-title role
@@ -269,6 +270,21 @@ restart-required. `session.limits.timeout` and the DTO field `config.session_tim
 and enforce nothing: no session ends when they elapse. They stay readable and writable through v0.4
 (a non-zero value logs a load warning, and a PATCH that sends a non-zero `session_timeout` gets a
 `Warning` header) and are removed in v0.5.0. Never set them to bound session lifetime.
+
+## Session Messaging
+
+`[session.messaging]` bounds agent-to-agent messages sent with `compozy__session_prompt` (or
+`compozy session prompt --from-session`). Values apply when the daemon starts.
+
+- `rate_limit_messages` (default `30`, 1–10000, `-1` disables) and `rate_limit_window` (default `10m`,
+  1s–24h): the per sender→target budget, counted from durable admissions. A send past it returns
+  `message_rate_limited` (HTTP 429) with `limit`, `window`, and `retry_after_seconds`; only that send
+  is refused.
+- `reply_watch_ttl` (default `24h`, 1m–720h; `0s` never expires): an unanswered `notify_on_complete`
+  watch wakes its sender once with the `expired` outcome and stops keeping the sender awake.
+- `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message waiting on a
+  target in one turn this long is injected as steer when the provider supports injection and no
+  operator input waits. A failed injection returns to after-turn queue delivery; it never interrupts.
 
 ## Retired Memory And Compaction Settings
 

@@ -70,16 +70,18 @@ const (
 type SendPromptOpts struct {
 	Origin           *acp.PromptOriginMeta
 	NotifyOnComplete bool
-	Message          string
-	MessageID        string
-	IdempotencyKey   string
-	Mode             BusyInputMode
-	Runtime          *RuntimeSelection
-	ExpectedTurnID   string
-	DeliveryContext  context.Context
-	Caller           PromptCaller
-	AllowCommands    bool
-	Attachments      []AttachmentMeta
+	// Supersede replaces the same sender's older queued entry to the same target.
+	Supersede       bool
+	Message         string
+	MessageID       string
+	IdempotencyKey  string
+	Mode            BusyInputMode
+	Runtime         *RuntimeSelection
+	ExpectedTurnID  string
+	DeliveryContext context.Context
+	Caller          PromptCaller
+	AllowCommands   bool
+	Attachments     []AttachmentMeta
 }
 
 // ReplyWatchRef identifies the optional reply watch registered by the admission owner.

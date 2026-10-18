@@ -3,6 +3,7 @@ import { MessagePrimitive, useAuiState } from "@assistant-ui/react";
 import { SessionAttachmentGallery } from "@/systems/session/components/session-attachment-gallery";
 import { SessionMessageCard } from "@/systems/session/components/session-messages/session-message-card";
 import type { SessionMessageDelivery } from "@/systems/session/components/session-messages/session-message-card";
+import { SessionMessageReplyTo } from "@/systems/session/components/session-messages/session-message-reply-to";
 import { SessionReplyCard } from "@/systems/session/components/session-messages/session-reply-card";
 import { useSessionLabel } from "@/systems/session/components/session-messages/use-session-label";
 import { useSessionMessageOpen } from "@/systems/session/components/session-messages/use-session-message-open";
@@ -82,6 +83,11 @@ export function SessionAgentMessage({ origin }: { origin: SessionMessageOrigin }
         sender={sender}
         delivery={deliveryFromSteer(steer?.kind)}
         replyRequested={origin.notifyOnComplete}
+        replyTo={
+          origin.inReplyTo ? (
+            <SessionMessageReplyTo inReplyTo={origin.inReplyTo} peerSessionId={origin.sessionId} />
+          ) : undefined
+        }
         timestampMs={messageTimestampMs(message)}
         onOpenSender={onOpen}
         attachments={

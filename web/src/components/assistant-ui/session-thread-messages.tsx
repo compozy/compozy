@@ -25,6 +25,7 @@ import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
 import { SessionAgentMessage, SessionReplyMessage } from "./session-agent-message";
+import { SessionInboundGroupSlot, SessionInboundGroupsProvider } from "./session-inbound-group";
 import {
   type SessionFailurePayload,
   type SessionState,
@@ -122,10 +123,12 @@ function ThreadMessageRows({
                 onOpenParent={subagentOrigin.onOpenParent}
               />
             ) : null}
-            <ThreadPrimitive.Unstable_MessageById
-              messageId={messageId}
-              components={MESSAGE_COMPONENTS}
-            />
+            <SessionInboundGroupSlot messageId={messageId}>
+              <ThreadPrimitive.Unstable_MessageById
+                messageId={messageId}
+                components={MESSAGE_COMPONENTS}
+              />
+            </SessionInboundGroupSlot>
           </div>
         );
       })}
@@ -204,6 +207,7 @@ export function ThreadMessages({
   sessionState,
   failure,
   startupFailed,
+  onJumpToMessage,
 }: {
   agentName: string;
   sessionId: string;
@@ -223,6 +227,8 @@ export function ThreadMessages({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
+  /** Scrolls the transcript to one of its messages (an "In reply" jump). */
+  onJumpToMessage?: (threadMessageId: string) => void;
 }) {
   const transport = useSessionTransportState();
   const origin = use(SessionOriginContext);
@@ -278,15 +284,17 @@ export function ThreadMessages({
 
   return (
     <ReadonlyThreadProvider messages={transcriptMessages}>
-      <ThreadMessageRows
-        messageIds={transcriptMessages.map(message => message.id)}
-        measureVirtualElement={measureVirtualElement}
-        virtualItems={virtualItems}
-        virtualTotalSize={virtualTotalSize}
-        leadingItemCount={leadingItemCount}
-        isFetchingOlder={isFetchingOlder}
-        loadOlder={loadOlder}
-      />
+      <SessionInboundGroupsProvider messages={transcriptMessages} onJump={onJumpToMessage}>
+        <ThreadMessageRows
+          messageIds={transcriptMessages.map(message => message.id)}
+          measureVirtualElement={measureVirtualElement}
+          virtualItems={virtualItems}
+          virtualTotalSize={virtualTotalSize}
+          leadingItemCount={leadingItemCount}
+          isFetchingOlder={isFetchingOlder}
+          loadOlder={loadOlder}
+        />
+      </SessionInboundGroupsProvider>
     </ReadonlyThreadProvider>
   );
 }

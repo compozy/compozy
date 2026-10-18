@@ -146,6 +146,10 @@ func statusForSessionError(err error) int {
 		return statusClientClosedRequest
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, session.ErrSessionMessageRateLimited):
+		return http.StatusTooManyRequests
+	case errors.Is(err, session.ErrSessionMessageSelfTarget):
+		return http.StatusBadRequest
 	}
 	if status, ok := statusForDeriveError(err); ok {
 		return status
