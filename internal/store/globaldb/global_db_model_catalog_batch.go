@@ -101,6 +101,43 @@ func replaceModelCatalogSourceRows(
 	if err := upsertModelCatalogSourceStatus(ctx, exec, contextID, status); err != nil {
 		return err
 	}
+	unchanged, err := touchUnchangedModelCatalogSourceRows(ctx, exec, executionContext, contextID, rows, status)
+	if err != nil {
+		return err
+	}
+	if unchanged {
+		return deleteUnusedModelCatalogExecutionContexts(ctx, exec)
+	}
+	if err := deleteModelCatalogSourceRowData(ctx, queries, contextID, status); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := insertModelCatalogRow(ctx, exec, contextID, row); err != nil {
+			return err
+		}
+		if err := insertModelCatalogOptions(ctx, exec, contextID, row); err != nil {
+			return err
+		}
+		if err := insertModelCatalogReasoningEfforts(ctx, exec, contextID, row); err != nil {
+			return err
+		}
+		if err := insertModelCatalogTransportBindings(ctx, exec, contextID, row); err != nil {
+			return err
+		}
+		if err := insertModelCatalogBindingSelections(ctx, exec, contextID, row); err != nil {
+			return err
+		}
+	}
+	return deleteUnusedModelCatalogExecutionContexts(ctx, exec)
+}
+
+// deleteModelCatalogSourceRowData removes every row and child record for one source/provider in a context.
+func deleteModelCatalogSourceRowData(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	contextID string,
+	status modelcatalog.SourceStatus,
+) error {
 	deleteParams := sqlcgen.DeleteModelCatalogReasoningEffortsParams{
 		ContextID:  contextID,
 		SourceID:   status.SourceID,
@@ -139,24 +176,7 @@ func replaceModelCatalogSourceRows(
 	); err != nil {
 		return fmt.Errorf("store: delete model catalog source rows: %w", err)
 	}
-	for _, row := range rows {
-		if err := insertModelCatalogRow(ctx, exec, contextID, row); err != nil {
-			return err
-		}
-		if err := insertModelCatalogOptions(ctx, exec, contextID, row); err != nil {
-			return err
-		}
-		if err := insertModelCatalogReasoningEfforts(ctx, exec, contextID, row); err != nil {
-			return err
-		}
-		if err := insertModelCatalogTransportBindings(ctx, exec, contextID, row); err != nil {
-			return err
-		}
-		if err := insertModelCatalogBindingSelections(ctx, exec, contextID, row); err != nil {
-			return err
-		}
-	}
-	return deleteUnusedModelCatalogExecutionContexts(ctx, exec)
+	return nil
 }
 
 func modelCatalogReplacementKey(

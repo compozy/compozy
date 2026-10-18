@@ -64,6 +64,9 @@ func (s *daemonLoopAPIService) Handle(
 		s.logGoalCommandWarning(ctx, "Goal caller actor invalid", workspaceID, sessionID, err)
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil), nil
 	}
+	if goalCommandChangesToolState(verb) {
+		defer s.notifyGoalToolsChanged()
+	}
 	switch verb {
 	case session.GoalCommandVerbSet:
 		return s.startSessionGoal(ctx, workspaceID, sessionID, command.Objective, runtime, actor)

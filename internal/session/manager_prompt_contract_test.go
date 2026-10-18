@@ -3360,13 +3360,17 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		case <-testutil.Context(t).Done():
 			t.Fatal("fallback attempt did not start")
 		}
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		canceled, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
 		select {
 		case <-promptResult:
 		case <-testutil.Context(t).Done():
 			t.Fatal("canceled prompt did not return")
+		}
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), session.ID, canceled.TurnID); err != nil {
+			t.Fatalf("AwaitTurnQuiesced() error = %v", err)
 		}
 		info := session.Info()
 		if info.RuntimeStatus != RuntimeStatusUnbound || info.ACPSessionID != "" {

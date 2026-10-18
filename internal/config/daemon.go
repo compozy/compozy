@@ -34,6 +34,7 @@ type DaemonConfig struct {
 	MemoryReportInterval                time.Duration              `toml:"memory_report_interval"`
 	SubprocessHealthEscalationThreshold int                        `toml:"subprocess_health_escalation_threshold"`
 	ReloadTimeouts                      DaemonReloadTimeoutsConfig `toml:"reload_timeouts"`
+	Load                                DaemonLoadConfig           `toml:"load"`
 }
 
 // DaemonReloadTimeoutsConfig bounds subsystem reload attempts during config apply.
@@ -48,6 +49,7 @@ func defaultDaemonConfig(homePaths HomePaths) DaemonConfig {
 		MemoryReportInterval:                DefaultDaemonMemoryReportInterval,
 		SubprocessHealthEscalationThreshold: DefaultDaemonSubprocessHealthEscalationThreshold,
 		ReloadTimeouts:                      DefaultDaemonReloadTimeoutsConfig(),
+		Load:                                DefaultDaemonLoadConfig(),
 	}
 }
 
@@ -77,6 +79,9 @@ func (c DaemonConfig) Validate() error {
 			daemonSubprocessHealthEscalationThresholdPath,
 			c.SubprocessHealthEscalationThreshold,
 		)
+	}
+	if err := c.Load.Validate(); err != nil {
+		return err
 	}
 	return c.ReloadTimeouts.Validate()
 }

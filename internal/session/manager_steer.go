@@ -3,12 +3,20 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
+
+// errSteerDeliveredUnresolved marks a steer the provider already accepted whose durable records could
+// not be saved. Its reservation stays leased: requeueing it would deliver the same guidance twice.
+var errSteerDeliveredUnresolved = errors.New("session: delivered steer could not be resolved")
+
+// steerPersistAttempts bounds the synchronous retries of each durable record of an accepted steer.
+const steerPersistAttempts = 3
 
 func (m *Manager) activateSteeringInput(
 	ctx context.Context,
@@ -45,7 +53,8 @@ func (m *Manager) activateSteeringInputText(
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
 	proc := session.processHandle()
-	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID {
+	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID &&
+		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
 		origin, originErr := decodePromptOrigin(entry.Origin)
 		if originErr != nil {
@@ -73,12 +82,18 @@ func (m *Manager) activateSteeringInputText(
 		}
 	}
 	entry.SteerDelivery = delivery
-	if err := m.recordInjectedSteerInput(m.fallbackLifecycleContext(), session, entry); err != nil {
-		return err
-	}
-	resolved, err := m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
-	if err != nil {
-		return err
+	var resolved store.SessionInputQueueEntry
+	if delivery == store.SteerDeliveryInterruptFallback {
+		resolved, err = m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
+		if err != nil {
+			return err
+		}
+	} else if resolved, err = m.persistAcceptedSteer(session, entry); err != nil {
+		if delivery == store.SteerDeliveryPendingInjection && completion != nil {
+			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
+			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
+		}
+		return errors.Join(errSteerDeliveredUnresolved, err)
 	}
 	*entry = resolved
 	entry.SupersededIDs = superseded
@@ -87,9 +102,15 @@ func (m *Manager) activateSteeringInputText(
 	session.mu.Unlock()
 	m.emitSteerMarker(ctx, session, entry)
 	if completion != nil {
-		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion)
+		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
 	}
-	if delivery != store.SteerDeliveryInterruptFallback {
+	return m.activateSteerFallback(ctx, session, entry)
+}
+
+func (m *Manager) activateSteerFallback(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) error {
+	if entry.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return nil
 	}
 	if steerFallbackWaitsForTurn(entry) || session.CurrentTurnID() != entry.TargetTurnID {
@@ -97,6 +118,34 @@ func (m *Manager) activateSteeringInputText(
 		return nil
 	}
 	return m.activateInterruptingInput(ctx, session, entry)
+}
+
+// agentSteerYieldsToOperator keeps another session's steer out of the live turn while operator input
+// waits: injecting it would let that session cut ahead of the operator. The steer then degrades to
+// after-turn delivery behind the operator's input, the same as a provider without injection.
+func (m *Manager) agentSteerYieldsToOperator(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) bool {
+	if entry.OriginClass != store.SessionInputOriginClassAgent {
+		return false
+	}
+	entries, err := m.inputQueue.List(ctx, session.ID)
+	if err != nil {
+		m.sessionLogger(session).Warn("session: list queued input before agent steer failed; deferring steer",
+			"entry_id", entry.ID, "error", err)
+		return true
+	}
+	return operatorInputWaits(entries)
+}
+
+// operatorInputWaits reports undelivered operator input among a session's pending entries.
+func operatorInputWaits(entries []store.SessionInputQueueEntry) bool {
+	for index := range entries {
+		if entries[index].OwnerKind == "" && store.IsHumanSessionInputOriginClass(entries[index].OriginClass) {
+			return true
+		}
+	}
+	return false
 }
 
 // injectedSteerer returns the driver that can inject guidance into proc's live turn, when the
@@ -117,9 +166,14 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	for _, id := range entry.SupersededIDs {
 		evidence := map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID}
 		older, err := m.inputQueue.Get(ctx, session.ID, id)
-		if err != nil {
+		switch {
+		case err != nil:
 			m.sessionLogger(session).Warn("session: read superseded guidance failed", "entry_id", id, "error", err)
-		} else {
+		case older.Mode == store.SessionInputQueueModeQueue:
+			// A superseding steer also replaced the sender's older queued message.
+			m.settleSupersededQueuedInput(ctx, session, entry, &older)
+			continue
+		default:
 			addSteerAuthoredEvidence(evidence, &older)
 		}
 		m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSuperseded,
@@ -141,11 +195,55 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSteered, message, evidence)
 }
 
+// persistAcceptedSteer saves the durable records of guidance the provider accepted: its input event
+// first, then its resolution. The entry is never marked sent before its input event is durable, so the
+// guidance cannot vanish from history; on failure it stays leased instead of returning to the queue.
+func (m *Manager) persistAcceptedSteer(
+	session *Session, entry *store.SessionInputQueueEntry,
+) (store.SessionInputQueueEntry, error) {
+	ctx := m.fallbackLifecycleContext()
+	if err := m.recordAcceptedSteerInput(ctx, session, entry); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	return m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+}
+
+// recordAcceptedSteerInput retries the input event of delivered guidance a bounded number of times. Every
+// attempt carries the same event identity and timestamp, so a retry after a write that landed returns the
+// stored row instead of a second event.
+func (m *Manager) recordAcceptedSteerInput(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) error {
+	recordedAt := m.now()
+	var err error
+	for range steerPersistAttempts {
+		if err = m.recordInjectedSteerInput(ctx, session, entry, recordedAt); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func (m *Manager) resolveAcceptedSteer(
+	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode,
+) (store.SessionInputQueueEntry, error) {
+	var (
+		resolved store.SessionInputQueueEntry
+		err      error
+	)
+	for range steerPersistAttempts {
+		if resolved, err = m.inputQueue.ResolveSteer(ctx, sessionID, entryID, delivery); err == nil {
+			return resolved, nil
+		}
+	}
+	return store.SessionInputQueueEntry{}, err
+}
+
 // A pending injection is represented by its durable authored receipt until the
 // provider confirms delivery. Only confirmed injection becomes a sent user
 // message; fallback keeps the ordinary queue-dispatch identity and turn.
 func (m *Manager) recordInjectedSteerInput(
-	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry, recordedAt time.Time,
 ) error {
 	if entry.SteerDelivery != store.SteerDeliveryInjected {
 		return nil
@@ -160,6 +258,7 @@ func (m *Manager) recordInjectedSteerInput(
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
+		inputAt: recordedAt,
 	}
 	return m.recordPromptInputEvent(ctx, session, &req)
 }

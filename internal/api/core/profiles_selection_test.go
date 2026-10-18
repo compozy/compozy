@@ -106,7 +106,11 @@ func TestPutProfileSelectionDeprecatesTheWorkspaceLens(t *testing.T) {
 		body        string
 		wantWarning bool
 	}{
-		{name: "workspace", body: `{"scope":"workspace","workspace_id":"ws-1","profile":"marketing"}`, wantWarning: true},
+		{
+			name:        "workspace",
+			body:        `{"scope":"workspace","workspace_id":"ws-1","profile":"marketing"}`,
+			wantWarning: true,
+		},
 		{name: "global", body: `{"scope":"global","profile":"marketing"}`},
 	}
 	for _, test := range tests {

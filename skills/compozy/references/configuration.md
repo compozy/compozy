@@ -15,6 +15,7 @@
 - Profile selection environment
 - Automation schedules
 - Session rebuild bounds
+- Host load management
 - Session messaging
 - Retired memory and compaction settings
 - Session attachments
@@ -228,7 +229,7 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 
 ## Goals
 
-`[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "100ms"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
+`[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "2s"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. The poll interval is only a fallback sweep: committed enqueues wake the relay immediately. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
 
 ## Profile Selection Environment
 
@@ -259,6 +260,19 @@ them. CompozyOS has no compaction settings: the agent owns its context window,
 and compaction is observed or requested through the experimental surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
+
+## Host Load Management
+
+`[daemon.load]` keeps many agents from saturating the host. `daemon.load.agent_niceness` (default `10`,
+`0`-`19`, `0` disables) lowers the CPU priority of each agent's process group on macOS/Linux, so the
+tests, linters, and builds an agent runs inherit it; it cannot be raised back without root and is a
+no-op on Windows. `daemon.load.admission_threshold` (default `1.5`, `0` disables sampling) is the
+1-minute load average divided by logical CPUs above which new sessions and prompts from scheduled or
+triggered automations, Loops, and scheduler wakes wait; `daemon.load.admission_max_wait` (default `2m`,
+`1s`-`30m`) bounds that wait, after which the work proceeds. User-initiated prompts and sessions and
+manual automation runs are never delayed. Read the live state from the `runtime.load` item of
+`compozy doctor -o json` (`pressured`, `normalized_load`, `waiting`, `deferred_total`). All three keys
+are restart-required.
 
 ## Idle Session Settings
 

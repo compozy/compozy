@@ -4,7 +4,9 @@ import {
   RECONNECT_MAX_DELAY_MS,
   SURFACE_REFRESH_DELAY_MS,
   TRANSCRIPT_RECOVERY_DELAY_MS,
+  type SessionLiveTailAppliedFrame,
   type SessionLiveTailContext,
+  type SessionLiveTailFrame,
   type SessionLiveTailEnqueue,
   type SessionLiveTailRuntime,
   type SessionLiveTailTrigger,
@@ -72,10 +74,83 @@ export function openStream(
   }
 }
 
+/** Upper bound on waiting for a paint: a page hidden before its frame never paints. */
+const APPLY_BATCH_FALLBACK_MS = 100;
+
+/**
+ * Frames arriving within one paint coalesce into one batch: a visible page
+ * applies on the next animation frame, a hidden one on a microtask because
+ * nothing paints there.
+ */
+function scheduleApplyBatch(start: () => void): void {
+  if (
+    typeof requestAnimationFrame !== "function" ||
+    typeof document === "undefined" ||
+    document.visibilityState !== "visible"
+  ) {
+    queueMicrotask(start);
+    return;
+  }
+  let started = false;
+  const run = () => {
+    if (started) return;
+    started = true;
+    cancelAnimationFrame(frame);
+    clearTimeout(fallback);
+    start();
+  };
+  const frame = requestAnimationFrame(run);
+  const fallback = setTimeout(run, APPLY_BATCH_FALLBACK_MS);
+}
+
 export function enqueueApplyStart(enqueue: SessionLiveTailEnqueue, generation: number): void {
   enqueue.effect(({ trigger }) => {
-    queueMicrotask(() => trigger.applyStarted({ generation }));
+    scheduleApplyBatch(() => trigger.applyStarted({ generation }));
   });
+}
+
+/**
+ * Folds a batch's written frames in order, as each would have completed alone:
+ * a reset is stated (US-017.AC-3), and a shed replay ends only when an applied
+ * frame reaches its watermark (an empty delta carrying the cursor counts).
+ */
+export function foldAppliedFrames(
+  context: SessionLiveTailContext,
+  applied: readonly SessionLiveTailAppliedFrame[],
+  at: number
+): SessionLiveTailContext {
+  let next = context;
+  for (const { frame, result } of applied) {
+    if (result === "reset") {
+      next = {
+        ...next,
+        historyReset: {
+          at,
+          generation: frame.payload.generation,
+          reason: frame.kind === "snapshot" ? (frame.payload.reason ?? null) : null,
+        },
+      };
+    }
+    if (next.catchUpThrough !== null && frame.cursor >= next.catchUpThrough) {
+      next = { ...next, catchUpThrough: null, catchingUp: false };
+    }
+  }
+  return next;
+}
+
+export function failApply(
+  context: SessionLiveTailContext,
+  enqueue: SessionLiveTailEnqueue,
+  failure: { error: unknown; frame: SessionLiveTailFrame }
+): SessionLiveTailContext {
+  enqueue.effect(({ trigger }) => {
+    const handles = handlesByTrigger.get(trigger);
+    if (!handles) return;
+    closeStream(handles, "apply-failure");
+    handles.runtime.recordApplyFailure(failure.frame, failure.error);
+  });
+  if (context.pendingTerminal) return refreshBeforePendingTerminal(context, enqueue);
+  return scheduleBlockingRepair(context, enqueue);
 }
 
 export function enqueueRepairStart(enqueue: SessionLiveTailEnqueue, generation: number): void {

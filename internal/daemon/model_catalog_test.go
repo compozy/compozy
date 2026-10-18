@@ -1232,6 +1232,50 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		},
 	)
 
+	t.Run("Should skip sweep targets whose stored statuses are still fresh", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		service.statuses = []modelcatalog.SourceStatus{
+			{
+				SourceID: "extension/acme", ProviderID: "acme",
+				RefreshState: modelcatalog.RefreshStateSucceeded, NextRefresh: now.Add(time.Minute),
+			},
+			{
+				SourceID: "extension/beta", ProviderID: "beta",
+				RefreshState: modelcatalog.RefreshStateFailed, NextRefresh: now.Add(-time.Minute),
+			},
+		}
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			func() time.Time { return now },
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.dynamicSources = map[string]modelcatalog.Source{}
+		for _, id := range []string{"extension/acme", "extension/beta", "extension/gamma"} {
+			runtime.dynamicSources[id] = catalogDynamicSource{id: id}
+		}
+
+		runtime.refreshDynamicSourcesInBackground()
+		refreshed := []string{service.waitForRefresh(t).SourceID, service.waitForRefresh(t).SourceID}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		slices.Sort(refreshed)
+		if want := []string{"extension/beta", "extension/gamma"}; !slices.Equal(refreshed, want) {
+			t.Fatalf("refreshed targets = %#v, want %#v", refreshed, want)
+		}
+		if extra := len(service.refreshes); extra != 0 {
+			t.Fatalf("extra refreshes = %d, want fresh target skipped", extra)
+		}
+	})
+
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
 
@@ -1753,6 +1797,7 @@ type recordingModelCatalogService struct {
 
 type catalogReadRefreshService struct {
 	refreshes chan modelcatalog.RefreshOptions
+	statuses  []modelcatalog.SourceStatus
 }
 
 type blockingCatalogReadRefreshService struct {
@@ -1871,7 +1916,7 @@ func (s *catalogReadRefreshService) ListSourceStatus(
 	context.Context,
 	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
+	return slices.Clone(s.statuses), nil
 }
 
 func (s *catalogReadRefreshService) waitForRefresh(
@@ -2179,6 +2224,13 @@ func (r *modelCatalogStoreRegistry) ListRows(
 	context.Context,
 	modelcatalog.ListOptions,
 ) ([]modelcatalog.ModelRow, error) {
+	return nil, nil
+}
+
+func (r *modelCatalogStoreRegistry) ListRowOwners(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.SourceProviderKey, error) {
 	return nil, nil
 }
 

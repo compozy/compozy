@@ -23,6 +23,8 @@ type repoBase struct {
 	closed   *atomic.Int32
 	tasks    *TaskRepo
 	sessions *SessionRepo
+
+	outboxSignals *outboxSignalHub
 }
 
 func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
@@ -31,6 +33,8 @@ func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBa
 		queries: sqlcgen.New(db),
 		now:     now,
 		closed:  closed,
+
+		outboxSignals: &outboxSignalHub{},
 	}
 }
 

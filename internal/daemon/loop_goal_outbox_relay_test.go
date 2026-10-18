@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -335,6 +336,108 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 			t.Fatalf("maximum cleanup concurrency = %d, want %d", stopper.maximum(), loopSessionCleanupConcurrency)
 		}
 	})
+
+	t.Run("Should wake on nudge, stay idle between enqueues, and sweep on fallback", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			store := &goalSessionOutboxQueueStub{}
+			relay := &goalSessionOutboxRelay{store: store, appender: &goalSessionEventAppenderStub{}}
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				relay.Run(ctx)
+			}()
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+
+			synctest.Wait()
+			if got := store.claimCount(); got != 1 {
+				t.Fatalf("claims after startup = %d, want one startup drain", got)
+			}
+			time.Sleep(goalSessionOutboxPollInterval - time.Millisecond)
+			synctest.Wait()
+			if got := store.claimCount(); got != 1 {
+				t.Fatalf("claims while idle = %d, want no polling before the fallback sweep", got)
+			}
+
+			store.enqueue(goalSessionOutboxEventForTest(1))
+			relay.Nudge()
+			synctest.Wait()
+			if got := store.pendingCount(); got != 0 {
+				t.Fatalf("pending after nudge = %d, want immediate drain without waiting for the sweep", got)
+			}
+
+			store.enqueue(goalSessionOutboxEventForTest(2))
+			time.Sleep(goalSessionOutboxPollInterval)
+			synctest.Wait()
+			if got := store.pendingCount(); got != 0 {
+				t.Fatalf("pending after fallback sweep = %d, want un-nudged event drained", got)
+			}
+		})
+	})
+}
+
+func goalSessionOutboxEventForTest(id int64) goalpkg.SessionOutboxEvent {
+	return goalpkg.SessionOutboxEvent{
+		ID: id, EventID: fmt.Sprintf("goal-snapshot:session-origin:run-1:clear:%d", id),
+		WorkspaceID: "workspace-1", OriginSessionID: "session-origin", LoopRunID: "run-1",
+		Cause: goalpkg.SessionOutboxCauseClear, CreatedAt: time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+type goalSessionOutboxQueueStub struct {
+	mu      sync.Mutex
+	pending []goalpkg.SessionOutboxEvent
+	claims  int
+}
+
+func (s *goalSessionOutboxQueueStub) ClaimGoalSessionOutbox(
+	_ context.Context,
+	limit int,
+) ([]goalpkg.SessionOutboxEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.claims++
+	limit = min(max(limit, 1), len(s.pending))
+	return append([]goalpkg.SessionOutboxEvent(nil), s.pending[:limit]...), nil
+}
+
+func (s *goalSessionOutboxQueueStub) AcknowledgeGoalSessionOutbox(
+	_ context.Context,
+	eventID string,
+	_ time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index, event := range s.pending {
+		if event.EventID == eventID {
+			s.pending = append(s.pending[:index], s.pending[index+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *goalSessionOutboxQueueStub) enqueue(event goalpkg.SessionOutboxEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pending = append(s.pending, event)
+}
+
+func (s *goalSessionOutboxQueueStub) claimCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.claims
+}
+
+func (s *goalSessionOutboxQueueStub) pendingCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 type goalSessionOutboxStoreStub struct {

@@ -7358,7 +7358,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			State:       session.StateActive,
 		}
 		var accepted []session.CreateAcceptedOpts
-		manager := &nativeSessionPageHealthManager{StubSessionManager: apitest.StubSessionManager{
+		manager := &nativeSessionPageHealthManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != caller.ID {
 					return nil, session.ErrSessionNotFound
@@ -7375,7 +7375,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					State:       session.StateActive,
 				}, nil
 			},
-		}}
+		}
 		workspaces := apitest.StubWorkspaceService{
 			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 				return workspacepkg.Workspace{ID: "ws-1"}, nil
@@ -13620,12 +13620,16 @@ func TestNativeSessionLayoutTools(t *testing.T) {
 				t.Fatalf("layout calls = %#v, missing %q", sessions.calls, want)
 			}
 		}
+		callsBefore := len(sessions.calls)
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSessionMove,
 			Input:  json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
 		})
 		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
 			t.Fatalf("session_move into an unknown workspace error = %v, want workspace not found", err)
+		}
+		if len(sessions.calls) != callsBefore {
+			t.Fatalf("layout calls after denied move = %#v, want no new call", sessions.calls[callsBefore:])
 		}
 		if sessions.scope.WorkspaceID != "ws-1" {
 			t.Fatalf("layout scope after denied move = %#v, want no call outside ws-1", sessions.scope)

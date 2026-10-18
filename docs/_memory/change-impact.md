@@ -1,25 +1,43 @@
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
+
 # Compozy Change Impact
 
-## Profile inheritance and global profile selection — 2026-10-18
+## Release integration repairs — 2026-10-18
 
-Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
-back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
-added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
-global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
-from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
-(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
-with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
-a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
-`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
-surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
-workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
-All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
-it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
-keys are unchanged. Scoped reads still return not found across profiles. Official skill
-(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
-scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
-contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
-on.
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
+
+## Agent CPU priority and load-aware admission — 2026-10-17
+
+Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
+niceness (`setpriority(PRIO_PGRP)` after launch; Windows no-op) so tools they spawn inherit it, and a
+daemon load sampler (1-minute load average / logical CPUs, darwin `vm.loadavg`, linux `sysinfo`)
+makes the admission gate hold new sessions and prompts carrying the background-work context marker
+(scheduled/trigger/extension automation dispatch, Loop action/judge sessions and prompts, scheduler
+wakes) until pressure clears or a bounded wait elapses. User prompts, user-created sessions, subagent
+spawns, and manual automation runs are never delayed. Public surfaces, all additive (SD-013): config
+keys `daemon.load.agent_niceness` (10), `daemon.load.admission_threshold` (1.5, `0` disables),
+`daemon.load.admission_max_wait` (2m), restart-required and agent-mutable through the config tools;
+doctor item `runtime.load` over HTTP/UDS/CLI. Settings DTOs, OpenAPI, Web, native tool IDs, hooks,
+extension SDKs, persisted state, and workspace/profile isolation are unchanged; no migration. Site
+`configuration/config-toml.mdx`, the generated lifecycle matrix, and official skill
+`references/configuration.md` record the keys.
 
 ## Session folders and manual order — 2026-10-17
 
@@ -115,6 +133,27 @@ change is needed. QA impact is flagged in `RT-047`,
 `MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
 Focused canonical suites and differential probes provide local slice evidence;
 heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
+
+## Profile inheritance and global profile selection — 2026-10-18
+
+Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
+back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
+added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
+global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
+from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
+(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
+with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
+a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
+`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
+surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
+workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
+All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
+it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
+keys are unchanged. Scoped reads still return not found across profiles. Official skill
+(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
+scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
+contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
+on.
 
 ## Profile-bound session actions — 2026-10-17
 

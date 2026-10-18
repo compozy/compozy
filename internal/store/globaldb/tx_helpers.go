@@ -56,11 +56,18 @@ func (r *repoBase) withImmediateTransaction(
 	if r == nil || r.db == nil {
 		return errors.New("store: repository is required")
 	}
+	var committedSignals outboxSignalKind
 	if err := store.ExecuteWriteOperation(ctx, r.db, action, func(_ context.Context, tx *store.WriteTx) error {
-		return run(tx)
+		transaction := &outboxSignalExecutor{globalSQLExecutor: tx}
+		if err := run(transaction); err != nil {
+			return err
+		}
+		committedSignals = transaction.load()
+		return nil
 	}); err != nil {
 		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
+	r.outboxSignals.fire(committedSignals)
 	return nil
 }
 

@@ -1731,7 +1731,10 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 			selections[0].ProfileID != marketing.ID {
 			t.Fatalf("ListSelections(after global write) = %#v, want only the Global choice", selections)
 		}
-		resolved, err := manager.Resolve(ctx, ResolveInput{Lens: Lens{Kind: SelectionLensWorkspace, WorkspaceID: "ws-1"}})
+		resolved, err := manager.Resolve(
+			ctx,
+			ResolveInput{Lens: Lens{Kind: SelectionLensWorkspace, WorkspaceID: "ws-1"}},
+		)
 		if err != nil || resolved.Source != ResolutionSourceDefault {
 			t.Fatalf("Resolve(superseded workspace lens) = %#v, %v; want no remembered workspace slot", resolved, err)
 		}

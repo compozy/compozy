@@ -1,7 +1,6 @@
 import type { StateGlyphState } from "@compozy/ui";
 
 import { sessionBadgeSignal } from "./session-badge";
-import type { SessionListScope } from "./session-list-preferences";
 import { sessionOriginKind } from "./session-origin";
 import type { SessionPayload } from "../types";
 
@@ -10,40 +9,6 @@ export interface SessionListTree {
   roots: SessionPayload[];
   /** Direct children keyed by parent session id, in the incoming list order. */
   childrenByParent: Map<string, SessionPayload[]>;
-}
-
-export interface VisibleSessionOrderOptions {
-  scope: SessionListScope;
-  collapsedThreadIds: ReadonlySet<string>;
-  collapsedWorkspaceIds: ReadonlySet<string>;
-  workspaceGroups: ReadonlyArray<{
-    workspaceId: string;
-    sessions: readonly SessionPayload[];
-  }>;
-}
-
-/**
- * Projects the same unfiltered row order the shared session catalog renders.
- * Closed groups and closed threads are excluded because the cycle shortcut
- * must never focus a row the operator cannot currently see.
- */
-export function visibleSessionOrder(
-  sessions: readonly SessionPayload[],
-  options: VisibleSessionOrderOptions
-): SessionPayload[] {
-  if (options.scope === "all-workspaces") {
-    return options.workspaceGroups.flatMap(group =>
-      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
-    );
-  }
-
-  const tree = buildSessionTree(sessions);
-  return tree.roots.flatMap(root => [
-    root,
-    ...(options.collapsedThreadIds.has(root.id)
-      ? []
-      : collectThreadSessions(root.id, tree.childrenByParent)),
-  ]);
 }
 
 /** A delegated subagent's own session (ADR-005): summarized on its parent, never a list row. */

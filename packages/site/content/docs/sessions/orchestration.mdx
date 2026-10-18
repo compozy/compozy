@@ -59,7 +59,7 @@ Agents use `compozy__session_prompt` to address another session. Supply `session
 receiver a full turn, so send at milestones instead of streaming status updates.
 For a long-running receiver, prefer `steer` for anything it must see soon; `queue` only waits for the end
 of its current turn, which can be long. Set `supersede: true` on a status update so only your latest one
-stays queued.
+stays queued; a superseding `steer` also cancels your older queued messages.
 
 CompozyOS stamps an immutable `origin` from the calling agent session. Queue and event responses
 include `kind: "session"`, `session_id`, `workspace_id`, `hop`, and optional `agent_name`,
@@ -101,9 +101,9 @@ row in the Web UI), but cannot replace its text: that returns HTTP 409 `input_ag
 When the receiver is busy, the order is operator input, then messages from other sessions, then reply
 and subagent wakes, and enqueue time within each group. The queue cap counts operator and agent entries
 separately, so agents cannot fill the operator's slots, and `queue_position` is the real dispatch rank.
-An agent's `steer` never interrupts the receiver: if the provider cannot take an injection, it waits in
-the queue. Steer replacement is per sender, so an agent cannot cancel another sender's or the
-operator's steer.
+An agent's `steer` never interrupts the receiver: if the provider cannot take an injection, or operator
+input is waiting, it waits in the queue behind that input. Steer replacement is per sender, so an agent
+cannot cancel another sender's or the operator's steer.
 
 The hop counts forwarding depth. A message forwarded to a session that is not driving your current
 turn takes the turn's highest accepted hop plus one; steer also raises that value before provider

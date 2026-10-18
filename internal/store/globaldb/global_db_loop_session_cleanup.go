@@ -166,6 +166,7 @@ func enqueueLoopSessionCleanupWithExecutor(
 	}); err != nil {
 		return fmt.Errorf("store: enqueue Loop session cleanup %q: %w", obligation.CleanupID, err)
 	}
+	markOutboxSignal(exec, outboxSignalGoalSession)
 	persisted, err := loadLoopSessionCleanup(ctx, exec, obligation.CleanupID)
 	if err != nil {
 		return err

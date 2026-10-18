@@ -112,6 +112,7 @@ type Server struct {
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	agentLoader           core.AgentLoader
 	udsExtendedServices

@@ -5,17 +5,42 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
-
-	"github.com/compozy/compozy/internal/store"
 )
 
 // runtimeRelease marks an agent process the supervisor released from an idle session.
-// The session stays active with an unbound runtime; done closes once the released
-// process exit is verified, so a rebind never races the old process for its ACP session.
+// The session stays active with an unbound runtime and keeps owning the released process
+// until its exit is verified: done closes when the release stop returns, and err keeps
+// a failed stop so neither a rebind nor a session stop treats the process as gone.
 type runtimeRelease struct {
 	acpSessionID string
+	process      *AgentProcess
 	done         chan struct{}
+	mu           sync.Mutex
+	err          error
+}
+
+func (r *runtimeRelease) finish(err error) {
+	r.mu.Lock()
+	r.err = err
+	r.mu.Unlock()
+	close(r.done)
+}
+
+// unverifiedProcess waits for the release stop, which is bounded by the lifecycle
+// cleanup deadline, and returns the released process while its exit is unverified.
+func (r *runtimeRelease) unverifiedProcess() *AgentProcess {
+	if r == nil {
+		return nil
+	}
+	<-r.done
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err == nil {
+		return nil
+	}
+	return r.process
 }
 
 // idleRuntimeReleaseDueLocked advances the idle episode of a session that has no turn in
@@ -49,18 +74,18 @@ func (s *Session) idleRuntimeReleasableLocked() bool {
 }
 
 // detachIdleRuntime revalidates the release under the session lock and detaches the
-// process before it is stopped, so its exit is not mistaken for a session stop.
-func (s *Session) detachIdleRuntime(
-	progress time.Time, now time.Time,
-) (*AgentProcess, *runtimeRelease, *store.SessionLivenessMeta) {
+// process before it is stopped, so its exit is not mistaken for a session stop. The
+// liveness keeps the process identity: until its exit is verified, the persisted
+// release is in progress and boot recovery still verifies the recorded process.
+func (s *Session) detachIdleRuntime(progress time.Time, now time.Time) *runtimeRelease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.supervisionProgressAt != progress || !s.idleRuntimeReleasableLocked() {
-		return nil, nil, nil
+		return nil
 	}
-	proc := s.process
-	liveness := store.CloneSessionLivenessMeta(s.Liveness)
-	release := &runtimeRelease{acpSessionID: strings.TrimSpace(s.ACPSessionID), done: make(chan struct{})}
+	release := &runtimeRelease{
+		acpSessionID: strings.TrimSpace(s.ACPSessionID), process: s.process, done: make(chan struct{}),
+	}
 	s.process = nil
 	s.runtimeRelease = release
 	s.RuntimeStatus = RuntimeStatusUnbound
@@ -69,31 +94,40 @@ func (s *Session) detachIdleRuntime(
 	s.RuntimeRecovery = nil
 	s.supervisionIdleSince = time.Time{}
 	if s.Liveness != nil {
-		s.Liveness.SubprocessPID = 0
-		s.Liveness.SubprocessStartedAt = nil
 		s.Liveness.StallState = ""
 		s.Liveness.StallReason = ""
 	}
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}
-	return proc, release, liveness
+	return release
 }
 
-// reattachIdleRuntime undoes a detach whose persistence failed, unless a prompt already
-// claimed the unbound session.
-func (s *Session) reattachIdleRuntime(
-	proc *AgentProcess, release *runtimeRelease, liveness *store.SessionLivenessMeta,
-) bool {
+// reattachIdleRuntime undoes a detach whose persistence failed, unless a prompt or a
+// stop already claimed the unbound session.
+func (s *Session) reattachIdleRuntime(release *runtimeRelease) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.runtimeRelease != release || s.process != nil || s.isPromptingLocked() {
+	if s.State != StateActive || s.runtimeRelease != release || s.process != nil || s.isPromptingLocked() {
 		return false
 	}
-	s.process = proc
+	s.process = release.process
 	s.runtimeRelease = nil
 	s.RuntimeStatus = RuntimeStatusReady
-	s.Liveness = liveness
+	return true
+}
+
+// clearReleasedRuntimeIdentity drops the released process identity once its exit is
+// verified, completing the release, unless the session moved on meanwhile.
+func (s *Session) clearReleasedRuntimeIdentity(release *runtimeRelease) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.runtimeRelease != release || s.process != nil || s.Liveness == nil ||
+		s.Liveness.SubprocessPID != release.process.PID {
+		return false
+	}
+	s.Liveness.SubprocessPID = 0
+	s.Liveness.SubprocessStartedAt = nil
 	return true
 }
 
@@ -101,19 +135,28 @@ func (s *Session) reattachIdleRuntime(
 // session. Nothing user-facing changes: the session stays active, its transcript and
 // ACP session id are kept, and the next prompt rebinds the runtime via session/load.
 func (m *Manager) releaseIdleRuntime(ctx context.Context, session *Session, progress time.Time) error {
-	proc, release, liveness := session.detachIdleRuntime(progress, m.now())
-	if proc == nil {
+	release := session.detachIdleRuntime(progress, m.now())
+	if release == nil {
 		return nil
 	}
-	defer close(release.done)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
-		if !session.reattachIdleRuntime(proc, release, liveness) {
-			err = errors.Join(err, m.stopReplacedRuntime(session, proc, true))
+		if session.reattachIdleRuntime(release) {
+			cleanupCtx, cancel := m.lifecycleCleanupContext()
+			err = errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
+			cancel()
+			release.finish(nil)
+		} else {
+			err = errors.Join(err, m.stopReleasedRuntime(session, release))
 		}
 		return fmt.Errorf("session: persist idle runtime release for %q: %w", session.ID, err)
 	}
-	if err := m.stopReplacedRuntime(session, proc, true); err != nil {
+	if err := m.stopReleasedRuntime(session, release); err != nil {
 		return fmt.Errorf("session: stop idle runtime for %q: %w", session.ID, err)
+	}
+	if session.clearReleasedRuntimeIdentity(release) {
+		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+			return fmt.Errorf("session: persist completed idle runtime release for %q: %w", session.ID, err)
+		}
 	}
 	m.sessionLogger(session).Info(
 		"session.runtime.idle_released",
@@ -122,17 +165,46 @@ func (m *Manager) releaseIdleRuntime(ctx context.Context, session *Session, prog
 	return nil
 }
 
-// waitRuntimeRelease blocks a rebind until the released process exit is verified.
-func waitRuntimeRelease(ctx context.Context, release *runtimeRelease) error {
+// stopReleasedRuntime stops the released process and settles the release outcome; a
+// failed stop stays recorded so the process is not treated as exited.
+func (m *Manager) stopReleasedRuntime(session *Session, release *runtimeRelease) error {
+	err := m.stopReplacedRuntime(session, release.process, true)
+	release.finish(err)
+	return err
+}
+
+// waitRuntimeRelease blocks a rebind until the released process exit is verified. A
+// release whose stop failed is retried here; while the old process may still run, the
+// rebind fails instead of loading its ACP session into a second process.
+func (m *Manager) waitRuntimeRelease(ctx context.Context, session *Session, release *runtimeRelease) error {
 	if release == nil {
 		return nil
 	}
 	select {
 	case <-release.done:
-		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	release.mu.Lock()
+	defer release.mu.Unlock()
+	if release.err == nil {
+		return nil
+	}
+	if err := m.stopReplacedRuntime(session, release.process, true); err != nil {
+		return fmt.Errorf("session: released runtime for %q has not exited: %w", session.ID, err)
+	}
+	release.err = nil
+	return nil
+}
+
+// releasedProcessForStop joins an idle runtime release of the session, so a session
+// stop never verifies an exit, finalizes, or runs stop hooks while the released process
+// may still run. It returns that process when the release could not verify its exit.
+func (s *Session) releasedProcessForStop() *AgentProcess {
+	s.mu.RLock()
+	release := s.runtimeRelease
+	s.mu.RUnlock()
+	return release.unverifiedProcess()
 }
 
 // rebindReleasedRuntime binds the next prompt of a session whose idle runtime was
@@ -144,7 +216,7 @@ func (m *Manager) rebindReleasedRuntime(
 	snapshot *runtimeBindingSnapshot,
 	plan *promptRuntimePlan,
 ) (*AgentProcess, error) {
-	if err := waitRuntimeRelease(ctx, snapshot.runtimeRelease); err != nil {
+	if err := m.waitRuntimeRelease(ctx, session, snapshot.runtimeRelease); err != nil {
 		return nil, err
 	}
 	if !runtimeSelectionsEqual(snapshot.selection, plan.selection) {

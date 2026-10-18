@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -37,16 +38,16 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)
 		return
 	}
+	if operatorInputWaits(entries) {
+		// Operator input is ahead; promoting past it would let another session cut the line.
+		return
+	}
 	// Injection runs on the live binding: an entry that asked for another runtime waits for its own turn.
 	live := session.runtimeBindingSnapshot().selection
 	liveRuntime := storeRuntimeSelection(&live)
 	effective := effectiveQueuedInputRuntime(session)
 	for index := range entries {
 		entry := &entries[index]
-		if entry.OwnerKind == "" && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
-			// Operator input is ahead; promoting past it would let another session cut the line.
-			return
-		}
 		if !promotableQueuedInput(entry) || !sameSessionInputRuntime(effective(entry.Runtime), liveRuntime) {
 			continue
 		}
@@ -99,10 +100,20 @@ func (m *Manager) promoteQueuedInput(
 	}
 	session.promotedSteers.Store(entryID, struct{}{})
 	err = m.activateSteeringInputText(ctx, session, &staged, providerText)
-	if err != nil || staged.SteerDelivery != store.SteerDeliveryPendingInjection {
+	// A pending injection keeps its completion watch, even when its resolution could not be saved, and
+	// that watch returns a rejected promotion to the queue.
+	watched := staged.SteerDelivery == store.SteerDeliveryPendingInjection &&
+		(err == nil || errors.Is(err, errSteerDeliveredUnresolved))
+	if !watched {
 		session.promotedSteers.Delete(entryID)
 	}
 	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {
+		return staged.SteerDelivery, true
+	}
+	if errors.Is(err, errSteerDeliveredUnresolved) {
+		// The provider already holds the message: returning it to the queue would deliver it twice.
+		m.sessionLogger(session).Error("session: promoted queued input delivered but not resolved",
+			"entry_id", entryID, "error", err, "steer_delivery", staged.SteerDelivery)
 		return staged.SteerDelivery, true
 	}
 	// Never drop, cancel, or interrupt with the message: a failed or fallen-back injection returns it to

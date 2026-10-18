@@ -91,6 +91,7 @@ type BaseHandlerConfig struct {
 	SkillExposureEvents         store.EventSummaryStore
 	TaskActorContextResolver    TaskActorContextResolver
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
+	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
 	Gateway                     GatewayService
 	GatewayPairingSource        string
@@ -171,6 +172,7 @@ type BaseHandlers struct {
 	SkillExposureEvents          store.EventSummaryStore
 	TaskActorContextResolver     TaskActorContextResolver
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
+	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
 	Gateway                      GatewayService
 	GatewayPairingSource         string
@@ -272,6 +274,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SkillExposureEvents:          cfg.SkillExposureEvents,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		RuntimeMemory:                cfg.RuntimeMemory,
+		HostLoad:                     cfg.HostLoad,
 		DeadEntities:                 cfg.DeadEntities,
 		Gateway:                      cfg.Gateway,
 		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),

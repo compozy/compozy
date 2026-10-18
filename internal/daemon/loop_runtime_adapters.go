@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -88,7 +89,8 @@ func (r *loopGateJudgeRunner) Judge(
 	}
 	var executionCleanupErr error
 	defer func() { finishExecution(executionCleanupErr) }()
-	ctx = judgeCtx
+	// Loop judges are daemon-initiated and yield to host CPU pressure at admission.
+	ctx = admission.WithBackgroundWork(judgeCtx)
 	agent := strings.TrimSpace(req.Agent)
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
@@ -341,7 +343,8 @@ func collectLoopPromptResult(
 	if strings.TrimSpace(sessionID) == "" {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop prompt session id is required")
 	}
-	events, err := sessions.Prompt(ctx, sessionID, req.Message)
+	// Loop prompts are daemon-initiated and yield to host CPU pressure at admission.
+	events, err := sessions.Prompt(admission.WithBackgroundWork(ctx), sessionID, req.Message)
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}

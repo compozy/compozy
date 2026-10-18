@@ -61,7 +61,10 @@ func TestGlobalDBProfileSelectionSeedMigration(t *testing.T) {
 				t.Errorf("close upgraded database error = %v", closeErr)
 			}
 		})
-		rows, err := upgraded.db.QueryContext(ctx, `SELECT lens || ':' || workspace_id, profile_id FROM profile_selections`)
+		rows, err := upgraded.db.QueryContext(
+			ctx,
+			`SELECT lens || ':' || workspace_id, profile_id FROM profile_selections`,
+		)
 		if err != nil {
 			t.Fatalf("read selections error = %v", err)
 		}

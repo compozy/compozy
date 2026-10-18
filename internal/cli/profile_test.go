@@ -437,7 +437,12 @@ func TestProfileCommandOutputContract(t *testing.T) {
 		}
 		want := profileCurrentRecord{Profile: "marketing", Source: "remembered", Workspace: "my-saas"}
 		if current != want || strings.Contains(stderr, "deprecated") {
-			t.Fatalf("profile current = %#v stderr %q, want global selection %#v without warning", current, stderr, want)
+			t.Fatalf(
+				"profile current = %#v stderr %q, want global selection %#v without warning",
+				current,
+				stderr,
+				want,
+			)
 		}
 
 		output, _, err = executeRootCommand(t, deps, "profile", "use", "default", "-o", "json")
