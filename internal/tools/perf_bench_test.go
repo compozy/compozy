@@ -150,8 +150,8 @@ func BenchmarkRuntimeRegistryNativeSessionProjection(b *testing.B) {
 		b.Run(fmt.Sprintf("Allowed%d", allowed), func(b *testing.B) {
 			inputs := DefaultPolicyInputs()
 			inputs.Session.Enforced = true
-			for _, tool := range nativeTools[:allowed] {
-				inputs.Session.Tools = append(inputs.Session.Tools, tool.Descriptor.ID)
+			for toolIndex := range allowed {
+				inputs.Session.Tools = append(inputs.Session.Tools, nativeTools[toolIndex].Descriptor.ID)
 			}
 			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
 			if err != nil {

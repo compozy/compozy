@@ -42,7 +42,11 @@ func (s *HostedService) StreamProjection(
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	unversioned := func(ctx context.Context, registry tools.Registry, record *hostedBindRecord) (HostedProjectionResponse, error) {
+	unversioned := func(
+		ctx context.Context,
+		registry tools.Registry,
+		record *hostedBindRecord,
+	) (HostedProjectionResponse, error) {
 		return s.boundedUnversionedProjection(ctx, registry, record, lastDigest)
 	}
 	response, err := s.projectionForGeneration(ctx, record, registry, unversioned, lastDigest)
