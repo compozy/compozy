@@ -135,6 +135,11 @@ func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []
 	if len(args) != 2 {
 		return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
 	}
+	for _, path := range flags.attachmentPaths {
+		if strings.TrimSpace(path) == "" {
+			return errors.New("cli: --attachment path must not be blank")
+		}
+	}
 	return flags.validateOriginFlags(cmd)
 }
 
@@ -143,6 +148,9 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 		mode, err := resolveOutputFormat(cmd)
 		if err != nil {
 			return err
+		}
+		if mode == OutputJSONL && (flags.queue || flags.interrupt || flags.steer) {
+			return errors.New("cli: busy-input prompt actions do not support jsonl output")
 		}
 		client, err := clientFromDeps(deps)
 		if err != nil {
@@ -182,9 +190,6 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	args []string,
 	runtime *contract.PromptRuntimeSelectionPayload,
 ) error {
-	if flags.queue || flags.interrupt || flags.steer {
-		return errors.New("cli: busy-input prompt actions do not support jsonl output")
-	}
 	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
 	if err != nil {
 		return err

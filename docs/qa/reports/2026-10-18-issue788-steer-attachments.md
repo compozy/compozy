@@ -58,6 +58,12 @@ purple triangle and an orange rectangle stacked on the left, with a teal circle 
 
 ![Image-only promotion and same-turn response](../assets/2026-10-18-issue788-image-only-promotion.png)
 
+The CodeRabbit CLI follow-up rejects blank attachment paths, including a blank path after another
+file, before uploading anything. Unsupported JSONL busy-input actions also reject before upload.
+The five canonical regressions failed before the fix and passed afterward; the real binary rejected
+all five inputs with the intended errors using the isolated home. Existing valid JSONL streaming and
+attachment-bearing steer tests still pass.
+
 ## Verification
 
 - Focused Web suites: 19 passed; the queue-promotion follow-up suite passed 5 selected cases.

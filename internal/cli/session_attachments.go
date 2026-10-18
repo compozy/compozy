@@ -47,9 +47,6 @@ func uploadSessionPromptAttachments(
 	var refs []contract.PromptAttachmentRef
 	for _, path := range paths {
 		path = strings.TrimSpace(path)
-		if path == "" {
-			continue
-		}
 		record, err := client.UploadSessionAttachment(ctx, sessionID, path)
 		if err != nil {
 			return nil, err

@@ -3196,6 +3196,55 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name, wantError string
+		args            []string
+	}{
+		{
+			name: "Should reject an empty attachment path", wantError: "--attachment path must not be blank",
+			args: []string{"--attachment", ""},
+		},
+		{
+			name:      "Should reject a blank later attachment before uploading any file",
+			wantError: "--attachment path must not be blank",
+			args:      []string{"--attachment", "screen.png", "--attachment", "  "},
+		},
+		{
+			name:      "Should reject JSONL steer before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--steer", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+		{
+			name:      "Should reject JSONL queue before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--queue", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+		{
+			name:      "Should reject JSONL interrupt before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--interrupt", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			uploads := 0
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+					uploads++
+					return SessionAttachmentRecord{ID: "att-image"}, nil
+				},
+			})
+			args := append([]string{"session", "prompt", "sess-1", "hello"}, tc.args...)
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("prompt error = %v, want %q", err, tc.wantError)
+			}
+			if uploads != 0 {
+				t.Fatalf("invalid prompt uploaded %d files", uploads)
+			}
+		})
+	}
+
 	t.Run("Should use steer endpoint", func(t *testing.T) {
 		t.Parallel()
 
