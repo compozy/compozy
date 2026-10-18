@@ -201,6 +201,43 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: background WAL maintenance cannot starve an already-open foreground writer.
+	// Owner: SessionDB writer scheduling; canonical passive-checkpoint suite.
+	t.Run("Should record a foreground event while a family guard defers idle maintenance", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-maintenance-foreground")
+		lease, err := AcquireFamilyLease(testutil.Context(t), db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		db.walMaintenanceDelayOverride.Store(int64(5 * time.Millisecond))
+		if err := db.Record(t.Context(), SessionEvent{
+			TurnID: "turn-stop", Type: "session.stop_escalated", AgentName: "coder", Content: `{}`,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		waiting := time.Now().Add(5 * time.Second)
+		for db.db.Stats().InUse == 0 {
+			if time.Now().After(waiting) {
+				t.Fatal("idle maintenance never reached the held family guard")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		writeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := db.Record(writeCtx, SessionEvent{
+			TurnID: "turn-stop", Type: "session_stopped", AgentName: "coder", Content: `{}`,
+		}); err != nil {
+			t.Fatalf("foreground terminal event was starved by idle maintenance: %v", err)
+		}
+		lease.Release()
+		events, err := db.Query(t.Context(), EventQuery{})
+		if err != nil || len(events) != 2 {
+			t.Fatalf("durable stop history = %#v, %v", events, err)
+		}
+	})
+
 	// Invariant: physical checkpoint writes serialize with guarded connection opens.
 	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
 	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {
@@ -403,7 +440,7 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			t.Fatalf("SELECT(reader) error = %v", err)
 		}
 		record(sessionPassiveCheckpointEvery / 2)
-		time.Sleep(sessionWALTruncateWait + 100*time.Millisecond)
+		time.Sleep(sessionWALCheckpointWait + 100*time.Millisecond)
 		if size := walSize(); size < limit {
 			t.Fatalf("WAL = %d bytes while a reader holds its snapshot, want truncation deferred", size)
 		}

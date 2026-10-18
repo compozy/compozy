@@ -228,3 +228,10 @@ and a repeated stop or subsequent deletion must preserve the same terminal winne
 write failure or phase deadline remains an error; blocked persistence must not block termination.
 The canonical shared-stop suite uses deterministic time, with the existing real ACP subprocess
 and SQLite integration journeys retaining process-exit, recovery, and stop-reason coverage.
+
+QA impact 2026-10-18, WAL maintenance: hold a database family guard when idle checkpointing
+starts, then stop the session. Background maintenance must yield within its existing maintenance
+budget so the foreground stop receipt can persist through the already-open writer. After the
+guard leaves, maintenance retries normally. Real write and drain failures remain visible, and
+Stop/Delete retain their current deadlines. The canonical passive-checkpoint regression owns
+this I/O ordering; the Windows lifecycle job verifies the reported platform path.

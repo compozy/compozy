@@ -690,7 +690,13 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await expect(ownerTags.filter({ hasText: "terminal-b" }).first()).toBeVisible();
 
     await profiles.switcher.click();
+    const rememberedDefault = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PUT" && response.url().endsWith("/api/profiles/selection")
+    );
     await profiles.switcherOption("default").click();
+    expect((await rememberedDefault).ok()).toBe(true);
+    await expect(profiles.switcher).toHaveAccessibleName("Profile: default");
     // The deep link is the way to a specific terminal; a dock activation then
     // restores the window in case an earlier gesture left it minimized.
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(inputTerminalId)}`), {

@@ -41,3 +41,10 @@ the strict evidence audit passed. The lab ended with `teardown.json` reporting `
 2026-08-30 CI repair re-walk: passed. Current-tree E2E-020 switched from default to profile B and
 All profiles, then rendered both authenticated command rows with their exact owner labels. The focused
 eight-scenario browser run passed without a missing journal row or stale scope.
+
+Verification repair 2026-10-18: before the profile-switching journey reloads a deep link,
+wait for the Global profile-selection PUT to succeed and for the switcher to show the concrete
+owner. The label changes optimistically, so it alone does not prove persistence. Reloading
+before the write is issued can restore All profiles and correctly block input resolution.
+The original profile isolation, aggregate journal ownership, and rejected input assertions and
+all timeouts are retained. The existing real browser journey passed twice after this repair.

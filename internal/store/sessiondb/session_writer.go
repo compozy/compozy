@@ -18,8 +18,8 @@ const (
 	// file, and frequent readers keep SQLite from restarting it, so it otherwise grows for the
 	// whole session.
 	sessionWALTruncateBytes = 16 << 20
-	// sessionWALTruncateWait caps how long readers may delay the writer during a truncation.
-	sessionWALTruncateWait = 200 * time.Millisecond
+	// sessionWALCheckpointWait bounds background waits for readers and database family guards.
+	sessionWALCheckpointWait = 200 * time.Millisecond
 	// sessionWALMaintenanceDelay is the idle time after writes before the writer checkpoints and
 	// truncates an oversized WAL, and the first retry delay for a deferred truncation.
 	sessionWALMaintenanceDelay = time.Second
@@ -157,6 +157,8 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 }
 
 func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, sessionWALCheckpointWait)
+	defer cancel()
 	return s.checkpointWithLease(ctx, store.CheckpointPassiveConnection)
 }
 
@@ -165,6 +167,10 @@ func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
 // outlasted the bounded wait.
 func (s *SessionDB) checkpointWAL() bool {
 	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Default().DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
+			return true
+		}
 		slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
 		return false
 	}
@@ -172,7 +178,7 @@ func (s *SessionDB) checkpointWAL() bool {
 	if err != nil || info.Size() < s.walTruncateLimit() {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALTruncateWait)
+	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALCheckpointWait)
 	defer cancel()
 	err = s.checkpointWithLease(ctx, store.CheckpointTruncateConnection)
 	switch {

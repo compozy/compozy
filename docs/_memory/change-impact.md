@@ -3684,3 +3684,23 @@ the existing hop-limit, public-package, and keyboard behavior assertions.
   skills have no contract change. No migrations or generated clients are affected.
 - ET-palette-action-panel and ET-editable-shell-shortcuts carry the focused QA impact. The real
   Herdr E2E-016 journey verifies editable activation, the sidebar chord, and the Escape ladder.
+
+
+## 2026-10-18 background WAL maintenance yields to lifecycle writes
+
+- SessionDB passive checkpoints use the existing 200 ms WAL maintenance budget while waiting
+  for database family guards. An idle checkpoint cannot monopolize the recorder's writer and
+  expire a queued terminal event. A deferred idle pass retains the existing retry/backoff path;
+  foreground write failures and shutdown drain errors are still returned.
+- Public stop/termination deadlines, native tools, HTTP/UDS/CLI shapes, hooks/extensions/config,
+  official skills, and workspace/profile ownership are unchanged. No migration is needed.
+- RT-session-native-stop records the held-family-guard boundary. The canonical passive-checkpoint
+  suite reproduces a starved terminal write before the fix and verifies durable history afterward;
+  the existing lifecycle/delete suites verify the consuming behavior. Windows CI remains the
+  platform delivery check for the reported failure.
+
+
+The terminal profile E2E now waits for the existing selection API's successful persistence
+before reloading the concrete terminal deep link. An optimistic switcher label cannot prove
+that write completed. ET-terminal-profile-segmentation records this validation-only correction;
+profile selection, input authorization, MCP keepalive, and timeout contracts are unchanged.
