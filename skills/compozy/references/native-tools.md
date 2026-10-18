@@ -139,29 +139,28 @@ stop and batch. Queue order, promotion, hops and replies: `references/runtime-op
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace
 root or configured `additional_dirs`, or existing workspace/session-scoped `att_...` IDs; at least
-`message` or one attachment is required. Paths are
-uploaded through the attachment store before submission. Use
-`compozy session attachments upload <session-id> <file> -o json` when the caller needs a durable ID.
-The store enforces `session.attachments.max_file_bytes`,
-`session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
-attachment settings in `references/configuration.md` before submitting large or unsupported files.
-The first prompt to a never-bound session requires `runtime.provider` (a session whose idle runtime was released keeps its selection and rebinds without it); model, reasoning effort, speed,
-and typed `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
-`bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
-rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
-`runtime` object rather than deriving it from the session state.
+`message` or one attachment is required. Paths are uploaded through the attachment store before
+submission; use `compozy session attachments upload <session-id> <file> -o json` for a durable ID.
+The store enforces `session.attachments.max_file_bytes`, `session.attachments.max_files_per_prompt`,
+and `session.attachments.allowed_mime` (see `references/configuration.md`).
+The first prompt to a never-bound session requires `runtime.provider`; a session whose idle runtime
+was released keeps its selection and rebinds without it. Model, reasoning effort, speed, and typed
+`acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
+`bool_value`. Runtime semantics, queued/interrupt snapshot behavior, and the rollback rule live in
+`references/runtime-operations.md`; read the nested `runtime` object from `compozy__session_status`
+rather than deriving it from the session state.
 
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
 the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
 history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
-`reply_watches` in state `armed` or `fired`; delivered and abandoned watches disappear from that list.
+`reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
-summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain
-and the target session should be inspected. An offline sender receives its pending wake on resume.
+summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
+so inspect the target session. An offline sender receives its pending wake on resume.
 Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
-redelivery. `notify_on_complete` is an agent-facing option, not an HTTP operator prompt field.
-Operator-scoped native calls requesting it return `invalid_request` with
+redelivery. `notify_on_complete` is agent-only, not an HTTP operator prompt field; operator-scoped
+native calls requesting it return `invalid_request` with
 `notify_on_complete requires an agent session`. A same-key retry after a pre-dispatch send failure
 re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
 `abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
