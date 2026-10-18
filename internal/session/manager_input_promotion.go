@@ -65,7 +65,7 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 	return entry.OwnerKind == "" && entry.OriginClass == store.SessionInputOriginClassAgent &&
 		entry.Mode == store.SessionInputQueueModeQueue && entry.Status == store.SessionInputQueueStatusQueued &&
-		len(entry.Attachments) == 0 && len(entry.SkillInvocations) == 0
+		len(entry.SkillInvocations) == 0
 }
 
 func (m *Manager) promoteQueuedInput(
@@ -86,7 +86,14 @@ func (m *Manager) promoteQueuedInput(
 	// The same input.pre_submit review an ordinary dispatch applies, only once the promotion is staged: a
 	// refusal returns the message to the queue for that dispatch to settle, and a rewrite is what the
 	// provider receives.
-	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, TurnSourceUser, entry.Text, nil)
+	message, err := m.dispatchInputPreSubmit(
+		ctx,
+		session,
+		turnID,
+		TurnSourceUser,
+		entry.Text,
+		attachmentMetaFromStore(entry.Attachments),
+	)
 	if err != nil {
 		session.promotionDeclined.Store(entryID, turnID)
 		_, revertErr := m.revertPromotedQueuedInput(ctx, session, entryID)

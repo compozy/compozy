@@ -74,8 +74,6 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 	case errors.Is(err, session.ErrSessionMessageRateLimited):
 		payload.Code = "message_rate_limited"
 		payload.Details = sessionMessageRateLimitDetails(err)
-	case errors.Is(err, store.ErrSessionInputSteerTextOnly):
-		payload.Code = "steer_attachments_unsupported"
 	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"

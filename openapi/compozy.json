@@ -30197,6 +30197,12 @@
       },
       "SteerPromptRequest": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/PromptAttachmentRef"
+            },
+            "type": "array"
+          },
           "expected_turn_id": {
             "type": "string"
           },

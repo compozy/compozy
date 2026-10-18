@@ -3431,6 +3431,17 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved update schema addition: checked_at already exists in the historical baseline")
 	}
 	properties["checked_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+
+	// #788: optional additive field; no required/type/removal change.
+	paths := baseline["paths"].(map[string]any)
+	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	prompt := paths[prefix+"/prompt"].(map[string]any)["post"].(map[string]any)
+	steer := paths[prefix+"/steer"].(map[string]any)["post"].(map[string]any)
+	promptBody := prompt["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	steerBody := steer["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	promptProperties := promptBody["schema"].(map[string]any)["properties"].(map[string]any)
+	steerProperties := steerBody["schema"].(map[string]any)["properties"].(map[string]any)
+	steerProperties["attachments"] = promptProperties["attachments"]
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {

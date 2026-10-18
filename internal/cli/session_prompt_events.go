@@ -29,17 +29,19 @@ type sessionEventStreamClient interface {
 }
 
 type sessionPromptCommandFlags struct {
-	queue          bool
-	interrupt      bool
-	steer          bool
-	expectedTurnID string
-	messageID      string
-	idempotencyKey string
-	fromSession    string
-	inReplyTo      string
-	supersede      bool
-	credentials    agentidentity.Credentials
-	runtime        sessionPromptRuntimeFlags
+	attachmentPaths []string
+	attachments     []contract.PromptAttachmentRef
+	queue           bool
+	interrupt       bool
+	steer           bool
+	expectedTurnID  string
+	messageID       string
+	idempotencyKey  string
+	fromSession     string
+	inReplyTo       string
+	supersede       bool
+	credentials     agentidentity.Credentials
+	runtime         sessionPromptRuntimeFlags
 }
 
 var (
@@ -68,6 +70,7 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Stable command idempotency key for an explicit retry",
 	)
+	cmd.Flags().StringArrayVar(&flags.attachmentPaths, "attachment", nil, "Attach a file path (repeatable)")
 	bindSessionPromptRuntimeFlags(cmd, &flags.runtime)
 	bindSessionPromptOriginFlags(cmd, flags)
 	return cmd
@@ -89,6 +92,9 @@ func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandF
 
   # Replace the fenced active turn with steering guidance
   compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn turn_1234
+
+  # Steer with a screenshot while the session works
+  compozy session prompt sess_1234 "Use this screenshot." --steer --attachment ./screen.png
 
   # Interrupt the fenced active turn before sending a replacement
   compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn turn_1234
@@ -129,12 +135,24 @@ func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []
 	if len(args) != 2 {
 		return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
 	}
+	for _, path := range flags.attachmentPaths {
+		if strings.TrimSpace(path) == "" {
+			return errors.New("cli: --attachment path must not be blank")
+		}
+	}
 	return flags.validateOriginFlags(cmd)
 }
 
 func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		mode, err := resolveOutputFormat(cmd)
+		if err != nil {
+			return err
+		}
+		if mode == OutputJSONL && (flags.queue || flags.interrupt || flags.steer) {
+			return errors.New("cli: busy-input prompt actions do not support jsonl output")
+		}
+		messageID, idempotencyKey, err := flags.promptIdentity(cmd)
 		if err != nil {
 			return err
 		}
@@ -155,10 +173,14 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 				return err
 			}
 		}
-		if mode == OutputJSONL {
-			return flags.streamJSONL(cmd, client, args, runtimeSelection)
+		flags.attachments, err = uploadSessionPromptAttachments(cmd.Context(), client, args[0], flags.attachmentPaths)
+		if err != nil {
+			return err
 		}
-		record, err := runSessionPromptAction(cmd, client, args, flags, runtimeSelection)
+		if mode == OutputJSONL {
+			return flags.streamJSONL(cmd, client, args, runtimeSelection, messageID, idempotencyKey)
+		}
+		record, err := runSessionPromptAction(cmd, client, args, flags, runtimeSelection, messageID, idempotencyKey)
 		if err != nil {
 			return err
 		}
@@ -171,18 +193,12 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	client sessionPromptStreamClient,
 	args []string,
 	runtime *contract.PromptRuntimeSelectionPayload,
+	messageID, idempotencyKey string,
 ) error {
-	if flags.queue || flags.interrupt || flags.steer {
-		return errors.New("cli: busy-input prompt actions do not support jsonl output")
-	}
-	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
-	if err != nil {
-		return err
-	}
 	return streamPromptEventsJSONL(cmd, client, args[0], SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
-		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
-		InReplyTo:      strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
+		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID), Attachments: flags.attachments,
+		InReplyTo: strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
 	}, flags.credentials)
 }
 
@@ -192,6 +208,7 @@ func runSessionPromptAction(
 	args []string,
 	flags *sessionPromptCommandFlags,
 	runtime *contract.PromptRuntimeSelectionPayload,
+	messageID, idempotencyKey string,
 ) (SessionPromptRecord, error) {
 	if cmd == nil {
 		return SessionPromptRecord{}, errors.New("cli: command is required")
@@ -199,20 +216,16 @@ func runSessionPromptAction(
 	if client == nil {
 		return SessionPromptRecord{}, errors.New("cli: daemon client is required")
 	}
-	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
 	if flags.steer {
 		return client.SteerSessionPrompt(cmd.Context(), args[0], contract.SteerPromptRequest{
 			Text: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey,
-			ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
+			ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID), Attachments: flags.attachments,
 		})
 	}
 	request := SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
-		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
-		InReplyTo:      strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
+		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID), Attachments: flags.attachments,
+		InReplyTo: strings.TrimSpace(flags.inReplyTo), Supersede: flags.supersede,
 	}
 	if flags.queue {
 		request.Mode = contract.PromptModeQueue

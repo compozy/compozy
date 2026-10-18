@@ -29,11 +29,23 @@ func (m *Manager) submitAdmittedSteerCommand(
 	}
 	unlock := m.lockPromptAdmission(workspaceID, session.ID, admissionReq.IdempotencyKey)
 	defer unlock()
-	if replayed, _, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
-		if err != nil {
+	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if replayed != nil {
+		return *replayed, nil
+	}
+	if !found {
+		if err := m.canonicalizeAdmissionPromptAttachments(
+			ctx,
+			workspaceID,
+			session.ID,
+			&req,
+			&admissionReq,
+		); err != nil {
 			return SendPromptResult{}, err
 		}
-		return *replayed, nil
 	}
 	if !session.IsPrompting() {
 		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
@@ -290,14 +302,14 @@ func (m *Manager) stageAdmittedSteerPrompt(
 	req promptRequest,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
-	if len(req.attachments) > 0 {
-		return SendPromptResult{}, store.ErrSessionInputSteerTextOnly
-	}
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
 	targetTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
 	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if err := validatePromptAttachmentCaps(req.attachments, session.processHandle().CapsSnapshot()); err != nil {
 		return SendPromptResult{}, err
 	}
 	generation, err := m.currentInputGeneration(ctx, session.ID)

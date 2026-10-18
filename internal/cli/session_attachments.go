@@ -1,6 +1,12 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"context"
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
+)
 
 func newSessionAttachmentsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -30,4 +36,25 @@ func newSessionAttachmentsUploadCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionAttachmentBundle(record))
 		},
 	}
+}
+
+func uploadSessionPromptAttachments(
+	ctx context.Context,
+	client sessionClientAPI,
+	sessionID string,
+	paths []string,
+) ([]contract.PromptAttachmentRef, error) {
+	var refs []contract.PromptAttachmentRef
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		record, err := client.UploadSessionAttachment(ctx, sessionID, path)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, contract.PromptAttachmentRef{
+			ID: record.ID, Name: record.Name, MIMEType: record.MIMEType, Bytes: record.Bytes,
+			SHA256: record.SHA256, Kind: record.Kind, Width: record.Width, Height: record.Height,
+		})
+	}
+	return refs, nil
 }

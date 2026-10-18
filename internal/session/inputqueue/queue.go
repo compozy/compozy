@@ -392,10 +392,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 	if target == "" {
 		return store.SessionInputQueueInsert{}, errors.New("inputqueue: session id is required")
 	}
-	if spec.mode == store.SessionInputQueueModeSteer && len(spec.attachments) > 0 {
-		return store.SessionInputQueueInsert{}, store.ErrSessionInputSteerTextOnly
-	}
-	if message == "" && (spec.mode == store.SessionInputQueueModeSteer || len(spec.attachments) == 0) {
+	if message == "" && len(spec.attachments) == 0 {
 		return store.SessionInputQueueInsert{}, ErrInputTextRequired
 	}
 	if len([]byte(message)) > s.cfg.MaxTextBytes {

@@ -131,6 +131,16 @@ func (m *Manager) PromotePendingInputToSteer(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	source, err := m.inputQueue.Get(ctx, session.ID, strings.TrimSpace(entryID))
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if err := validatePromptAttachmentCaps(
+		attachmentMetaFromStore(source.Attachments),
+		session.processHandle().CapsSnapshot(),
+	); err != nil {
+		return SendPromptResult{}, err
+	}
 	entry, _, err := m.inputQueue.PromoteToSteer(
 		ctx,
 		session.ID,

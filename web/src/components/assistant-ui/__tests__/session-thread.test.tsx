@@ -4934,7 +4934,7 @@ describe("SessionThread composer running semantics", () => {
     );
   });
 
-  it("Should queue ready attachment refs and keep steer text-only", async () => {
+  it("Should queue ready attachment refs while also offering steer", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onSteerPrompt = vi.fn(() => Promise.resolve());
@@ -4956,7 +4956,7 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
@@ -5086,10 +5086,14 @@ describe("SessionThread composer running semantics", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("Should refuse a steer-on-Enter that carries files inline, without a toast", async () => {
+  it("Should steer an image on Enter and clear the acknowledged draft", async () => {
     const onSteerPrompt = vi.fn(() => Promise.resolve());
     const onQueuePrompt = vi.fn(() => Promise.resolve());
-    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "files.png" } }));
+    const attachmentIdentity = nextAttachmentUploadIdentity();
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock({ attachmentUpload: { ...attachmentIdentity, name: "files.png" } })
+    );
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
@@ -5106,28 +5110,20 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
-    // The steer gate lives in the route hook; here the handler stands in for it.
-    onSteerPrompt.mockImplementationOnce(() =>
-      Promise.reject(
-        new SessionBusyInputRefusalError({
-          attachmentCount: 1,
-          code: "steer_attachments_unsupported",
-        })
-      )
-    );
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
     await act(async () => {
       fireEvent.keyDown(editable, { key: "Enter" });
     });
 
     await waitFor(() =>
-      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
-        "Not sent — steer can't carry files on this agent. Queue it, or remove the file."
-      )
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "review this image",
+        attachments: [expect.objectContaining({ id: attachmentIdentity.id, name: "files.png" })],
+      })
     );
     expect(onQueuePrompt).not.toHaveBeenCalled();
-    expect(composerText()).toBe("review this image");
-    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -6216,13 +6212,15 @@ describe("SessionThread composer attachments", () => {
     }
   });
 
-  it("Should summarize queued attachments when the queue payload includes them", async () => {
+  it("Should summarize queued attachments and steer their complete queue entry", async () => {
+    const user = userEvent.setup();
+    const onSteerQueuedPrompt = vi.fn();
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
       onQueuePrompt: vi.fn(),
       onRemoveQueuedPrompt: vi.fn(),
-      onSteerQueuedPrompt: vi.fn(),
+      onSteerQueuedPrompt,
       queuedPrompts: [
         {
           id: "inq-att",
@@ -6241,7 +6239,18 @@ describe("SessionThread composer attachments", () => {
     const row = await screen.findByTestId("composer-queued-prompt-row");
     expect(within(row).getByTestId("composer-queued-attachment-well")).toHaveTextContent("PDF");
     expect(row).toHaveTextContent("· 2 images · 1 file");
-    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
+    await user.click(within(row).getByTestId("composer-queued-steer"));
+    expect(onSteerQueuedPrompt).toHaveBeenCalledExactlyOnceWith({
+      id: "inq-att",
+      owner: null,
+      position: 1,
+      text: "Review the screenshots.",
+      attachments: {
+        fileCount: 1,
+        imageCount: 2,
+        preview: { kind: "file", mark: "PDF" },
+      },
+    });
   });
 });
 

@@ -176,7 +176,7 @@ func (m *Manager) prepareSendPrompt(
 			return sendPromptPreparation{}, nil, err
 		}
 		req.supersede = opts.Supersede
-		mode = agentBusyInputMode(mode, len(req.attachments) > 0)
+		mode = agentBusyInputMode(mode)
 	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
@@ -258,50 +258,6 @@ func (m *Manager) submitBusyPreparedPrompt(
 	}
 }
 
-// SteerPrompt durably accepts guidance that replaces the fenced active turn.
-func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOpts) (SendPromptResult, error) {
-	if m == nil {
-		return SendPromptResult{}, errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return SendPromptResult{}, errors.New("session: steer prompt context is required")
-	}
-	if err := validateCommandIngress(opts.AllowCommands, opts.Caller); err != nil {
-		return SendPromptResult{}, err
-	}
-	req, err := m.parsePromptRequest(ctx, id, PromptOpts{Message: opts.Message, TurnSource: TurnSourceUser})
-	if err != nil {
-		return SendPromptResult{}, err
-	}
-	req.messageID = strings.TrimSpace(opts.MessageID)
-	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
-	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
-	req.runtime = cloneRuntimeSelection(opts.Runtime)
-	if opts.AllowCommands {
-		if err := m.preparePromptSkillInvocations(ctx, &req); err != nil {
-			return SendPromptResult{}, err
-		}
-	}
-	if err := req.validatePromptAdmissionIdentity(); err != nil {
-		return SendPromptResult{}, err
-	}
-	session, err := m.lookupPromptSession(ctx, req.target)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
-	if req.hasPromptAdmissionIdentity() {
-		req.runtime, err = m.resolvePromptRuntimeAtAdmission(ctx, session, nil)
-		if err != nil {
-			return SendPromptResult{}, err
-		}
-		return m.submitAdmittedSteerCommand(ctx, session, req)
-	}
-	if !session.IsPrompting() {
-		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
-	}
-	return m.stageSteerPrompt(ctx, session, req)
-}
-
 // CancelQueuedPrompt cancels one pending busy-input queue entry.
 func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (SendPromptResult, error) {
 	if m == nil {
@@ -347,14 +303,14 @@ func (m *Manager) stageSteerPrompt(
 	session *Session,
 	req promptRequest,
 ) (SendPromptResult, error) {
-	if len(req.attachments) > 0 {
-		return SendPromptResult{}, store.ErrSessionInputSteerTextOnly
-	}
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
 	targetTurnID, err := requireExpectedActiveTurn(session, req.expectedTurnID)
 	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if err := validatePromptAttachmentCaps(req.attachments, session.processHandle().CapsSnapshot()); err != nil {
 		return SendPromptResult{}, err
 	}
 	generation, err := m.currentInputGeneration(ctx, session.ID)
@@ -452,17 +408,12 @@ func validateCommandIngress(allowCommands bool, caller PromptCaller) error {
 	return nil
 }
 
-// agentBusyInputMode keeps another session from canceling the target's active turn: an agent
-// interrupt is delivered as steering, or queued when it carries attachments steering cannot hold.
-// Steering itself degrades to after-turn delivery when the target cannot inject it.
-func agentBusyInputMode(mode BusyInputMode, hasAttachments bool) BusyInputMode {
-	if mode != BusyInputModeInterrupt {
-		return mode
+// agentBusyInputMode keeps another session from canceling the target's active turn.
+func agentBusyInputMode(mode BusyInputMode) BusyInputMode {
+	if mode == BusyInputModeInterrupt {
+		return BusyInputModeSteer
 	}
-	if hasAttachments {
-		return BusyInputModeQueue
-	}
-	return BusyInputModeSteer
+	return mode
 }
 
 func (m *Manager) normalizeBusyInputMode(mode BusyInputMode) (BusyInputMode, error) {

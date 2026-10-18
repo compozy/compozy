@@ -70,10 +70,11 @@ type PromptUITextPart struct {
 
 // SteerPromptRequest captures replacement guidance for a fenced active session turn.
 type SteerPromptRequest struct {
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
+	Attachments    []PromptAttachmentRef `json:"attachments,omitempty"`
+	Text           string                `json:"text"`
+	MessageID      string                `json:"message_id"`
+	IdempotencyKey string                `json:"idempotency_key"`
+	ExpectedTurnID string                `json:"expected_turn_id,omitempty"`
 }
 
 // SendPromptResultPayload reports non-streaming busy-input outcomes.

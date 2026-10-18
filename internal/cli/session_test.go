@@ -405,6 +405,9 @@ func TestSessionPromptIdentity(t *testing.T) {
 
 		var received SessionPromptRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+				return SessionAttachmentRecord{ID: "att-image"}, nil
+			},
 			sendSessionPromptFn: func(_ context.Context, _ string, request SessionPromptRequest) (SessionPromptRecord, error) {
 				received = request
 				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
@@ -416,11 +419,13 @@ func TestSessionPromptIdentity(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps,
 			"session", "prompt", "sess-1", "retry safely",
 			"--message-id", "msg-explicit", "--idempotency-key", "idem-explicit", "-o", "json",
+			"--attachment", "screen.png",
 		)
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt explicit identity) error = %v", err)
 		}
-		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" {
+		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" ||
+			len(received.Attachments) != 1 || received.Attachments[0].ID != "att-image" {
 			t.Fatalf(
 				"SendSessionPrompt() identity = %q/%q, want msg-explicit/idem-explicit",
 				received.MessageID,
@@ -471,7 +476,12 @@ func TestSessionPromptIdentity(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
+				uploads := 0
 				deps := newWorkspaceTestDeps(t, &stubClient{
+					uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+						uploads++
+						return SessionAttachmentRecord{ID: "att-image"}, nil
+					},
 					sendSessionPromptFn: func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error) {
 						t.Fatal("SendSessionPrompt() called for invalid identity flags")
 						return SessionPromptRecord{}, nil
@@ -480,8 +490,11 @@ func TestSessionPromptIdentity(t *testing.T) {
 				if _, _, err := executeRootCommand(
 					t,
 					deps,
-					tt.args...); !errors.Is(err, tt.want) {
+					append(tt.args, "--attachment", "screen.png")...); !errors.Is(err, tt.want) {
 					t.Fatalf("executeRootCommand(%#v) error = %v, want identity validation error", tt.args, err)
+				}
+				if uploads != 0 {
+					t.Fatalf("invalid identity uploaded %d attachments", uploads)
 				}
 			})
 		}
@@ -3196,6 +3209,55 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name, wantError string
+		args            []string
+	}{
+		{
+			name: "Should reject an empty attachment path", wantError: "--attachment path must not be blank",
+			args: []string{"--attachment", ""},
+		},
+		{
+			name:      "Should reject a blank later attachment before uploading any file",
+			wantError: "--attachment path must not be blank",
+			args:      []string{"--attachment", "screen.png", "--attachment", "  "},
+		},
+		{
+			name:      "Should reject JSONL steer before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--steer", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+		{
+			name:      "Should reject JSONL queue before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--queue", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+		{
+			name:      "Should reject JSONL interrupt before uploading files",
+			wantError: "busy-input prompt actions do not support jsonl output",
+			args:      []string{"--interrupt", "-o", "jsonl", "--attachment", "screen.png"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			uploads := 0
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+					uploads++
+					return SessionAttachmentRecord{ID: "att-image"}, nil
+				},
+			})
+			args := append([]string{"session", "prompt", "sess-1", "hello"}, tc.args...)
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("prompt error = %v, want %q", err, tc.wantError)
+			}
+			if uploads != 0 {
+				t.Fatalf("invalid prompt uploaded %d files", uploads)
+			}
+		})
+	}
+
 	t.Run("Should use steer endpoint", func(t *testing.T) {
 		t.Parallel()
 
@@ -3207,11 +3269,27 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			gotExpectedTurnID string
 		)
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			uploadSessionAttachmentFn: func(_ context.Context, id, path string) (SessionAttachmentRecord, error) {
+				if id != "sess-1" || path != "screen.png" {
+					t.Fatalf("unexpected upload %q/%q", id, path)
+				}
+				return SessionAttachmentRecord{
+					ID:       "att-image",
+					Name:     "screen.png",
+					MIMEType: "image/png",
+					Kind:     "image",
+					Bytes:    42,
+				}, nil
+			},
 			steerSessionPromptFn: func(
 				_ context.Context,
 				id string,
 				request contract.SteerPromptRequest,
 			) (SessionPromptRecord, error) {
+				if len(request.Attachments) != 1 || request.Attachments[0].ID != "att-image" ||
+					request.Attachments[0].Bytes != 42 {
+					t.Fatalf("steer attachments = %#v", request.Attachments)
+				}
 				gotID = id
 				gotText = request.Text
 				gotMessageID = request.MessageID
@@ -3234,7 +3312,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			"prompt",
 			"sess-1",
 			"prefer small patch",
-			"--steer",
+			"--steer", "--attachment", " screen.png ",
 			"--expected-turn-id",
 			"turn-1",
 		)

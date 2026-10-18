@@ -121,7 +121,8 @@ A send past it returns `message_rate_limited` (HTTP 429) with `limit`, `window`,
 fewer messages rather than retrying immediately. Set `rate_limit_messages = -1` to disable the budget.
 
 Messages from other sessions never cancel the receiver's work. An agent's `mode: "interrupt"` is
-delivered as `steer` (or queued when it carries attachments), and the result reports the mode used.
+delivered as `steer`, including attachments, and the result reports the mode used. If the runtime
+cannot inject it into the live turn, it waits until the turn ends.
 Consecutive queued messages from other sessions and reply wakes run as one turn (up to 8), each kept as
 its own message in the transcript with its own reply watch; operator input is never merged and always
 goes first. Send `supersede: true` to replace your own older message still queued for the same target.
@@ -229,3 +230,21 @@ original. Several consecutive messages from the same sender collapse into one gr
 "`{title} · N messages`", showing the latest and expanding to all. An expired reply watch appears as
 **No reply** on the sender's card. In the session list, a session marked **Needs attention** says why,
 for example "Stop not confirmed" or "Loop run went stale", with every cause in the hover text.
+
+### Steering with a screenshot
+
+Operators can send an image or file while a session is working:
+
+```bash
+compozy session prompt <session-id> "Use this screenshot." --steer --attachment ./screen.png
+```
+
+Repeat `--attachment` for more files. HTTP/UDS clients can use `attachments` on the normal prompt
+request with `mode: "steer"`, or on the fenced `/steer` request. Use the metadata returned by the
+session attachment upload endpoint. Attachment-only prompts are supported with an empty message.
+
+When the runtime accepts live steering and the attachment's content type, the image/file joins the
+current turn. Otherwise operator steering interrupts and sends a replacement prompt with the same
+attachments. An agent message never interrupts another session: unavailable injection waits until
+that turn ends. Queue-to-steer promotion retains the queued attachment snapshot. Image/PDF capability
+refusals identify an input type the selected runtime cannot accept through an ordinary prompt either.

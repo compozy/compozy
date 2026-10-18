@@ -226,7 +226,6 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, session.ErrActiveTurnMismatch),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),
 		errors.Is(err, store.ErrSessionInputMutationConflict),
-		errors.Is(err, store.ErrSessionInputSteerTextOnly),
 		errors.Is(err, store.ErrSessionInputAgentAuthored),
 		errors.Is(err, session.ErrSessionMessageHopLimit),
 		errors.Is(err, session.ErrPendingPermissionNotFound),

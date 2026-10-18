@@ -1239,8 +1239,8 @@ func (a *helperACPAgent) HandleExtensionMethod(
 	case "steering_pending":
 		return wireSteerResponse{Outcome: "pending_injection"}, nil
 	}
-	if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
-		return nil, errors.New("steering requires one text block")
+	if len(request.Prompt) == 0 || request.Prompt[0].Text == nil {
+		return nil, errors.New("steering requires guidance text")
 	}
 	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
 		SessionId: request.SessionId, Update: acpsdk.UpdateAgentMessageText(request.Prompt[0].Text.Text),

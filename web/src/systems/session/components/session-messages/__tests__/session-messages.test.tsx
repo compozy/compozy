@@ -751,7 +751,7 @@ describe("SessionQueueEntryRow session message", () => {
     expect(onRemove).toHaveBeenCalledWith("inp-41aa");
   });
 
-  it("Should hold Steer on a session message that carries files (#760)", () => {
+  it("Should offer Steer on a session message that carries files", () => {
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Refactor billing") });
     render(
       <SessionQueueEntryRow
@@ -763,7 +763,7 @@ describe("SessionQueueEntryRow session message", () => {
       />,
       { wrapper }
     );
-    expect(screen.getByTestId("composer-queued-steer")).toBeDisabled();
+    expect(screen.getByTestId("composer-queued-steer")).toBeEnabled();
   });
 
   it("Should name a sender's workspace when it is not the viewing session's (n-10)", async () => {

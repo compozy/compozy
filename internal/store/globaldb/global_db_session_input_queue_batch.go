@@ -96,7 +96,7 @@ func claimSessionInputInTransaction(
 
 // PromoteQueuedAgentSessionInputToSteer turns one queued agent message into staged steering for the
 // target's live turn in place, keeping its message, event, admission, and origin identity. It reports
-// false when the entry is no longer eligible: already dispatched, carrying attachments, operator input
+// false when the entry is no longer eligible: already dispatched, carrying skill invocations, operator input
 // waiting, or the sender already holding a queued steer.
 func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 	ctx context.Context,
@@ -124,7 +124,7 @@ func (g *SessionRepo) PromoteQueuedAgentSessionInputToSteer(
 		if getErr != nil {
 			return getErr
 		}
-		if len(existing.Attachments) > 0 || len(existing.SkillInvocations) > 0 {
+		if len(existing.SkillInvocations) > 0 {
 			return nil
 		}
 		affected, updateErr := sqlcgen.New(exec).PromoteQueuedAgentSessionInputToSteer(

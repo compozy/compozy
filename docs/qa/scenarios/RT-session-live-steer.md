@@ -12,7 +12,7 @@ fix_status: pending
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-09-06-sessions-stability.md
-last_report: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md
+last_report: docs/qa/reports/2026-10-18-issue788-steer-attachments.md
 overlaps: RT-018; RT-019
 ---
 
@@ -41,3 +41,10 @@ the changed queue/transcript/connection behavior has no current integrated verdi
 QA 2026-09-06 integrated verdict: Real Claude injected msg_handbook_guidance_02 in the same turn; authored text, identity and Steered provenance survive settlement, cold history and daemon restart. Task01 real capability/fallback evidence remains current. The missing-history and stopped-reader repairs were re-walked; see the integrated report.
 
 QA support 2026-09-10: the real-ACP steer fallback integration passed twenty repetitions after making its stubborn process fixture ignore request cancellation as intended. Escalation, verified process replacement, replacement-before-queued ordering, and preserved active session assertions remain intact. Evidence: `docs/qa/reports/2026-09-10-release-integration-repair.md`.
+
+QA 2026-10-18 (issue #788): image-bearing steer passed with real Claude/Sonnet 5 and
+Codex/GPT-6.1-Sol in an isolated lab, both injected into the original turn and identifying the image.
+Web Enter with an attachment, CLI `--steer --attachment` with exact retry, queue-to-steer image
+promotion and history reload passed. Manager/SQLite race tests cover durable attachments and
+fallback; the real ACP fallback integration passed. See
+`docs/qa/reports/2026-10-18-issue788-steer-attachments.md` for scope and platform limitations.

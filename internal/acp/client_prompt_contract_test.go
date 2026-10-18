@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -1590,7 +1591,14 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			driver := New()
-			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{})
+			capturePath := filepath.Join(t.TempDir(), "steer.jsonl")
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
+				Env: helperEnvWithCapture(tc.scenario, "", capturePath),
+			})
+			proc.capsMu.Lock()
+			proc.caps.PromptImage = true
+			proc.caps.PromptEmbeddedContext = true
+			proc.capsMu.Unlock()
 			defer stopProcess(t, driver, proc)
 			if tc.scenario == "concurrent_steering" {
 				proc.capsMu.Lock()
@@ -1613,7 +1621,11 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 				t.Fatal(ctx.Err())
 			}
 			original := proc.currentPrompt()
-			attempt, err := driver.Steer(ctx, proc, "original-turn", "change direction")
+			attempt, err := driver.Steer(ctx, proc, "original-turn", "change direction", []PromptAttachment{
+				{Name: "screen.png", MIMEType: "image/png", Data: []byte("image")},
+				{Name: "notes.txt", MIMEType: "text/plain", Data: []byte("notes")},
+				{Name: "report.pdf", MIMEType: "application/pdf", Data: []byte("pdf")},
+			})
 			if attempt.Attempt != tc.want || !errors.Is(err, tc.wantError) {
 				t.Fatalf("Steer() = %#v, %v; want %q, %v", attempt, err, tc.want, tc.wantError)
 			}
@@ -1633,6 +1645,24 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 				case err := <-attempt.Completion:
 					t.Fatalf("concurrent completion returned early: %v", err)
 				default:
+				}
+			}
+			if tc.want == SteerAttemptInjected || tc.scenario == "concurrent_steering" {
+				method := steerExtensionMethod
+				if tc.scenario == "concurrent_steering" {
+					method = acpsdk.AgentMethodSessionPrompt
+				}
+				requests := captureRequestParamsForMethod(t, capturePath, method)
+				var blocks []acpsdk.ContentBlock
+				if len(requests) == 0 {
+					t.Fatal("steer request was not sent")
+				}
+				if err := json.Unmarshal(requests[len(requests)-1]["prompt"], &blocks); err != nil {
+					t.Fatal(err)
+				}
+				if len(blocks) != 4 || blocks[1].Image == nil || blocks[1].Image.Data != "aW1hZ2U=" ||
+					blocks[2].Resource == nil || blocks[3].Resource == nil {
+					t.Fatalf("steer content blocks = %#v", blocks)
 				}
 			}
 			if proc.currentPrompt() != original {
@@ -1678,7 +1708,7 @@ func TestSteerPreservesActivePrompt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		attempt, err := driver.Steer(ctx, proc, "old-turn", "stale guidance")
+		attempt, err := driver.Steer(ctx, proc, "old-turn", "stale guidance", nil)
 		if attempt.Attempt != SteerAttemptUnsupported || !errors.Is(err, ErrSteerTurnMismatch) {
 			t.Fatalf("Steer() = %#v, %v", attempt, err)
 		}

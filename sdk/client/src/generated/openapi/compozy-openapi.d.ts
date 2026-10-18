@@ -15124,6 +15124,7 @@ export interface components {
       tasks: components["schemas"]["TaskHealthPayload"];
     };
     SteerPromptRequest: {
+      attachments?: components["schemas"]["PromptAttachmentRef"][];
       expected_turn_id?: string;
       idempotency_key: string;
       message_id: string;

@@ -132,7 +132,7 @@ in v0.5.0.
 
 Agent-authored queue entries cannot be edited (`input_agent_authored`). Self-targeting returns
 `invalid_request`. Message other sessions with this tool, never the CLI. An agent `interrupt` becomes
-`steer`; prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
+`steer`, including attachments; without live injection it waits after the turn. Prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
 status in any mode; answer with `in_reply_to` (keeps the hop). On `message_hop_limit` or
 `message_rate_limited`, stop and batch. Queue order, promotion, hops and replies: `references/runtime-operations.md`.
 

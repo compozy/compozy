@@ -325,7 +325,6 @@ func TestErrorPayloadForError(t *testing.T) {
 			{store.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},
 			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
-			{store.ErrSessionInputSteerTextOnly, "steer_attachments_unsupported", http.StatusConflict},
 		} {
 			err := fmt.Errorf("send refused: %w", tc.err)
 			payload := ErrorPayloadForError(err)

@@ -168,6 +168,13 @@ func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptR
 		h.respondError(c, http.StatusBadRequest, err)
 		return session.SendPromptResult{}, false
 	}
+	if err := contract.ValidatePromptAttachments(
+		request.Attachments,
+		h.Config.Session.Attachments.MaxFilesPerPrompt,
+	); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return session.SendPromptResult{}, false
+	}
 	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
 	if !ok {
 		return session.SendPromptResult{}, false
@@ -182,6 +189,7 @@ func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptR
 		sessionID,
 		session.SteerPromptOpts{
 			Message: request.Text, MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+			Attachments:    contract.AttachmentMetaFromRefs(request.Attachments),
 			ExpectedTurnID: request.ExpectedTurnID, AllowCommands: true, Caller: caller,
 		},
 	)

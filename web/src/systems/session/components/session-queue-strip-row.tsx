@@ -180,12 +180,9 @@ function SessionQueuedSteer({
       variant="ghost"
       size="sm"
       onClick={() => onSteer(prompt)}
-      disabled={disabled || Boolean(prompt.attachments)}
+      disabled={disabled}
       data-testid="composer-queued-steer"
       aria-label={label}
-      title={
-        prompt.attachments ? "Queued messages with files can't be steered on this agent" : undefined
-      }
       className="text-muted hover:text-fg"
     >
       <CornerDownRight aria-hidden="true" className="size-3" />
