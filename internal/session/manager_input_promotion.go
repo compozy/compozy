@@ -38,16 +38,16 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)
 		return
 	}
+	if operatorInputWaits(entries) {
+		// Operator input is ahead; promoting past it would let another session cut the line.
+		return
+	}
 	// Injection runs on the live binding: an entry that asked for another runtime waits for its own turn.
 	live := session.runtimeBindingSnapshot().selection
 	liveRuntime := storeRuntimeSelection(&live)
 	effective := effectiveQueuedInputRuntime(session)
 	for index := range entries {
 		entry := &entries[index]
-		if entry.OwnerKind == "" && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
-			// Operator input is ahead; promoting past it would let another session cut the line.
-			return
-		}
 		if !promotableQueuedInput(entry) || !sameSessionInputRuntime(effective(entry.Runtime), liveRuntime) {
 			continue
 		}

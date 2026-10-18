@@ -5172,6 +5172,51 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
+	t.Run("Should keep an agent steer out of the live turn while operator input waits", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+		turnID := f.sess.CurrentTurnID()
+		if _, err := f.h.manager.SendPrompt(
+			t.Context(), f.sess.ID, SendPromptOpts{Message: "operator first", Mode: BusyInputModeQueue},
+		); err != nil {
+			t.Fatal(err)
+		}
+		steer := agentOpts("urgent", "sess-a", false)
+		steer.Mode = BusyInputModeSteer
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer)
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInterruptFallback ||
+			result.Delivery != store.SessionInputDeliveryAfterTurn {
+			t.Fatalf("agent steer = %#v, %v; want after-turn delivery behind the operator", result, err)
+		}
+		select {
+		case text := <-f.steered:
+			t.Fatalf("agent steer injected past operator input: %q", text)
+		default:
+		}
+		if f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("current turn = %q, want the agent steer never to interrupt %s", f.sess.CurrentTurnID(), turnID)
+		}
+		drain(t, f)
+		waitForCondition(t, "agent steer delivered after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		operator, agent := -1, -1
+		for index, call := range f.h.driver.promptCalls {
+			if strings.Contains(call.Message, "operator first") && operator < 0 {
+				operator = index
+			}
+			if strings.Contains(call.Message, "status urgent") && agent < 0 {
+				agent = index
+			}
+		}
+		if operator < 0 || agent <= operator {
+			t.Fatalf("dispatch order operator=%d agent=%d, want the operator's input first", operator, agent)
+		}
+	})
+
 	t.Run("Should never promote an agent message while operator input waits", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

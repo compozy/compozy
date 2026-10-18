@@ -49,7 +49,8 @@ func (m *Manager) activateSteeringInputText(
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
 	proc := session.processHandle()
-	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID {
+	if steerer, ok := m.injectedSteerer(proc); ok && session.CurrentTurnID() == entry.TargetTurnID &&
+		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
 		origin, originErr := decodePromptOrigin(entry.Origin)
 		if originErr != nil {
@@ -107,6 +108,34 @@ func (m *Manager) activateSteeringInputText(
 		return nil
 	}
 	return m.activateInterruptingInput(ctx, session, entry)
+}
+
+// agentSteerYieldsToOperator keeps another session's steer out of the live turn while operator input
+// waits: injecting it would let that session cut ahead of the operator. The steer then degrades to
+// after-turn delivery behind the operator's input, the same as a provider without injection.
+func (m *Manager) agentSteerYieldsToOperator(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) bool {
+	if entry.OriginClass != store.SessionInputOriginClassAgent {
+		return false
+	}
+	entries, err := m.inputQueue.List(ctx, session.ID)
+	if err != nil {
+		m.sessionLogger(session).Warn("session: list queued input before agent steer failed; deferring steer",
+			"entry_id", entry.ID, "error", err)
+		return true
+	}
+	return operatorInputWaits(entries)
+}
+
+// operatorInputWaits reports undelivered operator input among a session's pending entries.
+func operatorInputWaits(entries []store.SessionInputQueueEntry) bool {
+	for index := range entries {
+		if entries[index].OwnerKind == "" && store.IsHumanSessionInputOriginClass(entries[index].OriginClass) {
+			return true
+		}
+	}
+	return false
 }
 
 // injectedSteerer returns the driver that can inject guidance into proc's live turn, when the

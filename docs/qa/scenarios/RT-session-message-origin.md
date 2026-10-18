@@ -69,7 +69,9 @@ Busy-target policy regression (#760)
    succeeds (separate caps).
 10. An agent `mode: "steer"` to a provider without injection stays queued (no interrupt, active turn
     untouched). An agent `mode: "interrupt"` is delivered as steer and the result reports `steer`.
-    A queued human steer survives a later agent steer.
+    A queued human steer survives a later agent steer. With a human prompt queued on an injecting
+    provider, an agent `steer` is not injected: it reports `interrupt_fallback` with `after_turn`
+    delivery and runs after the human prompt.
 11. Send three status messages with `supersede: true` from A to B: only the latest remains queued and
     `canceled_queued_entries` counts the replaced ones; another sender's and the human's entries stay.
 12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
