@@ -1,0 +1,706 @@
+{
+    "id": "goal-turn-1",
+    "role": "assistant",
+    "parts": [
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:12.117095Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 88,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 84910,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:12.117095Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 84910,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "tool-Bash",
+            "state": "output-available",
+            "toolCallId": "claude-call-1",
+            "title": "Bash",
+            "input": {
+                "command": "printf goalone",
+                "description": "Print the string goalone"
+            },
+            "output": {
+                "provider_tool_name": "Bash",
+                "status": "completed",
+                "type": "tool_result",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:14.926459Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-1",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "raw": {
+                    "stdout": "```console\ngoalone\n```",
+                    "raw_output": "goalone"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "status": "pending",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:14.44782Z",
+                "title": "Terminal",
+                "tool_call_id": "claude-call-1",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:14.697346Z",
+                "title": "printf goalone",
+                "tool_call_id": "claude-call-1",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:14.881149Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-1",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:14.896535Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 92,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85209,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:14.896535Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85209,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:15.629649Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 94,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85273,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:15.629649Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85273,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "tool-Bash",
+            "state": "output-available",
+            "toolCallId": "claude-call-2",
+            "title": "Bash",
+            "input": {
+                "command": "printf goaltwo",
+                "description": "Print the string goaltwo"
+            },
+            "output": {
+                "provider_tool_name": "Bash",
+                "status": "completed",
+                "type": "tool_result",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:16.119429Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-2",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "raw": {
+                    "stdout": "```console\ngoaltwo\n```",
+                    "raw_output": "goaltwo"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "status": "pending",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:15.629779Z",
+                "title": "Terminal",
+                "tool_call_id": "claude-call-2",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:15.878647Z",
+                "title": "printf goaltwo",
+                "tool_call_id": "claude-call-2",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:16.071539Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-2",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:16.081848Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 98,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85339,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:16.081848Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85339,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:16.855125Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 100,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85405,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:16.855125Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85405,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "tool-Bash",
+            "state": "output-available",
+            "toolCallId": "claude-call-3",
+            "title": "Bash",
+            "input": {
+                "command": "printf goalthree",
+                "description": "Print the string goalthree"
+            },
+            "output": {
+                "provider_tool_name": "Bash",
+                "status": "completed",
+                "type": "tool_result",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:17.305438Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-3",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "raw": {
+                    "stdout": "```console\ngoalthree\n```",
+                    "raw_output": "goalthree"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "status": "pending",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:16.855251Z",
+                "title": "Terminal",
+                "tool_call_id": "claude-call-3",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:17.11007Z",
+                "title": "printf goalthree",
+                "tool_call_id": "claude-call-3",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:17.255277Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-3",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:17.270708Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 104,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85469,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:17.270708Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85469,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.055655Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 106,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85534,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:18.055655Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85534,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        },
+        {
+            "type": "tool-Bash",
+            "state": "output-available",
+            "toolCallId": "claude-call-4",
+            "title": "Bash",
+            "input": {
+                "command": "printf goalfour",
+                "description": "Print the string goalfour"
+            },
+            "output": {
+                "provider_tool_name": "Bash",
+                "status": "completed",
+                "type": "tool_result",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.538061Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-4",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "raw": {
+                    "stdout": "```console\ngoalfour\n```",
+                    "raw_output": "goalfour"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "status": "pending",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.056041Z",
+                "title": "Terminal",
+                "tool_call_id": "claude-call-4",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.298758Z",
+                "title": "printf goalfour",
+                "tool_call_id": "claude-call-4",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "provider_tool_name": "Bash",
+                "type": "tool_call",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.450783Z",
+                "title": "Bash",
+                "tool_call_id": "claude-call-4",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                }
+            }
+        },
+        {
+            "type": "data-compozy-event",
+            "data": {
+                "type": "usage",
+                "session_id": "claude-session",
+                "turn_id": "goal-turn-1",
+                "timestamp": "2026-10-18T14:38:18.463327Z",
+                "goal": {
+                    "kind": "goal-work",
+                    "run_id": "goal-run-1",
+                    "node_id": "goal",
+                    "generation": 1,
+                    "item_index": 0,
+                    "turn": 1,
+                    "prompt_attempt": 0,
+                    "prompt_id": "goal-turn-1"
+                },
+                "usage": {
+                    "meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    },
+                    "sequence": 110,
+                    "turn_id": "goal-turn-1",
+                    "context_used": 85598,
+                    "context_size": 1000000,
+                    "timestamp": "2026-10-18T14:38:18.463327Z"
+                },
+                "raw": {
+                    "sessionUpdate": "usage_update",
+                    "used": 85598,
+                    "size": 1000000,
+                    "_meta": {
+                        "_claude/model": "claude-sonnet-5"
+                    }
+                }
+            }
+        }
+    ]
+}
