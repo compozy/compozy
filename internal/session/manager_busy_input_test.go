@@ -3614,7 +3614,11 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 			return events, nil
 		}
 
-		if _, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"}); err != nil {
+		if _, err := h.manager.SendPrompt(
+			testutil.Context(t),
+			sess.ID,
+			SendPromptOpts{Message: "active prompt"},
+		); err != nil {
 			t.Fatalf("SendPrompt(active) error = %v", err)
 		}
 		<-activeEntered
@@ -3624,10 +3628,15 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SendPrompt(queue) error = %v", err)
 		}
-		_, err = h.manager.PromotePendingInputToSteer(testutil.Context(t), sess.ID, queued.QueueEntryID, PromotePendingInputOpts{
-			Text: "   ", ExpectedTurnID: sess.CurrentTurnID(),
-			MessageID: "message-promote-blank", IdempotencyKey: "idem-promote-blank",
-		})
+		_, err = h.manager.PromotePendingInputToSteer(
+			testutil.Context(t),
+			sess.ID,
+			queued.QueueEntryID,
+			PromotePendingInputOpts{
+				Text: "   ", ExpectedTurnID: sess.CurrentTurnID(),
+				MessageID: "message-promote-blank", IdempotencyKey: "idem-promote-blank",
+			},
+		)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("PromotePendingInputToSteer(blank) error = %v, want ErrValidation", err)
 		}
