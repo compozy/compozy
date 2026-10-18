@@ -405,6 +405,9 @@ func TestSessionPromptIdentity(t *testing.T) {
 
 		var received SessionPromptRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+				return SessionAttachmentRecord{ID: "att-image"}, nil
+			},
 			sendSessionPromptFn: func(_ context.Context, _ string, request SessionPromptRequest) (SessionPromptRecord, error) {
 				received = request
 				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
@@ -416,11 +419,13 @@ func TestSessionPromptIdentity(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps,
 			"session", "prompt", "sess-1", "retry safely",
 			"--message-id", "msg-explicit", "--idempotency-key", "idem-explicit", "-o", "json",
+			"--attachment", "screen.png",
 		)
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt explicit identity) error = %v", err)
 		}
-		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" {
+		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" ||
+			len(received.Attachments) != 1 || received.Attachments[0].ID != "att-image" {
 			t.Fatalf(
 				"SendSessionPrompt() identity = %q/%q, want msg-explicit/idem-explicit",
 				received.MessageID,
@@ -471,7 +476,12 @@ func TestSessionPromptIdentity(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
+				uploads := 0
 				deps := newWorkspaceTestDeps(t, &stubClient{
+					uploadSessionAttachmentFn: func(context.Context, string, string) (SessionAttachmentRecord, error) {
+						uploads++
+						return SessionAttachmentRecord{ID: "att-image"}, nil
+					},
 					sendSessionPromptFn: func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error) {
 						t.Fatal("SendSessionPrompt() called for invalid identity flags")
 						return SessionPromptRecord{}, nil
@@ -480,8 +490,11 @@ func TestSessionPromptIdentity(t *testing.T) {
 				if _, _, err := executeRootCommand(
 					t,
 					deps,
-					tt.args...); !errors.Is(err, tt.want) {
+					append(tt.args, "--attachment", "screen.png")...); !errors.Is(err, tt.want) {
 					t.Fatalf("executeRootCommand(%#v) error = %v, want identity validation error", tt.args, err)
+				}
+				if uploads != 0 {
+					t.Fatalf("invalid identity uploaded %d attachments", uploads)
 				}
 			})
 		}

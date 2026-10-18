@@ -152,6 +152,10 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 		if mode == OutputJSONL && (flags.queue || flags.interrupt || flags.steer) {
 			return errors.New("cli: busy-input prompt actions do not support jsonl output")
 		}
+		messageID, idempotencyKey, err := flags.promptIdentity(cmd)
+		if err != nil {
+			return err
+		}
 		client, err := clientFromDeps(deps)
 		if err != nil {
 			return err
@@ -174,9 +178,9 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 			return err
 		}
 		if mode == OutputJSONL {
-			return flags.streamJSONL(cmd, client, args, runtimeSelection)
+			return flags.streamJSONL(cmd, client, args, runtimeSelection, messageID, idempotencyKey)
 		}
-		record, err := runSessionPromptAction(cmd, client, args, flags, runtimeSelection)
+		record, err := runSessionPromptAction(cmd, client, args, flags, runtimeSelection, messageID, idempotencyKey)
 		if err != nil {
 			return err
 		}
@@ -189,11 +193,8 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	client sessionPromptStreamClient,
 	args []string,
 	runtime *contract.PromptRuntimeSelectionPayload,
+	messageID, idempotencyKey string,
 ) error {
-	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
-	if err != nil {
-		return err
-	}
 	return streamPromptEventsJSONL(cmd, client, args[0], SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
 		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID), Attachments: flags.attachments,
@@ -207,16 +208,13 @@ func runSessionPromptAction(
 	args []string,
 	flags *sessionPromptCommandFlags,
 	runtime *contract.PromptRuntimeSelectionPayload,
+	messageID, idempotencyKey string,
 ) (SessionPromptRecord, error) {
 	if cmd == nil {
 		return SessionPromptRecord{}, errors.New("cli: command is required")
 	}
 	if client == nil {
 		return SessionPromptRecord{}, errors.New("cli: daemon client is required")
-	}
-	messageID, idempotencyKey, err := flags.promptIdentity(cmd)
-	if err != nil {
-		return SessionPromptRecord{}, err
 	}
 	if flags.steer {
 		return client.SteerSessionPrompt(cmd.Context(), args[0], contract.SteerPromptRequest{

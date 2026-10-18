@@ -64,6 +64,12 @@ The five canonical regressions failed before the fix and passed afterward; the r
 all five inputs with the intended errors using the isolated home. Existing valid JSONL streaming and
 attachment-bearing steer tests still pass.
 
+A subsequent outside-diff finding exposed late validation of explicit identity pairs. The common CLI
+submission path now resolves the identity once before uploads, then passes the same IDs to ordinary,
+steer and JSONL delivery. Three existing identity regressions reproduced unwanted uploads before the
+fix and passed afterward with zero uploads. The real binary rejected all three invalid pairs with the
+intended errors; the positive explicit-identity case retains its attachment and exact IDs.
+
 ## Verification
 
 - Focused Web suites: 19 passed; the queue-promotion follow-up suite passed 5 selected cases.
