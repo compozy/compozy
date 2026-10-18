@@ -153,6 +153,7 @@ func (m *Manager) recordEventWithWriter(
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
+	m.publishNativeSubagentEvent(ctx, session, persisted, event)
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)

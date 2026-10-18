@@ -177,3 +177,8 @@ Same implementation build + real 1.4.0 server in a consented isolated lab
 ## Peer-backed integration evidence
 
 `TestAgyACPBuiltInEntry` (`internal/daemon/agy_acp_entry_integration_test.go`, `integration` lane) walks built-in discovery, real `acp.Authenticate`, real `acp.ProbeAuthentication`, and a real manager Create/Prompt against a raw-JSON-RPC peer through a `agy_acp_server.par` PATH shim. The peer replaces only Google's external server: it records exactly one `oauth-personal` authenticate, no prompt during login or probe, and a persisted prompt reply. It is not Google-account evidence; the live walk above has since passed against the real server in the consented 1.4.0 run.
+
+Provider probe recovery: remove the daemon launch directory after startup, then list providers
+and probe native and ACP authentication. The endpoints remain available and probes run from the
+temporary directory, including on systems that return a stale path from `Getwd()`. The owning
+`TestProviderHandlersWithoutWorkingDirectory` subprocess regression verifies this boundary.

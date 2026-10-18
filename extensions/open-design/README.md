@@ -75,9 +75,9 @@ original findings. The tool never writes files.
 
 ## Maintained sources
 
-The extension owns a small set of prompts, three skills, two design references, and the design
-linter. The references distill typography, hierarchy, color, state coverage, accessibility,
-forms, motion, and composition for the four supported formats. The designer and critic bind that
+The extension owns a small set of prompts, three skills, three design references, and the design
+linter. The references distill typography, hierarchy, choice and decision load, color, state
+coverage, accessibility, forms, interface motion, and composition for the four supported formats. The designer and critic bind that
 guidance to ordinary workspace files and native CompozyOS tools.
 
 Selected material comes from OpenDesign and agent-browser; [SOURCES.md](SOURCES.md) records the

@@ -165,6 +165,24 @@ test("operator creates a worktree name-first and can cancel the pending creation
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
+  // Invariant: a deferred dialog download failure stays dismissible without
+  // replacing the desktop. Owner: real shell/module I/O; canonical suite: here.
+  await test.step("recover locally when the dialog download fails", async () => {
+    const dialogAsset = "**/assets/worktree-dialog-boundaries-*.js";
+    await appPage.route(dialogAsset, route => route.abort());
+    await openWorkspaceNest(appPage, workspace.id);
+    await appPage.getByTestId(`os-worktree-create-${workspace.id}`).click();
+    const failure = appPage.getByRole("dialog", { name: "The worktree dialog couldn't open" });
+    await expect(failure).toBeVisible();
+    await expect(failure.getByRole("button", { name: "Reload", exact: true })).toBeEnabled();
+    await expect(appPage.getByTestId("root-route-error")).toHaveCount(0);
+    await failure.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(failure).toBeHidden();
+    await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
+    await appPage.unroute(dialogAsset);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+  });
+
   await openWorkspaceNest(appPage, workspace.id);
   await appPage.getByTestId(`os-worktree-create-${workspace.id}`).click();
 

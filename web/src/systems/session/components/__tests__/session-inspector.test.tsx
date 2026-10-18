@@ -1021,6 +1021,9 @@ describe("SessionInspector — Subagents", () => {
     vi.mocked(globalThis.fetch).mockImplementation(async input => {
       const request = input as Request;
       if (request.method === "POST") return json(409, { error: "Subagent already settled." });
+      if (new URL(request.url).pathname === listPath.replace(/\/subagents$/, "")) {
+        return json(200, { session: parent });
+      }
       return json(200, {
         subagents: [
           wire("sub-run", "running", "Draft the diff panel"),
@@ -1034,7 +1037,7 @@ describe("SessionInspector — Subagents", () => {
 
     const section = await screen.findByTestId("session-inspector-subagents");
     expect(within(section).getByText("Subagents · 1 running")).toBeInTheDocument();
-    await expectFetchRequest({ path: `${listPath}?limit=200` });
+    await expectFetchRequest({ path: `${listPath}?all_profiles=true&limit=200` });
     const rows = within(section).getAllByRole("button", { name: /^Open / });
     expect(rows.map(row => row.getAttribute("aria-label"))).toEqual([
       "Open Audit tokens",
@@ -1045,9 +1048,9 @@ describe("SessionInspector — Subagents", () => {
     await user.click(within(section).getByRole("button", { name: "Stop subagent" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not stop subagent"));
     await expectFetchRequest({
-      callIndex: 1,
+      callIndex: 2,
       method: "POST",
-      path: `/api/workspaces/${parent.workspace_id}/subagents/sub-run/cancel`,
+      path: `/api/workspaces/${parent.workspace_id}/subagents/sub-run/cancel?profile=${parent.profile_name}`,
       body: { reason: "" },
     });
 

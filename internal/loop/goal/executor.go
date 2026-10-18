@@ -220,6 +220,7 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targe
 					return fmt.Errorf("persist applied Goal runtime: %w", err)
 				}
 			}
+			loop.ReportActionLivenessSession(ctx, binding.SessionID)
 			return nil
 		}
 		creationErr, ok := errors.AsType[*loop.ActionSessionCreationError](bindErr)

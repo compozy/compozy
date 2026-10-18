@@ -226,6 +226,21 @@ test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI
 }) => {
   const workspace = await prepareShell(appPage, runtime);
 
+  // Invariant: a failed launcher download leaves the desktop available and
+  // offers a real reload. Owner: shell/module I/O; canonical suite: this journey.
+  await test.step("recover from a failed launcher download", async () => {
+    const launcherAsset = "**/assets/os-empty-desktop-*.js";
+    await appPage.route(launcherAsset, route => route.abort());
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    const failure = appPage.getByRole("alert").filter({ hasText: "The launcher couldn't open" });
+    await expect(failure).toBeVisible();
+    await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
+    await expect(appPage.getByTestId("root-route-error")).toHaveCount(0);
+    await appPage.unroute(launcherAsset);
+    await failure.getByRole("button", { name: "Reload", exact: true }).click();
+    await expect(appPage.getByTestId("os-desk-hint")).toBeVisible();
+  });
+
   await test.step("E2E-001: fresh boot renders the empty desktop without opening a window", async () => {
     await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
     await expect(appPage.getByRole("banner", { name: "System bar" })).toBeVisible();

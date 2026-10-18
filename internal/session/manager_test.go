@@ -1704,6 +1704,7 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
+		h.cfg.Providers["mcpless"] = compozyconfig.ProviderConfig{Command: "mcpless acp", SessionMCP: new(false)}
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 			ID:      h.workspaceID,
 			RootDir: h.workspace,
@@ -1711,7 +1712,7 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
-				Provider: "openclaw",
+				Provider: "mcpless",
 				Prompt:   "You are helpful.",
 			}},
 		})
@@ -1806,6 +1807,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 
 		logs := newCaptureLogHandler()
 		h := newHarness(t, WithLogger(slog.New(logs)))
+		h.cfg.Providers["mcpless"] = compozyconfig.ProviderConfig{Command: "mcpless acp", SessionMCP: new(false)}
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 			ID:      h.workspaceID,
 			RootDir: h.workspace,
@@ -1813,7 +1815,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 			Config:  h.cfg,
 			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
-				Provider: "openclaw",
+				Provider: "mcpless",
 				Prompt:   "You are helpful.",
 			}},
 		})
@@ -1841,8 +1843,8 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 			t.Fatalf("MCP-disabled delegation tools = %#v, want none", got)
 		}
 		got := h.driver.startCalls[0]
-		if got.Command != "openclaw acp" {
-			t.Fatalf("start command = %q, want openclaw acp", got.Command)
+		if got.Command != "mcpless acp" {
+			t.Fatalf("start command = %q, want mcpless acp", got.Command)
 		}
 		if len(got.MCPServers) != 0 {
 			t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
@@ -1860,7 +1862,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 		if got, want := record.Attrs["reason"], "provider_session_mcp_disabled"; got != want {
 			t.Fatalf("session MCP skipped reason = %q, want %q", got, want)
 		}
-		if got, want := record.Attrs["resolved_provider"], "openclaw"; got != want {
+		if got, want := record.Attrs["resolved_provider"], "mcpless"; got != want {
 			t.Fatalf("session MCP skipped provider = %q, want %q", got, want)
 		}
 	})

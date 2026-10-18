@@ -26,12 +26,7 @@ import {
   type SessionSendOutcome,
 } from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import {
-  primarySessionFixture,
-  quietWarningSessionFixture,
-  sessionTranscriptFixture,
-} from "@/systems/session/mocks/fixtures";
-import { sessionQuietWarning } from "@/systems/session/lib/session-quiet-warning";
+import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
   getSessionDebugCounters,
@@ -423,7 +418,6 @@ interface ThreadStateOptions {
   statusSession?: ComponentProps<typeof SessionThread>["statusSession"];
   stopCompletionNote?: boolean;
   stopPhase?: ComponentProps<typeof SessionThread>["stopPhase"];
-  quietWarning?: ComponentProps<typeof SessionThread>["quietWarning"];
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
@@ -432,6 +426,7 @@ interface ThreadStateOptions {
   transport?: SessionTransportState;
   liveDataEnabled?: boolean;
   contextControl?: ComponentProps<typeof SessionThread>["contextControl"];
+  subagentControl?: ComponentProps<typeof SessionThread>["subagentControl"];
   origin?: SessionOriginContextValue | null;
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
@@ -448,7 +443,6 @@ function threadStateElement(
     statusSession = isSessionRunning ? runningStatusSession() : primarySessionFixture,
     stopCompletionNote = false,
     stopPhase = "idle",
-    quietWarning,
     acpSessionId,
     sessionState,
     failure = null,
@@ -457,6 +451,7 @@ function threadStateElement(
     transport,
     liveDataEnabled = true,
     contextControl,
+    subagentControl,
     origin = null,
     forkRequest = null,
   }: ThreadStateOptions
@@ -513,13 +508,13 @@ function threadStateElement(
                 statusSession={statusSession}
                 stopCompletionNote={stopCompletionNote}
                 stopPhase={stopPhase}
-                quietWarning={quietWarning}
                 acpSessionId={acpSessionId}
                 sessionState={sessionState}
                 failure={failure}
                 readOnly={readOnly}
                 liveDataEnabled={liveDataEnabled}
                 contextControl={contextControl}
+                subagentControl={subagentControl}
               />
             </SessionForkContext>
           </SessionOriginContext>
@@ -555,6 +550,27 @@ describe("SessionThread transcript states", () => {
         .getByRole("button", { name: "Inspect context" })
         .closest('[data-testid="composer-shell"]')
     ).not.toBeNull();
+  });
+
+  // Invariant: the subagents control sits after the context ring and before Attach files (#766);
+  // owner: composer toolbar composition.
+  it("Should place the subagents control between the context action and Attach files", () => {
+    renderThreadState({
+      status: "success",
+      contextControl: <button type="button">Inspect context</button>,
+      subagentControl: <button type="button">Subagents</button>,
+    });
+    const order = [
+      screen.getByRole("button", { name: "Inspect context" }),
+      screen.getByRole("button", { name: "Subagents" }),
+      screen.getByRole("button", { name: "Attach files" }),
+    ];
+    for (const [before, after] of [
+      [order[0]!, order[1]!],
+      [order[1]!, order[2]!],
+    ] as const) {
+      expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 
   it("Should preview non-JSON values without returning undefined", () => {
@@ -1139,23 +1155,52 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  // Invariant (US-014.EC-2): while the daemon reports a quiet episode the
-  // status row never shows a working timer the daemon's own signals
-  // contradict; the window's quiet Alert is the one place the quiet clock reads.
-  it("Should keep the status row silent instead of a working timer while the daemon reports a quiet episode", async () => {
+  // Invariant: a turn the daemon's watchdog saw go quiet keeps its one working
+  // row, which adds "quiet for {d}" from the supervision episode — no notice, no
+  // second line; the composer Stop stays the action.
+  it("Should keep the working row with a quiet segment while the daemon reports a quiet turn", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-04-17T18:31:00Z"));
+    vi.setSystemTime(new Date("2026-04-17T18:42:00Z"));
     try {
+      const transcript = [
+        {
+          id: "assistant-quiet-turn",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              text: "Waiting on the build.",
+              state: "streaming",
+              turn_id: "turn-live",
+              timestamp: "2026-04-17T18:00:00Z",
+            },
+          ] as unknown as SessionMessage["parts"],
+        } as SessionMessage,
+      ];
       renderThreadState({
         status: "success",
+        messages: toReadonlyThreadMessages(transcript),
         isSessionRunning: true,
-        quietWarning: sessionQuietWarning(quietWarningSessionFixture),
+        statusSession: {
+          ...runningStatusSession("2026-04-17T18:00:00Z"),
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-04-17T18:30:00Z",
+              warned_at: "2026-04-17T18:40:00Z",
+              stop_at: "2026-04-17T18:50:00Z",
+            },
+            sources: [],
+            work_signals: [],
+          },
+        },
       });
 
-      await screen.findByTestId("composer-input");
-      expect(screen.queryByRole("status", { name: "Quiet" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("status", { name: "Working" })).not.toBeInTheDocument();
-      expect(screen.queryByTestId("session-working-row")).not.toBeInTheDocument();
+      const workingRow = await screen.findByTestId("session-working-row");
+      expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
+      expect(screen.getByTestId("session-working-timer")).toHaveTextContent("42m");
+      expect(screen.getByTestId("session-working-quiet")).toHaveTextContent("quiet for 12m");
+      expect(workingRow).toHaveTextContent(/Working for 42m.*quiet for 12m/);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -6528,5 +6573,172 @@ describe("SessionThread session messages", () => {
     });
     expect(within(card).getByText("Is the retry budget per request or per job?")).toBeVisible();
     expect(screen.getAllByTestId("session-sent-message-row")).toHaveLength(1);
+  });
+
+  function inboundMessage(
+    id: string,
+    text: string,
+    { from = senderId, inReplyTo }: { from?: string; inReplyTo?: string } = {}
+  ): SessionMessage {
+    return {
+      id,
+      role: "user",
+      metadata: {
+        turn_id: `turn-${id}`,
+        message_id: id,
+        origin: {
+          kind: "session",
+          session_id: from,
+          workspace_id: fixtureWorkspaceId(),
+          hop: 1,
+          ...(inReplyTo ? { in_reply_to: inReplyTo } : {}),
+        },
+      },
+      parts: [{ type: "text", text }],
+    } as SessionMessage;
+  }
+
+  it("Should fold consecutive messages from one sender behind their latest card (#760)", async () => {
+    const user = userEvent.setup();
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          inboundMessage("msg-update-1", "Plan drafted."),
+          inboundMessage("msg-update-2", "Tests written."),
+          inboundMessage("msg-update-3", "PR opened."),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    const toggle = await screen.findByTestId("session-inbound-group-toggle");
+    expect(toggle).toHaveTextContent("Refactor billing · 3 messages");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(1);
+    expect(screen.getByText("PR opened.")).toBeVisible();
+    expect(screen.queryByText("Plan drafted.")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getAllByTestId("session-message-card")).toHaveLength(3);
+    expect(screen.getByTestId("session-inbound-group-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+  });
+
+  it("Should link an explicit reply to its Sent card and read the send as replied (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          inboundMessage("msg-approval", "Approved.", { from: targetId, inReplyTo: "msg-plan" }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    // The explicit answer reads replied while the armed watch keeps waiting for the turn to settle.
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
+    const card = await screen.findByRole("article", { name: "Message from Billing reviewer" });
+    expect(
+      within(card).getByRole("button", { name: "In reply: show the original message" })
+    ).toHaveAttribute("data-target-message-id", "msg-sender-turn");
+  });
+
+  it("Should read a send as replied when its answer arrived after the watch expired (#760)", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-sender-turn",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "call-send",
+                state: "output-available",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "Approve the plan?" },
+                output: { status: "accepted", reply_watch: { id: "rw-plan", state: "armed" } },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "call-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-plan",
+                  mode: "queue",
+                  reply_watch_id: "rw-plan",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+          {
+            id: "msg-expired-wake",
+            role: "system",
+            metadata: {
+              turn_id: "turn-wake",
+              synthetic: {
+                kind: "session_reply",
+                wake_event_id: "rw-plan",
+                child_session_id: targetId,
+                child_workspace_id: fixtureWorkspaceId(),
+                child_agent_name: "codex",
+                reason: "expired",
+                summary: "",
+                reply_truncated: false,
+                hop: 1,
+              },
+            },
+            parts: [{ type: "text", text: "No reply arrived in time.", state: "done" }],
+          } as SessionMessage,
+          inboundMessage("msg-approval", "Approved late.", {
+            from: targetId,
+            inReplyTo: "msg-plan",
+          }),
+        ]),
+      },
+      clientWithPeers()
+    );
+
+    expect(
+      await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
+    ).toBeInTheDocument();
   });
 });

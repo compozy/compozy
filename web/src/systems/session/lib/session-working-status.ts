@@ -1,6 +1,7 @@
 // The one status line under the transcript (S3 / ADR-006 rule 3 / US-027):
 // "Thinking…" until the first content, then "Working for {elapsed} · {activity}"
 // from the daemon's durable turn start, still "working" while spawned agents run,
+// "· quiet for {d}" when the daemon's hung-turn watchdog saw no work for a while,
 // and after the turn a frozen sentence — "Stopped by you after {d}", "Failed
 // after {d} · {cause}" — or nothing when it completed (the fold carries "Worked
 // for"). Every duration derives from daemon timestamps, never a browser
@@ -9,7 +10,7 @@
 import { isSubagentLive } from "../components/subagents/subagent-format";
 import type { SubagentView } from "../components/subagents/types";
 import type { SessionPayload } from "../types";
-import { formatQuietDurationWords } from "./session-quiet-warning";
+import { formatQuietDuration, formatQuietDurationWords } from "./session-quiet-warning";
 
 /** Live "Working for Xs" ladder: seconds under a minute, then `Xm Ys`, then `Xh Ym`. */
 export function formatWorkingElapsed(startedAtMs: number, nowMs: number): string {
@@ -104,6 +105,13 @@ export type SessionWorkingStatus =
       activity: string | null;
       /** Live children of this turn; rendered as "N agents running". */
       agentCount: number;
+      /**
+       * Start of the daemon's quiet episode for this turn
+       * (`supervision.quiet_warning.quiet_since`); `null` while the agent works.
+       */
+      quietSinceMs: number | null;
+      /** "12m" since `quietSinceMs` at `nowMs`; rendered as "quiet for 12m". */
+      quietFor: string | null;
     }
   | {
       kind: "stopped";
@@ -161,7 +169,10 @@ export function agentCountLabel(count: number): string {
 export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWorkingStatus {
   const { session, running, thinking, lastTurn, nowMs, subagents } = input;
   if (running) {
-    if (thinking) return { kind: "thinking" };
+    // A reported quiet episode outranks "Thinking": a turn hung before its first
+    // token must still say how long it has been quiet.
+    const quietSinceMs = parseInstant(session.supervision?.quiet_warning?.quiet_since);
+    if (thinking && quietSinceMs === null) return { kind: "thinking" };
     const startedAtMs = parseInstant(session.activity?.turn_started_at);
     return {
       kind: "working",
@@ -169,6 +180,8 @@ export function deriveWorkingStatus(input: SessionWorkingStatusInput): SessionWo
       elapsed: startedAtMs === null ? null : formatWorkingElapsed(startedAtMs, nowMs),
       activity: currentActivity(session),
       agentCount: runningAgentCount(session, subagents),
+      quietSinceMs,
+      quietFor: quietSinceMs === null ? null : formatQuietDuration(nowMs - quietSinceMs),
     };
   }
   if (!lastTurn || lastTurn.startedAtMs === null || lastTurn.endedAtMs === null) {

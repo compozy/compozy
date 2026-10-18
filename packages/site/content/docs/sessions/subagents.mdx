@@ -61,6 +61,11 @@ Things you can do with the card:
 - When the agent starts several subagents at once, they share one group card, such as "3 subagents"
   with "2 working · 1 done".
 
+The composer's toolbar also has a subagents button, between the context ring and the paperclip. It
+stays a quiet icon while no subagent runs; while some do, it shows a small live dot and how many are
+running, such as `2`. Click it to see the same list as the inspector: the ones working now first,
+then **Previous subagents**.
+
 If the parent's turn ends while subagents are still running, a banner above the composer reads
 "Waiting on subagent Sol: diff panel default and base diff design" (or "Waiting on 2 subagents").
 Its **Stop** button cancels them.
@@ -166,7 +171,10 @@ compozy session list --subagents exclude
 
 Claude can also start its own built-in subagents (its Agent or Task tool). CompozyOS shows those as
 the same kind of card with their inner steps tucked inside, so they no longer mix into the parent's
-work. They can't be canceled on their own; stop the parent's turn instead.
+work. They can't be canceled on their own; stop the parent's turn instead. When Claude runs one in
+the background, the card stays **Running** until Claude ends the turn that started it, then reads
+**Completed**. Claude tells only itself how a background subagent went, so that card has no answer
+preview; the parent's reply has it. Stopping the turn early marks it interrupted.
 
 ## Limit the size of answers
 

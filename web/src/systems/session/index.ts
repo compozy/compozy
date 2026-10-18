@@ -127,7 +127,6 @@ export {
   renameSession,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   SessionApiError,
@@ -329,10 +328,6 @@ export {
 } from "./lib/session-stop-attention";
 export { SessionPanelToggle } from "./components/session-panel-toggle";
 export {
-  SessionQuietWarningNotice,
-  type SessionQuietWarningNoticeProps,
-} from "./components/session-quiet-warning-notice";
-export {
   SessionThinkingRow,
   type SessionThinkingRowProps,
 } from "./components/session-thinking-row";
@@ -392,16 +387,7 @@ export {
   type SessionTurnOutcomes,
 } from "./lib/session-turn-outcomes";
 export { SessionTurnOutcomesProvider } from "./lib/session-turn-outcomes-context";
-export {
-  formatQuietDuration,
-  formatQuietDurationWords,
-  sessionQuietWarning,
-  sessionQuietWarningClock,
-  sessionQuietWarningFacts,
-  type SessionQuietWarning,
-  type SessionQuietWarningClock,
-  type SessionQuietWarningFacts,
-} from "./lib/session-quiet-warning";
+export { formatQuietDuration, formatQuietDurationWords } from "./lib/session-quiet-warning";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,
@@ -418,9 +404,8 @@ export {
   buildSessionTree,
   childSessionSignalState,
   collectThreadSessions,
-  visibleSessionOrder,
-  type VisibleSessionOrderOptions,
 } from "./lib/session-hierarchy";
+export { visibleSessionOrder, type VisibleSessionOrderOptions } from "./lib/session-folders";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
@@ -480,6 +465,7 @@ export * from "./hooks";
 
 export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-context";
 export { SessionContextControl } from "./components/session-context-control";
+export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export type { SessionContextView } from "./lib/session-context";
 export type { SessionActivityView } from "./components/session-activity-section";
 
@@ -491,3 +477,5 @@ export {
 export { useSessionCatalog } from "./hooks/use-session-catalog";
 export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
 export { fetchSessionFacets } from "./adapters/session-catalog-api";
+
+export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";

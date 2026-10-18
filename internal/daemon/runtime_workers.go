@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/retention"
 
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -13,6 +14,7 @@ type daemonRuntimeWorkers struct {
 	supervision           *retention.PeriodicWorker
 	autoTitle             *autoTitleRuntime
 	runtimeMemory         *runtimeMemoryMonitor
+	hostLoad              *admission.LoadMonitor
 	toolArtifacts         *toolspkg.ToolArtifactSweeper
 	sessionAttachments    *attachmentspkg.Sweeper
 	authoredHeartbeatWake *apiHeartbeatWakePrompter
@@ -42,6 +44,9 @@ func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
 			"daemon: shutdown runtime memory monitor",
 			w.runtimeMemory.Shutdown(ctx),
 		)
+	}
+	if w.hostLoad != nil {
+		appendWrappedError(errs, "daemon: shutdown host load monitor", w.hostLoad.Shutdown(ctx))
 	}
 	if w.toolArtifacts != nil {
 		appendWrappedError(

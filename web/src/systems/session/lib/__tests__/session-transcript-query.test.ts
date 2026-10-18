@@ -26,6 +26,40 @@ function transcriptData(messages: SessionMessage[]): SessionTranscriptData {
 }
 
 describe("session transcript presentation", () => {
+  // Invariant: provider failure precedence is recomputed across the current
+  // page set, including mixed prose, replaced parts, and removed diagnostics.
+  // Owning layer: transcript projection; canonical suite: this file.
+  it("Should reproject mixed failure content after immutable replacement and history removal", () => {
+    const raw = {
+      type: "data-compozy-event" as const,
+      turnId: "turn-a",
+      data: { type: "error", turn_id: "ignored", error: "disconnected" },
+    };
+    const text = { type: "text" as const, text: "Keep the useful answer" };
+    const mixed = message("mixed", [text, raw]);
+    const marker = message("marker", [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "transcript_marker.created",
+          turn_id: "turn-a",
+          marker: { kind: "transcript_marker.provider_failure" },
+        },
+      },
+    ]);
+    expect(flattenTranscriptMessages(transcriptData([mixed, marker]))).toEqual([
+      { ...mixed, parts: [text] },
+      marker,
+    ]);
+    expect(flattenTranscriptMessages(transcriptData([mixed]))).toEqual([mixed]);
+    const replacement = message("mixed", [text]);
+    expect(flattenTranscriptMessages(transcriptData([replacement, marker]))).toEqual([
+      replacement,
+      marker,
+    ]);
+    expect(flattenTranscriptMessages(transcriptData([]))).toEqual([]);
+  });
+
   it("Should show one durable provider failure across separate transcript messages", () => {
     const rawError = message("error", [
       {

@@ -94,6 +94,41 @@ function eventTurnID(part: unknown, event: ReturnType<typeof compozyEventFromPar
   return event.turn_id?.trim() || null;
 }
 
+interface ProviderFailurePart {
+  index: number;
+  turnID: string;
+  kind: "marker" | "diagnostic" | "error";
+}
+
+const failurePartsByContent = new WeakMap<
+  NonNullable<SessionMessage["parts"]>,
+  readonly ProviderFailurePart[]
+>();
+
+function providerFailureParts(message: SessionMessage): readonly ProviderFailurePart[] {
+  const parts = message.parts;
+  if (!parts) return [];
+  const cached = failurePartsByContent.get(parts);
+  if (cached) return cached;
+  const failures: ProviderFailurePart[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    const event = compozyEventFromPart(part);
+    if (!event) continue;
+    const marker = isProviderFailureMarker(event);
+    if (!marker && event.type !== "error") continue;
+    const turnID = eventTurnID(part, event);
+    if (!turnID) continue;
+    failures.push({
+      index,
+      turnID,
+      kind: marker ? "marker" : isProviderErrorEvent(event) ? "diagnostic" : "error",
+    });
+  }
+  failurePartsByContent.set(parts, failures);
+  return failures;
+}
+
 /**
  * Turn ids that recorded a provider failure, split by which record should
  * survive projection: the daemon emits both a raw `error` event and a
@@ -109,13 +144,9 @@ function providerFailureTurnIDs(messages: readonly SessionMessage[]): {
   const markerTurnIDs = new Set<string>();
   const diagnosticTurnIDs = new Set<string>();
   for (const message of messages) {
-    for (const part of message.parts ?? []) {
-      const event = compozyEventFromPart(part);
-      if (!event) continue;
-      const turnID = eventTurnID(part, event);
-      if (!turnID) continue;
-      if (isProviderFailureMarker(event)) markerTurnIDs.add(turnID);
-      else if (isProviderErrorEvent(event)) diagnosticTurnIDs.add(turnID);
+    for (const failure of providerFailureParts(message)) {
+      if (failure.kind === "marker") markerTurnIDs.add(failure.turnID);
+      else if (failure.kind === "diagnostic") diagnosticTurnIDs.add(failure.turnID);
     }
   }
   return { markerTurnIDs, diagnosticTurnIDs };
@@ -128,21 +159,24 @@ function projectTranscriptMessages(messages: readonly SessionMessage[]): Session
   const projected: SessionMessage[] = [];
   for (const message of messages) {
     const parts = message.parts ?? [];
-    const visibleParts = parts.filter(part => {
-      const event = compozyEventFromPart(part);
-      if (!event) return true;
-      const turnID = eventTurnID(part, event);
-      if (!turnID || !markerTurnIDs.has(turnID)) return true;
-      if (event.type === "error") return isProviderErrorEvent(event);
-      if (isProviderFailureMarker(event)) return !diagnosticTurnIDs.has(turnID);
-      return true;
-    });
+    if (parts.length === 0) continue;
+    const hidden = new Set<number>();
+    for (const failure of providerFailureParts(message)) {
+      if (
+        markerTurnIDs.has(failure.turnID) &&
+        (failure.kind === "error" ||
+          (failure.kind === "marker" && diagnosticTurnIDs.has(failure.turnID)))
+      ) {
+        hidden.add(failure.index);
+      }
+    }
+    if (hidden.size === 0) {
+      projected.push(message);
+      continue;
+    }
+    const visibleParts = parts.filter((_part, index) => !hidden.has(index));
     if (visibleParts.length === 0) continue;
-    projected.push(
-      visibleParts.length === parts.length
-        ? message
-        : ({ ...message, parts: visibleParts } as SessionMessage)
-    );
+    projected.push({ ...message, parts: visibleParts } as SessionMessage);
   }
   return projected;
 }

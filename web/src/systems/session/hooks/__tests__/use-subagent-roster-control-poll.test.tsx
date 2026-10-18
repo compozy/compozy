@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/subagent-api", () => ({ fetchSessionSubagents: vi.fn() }));
 
+import { SessionApiError } from "../../adapters/session-api-errors";
 import { fetchSessionSubagents } from "../../adapters/subagent-api";
 import type { SubagentPayload } from "../../adapters/subagent-api";
 import { sessionKeys } from "../../lib/query-keys";
@@ -48,6 +49,7 @@ function row(id: string, status: string): SubagentPayload {
   };
 }
 
+/** Isolates interval polling from query retries so terminal and transient failures are observable. */
 function setup(enabled: boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
@@ -64,6 +66,8 @@ function setup(enabled: boolean) {
   );
   return queryClient;
 }
+
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.mocked(fetchSessionSubagents).mockReset();
@@ -112,6 +116,44 @@ describe("subagent roster control poll", () => {
       { limit: 200, cursor: "page-2" },
       expect.anything()
     );
+  });
+
+  it.each([404, 410])("Should stop automatic polling after a terminal session %s", async status => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionSubagents).mockRejectedValue(
+      new SessionApiError("Unavailable", status, SESSION)
+    );
+    const queryClient = setup(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(
+      queryClient.getQueryState(sessionKeys.subagentRosterPoll(WORKSPACE, SESSION))?.status
+    ).toBe("error");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    queryClient.clear();
+  });
+
+  it("Should recover through the next poll after a transient failure", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionSubagents)
+      .mockRejectedValueOnce(new SessionApiError("Unavailable", 503, SESSION))
+      .mockResolvedValue({ subagents: [], next_cursor: null });
+    const queryClient = setup(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(2);
+    expect(
+      queryClient.getQueryState(sessionKeys.subagentRosterPoll(WORKSPACE, SESSION))?.status
+    ).toBe("success");
+    queryClient.clear();
   });
 
   it("Should not poll outside a prompt", async () => {

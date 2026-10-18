@@ -70,6 +70,7 @@ type handlerConfig struct {
 	skillsRegistry        core.SkillsRegistry
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
+	hostLoad              doctor.HostLoadSnapshotSource
 	deadEntities          doctor.DeadEntitySource
 	gateway               core.GatewayService
 	homePaths             compozyconfig.HomePaths

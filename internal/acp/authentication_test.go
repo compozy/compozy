@@ -69,13 +69,11 @@ func authTestRequest(
 	}
 	cwd := t.TempDir()
 	return AuthenticationRequest{
-		SessionInspectionRequest: SessionInspectionRequest{
-			AgentName: "auth-probe",
-			Command:   helperCommand(t),
-			Cwd:       cwd,
-			Env:       authTestEnv(t, scenario, recordPath, capturePath, home),
-		},
-		MethodID: "oauth-personal",
+		AgentName: "auth-probe",
+		Command:   helperCommand(t),
+		Cwd:       cwd,
+		Env:       authTestEnv(t, scenario, recordPath, capturePath, home),
+		MethodID:  "oauth-personal",
 	}, cwd
 }
 
@@ -87,7 +85,7 @@ func readAuthRecord(t *testing.T, path string) []string {
 		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
 	}
 	lines := make([]string, 0)
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			lines = append(lines, trimmed)
 		}
@@ -113,7 +111,7 @@ func captureAuthSequence(t *testing.T, capturePath string) []string {
 		t.Fatalf("os.ReadFile(%q) error = %v", capturePath, err)
 	}
 	sequence := make([]string, 0)
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -348,8 +346,8 @@ func TestAuthenticateMethodSafety(t *testing.T) {
 				}
 				return
 			}
-			var unavailable *AuthMethodUnavailableError
-			if !errors.As(err, &unavailable) {
+			unavailable, ok := errors.AsType[*AuthMethodUnavailableError](err)
+			if !ok {
 				t.Fatalf("Authenticate() error = %v, want AuthMethodUnavailableError", err)
 			}
 			if unavailable.Reason != tt.reason {

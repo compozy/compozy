@@ -33,7 +33,7 @@ const STACK_ROWS: StackRow[] = [
   {
     name: "Agent integration",
     diy: "Per-provider adapters and startup scripts for every CLI.",
-    builtIn: "Runs the agents you already use: Claude Code, OpenClaw, and Hermes among them.",
+    builtIn: "Runs the agents you already use: Claude Code, Codex, and Cursor among them.",
   },
 ];
 

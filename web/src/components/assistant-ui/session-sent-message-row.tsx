@@ -1,8 +1,9 @@
-import { useAuiState } from "@assistant-ui/react";
+import { useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { use } from "react";
 
 import { SessionSentCard } from "@/systems/session/components/session-messages/session-sent-card";
 import type { SessionSentReplyState } from "@/systems/session/components/session-messages/session-sent-card";
+import { SessionMessageReplyTo } from "@/systems/session/components/session-messages/session-message-reply-to";
 import { useSessionLabel } from "@/systems/session/components/session-messages/use-session-label";
 import { useSessionMessageOpen } from "@/systems/session/components/session-messages/use-session-message-open";
 import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
@@ -14,6 +15,10 @@ import {
   type SessionSentCallState,
   type SessionSentMessagePart,
 } from "@/systems/session/lib/session-message-payload";
+import {
+  sessionMessageReplyIndex,
+  sessionReplyKey,
+} from "@/systems/session/lib/session-message-replies";
 import type { SessionTimelineToolPart } from "@/systems/session/lib/session-timeline-parts";
 import { SessionTranscriptMessagesContext } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { isRecord, stringField } from "@/systems/session/lib/timeline-message-parts";
@@ -49,6 +54,24 @@ function callState(
   return part.state;
 }
 
+// An explicit answer (`in_reply_to`) reads Replied while the watch is still armed; the watch keeps
+// running, so its outcome wins once the target's turn settles. An answer that arrived after the watch
+// expired still reads Replied rather than No reply.
+function sentReplyState(
+  part: SessionSentMessagePart,
+  messages: readonly ThreadMessage[]
+): SessionSentReplyState {
+  const outcome = part.replyWatchId
+    ? sessionReplyOutcomes(messages).get(part.replyWatchId)
+    : undefined;
+  const key =
+    part.messageId === null ? null : sessionReplyKey(part.targetSessionId, part.messageId);
+  const answered = key !== null && sessionMessageReplyIndex(messages).answered.has(key);
+  if (outcome && !(outcome === "expired" && answered)) return outcome;
+  if (answered) return "completed";
+  return part.replyWatchId ? "waiting" : "none";
+}
+
 /**
  * The "Sent to" card for one `compozy__session_prompt` call (S3). The reply
  * state is derived here: waiting until a reply wake with the same watch id is
@@ -73,10 +96,7 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
   if (owner !== undefined && owner.messageId !== messageId) return null;
   const tool = row.toolPart;
   const message = sessionPromptMessageText(tool?.args) || (owner?.text ?? "");
-  const outcome = part.replyWatchId
-    ? sessionReplyOutcomes(messages).get(part.replyWatchId)
-    : undefined;
-  const reply: SessionSentReplyState = part.replyWatchId ? (outcome ?? "waiting") : "none";
+  const reply = sentReplyState(part, messages);
   const timestamp = row.timestamp ? Date.parse(row.timestamp) : Number.NaN;
   return (
     <div data-testid="session-sent-message-row" className="flex min-w-0 flex-col py-1">
@@ -87,6 +107,14 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         firstLine={firstLine(message)}
         error={toolError(tool)}
         reply={reply}
+        replyTo={
+          part.inReplyTo ? (
+            <SessionMessageReplyTo
+              inReplyTo={part.inReplyTo}
+              peerSessionId={part.targetSessionId}
+            />
+          ) : undefined
+        }
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
       />

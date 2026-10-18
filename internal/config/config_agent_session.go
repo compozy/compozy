@@ -44,6 +44,7 @@ type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
+	Messaging   SessionMessagingConfig   `toml:"messaging"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
 	Derive      SessionDeriveConfig      `toml:"derive"`
 }
@@ -68,8 +69,11 @@ type SessionAttachmentsRetentionConfig struct {
 	MaxAge   time.Duration `toml:"max_age"`
 }
 
-// SessionLimitsConfig defines runtime limits applied to every session.
+// SessionLimitsConfig holds the released session.limits keys.
 type SessionLimitsConfig struct {
+	// Timeout is deprecated and enforced by no session; it stays readable and
+	// writable until its removal in v0.5.0. Idle sessions use
+	// SessionSupervisionConfig.IdleReleaseAfter.
 	Timeout time.Duration `toml:"timeout,omitempty"`
 }
 
@@ -81,7 +85,10 @@ type SessionSupervisionConfig struct {
 	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
 	QuietAfter                time.Duration `toml:"quiet_after"`
 	StopGrace                 time.Duration `toml:"stop_grace"`
-	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
+	// IdleReleaseAfter releases the agent process of a session that has no turn in
+	// flight and no work for this long; the next prompt rebinds it. Zero disables.
+	IdleReleaseAfter   time.Duration `toml:"idle_release_after"`
+	TimeoutCancelGrace time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 
 // SessionBusyInputConfig controls operator input submitted while a turn is active.

@@ -1,17 +1,14 @@
 import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
-import { Play, RotateCcw, Square } from "lucide-react";
+import { RotateCcw, Square } from "lucide-react";
 
 interface SessionPrimaryActionProps {
   showUnarchiveAction: boolean;
   showStopAction: boolean;
-  canResume: boolean;
   controlsBusy: boolean;
   isUnarchiving: boolean;
   isStopping: boolean;
-  isResuming: boolean;
   onUnarchive: () => void;
   onStop: () => void;
-  onResume: () => void;
 }
 
 function primaryAction(props: SessionPrimaryActionProps) {
@@ -32,15 +29,6 @@ function primaryAction(props: SessionPrimaryActionProps) {
       testId: "stop-button",
       label: "Stop session",
       Glyph: Square,
-    };
-  if (props.canResume)
-    return {
-      onClick: props.onResume,
-      disabled: props.controlsBusy && !props.isResuming,
-      busy: props.isResuming,
-      testId: "resume-button",
-      label: "Resume session",
-      Glyph: Play,
     };
   return null;
 }

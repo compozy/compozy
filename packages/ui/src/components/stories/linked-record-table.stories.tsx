@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 
 const records = [
   { id: "TASK-102", title: "Materialize task ledger", owner: "Codex", updated: "2m ago" },
-  { id: "TASK-103", title: "Replay event cursor", owner: "Hermes", updated: "8m ago" },
+  { id: "TASK-103", title: "Replay event cursor", owner: "Claude", updated: "8m ago" },
 ];
 
 /** Single linked record row. */

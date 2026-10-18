@@ -8,6 +8,7 @@ import { UIProvider } from "@compozy/ui";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/systems/session/adapters/subagent-api", () => ({
   cancelSubagent: vi.fn(),
+  fetchSessionSubagents: vi.fn(),
 }));
 vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session/adapters/session-api")>()),
@@ -15,14 +16,20 @@ vi.mock("@/systems/session/adapters/session-api", async importOriginal => ({
 }));
 
 import { fetchSession } from "@/systems/session/adapters/session-api";
-import { cancelSubagent } from "@/systems/session/adapters/subagent-api";
+import {
+  cancelSubagent,
+  fetchSessionSubagents,
+  type SubagentPayload,
+} from "@/systems/session/adapters/subagent-api";
 import type { SubagentView } from "@/systems/session/components/subagents/types";
 import {
   SubagentNavigationContext,
   type SubagentNavigation,
 } from "@/systems/session/contexts/session-subagents-context-value";
+import { SessionComposerSubagents } from "@/systems/session/components/session-composer-subagents";
 import { SessionSubagentsProvider } from "@/systems/session/contexts/session-subagents-provider";
 import { useSubagentOrigin } from "@/systems/session/hooks/use-subagent-origin";
+import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
@@ -35,10 +42,11 @@ import { SessionSubagentBanner } from "../session-subagent-banner";
 import { SessionSubagentRowView } from "../session-subagent-row";
 import { deriveSessionRows, type SessionTimelinePart } from "../session-timeline.logic";
 
-// Suite: subagent wiring between the parent roster, the transcript card, the composer banner,
-// the session window's navigation and the child's "Subagent of" origin.
-// Invariant: cards and banner read state from the roster by id and act through the host's
-// navigation and the cancel route; the origin names the parent only for delegated subagents.
+// Suite: subagent wiring between the parent roster, the transcript card, the composer banner and
+// subagents control, the session window's navigation and the child's "Subagent of" origin.
+// Invariant: cards, banner and composer control read state from the roster by id and act through
+// the host's navigation and the cancel route; the origin names the parent only for delegated
+// subagents.
 // Owning layer: session view wiring (roster context → connected views). Boundary OUT: the
 // cancel and session-detail adapters. Canonical suite: this file (no existing suite owns it).
 const WORKSPACE_ID = "ws-01";
@@ -66,6 +74,36 @@ function view(id: string, overrides: Partial<SubagentView> = {}): SubagentView {
   };
 }
 
+function subagentPayload(id: string): SubagentPayload {
+  return {
+    subagent_id: id,
+    workspace_id: WORKSPACE_ID,
+    parent_session_id: SESSION_ID,
+    parent_turn_id: "turn-1",
+    child_session_id: `sess-${id}`,
+    origin: "delegated",
+    provider_tool_call_id: null,
+    title: `Task ${id}`,
+    role: "general",
+    status: "running",
+    work_state: "working",
+    runtime: { agent: "codex", provider: "codex", model: "", reasoning_effort: "", speed: "" },
+    depth: 1,
+    progress: "",
+    result: null,
+    result_preview: "",
+    result_truncated: false,
+    error: null,
+    wait_timed_out: false,
+    delivery: "none",
+    isolation: "shared",
+    created_at: T0,
+    started_at: T0,
+    settled_at: null,
+    updated_at: T0,
+  };
+}
+
 function cardPart(id: string, origin = "delegated"): SessionTimelinePart {
   return {
     kind: "data",
@@ -81,6 +119,9 @@ function harness(
   navigation: SubagentNavigation | null = null,
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 ) {
+  queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+    profile_name: "design",
+  });
   queryClient.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
     rows,
     staleIds: new Set(),
@@ -223,6 +264,10 @@ describe("roster updates re-render only the card they change (m19)", () => {
 
 describe("composer waiting banner (UT-W13 wiring)", () => {
   it("Should show live delegated subagents of an idle parent and stop each through the cancel route", async () => {
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "design-renamed",
+    });
     vi.mocked(cancelSubagent).mockResolvedValue({ subagent_id: "x", status: "cancel_requested" });
     const rows = [
       view("sub-a"),
@@ -234,9 +279,9 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
     expect(screen.getByText("Waiting on 2 subagents")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(cancelSubagent).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 2))).toEqual([
-      [WORKSPACE_ID, "sub-a"],
-      [WORKSPACE_ID, "sub-b"],
+    expect(vi.mocked(cancelSubagent).mock.calls.map(call => call.slice(0, 3))).toEqual([
+      [WORKSPACE_ID, "sub-a", "design-renamed"],
+      [WORKSPACE_ID, "sub-b", "design-renamed"],
     ]);
   });
 
@@ -266,6 +311,128 @@ describe("composer waiting banner (UT-W13 wiring)", () => {
       wrapper: harness([native]),
     });
     expect(nativeOnly.querySelector("[data-slot=subagent-waiting-banner]")).toBeNull();
+  });
+});
+
+describe("composer subagents control (issue #766 wiring)", () => {
+  it("Should refresh a renamed parent owner before stopping a roster row", async () => {
+    // Invariant: the immutable owner may have a new name; cancellation must resolve it at dispatch.
+    // Owner: roster action hook; canonical suite: this session/subagent wiring suite.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.detail(WORKSPACE_ID, SESSION_ID), {
+      ...primarySessionFixture,
+      profile_name: "old-name",
+    });
+    vi.mocked(fetchSession).mockResolvedValue({
+      ...primarySessionFixture,
+      profile_name: "new-name",
+    });
+    vi.mocked(cancelSubagent).mockResolvedValue({
+      subagent_id: "sub-a",
+      status: "cancel_requested",
+    });
+    const { result } = renderHook(
+      () => useSessionSubagents(WORKSPACE_ID, SESSION_ID, { coldRead: false }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await act(async () => {
+      await result.current.stop(view("sub-a"));
+    });
+    expect(cancelSubagent).toHaveBeenCalledExactlyOnceWith(WORKSPACE_ID, "sub-a", "new-name");
+    client.clear();
+  });
+
+  const parent = (summary: SessionPayload["subagent_summary"] = null): SessionPayload => ({
+    ...primarySessionFixture,
+    id: SESSION_ID,
+    workspace_id: WORKSPACE_ID,
+    subagent_summary: summary,
+  });
+  // The banner observes the roster as the open thread does, so the control reads it live.
+  const host = (session: SessionPayload) => (
+    <>
+      <SessionSubagentBanner parentTurnRunning />
+      <SessionComposerSubagents session={session} />
+    </>
+  );
+
+  it("Should count the parent's live roster and let a loaded empty roster beat a stale summary", () => {
+    render(host(parent()), {
+      wrapper: harness([
+        view("sub-a"),
+        view("sub-native", { origin: "provider_native", child_session_id: null }),
+        view("sub-done", { status: "completed", settled_at: T0 }),
+      ]),
+    });
+    expect(screen.getByRole("button", { name: "Subagents, 2 running" })).toBeInTheDocument();
+    const stale = { live: 1, total: 3, failed: 0, attention: 0, most_urgent: "running" as const };
+    render(host(parent(stale)), { wrapper: harness([]) });
+    expect(screen.getByRole("button", { name: "Subagents, none yet" })).toBeInTheDocument();
+  });
+
+  it("Should hold the session summary until every page of a cold read is in", async () => {
+    // The next page never answers: the first page alone must not stand in for the total.
+    vi.mocked(fetchSessionSubagents).mockReturnValue(new Promise(() => undefined));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [
+        {
+          subagents: [subagentPayload("sub-a"), subagentPayload("sub-b")],
+          next_cursor: "page-2",
+        },
+      ],
+      pageParams: [""],
+    });
+    const summary = {
+      live: 3,
+      total: 250,
+      failed: 0,
+      attention: 0,
+      most_urgent: "running" as const,
+    };
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider>
+          <SessionComposerSubagents session={parent(summary)} />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Subagents, 3 running" })).toBeInTheDocument();
+  });
+
+  it("Should stop a failed cold page walk until the operator retries", async () => {
+    // Invariant: a failed continuation cannot spin requests; explicit retry can recover.
+    // Owner: cold roster wiring, reusing this suite's real QueryClient and adapter boundary.
+    vi.mocked(fetchSessionSubagents).mockReset().mockRejectedValue(new Error("Page unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const firstPage = { subagents: [subagentPayload("sub-a")], next_cursor: "page-2" };
+    client.setQueryData(sessionKeys.subagents(WORKSPACE_ID, SESSION_ID), {
+      pages: [firstPage],
+      pageParams: [""],
+    });
+    const { result } = renderHook(() => useSessionSubagents(WORKSPACE_ID, SESSION_ID), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    expect(result.current.complete).toBe(false);
+    vi.mocked(fetchSessionSubagents)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({ subagents: [subagentPayload("sub-b")], next_cursor: null });
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.complete).toBe(true));
+    expect(result.current.subagents.map(row => row.id)).toEqual(["sub-a", "sub-b"]);
+    client.clear();
   });
 });
 

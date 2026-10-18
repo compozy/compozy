@@ -13,7 +13,6 @@ import {
   childSessionSignalState,
   collectThreadSessions,
   filterThreadSessions,
-  visibleSessionOrder,
 } from "../session-hierarchy";
 import { subagentContextRequests, withSubagentContext } from "../session-subagent-context";
 
@@ -175,43 +174,6 @@ describe("collectThreadSessions", () => {
         session => session.id === "sess-match"
       )?.map(session => session.id)
     ).toEqual(["sess-parent", "sess-match"]);
-  });
-});
-
-describe("visibleSessionOrder", () => {
-  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
-    const rootA = treeSession("sess-a");
-    const childA = treeSession("sess-a-child", { parent: "sess-a" });
-    const rootB = { ...treeSession("sess-b"), agent_name: "reviewer" };
-    const base = {
-      collapsedThreadIds: new Set<string>(),
-      collapsedWorkspaceIds: new Set<string>(),
-      workspaceGroups: [],
-    };
-
-    expect(
-      visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }).map(
-        session => session.id
-      )
-    ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
-    expect(
-      visibleSessionOrder([rootA, childA, rootB], {
-        ...base,
-        scope: "workspace",
-        collapsedThreadIds: new Set(["sess-a"]),
-      }).map(session => session.id)
-    ).toEqual(["sess-a", "sess-b"]);
-    expect(
-      visibleSessionOrder([], {
-        ...base,
-        scope: "all-workspaces",
-        collapsedWorkspaceIds: new Set(["ws-hidden"]),
-        workspaceGroups: [
-          { workspaceId: "ws-hidden", sessions: [rootA] },
-          { workspaceId: "ws-visible", sessions: [rootB] },
-        ],
-      }).map(session => session.id)
-    ).toEqual(["sess-b"]);
   });
 });
 

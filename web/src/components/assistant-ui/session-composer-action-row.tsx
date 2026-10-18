@@ -42,6 +42,7 @@ interface SessionComposerActionRowProps {
   runtimeControl?: ReactNode;
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
+  subagentControl?: ReactNode;
 }
 
 type SessionComposerActionState = {
@@ -302,17 +303,19 @@ export function SessionComposerActionRow({
   runtimeControl,
   environmentControl,
   contextControl,
+  subagentControl,
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
 
   return (
     <div className="flex min-h-(--size-button-icon-default) flex-wrap items-center gap-2">
-      {runtimeControl || environmentControl || contextControl ? (
+      {runtimeControl || environmentControl || contextControl || subagentControl ? (
         <div className="flex min-w-0 items-center gap-1">
           {runtimeControl}
           {environmentControl}
           {contextControl}
+          {subagentControl}
         </div>
       ) : null}
       {canPrompt && attachments ? <SessionAttachButton /> : null}

@@ -43,7 +43,7 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
-Providers with a safe live adapter register `provider_live:<id>` sources. Claude, Codex, Hermes,
+Providers with a safe live adapter register `provider_live:<id>` sources. Claude, Codex,
 and Google Antigravity (`agy`) inspect a short-lived ACP session and preserve the exact model and configuration options it advertises.
 Cursor instead runs `cursor-agent models`, groups its transport aliases into logical model IDs, and
 stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. The first
@@ -98,8 +98,7 @@ configured discovery source, or an extension `model.source`. The built-in catalo
 fallback; it includes Claude Opus 5 so that model remains visible before the first successful live refresh.
 
 An explicit `models.curated` set still controls the default curated view. A newly discovered model may
-first appear only under `view=all` until it is featured or added to that set. OpenClaw is provider-managed:
-its Gateway owns model selection, so CompozyOS does not fabricate catalog controls for it.
+first appear only under `view=all` until it is featured or added to that set.
 
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has

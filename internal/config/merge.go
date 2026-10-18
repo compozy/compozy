@@ -74,6 +74,7 @@ type sessionOverlay struct {
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
+	Messaging   sessionMessagingOverlay   `toml:"messaging"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
 	Derive      sessionDeriveOverlay      `toml:"derive"`
 }
@@ -89,6 +90,8 @@ type sessionLimitsOverlay struct {
 type sessionSupervisionOverlay struct {
 	QuietAfter *time.Duration `toml:"quiet_after"`
 	StopGrace  *time.Duration `toml:"stop_grace"`
+	// IdleReleaseAfter is independent of the quiet watchdog keys.
+	IdleReleaseAfter *time.Duration `toml:"idle_release_after"`
 	// Released keys are translated only at load; remove in v0.5.0.
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`

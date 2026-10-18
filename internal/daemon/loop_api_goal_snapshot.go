@@ -18,33 +18,9 @@ func (s *daemonLoopAPIService) GetSessionGoal(
 	workspaceID string,
 	sessionID string,
 ) (*session.GoalSnapshot, error) {
-	if s == nil || s.goalPersistence == nil {
-		return nil, errors.New("daemon: Goal read persistence is unavailable")
-	}
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: normalize Goal workspace %q: %w", workspaceID, err)
-	}
-	targetSessionID := strings.TrimSpace(sessionID)
-	if targetSessionID == "" {
-		return nil, fmt.Errorf("%w: Goal session_id is required", looppkg.ErrValidation)
-	}
-	if s.sessionStatus == nil {
-		return nil, errors.New("daemon: session status reader is unavailable")
-	}
-	info, err := s.sessionStatus.Status(ctx, targetSessionID)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: read Goal session status %q: %w", targetSessionID, err)
-	}
-	if info == nil || strings.TrimSpace(info.WorkspaceID) != string(ws) {
-		return nil, session.ErrSessionNotFound
-	}
-	projection, err := s.goalPersistence.GetSessionGoalProjection(ctx, ws, targetSessionID)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: read Goal projection for session %q: %w", targetSessionID, err)
-	}
-	if !projection.Found || projection.Cleared {
-		return nil, nil
+	ws, projection, visible, err := s.visibleSessionGoalProjection(ctx, workspaceID, sessionID)
+	if err != nil || !visible {
+		return nil, err
 	}
 	params, nodeID, contractSummary, err := s.goalDefinitionProjection(ctx, ws, projection)
 	if err != nil {
@@ -55,6 +31,58 @@ func (s *daemonLoopAPIService) GetSessionGoal(
 		return nil, fmt.Errorf("daemon: build Goal context snapshot for run %q: %w", projection.RunID, err)
 	}
 	return composeSessionGoalSnapshot(projection, params, nodeID, contractSummary, contextSnapshot), nil
+}
+
+// sessionGoalVisible reports whether GetSessionGoal would find a Goal without hydrating its
+// executed definition or context snapshot; tool availability needs only that answer.
+func (s *daemonLoopAPIService) sessionGoalVisible(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (bool, error) {
+	_, _, visible, err := s.visibleSessionGoalProjection(ctx, workspaceID, sessionID)
+	return visible, err
+}
+
+func (s *daemonLoopAPIService) visibleSessionGoalProjection(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (looppkg.WorkspaceID, goalpkg.SessionProjection, bool, error) {
+	if s == nil || s.goalPersistence == nil {
+		return "", goalpkg.SessionProjection{}, false, errors.New("daemon: Goal read persistence is unavailable")
+	}
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
+			"daemon: normalize Goal workspace %q: %w", workspaceID, err,
+		)
+	}
+	targetSessionID := strings.TrimSpace(sessionID)
+	if targetSessionID == "" {
+		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
+			"%w: Goal session_id is required", looppkg.ErrValidation,
+		)
+	}
+	if s.sessionStatus == nil {
+		return "", goalpkg.SessionProjection{}, false, errors.New("daemon: session status reader is unavailable")
+	}
+	info, err := s.sessionStatus.Status(ctx, targetSessionID)
+	if err != nil {
+		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
+			"daemon: read Goal session status %q: %w", targetSessionID, err,
+		)
+	}
+	if info == nil || strings.TrimSpace(info.WorkspaceID) != string(ws) {
+		return "", goalpkg.SessionProjection{}, false, session.ErrSessionNotFound
+	}
+	projection, err := s.goalPersistence.GetSessionGoalProjection(ctx, ws, targetSessionID)
+	if err != nil {
+		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
+			"daemon: read Goal projection for session %q: %w", targetSessionID, err,
+		)
+	}
+	return ws, projection, projection.Found && !projection.Cleared, nil
 }
 
 func (s *daemonLoopAPIService) goalDefinitionProjection(

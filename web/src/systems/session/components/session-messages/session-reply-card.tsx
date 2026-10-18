@@ -25,11 +25,13 @@ const OUTCOME_DOT: Record<SessionReplyOutcome, SubagentStatus> = {
   failed: "failed",
   canceled: "canceled",
   dropped: "canceled",
+  expired: "canceled",
   unknown: "canceled",
 };
 
 const FIXED_BODY: Partial<Record<SessionReplyOutcome, string>> = {
   dropped: "The message was removed from the queue before it ran.",
+  expired: "No reply arrived in time. The message may still be pending; check the target session.",
   unknown: "The message may not have been delivered; check the target session.",
 };
 

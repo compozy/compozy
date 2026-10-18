@@ -266,7 +266,7 @@ func readAgyEntryPeerLog(t *testing.T, stateDir string) []string {
 		t.Fatalf("read peer log error = %v", err)
 	}
 	lines := make([]string, 0)
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			lines = append(lines, trimmed)
 		}

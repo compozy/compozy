@@ -33,7 +33,7 @@ export function useSessionCreateActions() {
     scope === "workspace" ? runtimeWorkspaceId : null,
     scopeId
   );
-  const openForAgent = (agentName: string) => {
+  const openForAgent = (agentName: string, options: { folderId?: string } = {}) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
@@ -47,6 +47,7 @@ export function useSessionCreateActions() {
     store.trigger.dialogOpened({
       agentName: agentName.trim() || runtimeWorkspace?.default_agent?.trim() || "",
       workspaceId: runtimeWorkspaceId,
+      ...(options.folderId ? { folderId: options.folderId } : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),

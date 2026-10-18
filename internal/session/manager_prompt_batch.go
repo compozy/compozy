@@ -141,6 +141,7 @@ func (m *Manager) dispatchPersistedRecordedEvent(
 	}
 
 	m.recordPersistedWorkProgress(session, event)
+	m.publishNativeSubagentEvent(ctx, session, persisted, event)
 	m.dispatchEventPostRecord(ctx, session, event, persisted.Content, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, persisted.Content)
 	m.publishSessionEvent(ctx, session, persisted)

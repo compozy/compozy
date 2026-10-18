@@ -136,7 +136,7 @@ func runAuthSession(ctx context.Context, params authSessionParams) (err error) {
 	}
 	driver := New(WithControlTimeout(authproviders.DefaultProviderAuthCommandTimeout))
 	if params.output != nil {
-		sinkLauncher := newLocalLauncher(driver.logger, driver.stopTimeout)
+		sinkLauncher := newLocalLauncher(driver.logger, driver.stopTimeout, 0)
 		sinkLauncher.stderrSink = params.output
 		driver.launcher = sinkLauncher
 	}
@@ -163,7 +163,7 @@ func runAuthSession(ctx context.Context, params authSessionParams) (err error) {
 	if err != nil {
 		return err
 	}
-	if _, err := createAuthProbeSession(ctx, proc, agentName); err == nil {
+	if err := createAuthProbeSession(ctx, proc, agentName); err == nil {
 		return nil
 	} else if !params.authenticate || !IsAuthRequiredError(err) {
 		return err
@@ -176,7 +176,7 @@ func runAuthSession(ctx context.Context, params authSessionParams) (err error) {
 	}
 	// The empty authenticate result alone never reports authenticated: one
 	// readiness session proves the login took effect.
-	_, err = createAuthProbeSession(ctx, proc, agentName)
+	err = createAuthProbeSession(ctx, proc, agentName)
 	return err
 }
 
@@ -241,14 +241,14 @@ func createAuthProbeSession(
 	ctx context.Context,
 	proc *AgentProcess,
 	agentName string,
-) (acpsdk.SessionId, error) {
+) error {
 	response, err := proc.sendControlRequest[wireSessionSetupResponse](
 		ctx,
 		acpsdk.AgentMethodSessionNew,
 		wireNewSessionRequest{Cwd: proc.Cwd, McpServers: toSDKMCPServers(nil)},
 	)
 	if err != nil {
-		return "", WrapFailure(
+		return WrapFailure(
 			store.FailureProtocol,
 			"ACP session/new failed",
 			fmt.Errorf("acp: create authentication session for %q: %w", agentName, err),
@@ -256,7 +256,7 @@ func createAuthProbeSession(
 	}
 	proc.SessionID = string(response.SessionID)
 	proc.bindSessionRoute(response.SessionID)
-	return response.SessionID, nil
+	return nil
 }
 
 // selectAuthMethod validates that the exact configured method is advertised as

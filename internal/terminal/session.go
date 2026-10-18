@@ -7,7 +7,6 @@ import (
 	"time"
 
 	terminalvt "github.com/compozy/compozy/internal/terminal/vt"
-	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 type session struct {
@@ -19,7 +18,6 @@ type session struct {
 	ring        *Ring
 	vt          *terminalvt.Actor
 	audit       *auditGate
-	flow        *terminalwire.Group
 	nonce       string
 	profileName string
 	titlePinned bool
@@ -83,7 +81,6 @@ func newSession(
 		ctx:           ctx,
 		cancel:        cancel,
 		proc:          proc,
-		flow:          terminalwire.NewGroup(),
 		ring:          NewRing(settings.ScrollbackBytes),
 		audit:         &auditGate{},
 		nonce:         nonce,

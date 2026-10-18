@@ -480,6 +480,11 @@ func newSubagentDaemonWithSetup(
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
 		acpmock.TurnFixture{Name: "native", Match: acpmock.TurnMatch{UserText: "native work"}, Steps: nativeSteps},
+		acpmock.TurnFixture{
+			Name:  "native-background",
+			Match: acpmock.TurnMatch{UserText: "native background work"},
+			Steps: nativeBackgroundSteps(t),
+		},
 	)
 	// Attributed provider prompts retain the origin header; match the authored suffix explicitly.
 	for _, turn := range fixture.Agents[0].Turns {
@@ -599,8 +604,70 @@ func newSubagentDaemonWithSetup(
 	return d, manager, workspace.ID
 }
 
+// nativeBackgroundSteps replays a background Agent launch, then holds the turn the
+// way claude-agent-acp does until its background subagent settles.
+func nativeBackgroundSteps(t *testing.T) []acpmock.Step {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "acp", "testdata", "claude_agent_background_subagent.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := []acpmock.Step{}
+	for frame := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		steps = append(steps, acpmock.Step{
+			Kind: acpmock.StepKindDriverControl,
+			DriverControl: &acpmock.DriverControlStep{
+				Action:     acpmock.DriverControlWriteRawJSONRPC,
+				RawJSONRPC: strings.ReplaceAll(frame, "session-native", "subagent-test-session-1"),
+			},
+		})
+	}
+	return append(steps,
+		acpmock.Step{
+			Kind:          acpmock.StepKindDriverControl,
+			DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDelay, DelayMS: 1500},
+		},
+		acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "S1 finished in the background."},
+	)
+}
+
 // IT-020: committed ACP Agent/Task traffic creates readable native rows without creating child sessions or wakes.
 func TestSubagentNativeDaemonIntegration(t *testing.T) {
+	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
+	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := manager.SendPrompt(
+			t.Context(),
+			parent.ID,
+			session.SendPromptOpts{Message: "native background work"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range response.Events {
+			continue
+		}
+		var row store.SessionSubagent
+		waitForRuntimeCondition(t, "background native row settled", 10*time.Second, func() bool {
+			page, err := d.SubagentService().
+				List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
+			if err != nil || len(page.Items) != 1 {
+				return false
+			}
+			row = page.Items[0]
+			return store.IsSubagentStatusTerminal(row.Status)
+		})
+		// The fixture holds the turn 1.5 s after the receipt; settling on the receipt would not.
+		if row.Status != "completed" || row.ProviderToolCallID != "toolu_background" || row.Result != nil ||
+			row.Title != "S1 queue core implementation" || row.StartedAt == nil || row.SettledAt == nil ||
+			row.SettledAt.Sub(*row.StartedAt) < time.Second {
+			t.Fatal(row)
+		}
+	})
 	t.Run("Should persist native work without child sessions", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
@@ -3171,12 +3238,13 @@ func writeSessionOriginFixture(t *testing.T, path string, fixture acpmock.Fixtur
 	}
 }
 
-// IT-020: the public native registry and two real ACP turns enforce a shared chain budget.
-// IT-020: successive native steers accumulate the active turn hop budget.
+// IT-020: the public native registry and real ACP turns bound forwarding depth, not conversation length.
+// Invariant: a send forwarded to a session outside the turn's drivers adds a hop until the ninth is refused,
+// while an answer back to the driving session keeps the hop (issue #760 item 4).
 func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
-	t.Run("Should refuse the ninth send between two active operator turns", func(t *testing.T) {
-		d, m, ws := newSubagentDaemonIntegration(t, "injected")
-		var peers [2]*session.Session
+	startPeers := func(t *testing.T, m *session.Manager, ws string, count int) []*session.Session {
+		t.Helper()
+		peers := make([]*session.Session, count)
 		for i := range peers {
 			peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
 			if err != nil {
@@ -3193,37 +3261,33 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 				}
 			}()
 		}
-		turns := [2]string{peers[0].CurrentTurnID(), peers[1].CurrentTurnID()}
+		return peers
+	}
+	steer := func(t *testing.T, d *Daemon, ws string, sender, target *session.Session, id string) error {
+		t.Helper()
+		input, err := json.Marshal(map[string]any{
+			"session_id": target.ID, "message": "chain guidance", "mode": "steer",
+			"message_id": id, "idempotency_key": id,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.toolRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: sender.ID, WorkspaceID: ws, AgentName: "subagent-test", ProfileID: sender.ProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt, ToolCallID: id, TurnID: sender.CurrentTurnID(), Input: input,
+			},
+		)
+		return err
+	}
+	t.Run("Should refuse the ninth forward around a ring of three active turns", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "injected")
+		peers := startPeers(t, m, ws, 3)
+		turns := []string{peers[0].CurrentTurnID(), peers[1].CurrentTurnID(), peers[2].CurrentTurnID()}
 		for hop := 1; hop <= 9; hop++ {
-			sender, target := peers[(hop-1)%2], peers[hop%2]
-			id := fmt.Sprintf("chain-%d", hop)
-			input, err := json.Marshal(
-				map[string]any{
-					"session_id":      target.ID,
-					"message":         "chain guidance",
-					"mode":            "steer",
-					"message_id":      id,
-					"idempotency_key": id,
-				},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err = d.toolRegistry.Call(
-				t.Context(),
-				toolspkg.Scope{
-					SessionID:   sender.ID,
-					WorkspaceID: ws,
-					AgentName:   "subagent-test",
-					ProfileID:   sender.ProfileID,
-				},
-				toolspkg.CallRequest{
-					ToolID:     toolspkg.ToolIDSessionPrompt,
-					ToolCallID: id,
-					TurnID:     sender.CurrentTurnID(),
-					Input:      input,
-				},
-			)
+			sender, target := peers[(hop-1)%3], peers[hop%3]
+			err := steer(t, d, ws, sender, target, fmt.Sprintf("chain-%d", hop))
 			if hop == 9 {
 				requireToolCode(t, err, toolspkg.ErrorCodeSessionMessageHopLimit)
 				continue
@@ -3235,17 +3299,32 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 			if err != nil || effective != hop {
 				t.Fatal(hop, effective, err)
 			}
-			if peers[0].CurrentTurnID() != turns[0] || peers[1].CurrentTurnID() != turns[1] {
-				t.Fatal("steer ended an operator turn")
+			for i, peer := range peers {
+				if peer.CurrentTurnID() != turns[i] {
+					t.Fatal("steer ended an operator turn")
+				}
 			}
 		}
-		for _, peer := range peers {
-			rows, err := m.Events(t.Context(), peer.ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
+		for i, want := range []int{3, 4, 4} {
+			rows, err := m.Events(t.Context(), peers[i].ID, store.EventQuery{Type: acp.EventTypeUserMessage, Limit: 100})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(rows) != 5 {
-				t.Fatalf("inputs = %d, want one operator input plus four steers", len(rows))
+			if len(rows) != want {
+				t.Fatalf("peer %d inputs = %d, want one operator input plus %d steers", i, len(rows), want-1)
+			}
+		}
+	})
+	t.Run("Should keep a two-session conversation at hop one", func(t *testing.T) {
+		d, m, ws := newSubagentDaemonIntegration(t, "injected")
+		peers := startPeers(t, m, ws, 2)
+		for round := 1; round <= 12; round++ {
+			sender, target := peers[(round-1)%2], peers[round%2]
+			if err := steer(t, d, ws, sender, target, fmt.Sprintf("talk-%d", round)); err != nil {
+				t.Fatal(round, err)
+			}
+			if hop, err := m.CurrentTurnEffectiveHop(t.Context(), target.ID); err != nil || hop != 1 {
+				t.Fatalf("round %d hop = %d, %v; want answers to keep hop 1", round, hop, err)
 			}
 		}
 	})
@@ -3902,6 +3981,7 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		d, m, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.QuietAfter = 2 * time.Second
 			cfg.Session.Supervision.StopGrace = 2 * time.Second
+			cfg.Session.Supervision.IdleReleaseAfter = 2 * time.Second
 		}, "injected")
 		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
 		if err != nil {
@@ -3950,19 +4030,22 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			t.Fatalf("waiting orchestrator = %+v, %v; want active", info, err)
 		}
 
-		// The target stops with the question still queued: no evidence remains, so the sender goes quiet.
+		// The target stops with the question still queued: no evidence remains, but an orchestrator waiting
+		// with no turn in flight is idle, not hung — it is never stopped for inactivity.
 		if err := m.Stop(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}
-		waitForRuntimeCondition(t, "orchestrator stopped for inactivity", 20*time.Second, func() bool {
-			info, err := m.Status(t.Context(), sender.ID)
-			return err == nil && info.State == session.StateStopped && info.StopReason == store.StopTimeout
-		})
+		time.Sleep(10 * time.Second)
+		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive ||
+			info.StopReason != "" || info.Supervision.QuietWarning != nil {
+			t.Fatalf("idle orchestrator = %+v, %v; want active without a quiet warning", info, err)
+		}
 		if w, err := db.GetReplyWatch(t.Context(), id); err != nil || w.State != store.ReplyWatchArmed {
-			t.Fatalf("watch while both sessions are stopped = %+v, %v; want armed", w, err)
+			t.Fatalf("watch while the target is stopped = %+v, %v; want armed", w, err)
 		}
 
-		// The operator resumes the target; its answer resumes the orchestrator and wakes it once.
+		// The operator resumes the target; its answer wakes the idle orchestrator once, rebinding its
+		// runtime if the supervisor released it.
 		if _, err := m.Resume(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -3978,5 +4061,52 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			)
 			return err == nil && len(rows) == 1
 		})
+	})
+}
+
+// Invariant: a queue lease a previous daemon process left in dispatching settles as failed with the
+// unknown-outcome summary on boot, so it stops holding capacity, while queued input is untouched and
+// boot proceeds. Owner: daemon boot repair integration (#760).
+func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
+	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		target, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		queue, ok := d.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", d.registry)
+		}
+		now := time.Now().UTC()
+		for index, id := range []string{"inq-stranded", "inq-waiting"} {
+			if _, _, err := queue.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+				ID: id, SessionID: target.ID, Text: id, QueueCap: 10, Now: now.Add(time.Duration(index) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		claimed, ok, err := queue.ClaimNextSessionInput(t.Context(), target.ID, now)
+		if err != nil || !ok || claimed.ID != "inq-stranded" {
+			t.Fatalf("claim = %q/%v/%v, want the stranded lease", claimed.ID, ok, err)
+		}
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		reopened, ok := restarted.registry.(store.SessionInputQueueStore)
+		if !ok {
+			t.Fatalf("registry = %T, want SessionInputQueueStore", restarted.registry)
+		}
+		stranded, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-stranded")
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed ||
+			stranded.FailureSummary != store.SessionInputStaleDispatchSummary {
+			t.Fatalf("stranded = %q/%q, %v; want failed by boot recovery", stranded.Status, stranded.FailureSummary, err)
+		}
+		waiting, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-waiting")
+		if err != nil || waiting.Status == store.SessionInputQueueStatusFailed {
+			t.Fatalf("waiting = %q, %v; want queued input untouched by the sweep", waiting.Status, err)
+		}
 	})
 }

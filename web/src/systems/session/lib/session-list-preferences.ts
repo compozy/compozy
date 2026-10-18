@@ -9,7 +9,13 @@
  * exactly; the daemon validates it and rejects anything else.
  */
 
-export const SESSION_LIST_SORTS = ["created", "name", "last_activity", "attention"] as const;
+export const SESSION_LIST_SORTS = [
+  "created",
+  "name",
+  "last_activity",
+  "attention",
+  "manual",
+] as const;
 export const SESSION_LIST_SCOPES = ["workspace", "all-workspaces"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];

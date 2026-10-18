@@ -55,6 +55,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s",
     terminal: terminalSettingsFixture,
   },
   config_paths: {
@@ -226,7 +227,7 @@ export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
         scanned_count: 5,
         skill_count: 3,
         truncated: false,
-        native_readers: ["openclaw", "hermes"],
+        native_readers: [],
         skipped_links: [
           { path: `${storyWorkspacePaths.hq}/.agents/skills/review-old`, reason: "dangling" },
           { path: `${storyWorkspacePaths.hq}/.agents/skills/vendor-link`, reason: "escape" },
@@ -249,7 +250,7 @@ export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
         scanned_count: 2,
         skill_count: 2,
         truncated: false,
-        native_readers: ["openclaw"],
+        native_readers: [],
       },
     ],
   },
@@ -640,138 +641,12 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
   },
   {
-    name: "blackbox",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "blackbox --experimental-acp",
-      display_name: "BLACKBOX AI",
-      harness: "acp",
-      auth_mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-    },
-    auth_status: {
-      mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-      state: "unknown",
-      code: "provider_classification_unknown",
-      message:
-        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
-      login: {
-        configured: false,
-        presence: "unknown",
-        recommended_action: "inspect",
-      },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "cline",
-    default: false,
-    command_available: true,
-    settings: { command: "npx -y cline@latest --acp", display_name: "Cline", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "goose",
-    default: false,
-    command_available: true,
-    settings: { command: "goose acp", display_name: "Goose", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "hermes",
-    default: false,
-    command_available: true,
-    settings: { command: "hermes acp", display_name: "Hermes", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "junie",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "junie --acp true",
-      display_name: "Junie",
-      harness: "acp",
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
     name: "kimi-cli",
     default: false,
     command_available: true,
     settings: {
       command: "kimi acp",
       display_name: "Kimi CLI",
-      harness: "acp",
-      auth_mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-    },
-    auth_status: {
-      mode: "native_cli",
-      env_policy: "filtered",
-      home_policy: "operator",
-      state: "unknown",
-      code: "provider_classification_unknown",
-      message:
-        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
-      login: {
-        configured: false,
-        presence: "unknown",
-        recommended_action: "inspect",
-      },
-    },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "openclaw",
-    default: false,
-    command_available: true,
-    settings: { command: "openclaw acp", display_name: "OpenClaw", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "openhands",
-    default: false,
-    command_available: true,
-    settings: { command: "openhands acp", display_name: "OpenHands", harness: "acp" },
-    source_metadata: {
-      available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "user" },
-    },
-  },
-  {
-    name: "qoder",
-    default: false,
-    command_available: true,
-    settings: {
-      command: "npx -y @qoder-ai/qodercli@latest --acp",
-      display_name: "Qoder CLI",
       harness: "acp",
       auth_mode: "native_cli",
       env_policy: "filtered",

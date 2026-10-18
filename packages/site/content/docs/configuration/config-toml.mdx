@@ -31,6 +31,7 @@ CompozyOS archives them on load instead of failing; see
 | ------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.    | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider and MCP subsystem applies.                    | providers `5s`, MCP `10s`                                                                             |
+| `[daemon.load]`                      | Agent CPU priority and load-aware admission for background work.                       | niceness `10`, threshold `1.5`, max wait `2m`                                                         |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
@@ -42,8 +43,8 @@ CompozyOS archives them on load instead of failing; see
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.        | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
+| `[session.limits]`                   | Deprecated. `timeout` has no effect and is removed in v0.5.0.                          | `timeout = "0s"`                                                                                      |
+| `[session.supervision]`              | Activity heartbeat, progress, hung-turn watchdog, and idle runtime release controls.   | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes, idle release 30m  |
 | `[session.derive]`                   | Size bounds of every transcript replay into a new agent session.                       | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[subagents]`                        | Size cap of the answer a subagent returns to its parent session.                       | `result_max_chars = 60000`                                                                            |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
@@ -170,6 +171,16 @@ providers = "5s"
 # MCP runtime reload budget. Valid range: 1s to 60s.
 mcp = "10s"
 
+[daemon.load]
+# Run agent process trees (and the tests, linters, and builds they launch) at niceness 10.
+# Set to 0 to keep the daemon's priority.
+agent_niceness = 10
+# Delay new background sessions and prompts while the 1-minute load average exceeds
+# 1.5x the logical CPU count. Set to 0 to disable load sampling.
+admission_threshold = 1.5
+# Longest one background admission waits before it proceeds anyway.
+admission_max_wait = "2m"
+
 [http]
 # HTTP/SSE API bind address.
 host = "localhost"
@@ -281,7 +292,8 @@ acp_options = [{ id = "thinking", bool_value = true }]
 max_concurrent_agents = 20
 
 [session.limits]
-# 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
+# Deprecated: no session enforces this key; it is removed in v0.5.0.
+# Use session.supervision.idle_release_after for idle sessions.
 timeout = "0s"
 
 [session.busy_input]
@@ -290,15 +302,29 @@ default_mode = "steer"
 queue_cap = 10
 max_text_bytes = 65536
 
+[session.messaging]
+# Agent-to-agent messages (compozy__session_prompt) one sender session may send to one target per window.
+# -1 disables the budget.
+rate_limit_messages = 30
+rate_limit_window = "10m"
+# An armed reply watch with no answer after this long wakes its sender once with an `expired` outcome.
+# "24h" is the default; "0s" never expires a watch, so a sender waiting on a long-running target stays awake.
+reply_watch_ttl = "24h"
+# A queued message from another session waiting on a turn that has run this long is injected into the live
+# turn when the provider supports steering. "0s" disables promotion.
+queue_promote_after = "2m"
+
 [session.supervision]
 # Short heartbeats update durable liveness only. They are not persisted as session events.
 activity_heartbeat_interval = "30s"
 # 0 disables periodic progress events.
 progress_notify_interval = "10m"
-# 0 disables both silence warning and automatic stop.
+# Silence in an in-flight turn before one warning. 0 disables the hung-turn watchdog.
 quiet_after = "30m"
 # 0 disables automatic stop after the warning.
 stop_grace = "10m"
+# Idle time before the agent process of a resumable idle session is released. 0 disables it.
+idle_release_after = "30m"
 # Grace after an explicit prompt-budget cancellation.
 timeout_cancel_grace = "30s"
 
@@ -698,7 +724,7 @@ max_turns = 20
 context_nudge_ratio = 0.8
 # Durable session-event relay controls. Applied when the daemon starts.
 outbox_batch_size = 50
-outbox_poll_interval = "100ms"
+outbox_poll_interval = "2s"
 
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
@@ -807,6 +833,32 @@ verdicts do not emit another transition, and a completed, failed, or canceled ru
 An unexpected ACP process exit triggers the same transition immediately when the value is positive.
 Set the field to `0` when you want `compozy status` and `compozy doctor` evidence without task mutation.
 Changing this field is restart-required.
+
+## `[daemon.load]`
+
+These fields keep many concurrent agents from saturating the host and starving the desktop UI.
+
+| Field                 | Type     | Default | Valid values                                                       | Description                                                                                        |
+| --------------------- | -------- | ------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `agent_niceness`      | integer  | `10`    | `0` through `19`. `0` disables.                                    | CPU niceness applied to each agent's process group on macOS and Linux. Ignored on Windows.         |
+| `admission_threshold` | float    | `1.5`   | `0` to disable, or a positive number.                              | Normalized load (1-minute load average divided by logical CPUs) above which background work waits. |
+| `admission_max_wait`  | duration | `2m`    | `1s` through `30m` when the threshold is enabled; otherwise `0s`+. | Longest one background session start or prompt waits for load to drop before it proceeds anyway.   |
+
+CompozyOS starts each agent in its own process group and applies `agent_niceness` to that group right
+after launch, so every tool, test runner, linter, and build the agent starts inherits the lower
+priority. On an idle machine the agent still gets all available CPU; the niceness only matters when
+processes compete. Raising priority back requires root, so the value is fixed for the lifetime of the
+agent process. If the operating system refuses the change, the session still starts and the daemon logs
+one warning.
+
+When `admission_threshold` is above zero, the daemon samples the load average every five seconds.
+While normalized load exceeds the threshold, new sessions and prompts started by scheduled or
+triggered automations, Loops, and scheduler wakes wait until load drops or `admission_max_wait`
+elapses, then proceed. Prompts and sessions you start yourself, and manual automation runs, are never
+delayed. `compozy doctor -o json` reports the current state in the `runtime.load` item: the sampled and
+normalized load, whether background work is waiting, and how many admissions were delayed. Platforms
+without a load average (Windows) report the feature as unavailable and never delay work. Changing any
+field is restart-required.
 
 ## `[http]`
 
@@ -1105,9 +1157,16 @@ Subagents have no depth, count, or TTL caps.
 
 ## `[session.limits]`
 
-| Field     | Type     | Default | Valid values                  | Description                                                                    |
-| --------- | -------- | ------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| `timeout` | duration | `0s`    | Zero or positive Go duration. | Session-level wall-clock timeout. Zero means no configured wall-clock timeout. |
+<Callout type="warn">
+  `session.limits.timeout` is deprecated and has no effect: no session is ended or stopped when it
+  elapses. It stays readable and writable through v0.4 so existing files and scripts keep loading,
+  and a non-zero value logs a deprecation warning at load. It is removed in v0.5.0. To free the
+  agent of an idle session, use [`session.supervision.idle_release_after`](#sessionsupervision).
+</Callout>
+
+| Field     | Type     | Default | Valid values                  | Description                                                            |
+| --------- | -------- | ------- | ----------------------------- | ---------------------------------------------------------------------- |
+| `timeout` | duration | `0s`    | Zero or positive Go duration. | Deprecated; not enforced. Removed in v0.5.0. Use `idle_release_after`. |
 
 ## `[session.attachments]`
 
@@ -1167,17 +1226,28 @@ generation.
 
 ## `[session.supervision]`
 
-Session supervision uses fresh work evidence across active and idle sessions. See
+Session supervision uses fresh work evidence across live sessions. `quiet_after` and `stop_grace`
+are a hung-turn watchdog: silence accrues only while a turn is in flight and waiting on the agent,
+so a session waiting for you is never warned or stopped for inactivity. `idle_release_after`
+silently releases the agent process of an idle session whose agent supports ACP `session/load`; the
+session stays active and the next prompt binds a runtime again. See
 [session lifecycle](/docs/sessions/lifecycle#runtime-activity-supervision) for signal validity,
-quiet warnings, unknown-source attention, and the stop ladder.
+quiet warnings, unknown-source attention, the stop ladder, and
+[idle runtime release](/docs/sessions/lifecycle#idle-runtime-release).
+
+Settings → General → **Pause idle agents after** edits `idle_release_after` (Never, 15 minutes,
+30 minutes, 1 hour, 4 hours, or 1 day; any other configured duration is shown as-is). The general
+settings HTTP/UDS DTO carries it as `config.idle_release_after`; omit the field on update to keep
+the current value. Changing it requires a daemon restart.
 
 | Field                         | Type     | Default | Valid values          | Description                                                                              |
 | ----------------------------- | -------- | ------- | --------------------- | ---------------------------------------------------------------------------------------- |
 | `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration. | Metadata heartbeat cadence; actual agent progress remains fresh for twice this interval. |
 | `progress_notify_interval`    | duration | `10m`   | Zero or positive.     | Periodic `runtime_progress` cadence; zero disables it.                                   |
+| `idle_release_after`          | duration | `30m`   | Zero or positive.     | Idle time before a resumable idle session's agent process is released. Zero disables it. |
 | `prompt_deadline`             | duration | `0s`    | Zero or positive.     | Optional total prompt budget.                                                            |
-| `quiet_after`                 | duration | `30m`   | Zero or positive.     | Observed silence before one warning. Zero disables warning and automatic stop.           |
-| `stop_grace`                  | duration | `10m`   | Zero or positive.     | Continued silence after the warning before stopping. Zero disables only automatic stop.  |
+| `quiet_after`                 | duration | `30m`   | Zero or positive.     | Silence in an in-flight turn before one warning. Zero disables warning and auto stop.    |
+| `stop_grace`                  | duration | `10m`   | Zero or positive.     | Continued turn silence after the warning before stopping. Zero disables only auto stop.  |
 | `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration. | Grace after explicit prompt-budget cancellation.                                         |
 
 The released `inactivity_warning_after` and `inactivity_timeout` keys remain readable and writable
@@ -1465,9 +1535,12 @@ manual clear or revive command.
 ## `[providers.<name>]`
 
 Provider keys override built-ins with the same name or create a custom provider. Built-ins are
-`claude`, `codex`, `gemini`, `opencode`, `copilot`, `cursor`, `kiro`, `blackbox`, `cline`,
-`goose`, `hermes`, `junie`, `kimi-cli`, `openclaw`, `openhands`, `qoder`, `qwen-code`, `pi`,
-`openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`, `minimax`, `mistral`, and `groq`.
+`claude`, `codex`, `gemini`, `opencode`, `copilot`, `cursor`, `kimi-cli`, `qwen-code`, `pi`,
+`openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, and `xai`. The retired built-ins `hermes`,
+`openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`, `openhands`, `qoder`, `mistral`, `groq`,
+and `minimax` keep resolving with a `provider.retired_builtin` warning until v0.5.0; declare them
+here with their own `command` to keep using them. See
+[Retired built-in providers](/docs/agents/providers#retired-built-in-providers).
 
 | Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                         |
 | --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -1549,7 +1622,7 @@ metadata, never an allowlist.
 | `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
 | `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
 | `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
-| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Claude, Codex, Cursor, and Hermes have built-in paths.                      |
+| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Claude, Codex, and Cursor have built-in paths.                              |
 | `models.discovery.command`                      | string  | adapter default.                   | Shell-style command string.                                                            | Discovery command. Cursor defaults to `cursor-agent models`; ACP adapters use the provider command.                    |
 | `models.discovery.endpoint`                     | string  | adapter default.                   | Absolute HTTP(S) URL.                                                                  | Discovery endpoint URL. Cursor accepts command discovery only.                                                         |
 | `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
@@ -1559,7 +1632,7 @@ Agent-reported actual cost remains authoritative over catalog estimation. Estima
 finite, non-negative rate for every nonzero token bucket; missing cache-read, cache-write, or
 reasoning rates do not fall back to input or output rates.
 
-Discovery adapters use the resolved provider auth, env, and home policy. Claude, Codex, and Hermes use a
+Discovery adapters use the resolved provider auth, env, and home policy. Claude and Codex use a
 short-lived ACP inspection. Cursor runs `cursor-agent models`, groups its aliases into logical models, and
 stores the valid Reasoning, Fast, and Thinking combinations plus private launch bindings. If discovery is
 unavailable or fails, the catalog records source status and keeps the last successful rows as stale data.
@@ -1569,9 +1642,7 @@ also refreshes periodically.
 Writes under `providers.<id>.models.discovery` apply live. A changed discovery source refreshes
 immediately; provider model metadata changes do not rerun discovery.
 
-Hermes has built-in ACP discovery and requires a successful ACP handshake; `hermes acp --check` is only
-its install/import preflight. OpenClaw has no built-in model source because its Gateway owns model
-selection. Pi and custom providers need an explicit discovery path or an extension `model.source` when
+Pi and custom providers need an explicit discovery path or an extension `model.source` when
 they should contribute live rows.
 
 Top-level `[model_catalog.sources.models_dev]` controls the cross-provider `models.dev` enrichment
@@ -1619,8 +1690,7 @@ vault paths are not valid provider credential refs.
 The slot `required` flag is enforced at session start for both `env:` and `vault:` refs.
 `credential_slots` are valid only when `auth_mode = "bound_secret"`. Direct ACP built-ins and the
 direct `pi` provider use `native_cli` by default and do not preflight provider API keys. Pi-backed
-API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral,
-and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs Pi under the hood.
+API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI default to CompozyOS-managed `bound_secret` slots while CompozyOS runs Pi under the hood.
 
 | Built-in            | Harness  | Runtime provider    | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | --------------------------- | -------------- | -------------------- |
@@ -1630,16 +1700,7 @@ and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs 
 | `opencode`          | `acp`    | `opencode`          | none                        | `native_cli`   | provider login       |
 | `copilot`           | `acp`    | `copilot`           | none                        | `native_cli`   | provider login       |
 | `cursor`            | `acp`    | `cursor`            | none                        | `native_cli`   | provider login       |
-| `kiro`              | `acp`    | `kiro`              | none                        | `native_cli`   | provider login       |
-| `blackbox`          | `acp`    | `blackbox`          | none                        | `native_cli`   | provider login       |
-| `cline`             | `acp`    | `cline`             | none                        | `native_cli`   | provider login       |
-| `goose`             | `acp`    | `goose`             | none                        | `native_cli`   | provider login       |
-| `hermes`            | `acp`    | `hermes`            | none                        | `native_cli`   | provider login       |
-| `junie`             | `acp`    | `junie`             | none                        | `native_cli`   | provider login       |
 | `kimi-cli`          | `acp`    | `kimi-cli`          | none                        | `native_cli`   | provider login       |
-| `openclaw`          | `acp`    | `openclaw`          | none                        | `native_cli`   | provider login       |
-| `openhands`         | `acp`    | `openhands`         | none                        | `native_cli`   | provider login       |
-| `qoder`             | `acp`    | `qoder`             | none                        | `native_cli`   | provider login       |
 | `qwen-code`         | `acp`    | `qwen-code`         | `qwen3.6-plus`              | `native_cli`   | provider login       |
 | `pi`                | `pi_acp` | `anthropic`         | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
 | `openrouter`        | `pi_acp` | `openrouter`        | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
@@ -1647,9 +1708,6 @@ and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs 
 | `moonshot`          | `pi_acp` | `kimi-coding`       | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
 | `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
 | `xai`               | `pi_acp` | `xai`               | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
-| `minimax`           | `pi_acp` | `minimax`           | `MiniMax-M2.1`              | `bound_secret` | `MINIMAX_API_KEY`    |
-| `mistral`           | `pi_acp` | `mistral`           | `devstral-medium-latest`    | `bound_secret` | `MISTRAL_API_KEY`    |
-| `groq`              | `pi_acp` | `groq`              | `openai/gpt-oss-120b`       | `bound_secret` | `GROQ_API_KEY`       |
 
 ## `[model_catalog.sources.models_dev]`
 
@@ -2119,7 +2177,7 @@ one relay serves every workspace in the daemon.
 | `max_turns`            | integer  | `20`    | Positive integer.     | Turn limit written into a new synthetic Goal definition.                     |
 | `context_nudge_ratio`  | number   | `0.8`   | `0.0` through `1.0`   | Context threshold pinned to the Run and copied into every Goal checkpoint.   |
 | `outbox_batch_size`    | integer  | `50`    | `1` through `200`     | Global maximum pending projections and cleanup obligations claimed per pass. |
-| `outbox_poll_interval` | duration | `100ms` | Positive Go duration. | Global delay between durable relay passes.                                   |
+| `outbox_poll_interval` | duration | `2s`    | Positive Go duration. | Global fallback sweep; committed enqueues wake the relay immediately.        |
 
 `context_nudge_ratio = 0.0` is explicit and disables context nudging. A config change cannot alter
 the ratio of an existing Run, including after daemon restart or a later generation.
@@ -2401,6 +2459,23 @@ See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, a
 Changes through General Settings apply to subsequent admissions without a daemon restart.
 The historical `interrupt` default remains accepted with a warning through v0.4 and is scheduled
 for removal in v0.5.0. Interrupt remains an explicit per-send action.
+
+### Agent message budget and reply watches
+
+`session.messaging.rate_limit_messages` (default `30`, 1–10000, or `-1` to disable the budget) and `session.messaging.rate_limit_window`
+(default `10m`, 1s–24h) bound how many messages one agent session may send to the same target session.
+The count comes from durable admissions, so retries of an admitted message are not counted twice. A send
+past the budget is refused with `message_rate_limited` (HTTP 429), and the error details carry `limit`,
+`window`, and `retry_after_seconds`. The refusal affects only that send; neither session is stopped or
+canceled. `session.messaging.reply_watch_ttl` (default `24h`; `0s` never expires a watch;
+otherwise 1m–30d): it releases a `notify_on_complete` reply watch that never fired, waking the sender once
+with the `expired` outcome so the watch stops keeping the sender awake. `session.messaging.queue_promote_after` (default `2m`, `0s` or
+10s–24h) delivers a `queue` message from another session into a long-running target: once the target has
+been in the same turn this long and its provider supports injected steering, the oldest waiting agent
+message is injected into the live turn with its original message id, so its reply watch still follows it.
+Promotion only injects: it never interrupts or cancels the active turn, a refused injection waits for the
+turn to end, and it never runs while operator input is waiting. `0s` disables it. These values apply when the
+daemon starts.
 
 `providers.<name>.steer_capability` accepts `steer_ext`, `concurrent_prompt`, or `none`.
 An advertised steering extension takes precedence over this override. Otherwise the daemon uses

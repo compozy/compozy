@@ -14,7 +14,7 @@ export interface DesktopSessionDialogsProps {
   disconnected: boolean;
   /** Breadth, order, catalog, and widened workspace groups — owned by the shell. */
   view: SessionListViewModel;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
 }
 
 /**
@@ -29,7 +29,7 @@ export function DesktopSessionDialogs({
   view,
   onNewSession,
 }: DesktopSessionDialogsProps) {
-  const lifecycle = useSessionLifecycleActions({ workspaceId });
+  const lifecycle = useSessionLifecycleActions();
   return (
     <OsSessionsDialogHost
       open={open}
@@ -60,6 +60,7 @@ export function WorkspaceSetupDialogBoundary({
   open: boolean;
 }) {
   const setup = useWorkspaceSetupContent({
+    enabled: open,
     onWorkspaceResolved,
     onSuccessClose: () => onOpenChange(false),
   });

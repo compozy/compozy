@@ -83,6 +83,7 @@ export function useSessionWindowController(input: {
   );
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
+    liveDataEnabled,
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });
@@ -141,7 +142,6 @@ export function useSessionWindowController(input: {
     isDeleting: controls.isDeleting,
     isRenaming: controls.isRenaming,
     isStopping: controls.isStopping,
-    isResuming: controls.isResuming,
     isUnarchiving: controls.isUnarchiving,
     isClearing: controls.isClearing,
     canClear: controls.canClear,
@@ -163,7 +163,6 @@ export function useSessionWindowController(input: {
     onDelete: deleteDialog.openDialog,
     onRename: renameDialog.openDialog,
     onStop: controls.handleStop,
-    onResume: controls.handleResume,
     onUnarchive: controls.handleUnarchive,
     onClear: clearDialog.openDialog,
     onContinue,

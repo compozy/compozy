@@ -33,7 +33,7 @@ func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
 	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'read line; printf \"%s\\n\" \"$line\"; sleep 0.1'",
 		Cwd:     root,
@@ -107,7 +107,7 @@ func TestLocalConstructorsReturnInterfaceImplementations(t *testing.T) {
 func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
 	if _, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "definitely-not-an-compozy-test-command",
 		Cwd:     t.TempDir(),
@@ -124,7 +124,7 @@ func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
 			spec, err := launcher.PrepareLaunch(testutil.Context(t), LaunchSpec{
 				Command: "QA_ACCOUNT=seat-two QA_HOME='/tmp/seat two' sh -c true",
 				Cwd:     t.TempDir(),
@@ -155,7 +155,7 @@ func TestLocalLauncherPrepareLaunchForwardsLeadingEnvironment(t *testing.T) {
 func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
 	spec := LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
 	var missingContext context.Context
 	if _, err := launcher.PrepareLaunch(missingContext, spec); err == nil {
@@ -286,7 +286,7 @@ func TestDriverStartUsesFinalEnvironmentForProviderExecutable(t *testing.T) {
 func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 	t.Parallel()
 
-	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond)
+	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond, 0)
 	handle, err := launcher.Launch(testutil.Context(t), LaunchSpec{
 		Command: "sh -c 'while :; do sleep 1; done'",
 		Cwd:     t.TempDir(),
@@ -686,7 +686,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 func TestDriverUsesInjectedLauncherAndToolHostOptions(t *testing.T) {
 	t.Parallel()
 
-	launcher := &recordingLauncher{delegate: newLocalLauncher(testDiscardLogger(), time.Second)}
+	launcher := &recordingLauncher{delegate: newLocalLauncher(testDiscardLogger(), time.Second, 0)}
 	toolHost, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	driver := New(WithLauncher(launcher), WithToolHost(toolHost))
 

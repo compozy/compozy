@@ -4,9 +4,11 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { SessionComposerSubagents } from "@/systems/session/components/session-composer-subagents";
 import type { SessionPayload } from "@/systems/session/types";
 
 import { liveToolTranscript } from "./session-thread-story-quiet-transcripts";
+import { composerToolbarArgs } from "./session-thread-story-runtime";
 import {
   subagentGroupRoster,
   subagentGroupTranscript,
@@ -22,6 +24,14 @@ import {
 
 const storyWorkspaceId = subagentStoryIdleSession.workspace_id ?? "ws_alpha";
 
+const summary = (live: number, total: number) => ({
+  live,
+  total,
+  failed: 0,
+  attention: 0,
+  most_urgent: live > 0 ? "running" : "done",
+});
+
 function SubagentStoryHost({ session }: { session: SessionPayload }) {
   const running = session.activity !== null;
   return (
@@ -34,6 +44,8 @@ function SubagentStoryHost({ session }: { session: SessionPayload }) {
       canPrompt
       isSessionRunning={running}
       onCancelPrompt={() => undefined}
+      {...composerToolbarArgs}
+      subagentControl={<SessionComposerSubagents session={session} />}
     />
   );
 }
@@ -164,5 +176,118 @@ export const AgentsRunning: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() => expect(canvas.getByText("2 agents running")).toBeInTheDocument());
+  },
+};
+
+/** Opens the composer's subagents popover once the roster has reached the trigger. */
+async function openComposerSubagents(canvasElement: HTMLElement, state: string) {
+  const trigger = await waitFor(() => {
+    const element = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="composer-subagents-button"]'
+    );
+    if (element?.dataset.state !== state) throw new Error(`subagents trigger not ${state} yet`);
+    return element;
+  });
+  await userEvent.click(trigger);
+  await waitFor(() => expect(within(document.body).getByRole("dialog")).toBeVisible());
+}
+
+const previousRoster = [
+  subagentRow("sub-prev-1", "Draft release notes for v2", {
+    elapsed: 420,
+    status: "completed",
+    result_preview: "Drafted notes: 6 user-facing changes, 2 fixes, 1 migration step.",
+  }),
+  subagentRow("sub-prev-2", "Review the diff (high effort)", {
+    elapsed: 300,
+    status: "completed",
+    origin: "provider_native",
+    child_session_id: null,
+    runtime: {
+      agent: "",
+      provider: "claude",
+      model: "sonnet-5.5",
+      reasoning_effort: "",
+      speed: "",
+    },
+  }),
+  subagentRow("sub-prev-3", "Benchmark the cart totals query", {
+    elapsed: 240,
+    status: "canceled",
+  }),
+];
+
+/** Issue #766: no subagents yet — the control stays a quiet icon; its popover says so. */
+export const ComposerNoSubagents: Story = {
+  args: { session: subagentStoryIdleSession },
+  parameters: scene({
+    session: subagentStoryIdleSession,
+    transcript: liveToolTranscript,
+    roster: [],
+  }),
+  play: async ({ canvasElement }) => {
+    await openComposerSubagents(canvasElement, "idle");
+    await expect(within(document.body).getByText("Nothing delegated yet.")).toBeVisible();
+  },
+};
+
+/** Issue #766: only finished subagents — quiet trigger, previous rows open in the popover. */
+export const ComposerPreviousOnly: Story = {
+  args: { session: { ...subagentStoryIdleSession, subagent_summary: summary(0, 3) } },
+  parameters: scene({
+    session: { ...subagentStoryIdleSession, subagent_summary: summary(0, 3) },
+    transcript: liveToolTranscript,
+    roster: previousRoster,
+  }),
+  play: async ({ canvasElement }) => {
+    await openComposerSubagents(canvasElement, "idle");
+    await expect(
+      within(document.body).getByRole("button", { name: "Previous subagents (3)" })
+    ).toHaveAttribute("aria-expanded", "true");
+  },
+};
+
+/** Issue #766: two subagents work during the parent's turn — glyph and live count. */
+export const ComposerActive: Story = {
+  args: { session: subagentStoryRunningSession },
+  parameters: scene({
+    session: subagentStoryRunningSession,
+    transcript: liveToolTranscript,
+    roster: [
+      subagentRow("sub-live-1", "Audit payment webhooks for retry safety", {
+        elapsed: 120,
+        progress: "Reading internal/payments/webhook.go",
+      }),
+      subagentRow("sub-live-2", "S1 queue core implementation", {
+        origin: "provider_native",
+        child_session_id: null,
+        elapsed: 2_700,
+        runtime: { agent: "", provider: "claude", model: "", reasoning_effort: "", speed: "" },
+      }),
+    ],
+  }),
+  play: async ({ canvasElement }) => {
+    await openComposerSubagents(canvasElement, "running");
+  },
+};
+
+/** Issue #766: live, waiting, failed and finished at once — current first, previous folded. */
+export const ComposerMixed: Story = {
+  args: { session: subagentStoryIdleSession },
+  parameters: scene({
+    session: subagentStoryIdleSession,
+    transcript: liveToolTranscript,
+    roster: [
+      ...subagentGroupRoster,
+      subagentRow("sub-failed", "Migrate the ledger schema", {
+        elapsed: 610,
+        status: "failed",
+        error: "Tests failed: 3 migrations out of order.",
+      }),
+      ...previousRoster,
+    ],
+  }),
+  play: async ({ canvasElement }) => {
+    await openComposerSubagents(canvasElement, "attention");
   },
 };

@@ -127,16 +127,18 @@ export async function deleteSession(
   }
 }
 
+/** Renames a session within its captured workspace and owning profile. */
 export async function renameSession(
   workspaceId: string,
   id: string,
+  profile: string,
   request: RenameSessionRequest,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.PATCH(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
       body: request,
       signal,
     }
@@ -270,24 +272,6 @@ export async function sendSessionPrompt(
     );
   }
   return result.prompt.goal ?? result.prompt;
-}
-
-export async function resumeSession(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
 }
 
 export async function setSessionRuntime(

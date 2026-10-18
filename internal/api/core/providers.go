@@ -77,12 +77,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 	}
 	statusCommand := strings.TrimSpace(provider.AuthStatusCmd)
 	if statusCommand == "" {
-		if authproviders.UsesACPProbe(provider) &&
-			provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
-			h.probeProviderACPAuth(c, providerName, provider)
-			return
-		}
-		respondProviderAuthStatusCommandRequired(c, providerName)
+		h.probeProviderAuthWithoutStatusCommand(c, providerName, provider)
 		return
 	}
 	env, err := h.providerProbeEnv(providerName, provider)
@@ -141,6 +136,17 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 			DurationMs: result.DurationMs,
 		},
 	})
+}
+
+func (h *BaseHandlers) probeProviderAuthWithoutStatusCommand(
+	c *gin.Context, providerName string, provider compozyconfig.ProviderConfig,
+) {
+	if authproviders.UsesACPProbe(provider) &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		h.probeProviderACPAuth(c, providerName, provider)
+		return
+	}
+	respondProviderAuthStatusCommandRequired(c, providerName)
 }
 
 // probeProviderACPAuth runs one non-interactive disposable ACP probe for
@@ -285,7 +291,8 @@ func (h *BaseHandlers) providerProbeEnv(
 	}
 	// ACP probes need a working directory even when the daemon's launch directory was removed.
 	commandDir, err := os.Getwd()
-	if err != nil {
+	info, statErr := os.Stat(commandDir)
+	if err != nil || statErr != nil || !info.IsDir() {
 		commandDir = os.TempDir()
 	}
 	return authproviders.ProbeEnv{

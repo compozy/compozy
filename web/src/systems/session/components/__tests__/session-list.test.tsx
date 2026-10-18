@@ -1,6 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatAbsoluteTime } from "@compozy/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -100,6 +109,7 @@ function seedRuntimeCatalog(queryClient: QueryClient) {
 }
 function renderList(
   overrides: {
+    onNewSession?: (options?: { folderId?: string }) => void;
     sessions?: SessionPayload[];
     revealedSession?: SessionPayload | null;
     currentSessionId?: string;
@@ -131,7 +141,7 @@ function renderList(
     view: overrides.view ?? view,
     onToggleThread: vi.fn(),
     onSelectSession: onSelect,
-    onNewSession: vi.fn(),
+    onNewSession: overrides.onNewSession ?? vi.fn(),
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -152,7 +162,18 @@ function renderList(
 }
 
 describe("SessionList selection", () => {
-  it("Should offer all four sort choices and send the selected stable order", async () => {
+  // Invariant: hovering a row swaps its compact time for the actions, so the row
+  // target itself still reveals the full timestamp to mouse users.
+  it("keeps the full timestamp on the row target while hover hides the compact time", () => {
+    renderList();
+    const running = sessions.find(session => session.id === "running")!;
+    expect(screen.getByTestId("session-sidebar-session-running")).toHaveAttribute(
+      "title",
+      formatAbsoluteTime(running.updated_at)
+    );
+  });
+
+  it("Should offer all five sort choices and send the selected stable order", async () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
     renderList({ view: { ...view, sort: "created", setSort } });
@@ -163,6 +184,7 @@ describe("SessionList selection", () => {
       "Name",
       "Last activity",
       "Attention first",
+      "Manual",
     ]);
     expect(screen.getByRole("menuitemradio", { name: "Created" })).toHaveAttribute(
       "aria-checked",
@@ -561,13 +583,60 @@ describe("SessionList subagents", () => {
 
     await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
     await expectFetchRequest({
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?limit=200`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=200`,
     });
     expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  // Invariant: only this parent's workspace-qualified roster updates its live
+  // preview; removing its last stream observer restores the authoritative list.
+  // Owning layer: roster/query integration; canonical suite: this sidebar suite.
+  it("Should keep a live preview scoped and fall back when its stream owner leaves", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(1, 1) });
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [{ ...wireSubagent(1, "running"), title: "Cold list row" }],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const { queryClient } = renderList({ sessions: [parent] });
+    const workspaceId = primarySessionFixture.workspace_id ?? "";
+    const roster = (title: string) => ({
+      rows: [subagentViewFromPayload({ ...wireSubagent(1, "running"), title } as never)],
+      staleIds: new Set<string>(),
+    });
+    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), roster("Live row"));
+    const owner = renderHook(() => useSubagentRoster(workspaceId, "parent"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    expect(await screen.findByText("Live row")).toBeInTheDocument();
+    act(() => {
+      queryClient.setQueryData(
+        sessionKeys.subagentRoster("another-workspace", "parent"),
+        roster("Foreign row")
+      );
+      queryClient.setQueryData(
+        sessionKeys.subagentRoster(workspaceId, "parent"),
+        roster("Updated live row")
+      );
+    });
+    expect(await screen.findByText("Updated live row")).toBeInTheDocument();
+    expect(screen.queryByText("Foreign row")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    owner.unmount();
+    expect(await screen.findByText("Cold list row")).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
     const user = userEvent.setup();
     const parent = row("parent", { badge: "running", ...summary(1, 1) });
@@ -709,6 +778,89 @@ describe("SessionList provider marks", () => {
     expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
   });
 
+  // Invariant: a child running its root's agent on its root's provider and model drops
+  // the repeated who line, yet still names its runtime and agent; any difference keeps it.
+  it("collapses a child that repeats its root's agent, provider, and model, keeping its spoken runtime", () => {
+    const lineage = (parent: string): SessionPayload["lineage"] => ({
+      parent_session_id: parent,
+      root_session_id: parent,
+      spawn_depth: 1,
+      auto_stop_on_parent: false,
+      notify_creator: true,
+      spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+      permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+    });
+    renderList({
+      sessions: [
+        row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
+        row("same", { runtime: runtime("codex", "gpt-6.1-sol"), lineage: lineage("root") }),
+        row("other", { runtime: runtime("claude"), lineage: lineage("root") }),
+        row("model", { runtime: runtime("codex", "gpt-6.1-mini"), lineage: lineage("root") }),
+      ],
+    });
+
+    expect(screen.queryByTestId("session-provider-mark-same")).not.toBeInTheDocument();
+    expect(rowButton("same")).toHaveAccessibleName(
+      /Session same\s*Codex · GPT-6\.1 Sol frontend-engineer-agent/
+    );
+    expect(screen.getByTestId("session-provider-mark-other")).toHaveAttribute(
+      "data-kind",
+      "claude"
+    );
+    expect(screen.getByTestId("session-provider-mark-model")).toHaveAttribute("data-kind", "codex");
+  });
+
+  // Invariant: the mark answers mouse hover with its runtime and, lifted above the
+  // row's stretched target, still navigates to the row when clicked.
+  it("opens the runtime tooltip on hover and navigates when the mark is clicked", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = renderList({
+      sessions: [row("root", { runtime: runtime("codex", "gpt-6.1-sol") })],
+    });
+
+    const mark = screen.getByTestId("session-provider-mark-root");
+    expect(screen.queryByText("Codex · GPT-6.1 Sol")).not.toBeInTheDocument();
+    await user.hover(mark);
+    expect(await screen.findByText("Codex · GPT-6.1 Sol")).toBeInTheDocument();
+    await user.click(mark);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "root" }));
+  });
+
+  // Invariant: the aggregate tags a thread's root with its owner and a child only
+  // when the child belongs to another profile.
+  it("tags a child with its owner only when it differs from its root's", () => {
+    const lineage = (parent: string): SessionPayload["lineage"] => ({
+      parent_session_id: parent,
+      root_session_id: parent,
+      spawn_depth: 1,
+      auto_stop_on_parent: false,
+      notify_creator: true,
+      spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+      permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+    });
+    const owners = {
+      default: { id: "default", name: "Personal", archived: false },
+      design: { id: "design", name: "Design", archived: false },
+    };
+    renderList({
+      sessions: [
+        row("root"),
+        row("mine", { lineage: lineage("root") }),
+        row("theirs", { lineage: lineage("root"), profile_id: "design" }),
+      ],
+      view: {
+        ...view,
+        aggregate: true,
+        ownerOf: session => (session.profile_id === "design" ? owners.design : owners.default),
+      },
+    });
+
+    const tags = within(screen.getByTestId("session-sidebar-thread-root")).getAllByTestId(
+      "profile-owner-tag"
+    );
+    expect(tags.map(tag => tag.getAttribute("aria-label"))).toEqual(["Personal", "Design"]);
+  });
+
   it("keeps the wire ids and the neutral glyph for a runtime the catalog does not name", () => {
     const warn = vi.spyOn(console, "warn");
     renderList({ sessions: [row("custom", { runtime: runtime("acme-agent", "m-1") })] });
@@ -754,5 +906,258 @@ describe("SessionList provider marks", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("checkbox", { name: "Select Session keyed" })
     );
+  });
+});
+
+describe("SessionList folders and manual order", () => {
+  // Invariant: in a workspace list, folders group root sessions, the (+) menu and
+  // context menus reach every layout verb, and drags resolve to the same verbs.
+  const folderA = {
+    id: "fa",
+    name: "Alpha",
+    workspace_id: "ws",
+    profile_id: "default",
+    position: 0,
+    session_count: 1,
+    created_at: "2026-10-17T00:00:00Z",
+    updated_at: "2026-10-17T00:00:00Z",
+  };
+  const folderB = { ...folderA, id: "fb", name: "Beta", position: 1, session_count: 0 };
+  const layoutRows = [
+    { ...sessions[0]!, id: "r1", name: "Root one" },
+    { ...sessions[1]!, id: "f1", name: "Filed one", folder_id: "fa" },
+    { ...sessions[2]!, id: "r2", name: "Root two" },
+  ];
+  function fakeLayout(overrides: Partial<NonNullable<SessionListViewModel["layout"]>> = {}) {
+    return {
+      folders: [folderA, folderB],
+      createFolder: vi.fn(async () => folderA),
+      renameFolder: vi.fn(async () => undefined),
+      deleteFolder: vi.fn(async () => undefined),
+      moveFolder: vi.fn(),
+      reorderFolders: vi.fn(),
+      moveSession: vi.fn(),
+      reorderSessions: vi.fn(),
+      ...overrides,
+    };
+  }
+  function renderLayout(sort: SessionListViewModel["sort"] = "manual") {
+    const layout = fakeLayout();
+    const onNewSession = vi.fn();
+    renderList({ sessions: layoutRows, view: { ...view, sort, layout }, onNewSession });
+    return { layout, onNewSession };
+  }
+
+  it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
+    const user = userEvent.setup();
+    const { layout, onNewSession } = renderLayout();
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map(item => item.textContent)).toEqual(["New session", "New folder"]);
+    await user.click(screen.getByRole("menuitem", { name: "New session" }));
+    expect(onNewSession).toHaveBeenCalledWith();
+
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByRole("menuitem", { name: "New folder" }));
+    await user.type(await screen.findByTestId("session-folder-name"), "  Research  ");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+    expect(layout.createFolder).toHaveBeenCalledWith("Research");
+  });
+
+  it("Should group foldered sessions, count them, collapse, and start a session inside", async () => {
+    const user = userEvent.setup();
+    const { onNewSession } = renderLayout("created");
+    const alpha = screen.getByTestId("session-sidebar-folder-fa");
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fa-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("session-sidebar-folder-fb-count")).toHaveTextContent("0");
+    const root = screen.getByTestId("session-sidebar-root");
+    expect(
+      within(root)
+        .getAllByTestId(/^session-sidebar-session-/)
+        .map(row => row.dataset.testid)
+    ).toEqual(["session-sidebar-session-r1", "session-sidebar-session-r2"]);
+
+    await user.click(screen.getByTestId("session-sidebar-folder-fb-new-session"));
+    expect(onNewSession).toHaveBeenCalledWith({ folderId: "fb" });
+
+    await user.click(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    expect(screen.queryByTestId("session-sidebar-session-f1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fa-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    await user.click(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+  });
+
+  it("Should offer the row actions plus folder moves and Move up/down on right-click", async () => {
+    const user = userEvent.setup();
+    const { layout } = renderLayout();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Remove from folder" }));
+    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
+    const rootMenu = await screen.findByRole("menu");
+    expect(within(rootMenu).getByRole("menuitem", { name: "Move up" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await user.click(within(rootMenu).getByRole("menuitem", { name: "Move down" }));
+    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+  });
+
+  it("Should say the folders failed to load and retry from the list", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderList({
+      sessions: layoutRows,
+      view: { ...view, sort: "manual", layoutError: { retry } },
+    });
+    expect(screen.getByText("Couldn’t load folders.")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  // A reorder pins the listed rows ahead of every omitted member, so it needs the
+  // whole container on screen.
+  it.each([
+    ["on a later catalog page", { previous: true }, {}],
+    ["while a worktree narrows the list", {}, { worktreeId: "wt-1" }],
+  ])("Should keep manual reorder off %s", async (_case, page, narrowed) => {
+    const layout = fakeLayout();
+    const catalog: NonNullable<SessionListViewModel["catalog"]> = {
+      sessions: layoutRows,
+      facets: undefined,
+      total: undefined,
+      loading: false,
+      failed: false,
+      next: false,
+      previous: false,
+      paging: false,
+      nextPage: vi.fn(),
+      previousPage: vi.fn(),
+      retry: vi.fn(),
+      ...page,
+    };
+    renderList({
+      sessions: layoutRows,
+      view: { ...view, sort: "manual", layout, catalog, ...narrowed },
+    });
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+
+    const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+    fireEvent.dragStart(row("r1"));
+    fireEvent.dragOver(row("r2"));
+    fireEvent.drop(row("r2"));
+    expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  it("Should open the row menu from the keyboard and move a session into a folder", async () => {
+    // A keyboard-opened menu is driven by keys; the pointer check would only see its guard layer.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const { layout } = renderLayout("created");
+    screen.getByTestId("session-sidebar-session-r2").focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    within(menu).getByRole("menuitem", { name: "Move to folder" }).focus();
+    await user.keyboard("{ArrowRight}");
+    const beta = await screen.findByRole("menuitem", { name: "Beta" });
+    await waitFor(() =>
+      expect(beta.closest('[role="menu"]')).toContainElement(document.activeElement as HTMLElement)
+    );
+    beta.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(layout.moveSession).toHaveBeenCalledWith("r2", "fb"));
+  });
+
+  it("Should rename and delete a folder from its header menu", async () => {
+    const user = userEvent.setup();
+    const { layout } = renderLayout();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-folder-fa-toggle"));
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual([
+      "New session in folder",
+      "Rename folder…",
+      "Move folder up",
+      "Move folder down",
+      "Delete folder…",
+    ]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete folder…" }));
+    expect(await screen.findByText("Delete folder?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Sessions in this folder move back to the list. No sessions are deleted.")
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("session-folder-delete-confirm"));
+    expect(layout.deleteFolder).toHaveBeenCalledWith("fa");
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-folder-fb-toggle"));
+    await user.click(await screen.findByRole("menuitem", { name: "Rename folder…" }));
+    const input = await screen.findByTestId("session-folder-name");
+    await user.clear(input);
+    await user.type(input, "Gamma");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+    expect(layout.renameFolder).toHaveBeenCalledWith("fb", "Gamma");
+  });
+
+  function rowContainer(id: string) {
+    return screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
+  }
+
+  // jsdom reports zero-size boxes, so every pointer lands on the target's lower half ("after").
+  it("Should reorder root rows by drag in Manual sort with a drop indicator", () => {
+    const { layout } = renderLayout();
+    fireEvent.dragStart(rowContainer("r1"));
+    expect(rowContainer("r1")).toHaveAttribute("data-dragging", "true");
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(screen.getByTestId("session-sidebar-drop-after-r2")).toBeInTheDocument();
+    fireEvent.drop(rowContainer("r2"));
+    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+    expect(screen.queryByTestId("session-sidebar-drop-after-r2")).not.toBeInTheDocument();
+  });
+
+  it("Should move by drag into a folder and back out under any sort, but not reorder", () => {
+    const { layout } = renderLayout("created");
+    fireEvent.dragStart(rowContainer("r1"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(screen.queryByTestId("session-sidebar-drop-after-r2")).not.toBeInTheDocument();
+    const header = screen.getByTestId("session-sidebar-folder-fb-header");
+    fireEvent.dragOver(header);
+    expect(header).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(header);
+    expect(layout.moveSession).toHaveBeenCalledWith("r1", "fb");
+
+    fireEvent.dragStart(rowContainer("f1"));
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-root"));
+    fireEvent.drop(screen.getByTestId("session-sidebar-root"));
+    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+    expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  it("Should reorder folders by dragging one header onto another", () => {
+    const { layout } = renderLayout("created");
+    fireEvent.dragStart(screen.getByTestId("session-sidebar-folder-fa-header"));
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(screen.getByTestId("session-sidebar-folder-fb-header")).toHaveAttribute(
+      "data-drop",
+      "after"
+    );
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(layout.reorderFolders).toHaveBeenCalledWith(["fb", "fa"]);
   });
 });

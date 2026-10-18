@@ -56,7 +56,7 @@ export function SessionWindowEmpty({
           action={
             <Button
               data-testid="session-window-empty-new"
-              onClick={sidebar.onNewSession}
+              onClick={() => sidebar.onNewSession()}
               type="button"
               variant="primary"
             >

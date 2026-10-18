@@ -32,7 +32,7 @@ export interface OsSessionsModalProps {
   /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
   view: SessionListViewModel;
   currentWorkspaceId?: string | null;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 

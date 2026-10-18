@@ -1,4 +1,4 @@
-import { Eraser, Pencil, Square, Trash2 } from "lucide-react";
+import { Eraser, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import {
@@ -22,7 +22,7 @@ import type { WorktreePayload } from "@/systems/workspace";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import type { SessionOriginView } from "../lib/session-origin";
-import { isSessionRunning, isUserControllableSession } from "../lib/session-running";
+import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
 import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
@@ -43,7 +43,6 @@ interface UseSessionTopbarSlotInput {
   isDeleting: boolean;
   isRenaming: boolean;
   isStopping: boolean;
-  isResuming: boolean;
   isUnarchiving: boolean;
   isClearing: boolean;
   canClear: boolean;
@@ -58,7 +57,6 @@ interface UseSessionTopbarSlotInput {
   onDelete: () => void;
   onRename: () => void;
   onStop: () => void;
-  onResume: () => void;
   onUnarchive: () => void;
   onClear: () => void;
   /** Opens the Continue dialog for this session; absent where no dialog host exists. */
@@ -73,7 +71,6 @@ interface UseSessionTopbarSlotInput {
 function sessionTopbarActions({
   session,
   isStopping,
-  isResuming,
   isUnarchiving,
   isDeleting,
   isRenaming,
@@ -81,19 +78,12 @@ function sessionTopbarActions({
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
   const lifecycleControllable = isUserControllableSession(session);
-  const canResume =
-    session.archived_at === null &&
-    session.attachable === true &&
-    lifecycleControllable &&
-    !isSessionRunning(session);
   const showUnarchiveAction = lifecycleControllable && isArchived;
-  const showStopAction = lifecycleControllable && isActive && !canResume;
-  const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting || isRenaming;
+  const showStopAction = lifecycleControllable && isActive;
+  const controlsBusy = isStopping || isUnarchiving || isDeleting || isRenaming;
 
   return {
-    isActive,
     lifecycleControllable,
-    canResume,
     showUnarchiveAction,
     showStopAction,
     controlsBusy,
@@ -127,8 +117,6 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
   const {
     onRename,
     isRenaming,
-    isStopping,
-    onStop,
     canClear,
     isClearing,
     onClear,
@@ -138,7 +126,7 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
     onFork,
     session,
   } = input;
-  const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
+  const { lifecycleControllable, controlsBusy } = actions;
   const menu = useDeferredMenuAction();
   return lifecycleControllable ? (
     <DropdownMenu
@@ -180,16 +168,6 @@ function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: Ses
           onFork={onFork}
           onSelect={menu.deferToClose}
         />
-        {isActive && canResume ? (
-          <DropdownMenuItem
-            data-testid="stop-menu-item"
-            disabled={controlsBusy && !isStopping}
-            onClick={onStop}
-          >
-            {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
-            Stop session
-          </DropdownMenuItem>
-        ) : null}
         <DropdownMenuItem
           data-testid="composer-clear-button"
           disabled={!canClear || isClearing}

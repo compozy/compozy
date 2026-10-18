@@ -807,22 +807,21 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 	service := testService(t, homePaths, Dependencies{})
 
-	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		Section: SectionGeneral,
-		General: &GeneralSettings{
-			Limits: compozyconfig.LimitsConfig{
-				MaxConcurrentAgents: 11,
-			},
-			Permissions:    compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveReads},
-			SessionTimeout: 45 * time.Minute,
-			HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
-			Daemon: compozyconfig.DaemonConfig{
-				Socket:               "/tmp/compozy.sock",
-				MemoryReportInterval: compozyconfig.DefaultDaemonMemoryReportInterval,
-			},
-			Redact: compozyconfig.RedactConfig{Enabled: false},
+	general := GeneralSettings{
+		Limits: compozyconfig.LimitsConfig{
+			MaxConcurrentAgents: 11,
 		},
-	})
+		Permissions:      compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveReads},
+		SessionTimeout:   45 * time.Minute,
+		IdleReleaseAfter: new(time.Duration(0)),
+		HTTP:             compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
+		Daemon: compozyconfig.DaemonConfig{
+			Socket:               "/tmp/compozy.sock",
+			MemoryReportInterval: compozyconfig.DefaultDaemonMemoryReportInterval,
+		},
+		Redact: compozyconfig.RedactConfig{Enabled: false},
+	}
+	result, err := service.UpdateSection(ctx, SectionUpdateRequest{Section: SectionGeneral, General: &general})
 	if err != nil {
 		t.Fatalf("UpdateSection(general) error = %v", err)
 	}
@@ -839,6 +838,27 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	if !strings.Contains(contents, "[redact]") || !strings.Contains(contents, "enabled = false") {
 		t.Fatalf("config contents missing disabled redaction gate:\n%s", contents)
 	}
+	assertSessionKeys := func(label string) {
+		t.Helper()
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("%s: reload config: %v", label, err)
+		}
+		if loaded.Session.Supervision.IdleReleaseAfter != 0 || loaded.Session.Limits.Timeout != 45*time.Minute {
+			t.Fatalf("%s: idle_release_after = %s, session.limits.timeout = %s, want disabled release and 45m",
+				label, loaded.Session.Supervision.IdleReleaseAfter, loaded.Session.Limits.Timeout)
+		}
+	}
+	assertSessionKeys("explicit idle release")
+
+	general.IdleReleaseAfter = nil
+	if _, err := service.UpdateSection(
+		ctx,
+		SectionUpdateRequest{Section: SectionGeneral, General: &general},
+	); err != nil {
+		t.Fatalf("UpdateSection(general without idle release) error = %v", err)
+	}
+	assertSessionKeys("omitted idle release")
 }
 
 // TestUpdateSectionWindowManager verifies scoped persistence, shortcut preservation, and runtime application.
@@ -2431,7 +2451,7 @@ id = "custom-model"
 		catalog := &settingsModelCatalogStub{
 			models: map[string][]modelcatalog.Model{},
 			errs: map[string]error{
-				"blackbox": modelcatalog.ErrAllSourcesFailed,
+				"copilot": modelcatalog.ErrAllSourcesFailed,
 			},
 		}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
@@ -2441,9 +2461,9 @@ id = "custom-model"
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
-		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
-		if blackbox.Settings.Models.Curated != nil {
-			t.Fatalf("blackbox curated models = %#v, want nil fallback", blackbox.Settings.Models.Curated)
+		copilot := mustFindProviderItem(t, envelope.Providers, "copilot")
+		if copilot.Settings.Models.Curated != nil {
+			t.Fatalf("copilot curated models = %#v, want nil fallback", copilot.Settings.Models.Curated)
 		}
 	})
 
@@ -2594,7 +2614,7 @@ id = "raw-model"
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
-			"blackbox": {},
+			"copilot": {},
 		}}
 		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
 		envelope, err := service.ListCollection(t.Context(), CollectionRequest{
@@ -2603,9 +2623,9 @@ id = "raw-model"
 		if err != nil {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
-		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
-		if blackbox.Settings.Models.Curated != nil {
-			t.Fatalf("blackbox curated models = %#v, want nil projection", blackbox.Settings.Models.Curated)
+		copilot := mustFindProviderItem(t, envelope.Providers, "copilot")
+		if copilot.Settings.Models.Curated != nil {
+			t.Fatalf("copilot curated models = %#v, want nil projection", copilot.Settings.Models.Curated)
 		}
 	})
 }

@@ -96,7 +96,7 @@ type subagentService struct {
 	subscribers  map[string]map[*subagentSubscription]struct{}
 	progress     map[string]*subagentProgress
 	nativeMisses map[string]bool
-	nativeKnown  map[string]map[string]bool
+	nativeKnown  map[string]map[string]nativeCall
 	steerTurns   map[string]string
 	wakeRetries  map[string]bool
 	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR

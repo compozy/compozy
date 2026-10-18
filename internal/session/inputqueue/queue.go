@@ -157,12 +157,15 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 	return insert, err
 }
 
-// EnqueueAdmitted atomically persists one external command receipt and its queue entry.
+// EnqueueAdmitted atomically persists one external command receipt and its queue entry. With
+// supersede, an agent-authored entry cancels its sender's older undispatched entries in the same
+// transaction; the store ignores it for operator input.
 func (s *Service) EnqueueAdmitted(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 	targetTurnID string,
+	supersede bool,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
 		mode:         store.SessionInputQueueModeQueue,
@@ -173,6 +176,7 @@ func (s *Service) EnqueueAdmitted(
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
 	}
+	insert.Supersede = supersede
 	receipt, entry, position, created, err := admissionStore.EnqueueAdmittedSessionInput(
 		ctx,
 		admission,
@@ -249,12 +253,15 @@ func (s *Service) StageSteer(
 	return s.store.StageSessionSteer(ctx, insert)
 }
 
-// StageAdmittedSteer atomically persists one external receipt and its steering entry.
+// StageAdmittedSteer atomically persists one external receipt and its steering entry. With supersede,
+// an agent-authored steer also cancels its sender's older undispatched queued messages in the same
+// transaction, exactly as a superseding queued send does.
 func (s *Service) StageAdmittedSteer(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	targetTurnID string,
 	generation int64,
+	supersede bool,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
 		mode:         store.SessionInputQueueModeSteer,
@@ -265,6 +272,7 @@ func (s *Service) StageAdmittedSteer(
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
 	}
+	insert.Supersede = supersede
 	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
 }
 

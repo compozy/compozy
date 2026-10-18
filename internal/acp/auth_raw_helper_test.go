@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,13 +36,20 @@ type rawAuthHelper struct {
 }
 
 func runRawAuthHelperProcess(scenario, recordPath, capturePath string) {
+	if err := serveRawAuthHelperProcess(scenario, recordPath, capturePath); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func serveRawAuthHelperProcess(scenario, recordPath, capturePath string) error {
 	var record *os.File
 	if strings.TrimSpace(recordPath) != "" {
 		var err error
 		record, err = os.Create(recordPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "create record file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("create record file: %w", err)
 		}
 		defer record.Close()
 	}
@@ -50,8 +58,7 @@ func runRawAuthHelperProcess(scenario, recordPath, capturePath string) {
 		var err error
 		captureFile, err = os.Create(capturePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "create capture file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("create capture file: %w", err)
 		}
 		defer captureFile.Close()
 	}
@@ -72,7 +79,7 @@ func runRawAuthHelperProcess(scenario, recordPath, capturePath string) {
 	helper.note(fmt.Sprintf("pid %d", os.Getpid()))
 	helper.serve(captureFile)
 	helper.note("exit")
-	os.Exit(0)
+	return nil
 }
 
 func (h *rawAuthHelper) markers() map[string]string {
@@ -117,13 +124,13 @@ func (h *rawAuthHelper) serve(capture *os.File) {
 }
 
 func (h *rawAuthHelper) respond(id json.RawMessage, result any) {
-	h.stdout.Encode(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "result": result})
+	h.stdout.Encode(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
 
 func (h *rawAuthHelper) respondError(id json.RawMessage, code int, message string) {
 	h.stdout.Encode(map[string]any{
 		"jsonrpc": "2.0",
-		"id":      json.RawMessage(id),
+		"id":      id,
 		"error":   map[string]any{"code": code, "message": message},
 	})
 }
@@ -224,9 +231,10 @@ func (h *rawAuthHelper) handleAuthenticate(frame rawAuthEnvelope) {
 	h.note("authenticate methodId=" + params.MethodID)
 	switch h.scenario {
 	case "login_block":
-		// Never answer: caller cancellation or timeout must settle the attempt
-		// and still join process cleanup.
-		select {}
+		// Keep the peer alive until its input closes so cancellation owns cleanup.
+		if _, err := io.Copy(io.Discard, h.reader); err != nil {
+			h.note("blocked authenticate input error: " + err.Error())
+		}
 	case "login_refuse":
 		h.probeInboundWork()
 		h.respond(frame.ID, map[string]any{})

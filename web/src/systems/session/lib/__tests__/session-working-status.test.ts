@@ -15,7 +15,7 @@ import type { SubagentView } from "../../components/subagents/types";
 // durable turn start plus a pending decision and children (the running tool is
 // the transcript live row's), stays working while children run, and after a
 // stop or failure speaks only when it adds attribution or cause the turn fold
-// does not already say. Elapsed derives from `turn_started_at`, never a browser stopwatch.
+// does not already say. A quiet in-flight turn adds "quiet for {d}". Elapsed derives from `turn_started_at`, never a browser stopwatch.
 const NOW = Date.parse("2026-09-06T12:02:14Z");
 
 function session(overrides: Partial<Parameters<typeof deriveWorkingStatus>[0]["session"]> = {}) {
@@ -52,6 +52,68 @@ describe("working status", () => {
       elapsed: "2m 14s",
       activity: null,
       agentCount: 0,
+      quietSinceMs: null,
+      quietFor: null,
+    });
+  });
+
+  // Invariant: the daemon's hung-turn quiet episode rides the working status as
+  // a span counted from `quiet_since`; it never replaces "Working for".
+  it("Should add the quiet span to a working turn while the daemon reports a quiet episode", () => {
+    const quiet = session({
+      supervision: {
+        quiet_warning: {
+          quiet_since: "2026-09-06T11:50:00Z",
+          warned_at: "2026-09-06T12:00:00Z",
+          stop_at: "2026-09-06T12:10:00Z",
+        },
+        sources: [],
+        work_signals: [],
+      },
+    });
+    expect(
+      deriveWorkingStatus({
+        session: {
+          ...quiet,
+          activity: { ...quiet.activity!, turn_started_at: "2026-09-06T11:40:00Z" },
+        },
+        running: true,
+        thinking: false,
+        lastTurn: null,
+        nowMs: NOW,
+      })
+    ).toMatchObject({
+      kind: "working",
+      elapsed: "22m 14s",
+      quietSinceMs: Date.parse("2026-09-06T11:50:00Z"),
+      quietFor: "12m",
+    });
+  });
+
+  it("Should show the quiet span instead of Thinking when a turn hangs before any content", () => {
+    expect(
+      deriveWorkingStatus({
+        session: session({
+          supervision: {
+            quiet_warning: {
+              quiet_since: "2026-09-06T12:00:30Z",
+              warned_at: "2026-09-06T12:02:00Z",
+              stop_at: null,
+            },
+            sources: [],
+            work_signals: [],
+          },
+        }),
+        running: true,
+        thinking: true,
+        lastTurn: null,
+        nowMs: NOW,
+      })
+    ).toMatchObject({
+      kind: "working",
+      elapsed: "2m 14s",
+      quietSinceMs: Date.parse("2026-09-06T12:00:30Z"),
+      quietFor: "1m",
     });
   });
 

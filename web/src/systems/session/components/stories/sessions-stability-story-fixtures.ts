@@ -280,11 +280,21 @@ export const inactivityStoppedSession: SessionPayload = {
   stop_cause: "inactivity",
 } as SessionPayload;
 
-/** A running session resource: durable turn start, current tool, spawned children. */
+/**
+ * A running session resource: durable turn start, current tool, spawned
+ * children, and — with `quietAgoMs` — the daemon's hung-turn quiet episode.
+ */
 export function runningSession(
-  options: { currentTool?: string; agents?: number; startedAgoMs?: number; turnId?: string } = {}
+  options: {
+    currentTool?: string;
+    agents?: number;
+    startedAgoMs?: number;
+    turnId?: string;
+    quietAgoMs?: number;
+  } = {}
 ): SessionPayload {
   const startedAgoMs = options.startedAgoMs ?? 134_000;
+  const quietSince = options.quietAgoMs === undefined ? null : Date.now() - options.quietAgoMs;
   return {
     ...primarySessionFixture,
     activity: {
@@ -298,7 +308,14 @@ export function runningSession(
       turn_started_at: new Date(Date.now() - startedAgoMs).toISOString(),
     },
     supervision: {
-      quiet_warning: null,
+      quiet_warning:
+        quietSince === null
+          ? null
+          : {
+              quiet_since: new Date(quietSince).toISOString(),
+              warned_at: new Date(Date.now()).toISOString(),
+              stop_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+            },
       sources: [],
       work_signals: Array.from({ length: options.agents ?? 0 }, (_, index) => ({
         kind: "active_child" as const,

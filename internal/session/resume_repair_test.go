@@ -128,6 +128,80 @@ func TestClassifyPreviousStop(t *testing.T) {
 	}
 }
 
+// Invariant: a runtime released while idle ends like a clean shutdown on daemon restart and keeps its ACP
+// session for the next prompt once its process exit is verified; a release interrupted while the recorded
+// process may still run keeps verifying that process. Owner: session boot recovery.
+func TestClassifyInactiveMetaForRecoveryReleasedRuntime(t *testing.T) {
+	t.Parallel()
+	t.Run("Should end a released idle runtime like a clean shutdown", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:         string(StateActive),
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			ACPSessionID:  stringPointer("acp-released"),
+			Liveness:      &store.SessionLivenessMeta{},
+		}
+		got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if !changed || got.State != string(StateStopped) || got.StopVerificationFailed || got.Failure != nil {
+			t.Fatalf("released runtime = %s, verification failed %t, failure %#v", got.State,
+				got.StopVerificationFailed, got.Failure)
+		}
+		assertOptionalStopReasonEqual(t, got.StopReason, stopReasonPointer(store.StopShutdown))
+		assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-released"))
+	})
+	t.Run("Should verify the recorded process of an interrupted release", func(t *testing.T) {
+		t.Parallel()
+		started, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name    string
+			started time.Time
+			want    State
+		}{
+			{"Should keep stopping while the released process may still run", started, StateStopping},
+			{"Should end like a clean shutdown once the released process exited", started.Add(-time.Hour), StateStopped},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				meta := store.SessionMeta{
+					State:         string(StateActive),
+					RuntimeStatus: store.SessionRuntimeUnbound,
+					ACPSessionID:  stringPointer("acp-releasing"),
+					Liveness: &store.SessionLivenessMeta{
+						SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
+					},
+				}
+				got, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+				if !changed || got.State != string(tc.want) ||
+					got.StopVerificationFailed != (tc.want == StateStopping) {
+					t.Fatalf("interrupted release = %s, verification failed %t", got.State, got.StopVerificationFailed)
+				}
+				if clean := got.StopReason != nil &&
+					*got.StopReason == store.StopShutdown; clean != (tc.want == StateStopped) {
+					t.Fatalf("interrupted release stop reason = %v, want clean shutdown %t", got.StopReason, !clean)
+				}
+				assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-releasing"))
+			})
+		}
+	})
+	t.Run("Should keep crash attribution for an exited runtime mid-transition", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{
+			State:             string(StateActive),
+			RuntimeStatus:     store.SessionRuntimeUnbound,
+			RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+			ACPSessionID:      stringPointer("acp-exited"),
+			Liveness:          &store.SessionLivenessMeta{},
+		}
+		got, _ := ClassifyInactiveMetaForRecovery(time.Now().UTC(), &meta)
+		if got.StopReason != nil && *got.StopReason == store.StopShutdown {
+			t.Fatalf("exited runtime classified as a clean shutdown: %#v", got)
+		}
+	})
+}
+
 func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Parallel()
 	t.Run(

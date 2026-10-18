@@ -226,8 +226,9 @@ func sameMutation(
 	targetTurnID string,
 	skillInvocations []commandpkg.Invocation,
 ) bool {
+	// A promoted agent row keeps the sender's message id instead of the operator's.
 	return entry.Text == strings.TrimSpace(text) &&
-		entry.MessageID == strings.TrimSpace(messageID) &&
+		(entry.MessageID == strings.TrimSpace(messageID) || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == strings.TrimSpace(idempotencyKey) &&
 		entry.Mode == mode &&
 		entry.Delivery == delivery &&

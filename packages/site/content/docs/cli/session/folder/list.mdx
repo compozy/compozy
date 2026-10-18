@@ -1,0 +1,51 @@
+---
+title: "compozy session folder list"
+description: "List session folders in manual order"
+---
+
+## compozy session folder list
+
+List session folders in manual order
+
+```
+compozy session folder list [flags]
+```
+
+### Examples
+
+```
+  # List folders of the current workspace
+  compozy session folder list --workspace checkout-api
+```
+
+### Options
+
+```
+  -h, --help               help for list
+      --workspace string   Workspace ID, name, or path (defaults to the current directory)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session folder list -o json
+```

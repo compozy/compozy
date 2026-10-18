@@ -922,45 +922,45 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Run("Should record live source status when optional dependency is missing", func(t *testing.T) {
 		t.Parallel()
 
-		missingHermes := filepath.Join(t.TempDir(), "missing-hermes")
+		missingOpenCode := filepath.Join(t.TempDir(), "missing-opencode")
 		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, func(cfg *compozyconfig.Config) {
-			provider, err := cfg.ResolveProvider("hermes")
+			provider, err := cfg.ResolveProvider("opencode")
 			if err != nil {
-				t.Fatalf("ResolveProvider(hermes) error = %v", err)
+				t.Fatalf("ResolveProvider(opencode) error = %v", err)
 			}
-			provider.Command = missingHermes
-			cfg.Providers["hermes"] = provider
+			provider.Models.Discovery.Command = missingOpenCode + " models --verbose"
+			cfg.Providers["opencode"] = provider
 		})
 		ctx := testutil.Context(t)
 		refreshStatuses, err := daemonInstance.modelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
-			ProviderID: "hermes",
-			SourceID:   modelcatalog.SourceKindProviderLiveID("hermes"),
+			ProviderID: "opencode",
+			SourceID:   modelcatalog.SourceKindProviderLiveID("opencode"),
 			Force:      true,
 		})
 		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
 			t.Fatalf(
-				"ModelCatalog.Refresh(hermes live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
+				"ModelCatalog.Refresh(opencode live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
 				refreshStatuses,
 				err,
 			)
 		}
 		if _, ok := findSourceStatus(
 			refreshStatuses,
-			modelcatalog.SourceKindProviderLiveID("hermes"),
+			modelcatalog.SourceKindProviderLiveID("opencode"),
 		); !ok {
-			t.Fatalf("ModelCatalog.Refresh(hermes live) statuses = %#v, want provider_live status", refreshStatuses)
+			t.Fatalf("ModelCatalog.Refresh(opencode live) statuses = %#v, want provider_live status", refreshStatuses)
 		}
 
 		statuses, err := daemonInstance.modelCatalog.ListSourceStatus(
 			ctx,
-			modelcatalog.StatusOptions{ProviderID: "hermes"},
+			modelcatalog.StatusOptions{ProviderID: "opencode"},
 		)
 		if err != nil {
-			t.Fatalf("ModelCatalog.ListSourceStatus(hermes) error = %v", err)
+			t.Fatalf("ModelCatalog.ListSourceStatus(opencode) error = %v", err)
 		}
-		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("hermes"))
+		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("opencode"))
 		if !ok {
-			t.Fatalf("ListSourceStatus(hermes) missing provider_live status: %#v", statuses)
+			t.Fatalf("ListSourceStatus(opencode) missing provider_live status: %#v", statuses)
 		}
 		if got, want := status.RefreshState, modelcatalog.RefreshStateFailed; got != want {
 			t.Fatalf("provider_live refresh state = %q, want %q", got, want)
@@ -1450,6 +1450,50 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			waitForCatalogTestSignal(t, ticker.stopped, "model catalog refresh ticker stop")
 		},
 	)
+
+	t.Run("Should skip sweep targets whose stored statuses are still fresh", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		service.statuses = []modelcatalog.SourceStatus{
+			{
+				SourceID: "extension/acme", ProviderID: "acme",
+				RefreshState: modelcatalog.RefreshStateSucceeded, NextRefresh: now.Add(time.Minute),
+			},
+			{
+				SourceID: "extension/beta", ProviderID: "beta",
+				RefreshState: modelcatalog.RefreshStateFailed, NextRefresh: now.Add(-time.Minute),
+			},
+		}
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			func() time.Time { return now },
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		runtime.dynamicSources = map[string]modelcatalog.Source{}
+		for _, id := range []string{"extension/acme", "extension/beta", "extension/gamma"} {
+			runtime.dynamicSources[id] = catalogDynamicSource{id: id}
+		}
+
+		runtime.refreshDynamicSourcesInBackground()
+		refreshed := []string{service.waitForRefresh(t).SourceID, service.waitForRefresh(t).SourceID}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		slices.Sort(refreshed)
+		if want := []string{"extension/beta", "extension/gamma"}; !slices.Equal(refreshed, want) {
+			t.Fatalf("refreshed targets = %#v, want %#v", refreshed, want)
+		}
+		if extra := len(service.refreshes); extra != 0 {
+			t.Fatalf("extra refreshes = %d, want fresh target skipped", extra)
+		}
+	})
 
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
@@ -2028,6 +2072,7 @@ type recordingModelCatalogService struct {
 
 type catalogReadRefreshService struct {
 	refreshes chan modelcatalog.RefreshOptions
+	statuses  []modelcatalog.SourceStatus
 }
 
 type blockingCatalogReadRefreshService struct {
@@ -2146,7 +2191,7 @@ func (s *catalogReadRefreshService) ListSourceStatus(
 	context.Context,
 	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
+	return slices.Clone(s.statuses), nil
 }
 
 func (s *catalogReadRefreshService) waitForRefresh(
@@ -2454,6 +2499,13 @@ func (r *modelCatalogStoreRegistry) ListRows(
 	context.Context,
 	modelcatalog.ListOptions,
 ) ([]modelcatalog.ModelRow, error) {
+	return nil, nil
+}
+
+func (r *modelCatalogStoreRegistry) ListRowOwners(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.SourceProviderKey, error) {
 	return nil, nil
 }
 

@@ -20,7 +20,6 @@ export interface TerminalConsumerHost {
   reset: () => void;
   readSnapshot: TerminalResyncPort["readSnapshot"];
   commit: (seqEnd: bigint) => void;
-  returnCredit: (bytes: number) => void;
   currentEpoch: () => number;
   isStopped: () => boolean;
   /** The held tail belongs to the connection that reported the gap. */
@@ -36,6 +35,7 @@ export interface TerminalConsumerHost {
   mayWrite: () => boolean;
   reportError: (cause: unknown, fallback: string) => void;
   reconnectFromCommitted: () => void;
+  resynchronize: () => void;
 }
 
 export interface TerminalFrameConsumers {
@@ -46,12 +46,14 @@ export interface TerminalFrameConsumers {
 }
 
 export function createTerminalFrameConsumers(host: TerminalConsumerHost): TerminalFrameConsumers {
-  const emulator = new TerminalEmulatorQueue();
   const gapBuffer = new TerminalGapBuffer({
     write: bytes => host.write(bytes),
-    returnCredit: bytes => host.returnCredit(bytes),
     commit: seqEnd => host.commit(seqEnd),
     isCancelled: () => host.isGapCancelled(),
+  });
+  const emulator = new TerminalEmulatorQueue(through => {
+    gapBuffer.requireSnapshot(through);
+    host.resynchronize();
   });
   const resync = new TerminalResync({
     readSnapshot: () => host.readSnapshot(),
@@ -80,7 +82,6 @@ export function createTerminalFrameConsumers(host: TerminalConsumerHost): Termin
     currentEpoch: () => host.currentEpoch(),
     isStopped: () => host.isStopped(),
     commit: seqEnd => host.commit(seqEnd),
-    returnCredit: bytes => host.returnCredit(bytes),
     onReplayComplete: () => host.onReplayComplete(),
     reportError: cause => host.reportError(cause, "The terminal could not render its output."),
     reconnect: () => host.reconnectFromCommitted(),

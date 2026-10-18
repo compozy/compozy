@@ -35,8 +35,14 @@ function AgentsBody() {
           sessions: 3,
           live: true,
         },
-        { chip: "RS", name: "research", meta: "Hermes · hermes-4", sessions: 2, live: false },
-        { chip: "IF", name: "infra", meta: "OpenClaw · openclaw-2", sessions: 2, live: true },
+        {
+          chip: "RS",
+          name: "research",
+          meta: "Gemini CLI · gemini-3.1-pro",
+          sessions: 2,
+          live: false,
+        },
+        { chip: "IF", name: "infra", meta: "Cursor Agent · composer-2", sessions: 2, live: true },
       ].map(agent => (
         <li
           key={agent.name}
@@ -92,8 +98,8 @@ function DashboardBody() {
         <ul className="flex flex-col gap-2">
           {[
             ["Checkout flow polish", "webgen · claude-fable-5", "2m"],
-            ["Competitor pricing scan", "research · hermes-4", "3h"],
-            ["Nightly deps sweep", "infra · openclaw-2", "41m"],
+            ["Competitor pricing scan", "research · gemini-3.1-pro", "3h"],
+            ["Nightly deps sweep", "infra · composer-2", "41m"],
           ].map(([t, m, time]) => (
             <li
               key={t}

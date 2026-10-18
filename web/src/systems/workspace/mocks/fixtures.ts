@@ -225,21 +225,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       harness: "pi_acp",
       runtime_provider: "openrouter",
     },
-    { name: "cline", display_name: "Cline", harness: "acp", runtime_provider: "cline" },
-    { name: "hermes", display_name: "Hermes", harness: "acp", runtime_provider: "hermes" },
-    { name: "goose", display_name: "Goose", harness: "acp", runtime_provider: "goose" },
+    { name: "cursor", display_name: "Cursor Agent", harness: "acp", runtime_provider: "cursor" },
+    { name: "opencode", display_name: "OpenCode", harness: "acp", runtime_provider: "opencode" },
     {
-      name: "openhands",
-      display_name: "OpenHands",
+      name: "copilot",
+      display_name: "GitHub Copilot CLI",
       harness: "acp",
-      runtime_provider: "openhands",
+      runtime_provider: "copilot",
     },
-    {
-      name: "junie",
-      display_name: "Junie",
-      harness: "acp",
-      runtime_provider: "junie",
-    },
+    { name: "kimi-cli", display_name: "Kimi CLI", harness: "acp", runtime_provider: "kimi-cli" },
   ],
   sessions: [
     {

@@ -16,6 +16,8 @@ import {
   createHandles,
   disposeHandles,
   enqueueApplyStart,
+  failApply,
+  foldAppliedFrames,
   handlesByTrigger,
   openStream,
   reconnectAfter,
@@ -172,51 +174,35 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       },
       applyStarted: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "scheduled") return;
-        const [frame, ...pendingFrames] = context.pendingFrames;
-        if (!frame) return { ...context, applyPhase: "idle" };
+        // Every frame queued since the last write applies as one ordered batch.
+        const frames = context.pendingFrames;
+        if (frames.length === 0) return { ...context, applyPhase: "idle" };
         enqueue.effect(async ({ trigger }) => {
           const handles = handlesByTrigger.get(trigger);
           if (!handles) return;
           try {
-            const result = await handles.runtime.applyFrame(frame, handles.abortController.signal);
-            trigger.applyCompleted({ at: Date.now(), frame, generation: event.generation, result });
+            const batch = await handles.runtime.applyFrames(frames, handles.abortController.signal);
+            trigger.applyCompleted({ ...batch, at: Date.now(), generation: event.generation });
           } catch (error) {
-            trigger.applyFailed({ error, frame, generation: event.generation });
+            trigger.applyFailed({ error, frame: frames[0]!, generation: event.generation });
           }
         });
-        return { ...context, applyPhase: "applying", pendingFrames };
+        return { ...context, applyPhase: "applying", pendingFrames: [] };
       },
       applyCompleted: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "applying") return;
-        if (event.result === "mismatch") {
-          return context.pendingTerminal
-            ? refreshBeforePendingTerminal(context, enqueue)
-            : reconnectAfter(context, enqueue, event.at);
+        const applied = foldAppliedFrames(context, event.applied, event.at);
+        if (event.stop === "mismatch") {
+          return applied.pendingTerminal
+            ? refreshBeforePendingTerminal(applied, enqueue)
+            : reconnectAfter(applied, enqueue, event.at);
         }
-        if (event.result === "cancelled") {
-          return context.pendingTerminal
-            ? completePendingTerminal(context, enqueue)
-            : { ...context, applyPhase: "idle" };
+        if (event.stop === "cancelled") {
+          return applied.pendingTerminal
+            ? completePendingTerminal(applied, enqueue)
+            : { ...applied, applyPhase: "idle" };
         }
-        // A reset snapshot that replaced loaded history is stated, never silent (US-017.AC-3).
-        const stated: SessionLiveTailContext =
-          event.result === "reset"
-            ? {
-                ...context,
-                historyReset: {
-                  at: event.at,
-                  generation: event.frame.payload.generation,
-                  reason:
-                    event.frame.kind === "snapshot" ? (event.frame.payload.reason ?? null) : null,
-                },
-              }
-            : context;
-        // A shed replay ends only when an applied frame reaches its watermark
-        // (an empty delta carrying the cursor counts); an empty queue alone is not proof.
-        const applied: SessionLiveTailContext =
-          stated.catchUpThrough !== null && event.frame.cursor >= stated.catchUpThrough
-            ? { ...stated, catchUpThrough: null, catchingUp: false }
-            : stated;
+        if (event.stop !== null) return failApply(applied, enqueue, event.stop);
         if (applied.overflowed) {
           return applied.pendingTerminal
             ? refreshBeforePendingTerminal(applied, enqueue)
@@ -235,14 +221,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       },
       applyFailed: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "applying") return;
-        enqueue.effect(({ trigger }) => {
-          const handles = handlesByTrigger.get(trigger);
-          if (!handles) return;
-          closeStream(handles, "apply-failure");
-          handles.runtime.recordApplyFailure(event.frame, event.error);
-        });
-        if (context.pendingTerminal) return refreshBeforePendingTerminal(context, enqueue);
-        return scheduleBlockingRepair(context, enqueue);
+        return failApply(context, enqueue, event);
       },
       repairStarted: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "repair-scheduled") {

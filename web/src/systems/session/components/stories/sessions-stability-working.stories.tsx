@@ -8,11 +8,6 @@ import { SessionBusyInputRefusalError, type SessionSendOutcome } from "@/systems
 import { liveToolTranscript } from "../assistant-ui/stories/session-thread-story-quiet-transcripts";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { quietWarningSessionFixture } from "@/systems/session/mocks";
-import {
-  type SessionQuietWarning,
-  sessionQuietWarning,
-} from "@/systems/session/lib/session-quiet-warning";
 
 import {
   childrenRunningTranscript,
@@ -106,21 +101,10 @@ const summaryGoalHandler = compozyApiMock.get(
 
 const MINUTE = 60_000;
 
-/** Re-anchors the daemon's quiet episode on the story's mount time so the live clock reads "31m · 9m". */
-function anchoredQuietWarning(quietForMinutes: number): SessionQuietWarning {
-  const warning = sessionQuietWarning(quietWarningSessionFixture)!;
-  const shift = Date.now() - quietForMinutes * MINUTE - warning.quietSinceMs;
-  return {
-    quietSinceMs: warning.quietSinceMs + shift,
-    warnedAtMs: warning.warnedAtMs + shift,
-    stopAtMs: warning.stopAtMs === null ? null : warning.stopAtMs + shift,
-  };
-}
-
 /**
- * The working board's states that only exist in composition (task_05 VC-01,
- * task_07 VC-10, VC-12): the quiet warning on the notice rail with the quiet
- * clock in the status row, the thinking row with no assistant shell yet, and
+ * The working board's states that only exist in composition (task_07 VC-10,
+ * VC-12): a quiet in-flight turn on the working row, the thinking row with no
+ * assistant shell yet, and
  * the frozen stop sentences the daemon's own receipts produce. The transcript,
  * the status row, and the composer are the production thread over MSW.
  */
@@ -137,12 +121,13 @@ const meta: Meta<typeof StabilityThreadHost> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** task_05 VC-01 — "Quiet for 30 minutes." on the notice rail (Stop now), the status row counting "Quiet for 31m · stops in 9m". */
-export const QuietWarning: Story = {
+/** A turn the daemon's watchdog saw go quiet: no notice, the working row reads "Working for 42m · quiet for 12m"; composer Stop stays the action. */
+export const QuietTurn: Story = {
+  parameters: storybookMswParameters({ session: stabilityHandlers(liveToolTranscript) }),
   render: () => (
     <StabilityThreadHost
-      quietWarning={anchoredQuietWarning(31)}
-      statusSession={quietWarningSessionFixture}
+      isSessionRunning
+      statusSession={runningSession({ startedAgoMs: 42 * MINUTE, quietAgoMs: 12 * MINUTE })}
     />
   ),
 };

@@ -65,3 +65,8 @@ without registering/resolving Home. Leaving Global restores Research notes. Norm
 preserves the previous project, and UDS confirms the three complete records are unchanged. The
 permission, draft, layout, failure, abandonment, single-submit, refresh, and onboarding legs are
 complete. The canonical suites and production build pass; see the report for gate and commit evidence.
+
+
+QA impact 2026-10-17 (web performance): The shell pauses directory/default-agent queries while Add project is closed and retains the mounted draft. Verify no closed-dialog filesystem reads, browse then close/reopen without losing path/name/defaults, and unchanged single-submit registration. The existing directory-browser integration suite now covers disabled reads, retained path, invalidation, and re-enable.
+
+Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.

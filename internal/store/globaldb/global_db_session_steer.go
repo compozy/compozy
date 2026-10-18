@@ -86,7 +86,7 @@ func (g *SessionRepo) ResolveSessionSteer(
 		}
 		affected, err = queries.ResolveSessionSteerAdmission(ctx, sqlcgen.ResolveSessionSteerAdmissionParams{
 			ID: entry.PromptAdmissionID, SessionID: sessionID, Now: nullableSessionTime(now),
-			SteerDelivery: string(delivery), TargetTurnID: entry.TargetTurnID,
+			SteerDelivery: string(delivery), TargetTurnID: entry.TargetTurnID, Delivery: entry.Delivery,
 		})
 		if err != nil {
 			return fmt.Errorf("store: resolve session steer receipt: %w", err)

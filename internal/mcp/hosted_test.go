@@ -916,6 +916,192 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound unversioned stream rebuilds by refresh interval and daemon epoch", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		var generationLookups atomic.Int64
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) {
+				generationLookups.Add(1)
+				return "", false
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-unversioned-stream", peer)
+		current := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		var epoch atomic.Uint64
+		epoch.Store(1)
+		service.now = func() time.Time { return current }
+		service.projectionEpoch = epoch.Load
+		baselineCalls := registry.listCallCount()
+		baselineLookups := generationLookups.Load()
+		stream := func(label string) HostedProjectionResponse {
+			t.Helper()
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			if err != nil {
+				t.Fatalf("StreamProjection(%s) error = %v", label, err)
+			}
+			return response
+		}
+
+		stream("cold")
+		for range 5 {
+			stream("within refresh")
+		}
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+			t.Fatalf("registry List calls = %d, want %d within one refresh interval", got, want)
+		}
+		if got, want := generationLookups.Load(), baselineLookups+1; got != want {
+			t.Fatalf("generation lookups = %d, want %d within one refresh interval", got, want)
+		}
+
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+		epoch.Add(1)
+		if got := hostedToolIDs(stream("epoch advance").Tools); !slices.Equal(got, []string{"compozy__beta"}) {
+			t.Fatalf("StreamProjection(epoch advance) tools = %#v, want immediate rebuild", got)
+		}
+
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__gamma")})
+		current = current.Add(hostedUnversionedStreamRefresh)
+		if got := hostedToolIDs(stream("refresh elapsed").Tools); !slices.Equal(got, []string{"compozy__gamma"}) {
+			t.Fatalf("StreamProjection(refresh elapsed) tools = %#v, want live availability", got)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+3; got != want {
+			t.Fatalf("registry List calls = %d, want %d after epoch and refresh rebuilds", got, want)
+		}
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection() error = %v", err)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+4; got != want {
+			t.Fatalf("registry List calls = %d, want %d: one-shot Projection must stay fresh", got, want)
+		}
+	})
+
+	t.Run("Should rebuild an unversioned stream projection invalidated during its build", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "", false },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-unversioned-race", peer)
+		var epoch atomic.Uint64
+		epoch.Store(1)
+		service.projectionEpoch = epoch.Load
+		invalidate := sync.OnceFunc(func() {
+			registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+			epoch.Add(1)
+		})
+		registry.mu.Lock()
+		registry.onListed = invalidate
+		registry.mu.Unlock()
+
+		for _, label := range []string{"invalidated build", "cached rebuild"} {
+			response, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+			if err != nil {
+				t.Fatalf("StreamProjection(%s) error = %v", label, err)
+			}
+			if got := hostedToolIDs(response.Tools); !slices.Equal(got, []string{"compozy__beta"}) {
+				t.Fatalf("StreamProjection(%s) tools = %#v, want views listed after the epoch advance", label, got)
+			}
+		}
+	})
+
+	t.Run("Should hand one-shot readers private copies of shared cached snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "stable", true },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-cache-alias", peer)
+		first, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(first) error = %v", err)
+		}
+		baselineCalls := registry.listCallCount()
+		first.Tools[0].Descriptor.InputSchema[0] = '!'
+		first.Tools[0].Descriptor.Tags = append(first.Tools[0].Descriptor.Tags, "mutated")
+		first.Tools[0].Availability.ReasonCodes = append(
+			first.Tools[0].Availability.ReasonCodes,
+			tools.ReasonPolicyDenied,
+		)
+
+		second, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(cache hit) error = %v", err)
+		}
+		streamed, err := service.StreamProjection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("StreamProjection(cache hit) error = %v", err)
+		}
+		if got := registry.listCallCount(); got != baselineCalls {
+			t.Fatalf("registry List calls = %d, want %d: reads must hit the generation cache", got, baselineCalls)
+		}
+		pristine := hostedToolView("compozy__alpha")
+		for label, response := range map[string]HostedProjectionResponse{"projection": second, "stream": streamed} {
+			if response.Digest != first.Digest || len(response.Tools) != 1 ||
+				!json.Valid(response.Tools[0].Descriptor.InputSchema) ||
+				!slices.Equal(response.Tools[0].Descriptor.Tags, pristine.Descriptor.Tags) ||
+				len(response.Tools[0].Availability.ReasonCodes) != 0 {
+				t.Fatalf("%s cache hit = %#v, want the snapshot unaffected by caller mutation", label, response)
+			}
+		}
+	})
+
+	t.Run("Should signal projection waiters on epoch advance and bind release only", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "", false },
+		)
+		epoch := NewProjectionEpoch()
+		service.projectionEpoch = epoch.Current
+		service.projectionChanges = epoch.Changes
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-change-signal", peer)
+
+		changes := service.ProjectionChanges()
+		for range 3 {
+			if _, err := service.StreamProjection(t.Context(), bind.BindID, peer); err != nil {
+				t.Fatalf("StreamProjection() error = %v", err)
+			}
+		}
+		requireHostedSignalOpen(t, changes.Epoch, "epoch before advance")
+		requireHostedSignalOpen(t, changes.Released, "release before release")
+
+		before := epoch.Current()
+		if got := epoch.Advance(); got != before+1 {
+			t.Fatalf("Advance() = %d, want %d", got, before+1)
+		}
+		requireHostedSignalClosed(t, changes.Epoch, "epoch after advance")
+		rearmed := service.ProjectionChanges()
+		requireHostedSignalOpen(t, rearmed.Epoch, "re-armed epoch")
+
+		service.ReleaseBind(bind.BindID)
+		requireHostedSignalClosed(t, rearmed.Released, "release after release")
+	})
+
 	t.Run("Should discard a released bind cache entry", func(t *testing.T) {
 		t.Parallel()
 
@@ -1378,6 +1564,24 @@ func hostedToolIDs(views []tools.ToolView) []string {
 	return ids
 }
 
+func requireHostedSignalOpen(t *testing.T, signal <-chan struct{}, label string) {
+	t.Helper()
+	select {
+	case <-signal:
+		t.Fatalf("%s signal closed, want open", label)
+	default:
+	}
+}
+
+func requireHostedSignalClosed(t *testing.T, signal <-chan struct{}, label string) {
+	t.Helper()
+	select {
+	case <-signal:
+	default:
+		t.Fatalf("%s signal open, want closed", label)
+	}
+}
+
 func hostedToolView(id tools.ToolID) tools.ToolView {
 	return tools.ToolView{
 		Descriptor: tools.Descriptor{
@@ -1532,6 +1736,8 @@ type hostedRegistryStub struct {
 	listCalls      int
 	listStarted    chan<- struct{}
 	releaseList    <-chan struct{}
+	// onListed runs after List captured its views, simulating an invalidation during a build.
+	onListed func()
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)
@@ -1548,7 +1754,11 @@ func (r *hostedRegistryStub) List(ctx context.Context, scope tools.Scope) ([]too
 	}
 	out := make([]tools.ToolView, len(r.views))
 	copy(out, r.views)
+	onListed := r.onListed
 	r.mu.Unlock()
+	if onListed != nil {
+		onListed()
+	}
 	if listStarted != nil {
 		select {
 		case listStarted <- struct{}{}:

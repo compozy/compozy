@@ -1196,6 +1196,64 @@ func TestSessionDeriveConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
+// Invariant: agent messaging guards never stop long-running work by default: an unanswered reply watch is
+// released after 24h (explicit 0 keeps it forever), promotion only injects, and the rate budget can be switched off. Owner: canonical config suite (#760).
+func TestSessionMessagingConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default to a 24h watch TTL, a 30/10m budget, and 2m promotion", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{}).Session.Messaging
+		if cfg.ReplyWatchTTL != 24*time.Hour || cfg.RateLimitMessages != 30 || cfg.RateLimitWindow != 10*time.Minute ||
+			cfg.QueuePromoteAfter != 2*time.Minute {
+			t.Fatalf("default Session.Messaging = %#v", cfg)
+		}
+		cfg.ReplyWatchTTL = 0
+		if got := cfg.Normalize(); got.ReplyWatchTTL != 0 {
+			t.Fatalf("Normalize() ReplyWatchTTL = %s, want an explicit 0 (never expire) kept", got.ReplyWatchTTL)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("default Session.Messaging.Validate() error = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		cfg     SessionMessagingConfig
+		wantErr string
+	}{
+		{name: "Should accept a disabled rate budget", cfg: SessionMessagingConfig{RateLimitMessages: -1}},
+		{name: "Should accept a custom reply watch TTL", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Hour}},
+		{
+			name: "Should reject a reply watch TTL below one minute", cfg: SessionMessagingConfig{ReplyWatchTTL: time.Second},
+			wantErr: "session.messaging.reply_watch_ttl must be 0 (never expire) or between 1m0s and 720h0m0s: 1s",
+		},
+		{
+			name: "Should reject a negative budget other than -1", cfg: SessionMessagingConfig{RateLimitMessages: -2},
+			wantErr: "session.messaging.rate_limit_messages must be -1 (disabled) or between 1 and 10000: -2",
+		},
+		{
+			name:    "Should reject a promotion threshold below ten seconds",
+			cfg:     SessionMessagingConfig{QueuePromoteAfter: time.Second},
+			wantErr: "session.messaging.queue_promote_after must be 0 or between 10s and 24h0m0s: 1s",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tc.cfg.Validate()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestLoadSessionDeriveConfig(t *testing.T) {
 	load := func(t *testing.T, workspaceTOML string) (Config, error) {
 		t.Helper()
@@ -1230,25 +1288,45 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 	})
 }
 
-// Invariant: quiet and grace are independent nonnegative durations. Owner: config decoder/validator; canonical config suite.
+// Invariant: quiet, grace, and idle release are independent nonnegative durations.
+// Owner: config decoder/validator; canonical config suite.
 func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default idle release to 30 minutes", func(t *testing.T) {
+		t.Parallel()
+		if got := DefaultSessionSupervisionConfig().IdleReleaseAfter; got != 30*time.Minute {
+			t.Fatalf("default idle_release_after = %s, want 30m", got)
+		}
+	})
+
 	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
-		cfg := DefaultSessionSupervisionConfig()
-		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
-		if err := cfg.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		t.Run("Should accept grace and idle release of "+value.String(), func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = 2*time.Minute, value, value
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate(stop_grace=idle_release_after=%s) error = %v", value, err)
+			}
+		})
 	}
-	for _, field := range []string{"quiet_after", "stop_grace"} {
-		cfg := DefaultSessionSupervisionConfig()
-		if field == "quiet_after" {
-			cfg.QuietAfter = -time.Second
-		} else {
-			cfg.StopGrace = -time.Second
-		}
-		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
-			t.Fatalf("%s: %v", field, err)
-		}
+
+	for _, field := range []string{"quiet_after", "stop_grace", "idle_release_after"} {
+		t.Run("Should reject a negative "+field, func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultSessionSupervisionConfig()
+			switch field {
+			case "quiet_after":
+				cfg.QuietAfter = -time.Second
+			case "stop_grace":
+				cfg.StopGrace = -time.Second
+			default:
+				cfg.IdleReleaseAfter = -time.Second
+			}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("Validate() error = %v, want %s validation", err, field)
+			}
+		})
 	}
 }
 
@@ -2711,4 +2789,70 @@ func TestSubagentsConfig(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestDaemonLoadConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose background niceness and load admission defaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		want := DaemonLoadConfig{AgentNiceness: 10, AdmissionThreshold: 1.5, AdmissionMaxWait: 2 * time.Minute}
+		if got := DefaultWithHome(homePaths).Daemon.Load; got != want {
+			t.Fatalf("DefaultWithHome() Daemon.Load = %#v, want %#v", got, want)
+		}
+	})
+
+	testCases := []struct {
+		name     string
+		cfg      DaemonLoadConfig
+		wantPath string
+	}{
+		{name: "Should allow zero to disable niceness and load admission", cfg: DaemonLoadConfig{}},
+		{
+			name:     "Should reject a negative niceness that would need privileges",
+			cfg:      DaemonLoadConfig{AgentNiceness: -1},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a niceness above the Unix maximum",
+			cfg:      DaemonLoadConfig{AgentNiceness: 20},
+			wantPath: daemonLoadAgentNicenessPath,
+		},
+		{
+			name:     "Should reject a negative admission threshold",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: -0.5, AdmissionMaxWait: time.Minute},
+			wantPath: daemonLoadAdmissionThreshold,
+		},
+		{
+			name:     "Should reject an enabled threshold without a bounded wait",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+		{
+			name:     "Should reject a wait beyond the maximum bound",
+			cfg:      DaemonLoadConfig{AdmissionThreshold: 1.5, AdmissionMaxWait: time.Hour},
+			wantPath: daemonLoadAdmissionMaxWaitPath,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.cfg.Validate()
+			if tc.wantPath == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantPath) {
+				t.Fatalf("Validate() error = %v, want %q", err, tc.wantPath)
+			}
+		})
+	}
 }

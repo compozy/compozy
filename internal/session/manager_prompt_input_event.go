@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
@@ -34,6 +35,15 @@ type promptRequest struct {
 	skillInvocations       []commandpkg.Invocation
 	attachments            []AttachmentMeta
 	notifyOnComplete       bool
+	// supersede replaces the same sender's older undispatched message to this target.
+	supersede bool
+	// inputAt pins the input event timestamp so a retried write of the same event stays idempotent.
+	inputAt time.Time
+	// batch carries the queued entries dispatched in the same turn after this request's own input.
+	batch []queuedInput
+	// batchDropped reports a batched entry that left the batch before the turn started and went back
+	// to the queue on its own.
+	batchDropped func(entryID string)
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -58,6 +68,9 @@ func (m *Manager) recordPromptInputEvent(
 		TurnID:    req.turnID,
 		Timestamp: m.now(),
 		Text:      req.message,
+	}
+	if !req.inputAt.IsZero() {
+		event.Timestamp = req.inputAt
 	}
 	event = event.WithPromptOrigin(req.meta.Origin)
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))

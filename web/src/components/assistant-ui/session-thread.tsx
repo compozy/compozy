@@ -36,7 +36,6 @@ import {
   SessionTransportHistoryResetNotice,
   type SessionBusyInputHandler,
   type SessionFailurePayload,
-  type SessionQuietWarning,
   type SessionState,
 } from "@/systems/session";
 
@@ -71,12 +70,6 @@ interface SessionThreadProps extends Omit<
   statusSession?: SessionThreadStatusSession | null;
   /** The daemon answered the operator's turn stop with `nothing-in-flight` (US-009.EC-2). */
   stopCompletionNote?: boolean;
-  /**
-   * The daemon's quiet episode (US-014.EC-2). While present the status row
-   * reads the quiet clock instead of "Working for": the daemon has no work
-   * signal for this session, so a working timer would contradict it.
-   */
-  quietWarning?: SessionQuietWarning | null;
   liveDataEnabled?: boolean;
   /**
    * Renders the transcript with no way to act on it.
@@ -137,11 +130,11 @@ export function SessionThread({
   failure,
   statusSession = null,
   stopCompletionNote = false,
-  quietWarning = null,
   liveDataEnabled = true,
   runtimeControl,
   environmentControl,
   contextControl,
+  subagentControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
@@ -212,7 +205,6 @@ export function SessionThread({
                       stopCompletionNote={stopCompletionNote}
                       stopping={stopPhase === "stopping" || sessionState === "stopping"}
                       running={thread.runtimeRunning}
-                      quietWarning={quietWarning}
                       liveDataEnabled={liveDataEnabled}
                       reducedMotion={thread.reducedMotion}
                     />
@@ -259,6 +251,7 @@ export function SessionThread({
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
                       contextControl={contextControl}
+                      subagentControl={subagentControl}
                       commandCatalog={commandCatalog}
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}

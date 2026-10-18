@@ -1,3 +1,4 @@
+import { fetchSessionSubagents, cancelSubagent } from "../subagent-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   expectFetchRequest,
@@ -30,7 +31,6 @@ import {
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
-  resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
   stopSession,
@@ -351,12 +351,18 @@ describe("renameSession", () => {
     const controller = new AbortController();
 
     await expect(
-      renameSession(WORKSPACE_ID, "sess-001", { name: "Release review" }, controller.signal)
+      renameSession(
+        WORKSPACE_ID,
+        "sess-001",
+        "design",
+        { name: "Release review" },
+        controller.signal
+      )
     ).resolves.toEqual(renamed);
     await expectFetchRequest({
       body: { name: "Release review" },
       method: "PATCH",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?profile=design",
       signal: controller.signal,
     });
   });
@@ -526,10 +532,12 @@ describe("session archive", () => {
     const archivedSession = { ...mockSession, archived_at: "2026-08-04T12:00:00Z" };
     mockJsonResponse({ session: archivedSession });
 
-    await expect(archiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(archivedSession);
+    await expect(archiveSession(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(
+      archivedSession
+    );
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive?profile=design",
     });
   });
 
@@ -537,10 +545,12 @@ describe("session archive", () => {
     const restoredSession = { ...mockSession, archived_at: null };
     mockJsonResponse({ session: restoredSession });
 
-    await expect(unarchiveSession(WORKSPACE_ID, mockSession.id)).resolves.toEqual(restoredSession);
+    await expect(unarchiveSession(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(
+      restoredSession
+    );
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive?profile=design",
     });
   });
 });
@@ -810,6 +820,7 @@ describe("rewindSession", () => {
     const result = await rewindSession(
       WORKSPACE_ID,
       "sess-001",
+      "design",
       {
         expected_epoch: 3,
         expected_generation: 7,
@@ -833,7 +844,7 @@ describe("rewindSession", () => {
         message_id: "message-001",
       },
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/rewind?profile=design",
       signal: controller.signal,
     });
   });
@@ -931,28 +942,6 @@ describe("session input queue operations", () => {
       method: "DELETE",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/queue/input-001",
     });
-  });
-});
-
-describe("resumeSession", () => {
-  it("calls POST attach endpoint", async () => {
-    mockJsonResponse({ session: { ...mockSession, state: "active" } });
-
-    const result = await resumeSession(WORKSPACE_ID, "sess-001");
-
-    expect(result.state).toBe("active");
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/attach",
-    });
-  });
-
-  it("throws 404 error for unknown session", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(resumeSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
-      "Session not found: unknown"
-    );
   });
 });
 
@@ -1332,5 +1321,23 @@ describe("session context HTTP adapters", () => {
     await expect(
       fetchSessionUsageTurns("foreign-workspace", primarySessionFixture.id)
     ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("profile-bound subagents", () => {
+  it("reads the identified parent's roster across profiles and cancels in its owner's profile", async () => {
+    mockJsonResponse({ subagents: [], next_cursor: null });
+    await fetchSessionSubagents(WORKSPACE_ID, "sess-001", { limit: 200, cursor: "next" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/subagents?all_profiles=true&limit=200&cursor=next",
+    });
+    mockJsonResponse({ subagent_id: "sub-1", status: "cancel_requested" }, { status: 202 });
+    await cancelSubagent(WORKSPACE_ID, "sub-1", "design");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/subagents/sub-1/cancel?profile=design",
+      callIndex: 1,
+      body: { reason: "" },
+    });
   });
 });

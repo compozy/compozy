@@ -78,6 +78,25 @@ function outcomeOf(data: Record<string, unknown>): SessionTurnOutcome | null {
   return null;
 }
 
+const outcomesByContent = new WeakMap<readonly unknown[], readonly SessionTurnOutcome[]>();
+
+function messageOutcomes(content: readonly unknown[]): readonly SessionTurnOutcome[] {
+  const cached = outcomesByContent.get(content);
+  if (cached) return cached;
+  const outcomes: SessionTurnOutcome[] = [];
+  for (const part of content) {
+    if (!isRecord(part)) continue;
+    const type = part.type;
+    const isEvent =
+      type === "data-compozy-event" || (type === "data" && part.name === "compozy-event");
+    if (!isEvent || !isRecord(part.data)) continue;
+    const outcome = outcomeOf(part.data);
+    if (outcome) outcomes.push(outcome);
+  }
+  outcomesByContent.set(content, outcomes);
+  return outcomes;
+}
+
 /**
  * Per turn id, the daemon's record that the turn ended, wherever in the loaded
  * thread it was projected. A verified receipt outranks a marker; otherwise the
@@ -87,17 +106,10 @@ export function deriveTurnOutcomes(messages: readonly ThreadMessageLike[]): Sess
   const outcomes = new Map<string, SessionTurnOutcome>();
   for (const message of messages) {
     if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
-    for (const part of message.content) {
-      if (!isRecord(part)) continue;
-      const type = part.type;
-      const isEvent =
-        type === "data-compozy-event" || (type === "data" && part.name === "compozy-event");
-      if (!isEvent || !isRecord(part.data)) continue;
-      const outcome = outcomeOf(part.data);
-      if (!outcome) continue;
+    for (const outcome of messageOutcomes(message.content)) {
       const previous = outcomes.get(outcome.turnId);
       if (previous?.verified && !outcome.verified) continue;
-      outcomes.set(outcome.turnId, outcome);
+      outcomes.set(outcome.turnId, { ...outcome });
     }
   }
   return outcomes.size === 0 ? EMPTY : outcomes;

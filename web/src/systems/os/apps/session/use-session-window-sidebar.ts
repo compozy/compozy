@@ -13,6 +13,8 @@ import {
   useSessionLifecycleActions,
   useSessionListView,
   useSessionSidebarState,
+  useSessionTransportState,
+  useTransportGraceElapsed,
   type SessionListViewModel,
 } from "@/systems/session";
 
@@ -34,7 +36,7 @@ export interface SessionWindowSidebarModel {
   onSelectSession: (session: SessionPayload) => void;
   /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
-  onNewSession: () => void;
+  onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
   rowRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
@@ -59,10 +61,12 @@ export function useSessionWindowSidebar({
   sessionId?: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
+  const transport = useSessionTransportState();
+  const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionLifecycleActions({ workspaceId });
+  const lifecycle = useSessionLifecycleActions();
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });
@@ -118,13 +122,15 @@ export function useSessionWindowSidebar({
     toggle: sidebar.toggle,
     sessions: view.catalog?.sessions ?? [],
     disconnected:
-      sidebar.open && worktree.resolved && (view.catalog?.failed || transportDisconnected),
+      sidebar.open &&
+      worktree.resolved &&
+      (view.catalog?.failed || (transportDisconnected && transportGraceElapsed)),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
     onToggleThread: sidebar.toggleThread,
     onSelectSession,
     openSession,
-    onNewSession: () => openForAgent(""),
+    onNewSession: options => openForAgent("", options),
     sessionActions: lifecycle.actions,
     rowDeleteDialog: lifecycle.deleteDialog,
     rowRenameDialog: lifecycle.renameDialog,

@@ -33,3 +33,13 @@ request settled. The global catalog also closed, leaving no pending feedback. Se
 QA completion 2026-08-05: a fresh Cora replay held DELETE open and confirmed the shared confirmation
 retained its target, pending state, and dismissal guard. A real follow-up deletion removed the row
 only after success while leaving the catalog open.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.

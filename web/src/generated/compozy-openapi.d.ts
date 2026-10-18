@@ -4902,6 +4902,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/session-folders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List session folders in manual order */
+    get: operations["listSessionFolders"];
+    put?: never;
+    /** Create a session folder */
+    post: operations["createSessionFolder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/session-folders/{folder_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a session folder; its sessions return to the workspace root */
+    delete: operations["deleteSessionFolder"];
+    options?: never;
+    head?: never;
+    /** Rename a session folder */
+    patch: operations["renameSessionFolder"];
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/session-order/folders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Set the complete session folder order */
+    put: operations["reorderSessionFolders"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/session-order/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Set the manual session order in a folder or the workspace root */
+    put: operations["reorderSessions"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions": {
     parameters: {
       query?: never;
@@ -5273,6 +5343,23 @@ export interface paths {
     get: operations["listSessionInteractions"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Move a session into a folder or back to the workspace root */
+    post: operations["moveSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11313,6 +11400,7 @@ export interface operations {
                   reason_code?: string;
                   summary?: string;
                 } | null;
+                folder_id?: string;
                 health?: {
                   active_prompt: boolean;
                   agent_name: string;
@@ -45379,7 +45467,14 @@ export interface operations {
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator";
+        sort?:
+          | "recent"
+          | "created"
+          | "name"
+          | "last_activity"
+          | "attention"
+          | "navigator"
+          | "manual";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -45476,6 +45571,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -45900,6 +45996,7 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
+          folder_id?: string;
           lineage_kind?: string;
           name?: string;
           new_worktree?: {
@@ -45988,6 +46085,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -46956,6 +47054,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -47348,6 +47447,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -47568,6 +47668,7 @@ export interface operations {
                 origin?: {
                   agent_name?: string;
                   hop: number;
+                  in_reply_to?: string;
                   kind: string;
                   notify_on_complete?: boolean;
                   reply_watch_id?: string;
@@ -48135,6 +48236,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -48225,6 +48327,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -50603,6 +50706,8 @@ export interface operations {
                 host: string;
                 port: number;
               };
+              /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
+              idle_release_after?: string;
               limits: {
                 max_concurrent_agents: number;
               };
@@ -50613,6 +50718,10 @@ export interface operations {
               redact: {
                 enabled: boolean;
               };
+              /**
+               * @deprecated
+               * @description Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.
+               */
               session_timeout: string;
               terminal: {
                 default_shell: string;
@@ -50728,6 +50837,8 @@ export interface operations {
               host: string;
               port: number;
             };
+            /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
+            idle_release_after?: string;
             limits: {
               max_concurrent_agents: number;
             };
@@ -50738,6 +50849,10 @@ export interface operations {
             redact: {
               enabled: boolean;
             };
+            /**
+             * @deprecated
+             * @description Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.
+             */
             session_timeout: string;
             terminal: {
               default_shell: string;
@@ -57045,7 +57160,7 @@ export interface operations {
                 /** @enum {string} */
                 scope: "workspace" | "all-workspaces";
                 /** @enum {string} */
-                sort: "created" | "name" | "last_activity" | "attention";
+                sort: "created" | "name" | "last_activity" | "attention" | "manual";
               };
             };
             /** @enum {string} */
@@ -57115,7 +57230,7 @@ export interface operations {
               /** @enum {string} */
               scope: "workspace" | "all-workspaces";
               /** @enum {string} */
-              sort: "created" | "name" | "last_activity" | "attention";
+              sort: "created" | "name" | "last_activity" | "attention" | "manual";
             };
           };
         };
@@ -75887,6 +76002,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -76746,6 +76862,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77039,6 +77156,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -77608,6 +77726,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -77879,6 +77998,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78157,6 +78277,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -78503,6 +78624,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -78766,6 +78888,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79037,6 +79160,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -79315,6 +79439,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79650,6 +79775,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -79934,6 +80060,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80205,6 +80332,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -80468,6 +80596,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -80739,6 +80868,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81010,6 +81140,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -81273,6 +81404,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81536,6 +81668,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -81799,6 +81932,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82092,6 +82226,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82521,6 +82656,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -82946,6 +83082,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83217,6 +83354,7 @@ export interface operations {
                     | "invalid_cwd"
                     | "journal_unavailable"
                     | "message_hop_limit"
+                    | "message_rate_limited"
                     | "model_not_found"
                     | "profile_archived"
                     | "profile_selection_conflict"
@@ -83495,6 +83633,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -85675,6 +85814,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -103043,6 +103183,1143 @@ export interface operations {
       };
     };
   };
+  listSessionFolders: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folders: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  createSessionFolder: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folder: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteSessionFolder: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session folder id */
+        folder_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folders: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  renameSessionFolder: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session folder id */
+        folder_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folder: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  reorderSessionFolders: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          folder_ids: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folders: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  reorderSessions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          folder_id?: string;
+          session_ids: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folders: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listWorkspaceSessions: {
     parameters: {
       query?: {
@@ -103077,7 +104354,14 @@ export interface operations {
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator";
+        sort?:
+          | "recent"
+          | "created"
+          | "name"
+          | "last_activity"
+          | "attention"
+          | "navigator"
+          | "manual";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -103177,6 +104461,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -103682,6 +104967,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -104089,7 +105375,10 @@ export interface operations {
   };
   renameSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -104183,6 +105472,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -104694,7 +105984,10 @@ export interface operations {
   };
   archiveSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -104781,6 +106074,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -105265,6 +106559,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -106538,6 +107833,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -107345,6 +108641,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -107697,6 +108994,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -108382,6 +109680,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -108652,6 +109951,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -109004,6 +110304,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -110958,6 +112259,7 @@ export interface operations {
                 origin?: {
                   agent_name?: string;
                   hop: number;
+                  in_reply_to?: string;
                   kind: string;
                   notify_on_complete?: boolean;
                   reply_watch_id?: string;
@@ -111534,6 +112836,204 @@ export interface operations {
       };
     };
   };
+  moveSession: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          folder_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            folders: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              name: string;
+              position: number;
+              profile_id: string;
+              session_count: number;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid layout request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace, session, or folder not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Layout conflict, folder limit, or subagent session */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   updateSessionPresence: {
     parameters: {
       query?: never;
@@ -111785,6 +113285,7 @@ export interface operations {
           }[];
           expected_turn_id?: string;
           idempotency_key: string;
+          in_reply_to?: string;
           message?: string;
           message_id: string;
           messages?: {
@@ -111809,6 +113310,7 @@ export interface operations {
             /** @enum {string} */
             speed?: "normal" | "fast";
           } | null;
+          supersede?: boolean;
         };
       };
     };
@@ -113081,6 +114583,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -113239,6 +114742,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -113435,6 +114939,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -114378,6 +115883,7 @@ export interface operations {
                   reason_code?: string;
                   summary?: string;
                 } | null;
+                folder_id?: string;
                 health?: {
                   active_prompt: boolean;
                   agent_name: string;
@@ -114881,7 +116387,10 @@ export interface operations {
   };
   rewindSessionConversation: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -114999,6 +116508,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -115517,6 +117027,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -115988,6 +117499,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -117492,6 +119004,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -117582,6 +119095,7 @@ export interface operations {
               origin?: {
                 agent_name?: string;
                 hop: number;
+                in_reply_to?: string;
                 kind: string;
                 notify_on_complete?: boolean;
                 reply_watch_id?: string;
@@ -118498,6 +120012,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -119061,6 +120576,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -119324,6 +120840,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -120107,7 +121624,10 @@ export interface operations {
   };
   unarchiveSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -120194,6 +121714,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -121222,6 +122743,7 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              folder_id?: string;
               health?: {
                 active_prompt: boolean;
                 agent_name: string;
@@ -121864,7 +123386,10 @@ export interface operations {
   };
   cancelSubagent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -126174,6 +127699,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126437,6 +127963,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -126700,6 +128227,7 @@ export interface operations {
                 | "invalid_cwd"
                 | "journal_unavailable"
                 | "message_hop_limit"
+                | "message_rate_limited"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"

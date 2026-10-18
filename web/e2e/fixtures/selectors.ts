@@ -51,7 +51,6 @@ export const sessionWindowTestIds = {
   permissionAllowOnce: "permission-allow-once",
   permissionPrompt: "permission-dock",
   processingIndicator: "processing-indicator",
-  resumeButton: "resume-button",
   stopButton: "stop-button",
   topbarOverflow: "session-topbar-overflow",
   userMessageAttachmentFileCard: "user-message-attachment-file-card",
@@ -90,7 +89,6 @@ export interface SessionWindowSelectors {
   permissionAllowOnce: Locator;
   permissionPrompt: Locator;
   processingIndicator: Locator;
-  resumeButton: Locator;
   stopButton: Locator;
   topbarOverflow: Locator;
   userMessageAttachmentFileCard: Locator;
@@ -294,7 +292,7 @@ export const settingsGeneralTestIds = {
   saveBar: "settings-page-general-save-bar",
   saveButton: "settings-page-general-save",
   resetButton: "settings-page-general-reset",
-  sessionTimeoutInput: "settings-page-general-session-timeout-input",
+  idleReleaseInput: "settings-page-general-idle-release-input",
   followUpGroup: "settings-page-general-follow-up-group",
   restartNotice: "settings-page-general-restart-notice",
   restartTrigger: "settings-page-general-restart-trigger",
@@ -392,7 +390,7 @@ interface SettingsGeneralSelectors {
   restartTrigger: Locator;
   saveBar: Locator;
   saveButton: Locator;
-  sessionTimeoutInput: Locator;
+  idleReleaseInput: Locator;
   followUpGroup: Locator;
   followUpOption(mode: "steer" | "queue"): Locator;
   updates: Locator;
@@ -702,7 +700,6 @@ export function sessionWindowSelectors(
     permissionAllowOnce: win.getByTestId(sessionWindowTestIds.permissionAllowOnce),
     permissionPrompt: win.getByTestId(sessionWindowTestIds.permissionPrompt),
     processingIndicator: win.getByTestId(sessionWindowTestIds.processingIndicator),
-    resumeButton: win.getByTestId(sessionWindowTestIds.resumeButton),
     stopButton: win.getByTestId(sessionWindowTestIds.stopButton),
     topbarOverflow: win.getByTestId(sessionWindowTestIds.topbarOverflow),
     userMessageAttachmentFileCard: win.getByTestId(
@@ -1008,7 +1005,7 @@ export function settingsOperatorSelectors(
       saveBar: page.getByTestId(settingsGeneralTestIds.saveBar),
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
-      sessionTimeoutInput: page.getByTestId(settingsGeneralTestIds.sessionTimeoutInput),
+      idleReleaseInput: page.getByTestId(settingsGeneralTestIds.idleReleaseInput),
       followUpGroup: page.getByTestId(settingsGeneralTestIds.followUpGroup),
       followUpOption: (mode: "steer" | "queue") =>
         page.getByTestId(`settings-page-general-follow-up-${mode}`),

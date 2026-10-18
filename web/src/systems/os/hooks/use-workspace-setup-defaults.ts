@@ -2,8 +2,8 @@ import { useAgents } from "@/systems/agent";
 import type { WorkspaceSetupCollection, WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
 /** Loads the agent catalog that seed the workspace setup dialog. */
-export function useWorkspaceSetupDefaults(): WorkspaceSetupDefaultsModel {
-  const agentsQuery = useAgents();
+export function useWorkspaceSetupDefaults(enabled = true): WorkspaceSetupDefaultsModel {
+  const agentsQuery = useAgents(undefined, { enabled });
 
   return {
     agents: workspaceSetupCollection(

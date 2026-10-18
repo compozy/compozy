@@ -12,6 +12,7 @@ Assignment:
 
 - Repository: <OWNER/REPO>; target branch: <TARGET_BRANCH>; initial base SHA: <BASE_SHA>.
 - Your CompozyOS session: <SESSION_ID>.
+- Orchestrator session (report here): <ORCHESTRATOR_SESSION_ID>.
 - Your managed worktree: <WORKTREE_ID>, path <WORKTREE_PATH>, branch <BRANCH>.
 - Runtime: <PROVIDER>, <MODEL>, reasoning effort <REASONING_EFFORT> (default Codex Astra High).
 - Reproduction, evidence, code pointers, hypotheses, acceptance criteria, and user corrections:
@@ -36,6 +37,18 @@ Continue an existing Goal only if it is already for this exact assignment; do no
 An active flag does not prove healthy Goal execution. If supervision fails, record the error and
 continue authorized ordinary work without repeated activation or changes to the user's host daemon.
 Mark the Goal complete only when the full delivery contract below is satisfied.
+
+## Reporting to the orchestrator
+
+Report with the native `compozy__session_prompt` tool targeting <ORCHESTRATOR_SESSION_ID>; never the
+`compozy session prompt` CLI. Each message costs the orchestrator a full turn, so send milestones
+only: plan ready, blocked, PR opened, CI diagnosis, and the final result. Do not stream progress.
+
+- Set `supersede: true` on status updates so only your latest queued update is delivered.
+- Set `in_reply_to` to the orchestrator's `message_id` when answering one of its messages.
+- Set `notify_on_complete: true` only when you need the orchestrator's answer to continue.
+- Do not co-edit shared files such as `docs/_memory/change-impact.md` with other executors. Put your
+  cross-surface impact notes in the PR body; the orchestrator consolidates them.
 
 ## Implementation and validation
 

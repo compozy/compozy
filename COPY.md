@@ -41,7 +41,7 @@ CompozyOS is the system around the agent, already built: it keeps AI agents work
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, Codex, and Cursor) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
 
 ### Product Category
 
@@ -64,7 +64,7 @@ People get advanced, continuous agent work (loops, scheduled automation, permiss
 Lead with compression, then prove it through the connected parts:
 
 1. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
-2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, OpenClaw, and Hermes) plug in as drivers. CompozyOS is not another boxed agent competing with them.
+2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
 3. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
 4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
 5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
@@ -189,9 +189,9 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 When public copy needs to name 2–3 specific agent CLIs as examples (hero subhead, runtime intros, installation prerequisites, blog narrative, project overviews), use this trio in this order:
 
-> Claude Code, OpenClaw, and Hermes.
+> Claude Code, Codex, and Cursor.
 
-Why this trio: these are the most recognizable ACP-compatible CLIs in the current CompozyOS ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
+Why this trio: these are the most recognizable ACP-compatible CLIs in the current CompozyOS ecosystem. Older copy used Claude Code, OpenClaw, and Hermes, or Gemini CLI and Pi, as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
@@ -255,6 +255,7 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
 - Sidebar chip aria: "{live} of {total} subagents running" or "{total} subagents, {failed} failed"; the hover preview ends with "+{N} more" and no other helper text.
 - Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
+- Composer control: aria "Subagents, none yet", "Subagents, none running", "Subagents, couldn't load" (a failed read with nothing running), or "Subagents, {N} running" (plus ", {n} needs you"); the popover reuses the inspector's title and rows, and with no subagents reads "Nothing delegated yet." with "When the agent hands work to a subagent, it shows up here."; a failed read says "Couldn't load subagents." with "Try again".
 - Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
 - Never in this feature's copy: "thread", "worker", "child task", "Click to see all", or a "{N} failed" accessory on the previous-subagents group.
 
@@ -262,11 +263,12 @@ A subagent is a child agent session that another session's turn delegates one ta
 
 A session message is a prompt one agent session sends to another; a reply wake brings the target's answer back to the sender. The glossary entries **Session Message**, **Reply Wake**, and **Isolated Subagent** are authoritative. Nouns are `session`, `agent`, `subagent`, `branch`, and `pull request` (`PR` in compact slots). Session-message and reply cards read as agent-authored and left-aligned; only the operator's own bubble is right-aligned. The sender header and reply wake text agents receive are fixed English for agents, not UI copy.
 
-- Received message card: "From {title}" (a link), "From a deleted session" (no link), a "Reply requested" chip, and a mode chip only for "Steered", "Interrupted", or "Superseded" (queued and direct sends show none). Long bodies clamp with "Show more" / "Show less". Article name "Message from {title}" (", superseded" when superseded). While the sender's title loads, the label reads "another session".
-- Reply card: "Reply from {title}" or "Reply from a deleted session", with the outcome word Completed · Failed · Canceled · Dropped · Unknown. Fixed bodies: "No reply text." · "The message was removed from the queue before it ran." · "The message may not have been delivered; check the target session." A cut answer ends with "Reply truncated · Read the full turn". Article name "Reply from {title}, {outcome}" (", truncated" when cut).
-- Sent card: "Sending to {title}" · "Sent to {title}" · "Could not send to {title}" (with the error), the state "Sending…", then the reply state "Waiting for reply" → Replied · Failed · Canceled · Dropped · Unknown. No reply state when no reply was requested. The sent card never says "Queued". Tool label: Send / Sending / Sent "a message".
-- Queue row: "From {title}" in the owner slot, the only verb is Remove, aria "Remove message from {title}". Edit refusal (`input_agent_authored`): "This message was sent by another session and can't be edited. Cancel it instead."
-- Errors agents and operators see: "session_prompt cannot target the calling session." · "Message chain limit reached (8 hops). Ask the operator to continue." · "Could not create the subagent worktree: {cause}." · "isolation must be shared or worktree." · "base_ref requires isolation \"worktree\"."
+- Received message card: "From {title}" (a link), "From a deleted session" (no link), a "Reply requested" chip, an "In reply" chip when the message answers an earlier one (a button that shows the original when it is loaded; aria "In reply: show the original message"), and a mode chip only for "Steered", "Interrupted", or "Superseded" (queued and direct sends show none). Long bodies clamp with "Show more" / "Show less". Article name "Message from {title}" (", superseded" when superseded). While the sender's title loads, the label reads "another session". Consecutive messages from the same sender collapse into one group with the toggle "{title} · N messages" (only "N messages" while the title loads; "A deleted session · N messages" when deleted); the toggle shows the latest message and expands to all.
+- Reply card: "Reply from {title}" or "Reply from a deleted session", with the outcome word Completed · Failed · Canceled · Dropped · Unknown. Fixed bodies: "No reply text." · "The message was removed from the queue before it ran." · "No reply arrived in time. The message may still be pending; check the target session." (outcome "No reply", an expired reply watch) · "The message may not have been delivered; check the target session." A cut answer ends with "Reply truncated · Read the full turn". Article name "Reply from {title}, {outcome}" (", truncated" when cut).
+- Sent card: "Sending to {title}" · "Sent to {title}" · "Could not send to {title}" (with the error), the state "Sending…", then the reply state "Waiting for reply" → Replied · Failed · Canceled · Dropped · No reply · Unknown. No reply state when no reply was requested. The sent card never says "Queued". Tool label: Send / Sending / Sent "a message".
+- Queue row: "From {title}" in the owner slot, the verbs are Steer (aria "Steer message from {title}") and Remove (aria "Remove message from {title}"); an agent row is never editable. Edit refusal (`input_agent_authored`): "This message was sent by another session and can't be edited. Cancel it instead."
+- Session list row: a "Needs attention" session says why on its secondary line, with every cause in the hover title: "Stop not confirmed" · "{Source} is blocked" (or the source's own error) · "{Source} went stale" · "Can't check {source}", with "(+N)" for more causes. Sources read "agent progress", "running tool", "subagent", "Loop run", "task lease", "scheduled wait", "awaited reply".
+- Errors agents and operators see: "session_prompt cannot target the calling session." · "Message chain limit reached (8 hops). Ask the operator to continue." · "Message rate limit reached: {limit} messages to session {id} within {window}. Retry after {delay}, and send fewer, milestone-level messages." · "Could not create the subagent worktree: {cause}." · "isolation must be shared or worktree." · "base_ref requires isolation \"worktree\"."
 - Isolated subagent facts follow the Subagent Terms line above: "PR status unknown" when CompozyOS could not check, never "No PR"; "No pull request" only when the forge answered.
 - Never in this feature's copy: "thread", "worker", "inbox", "DM", "chat", or "No PR".
 
@@ -434,7 +436,7 @@ Use:
 
 - the Hero Lock in §2 verbatim: headline, subhead, and the small category label.
 - the compression promise first, then proof that loops, triggers, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
-- agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes).
+- agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, Codex, and Cursor).
 - extensibility as the next criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
 - architecture only as a why-it-holds caption ("one runtime, one state model"), never a section lead.
 - install path as primary conversion.
@@ -769,7 +771,7 @@ Before shipping copy or product-facing text, verify:
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
 - The copy uses `CompozyOS` and `compozy` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `AGENT.md`, and `AGENTS.md`.
-- Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
+- Inline example lists of agent CLIs use the canonical trio (Claude Code, Codex, and Cursor) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
 - The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.

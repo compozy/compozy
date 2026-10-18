@@ -79,3 +79,16 @@ model, and support scenarios. The `MS` code and the retired ids are never reused
 `RT-upgrade-memory-removal-home`. Dated reports, bug receipts, `_seeds/`, and `evidence/` that mention memory,
 Dream, Knowledge, or compaction record historical observations only; they are not a current capability catalog
 or an executable plan.
+
+### Product retirement — long-tail providers (2026-10-17)
+
+Issue #761 removed 12 built-in providers: `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`,
+`kiro`, `openhands`, `qoder`, `mistral`, `groq`, and `minimax`. References keep resolving through a
+deprecation shim until v0.5.0. The dedicated scenarios `RT-hermes-live-model-readiness` and
+`RT-openclaw-provider-managed-runtime` were deleted with the Hermes live discovery and OpenClaw
+provider-managed strategy they covered; their ids are never reused. Mixed scenarios and journeys that
+used a removed provider were rewritten in place to use `claude` or `codex`, with dated QA impact notes
+that keep the earlier results as history. `RT-retired-builtin-provider-shim` covers the deprecation
+window. Charters, dated reports, bug receipts, `_seeds/`, and `evidence/` that mention the removed
+providers record historical observations only, and `src:` lines that cite the `hermes-comparison`
+program name a task folder, not the provider.

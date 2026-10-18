@@ -63,6 +63,9 @@ const (
 	CatalogEventUpserted CatalogEventKind = "upserted"
 	// CatalogEventDeleted reports a removed catalog row.
 	CatalogEventDeleted CatalogEventKind = "deleted"
+	// CatalogEventLayout reports a workspace folder or manual-order change.
+	// It carries no session id: clients reread folders and the catalog.
+	CatalogEventLayout CatalogEventKind = "layout"
 )
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
@@ -130,7 +133,11 @@ func (b *sessionCatalogBroadcaster) subscribe(
 }
 
 func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
-	if strings.TrimSpace(event.SessionID) == "" || strings.TrimSpace(event.ProfileID) == "" {
+	if strings.TrimSpace(event.ProfileID) == "" {
+		return 0
+	}
+	if strings.TrimSpace(event.SessionID) == "" &&
+		(event.Kind != CatalogEventLayout || strings.TrimSpace(event.WorkspaceID) == "") {
 		return 0
 	}
 	b.mu.Lock()

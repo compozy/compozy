@@ -189,6 +189,12 @@
             "skillPath": "skills/mine/no-workarounds/SKILL.md",
             "computedHash": "c36d9a5afdcbf9cf40b1b8573c697ac2f8119feb9dfee96477a7bb4c8e46a86e"
         },
+        "performance-optimization": {
+            "source": "addyosmani/agent-skills",
+            "sourceType": "github",
+            "skillPath": "skills/performance-optimization/SKILL.md",
+            "computedHash": "a2cdba94ff8f898183b3d5af736272dc439826083723b17a88782e75d2351530"
+        },
         "qa-execution": {
             "source": "pedronauck/skills",
             "sourceType": "github",

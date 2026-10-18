@@ -72,6 +72,7 @@ type Driver struct {
 	processRegistry      *toolruntime.Registry
 	terminals            TerminalHost
 	providerPreStarter   ProviderPreStarter
+	agentNiceness        int
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -85,6 +86,14 @@ func WithLogger(logger *slog.Logger) Option {
 func WithStopTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) {
 		driver.stopTimeout = timeout
+	}
+}
+
+// WithAgentNiceness lowers the CPU priority of locally launched agent process
+// groups; zero keeps the daemon's priority. It applies to the default local launcher.
+func WithAgentNiceness(niceness int) Option {
+	return func(driver *Driver) {
+		driver.agentNiceness = niceness
 	}
 }
 
@@ -207,7 +216,7 @@ func New(opts ...Option) *Driver {
 		driver.processRecordTimeout = defaultProcessRecordTimeout
 	}
 	if driver.launcher == nil {
-		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout)
+		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout, driver.agentNiceness)
 	}
 	return driver
 }

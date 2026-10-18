@@ -122,6 +122,7 @@ func enqueueGoalSessionOutboxWithExecutor(
 			err,
 		)
 	}
+	markOutboxSignal(exec, outboxSignalGoalSession)
 	loaded, err := loadGoalSessionOutboxByEventID(ctx, exec, request.EventID)
 	if err != nil {
 		return goal.SessionOutboxEvent{}, err

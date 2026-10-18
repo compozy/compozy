@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,6 +132,51 @@ func TestTerminalBrowserIdentityShouldBindAuthorizedClient(t *testing.T) {
 		if denied.Code != http.StatusForbidden || generic.Error.Code != terminalTransportForbidden ||
 			strings.Contains(denied.Body.String(), "terminal_client_unauthorized") {
 			t.Fatalf("denied status/body = %d/%s", denied.Code, denied.Body.String())
+		}
+	})
+
+	t.Run("Should classify canceled attach requests without a server error", func(t *testing.T) {
+		t.Parallel()
+		for _, source := range []string{"identity", "mint", "mapped"} {
+			t.Run("Should classify cancellation from "+source, func(t *testing.T) {
+				t.Parallel()
+				canceled := fmt.Errorf("workspace resolve: %w", context.Canceled)
+				identity := &terminalWindowManagerServiceStub{}
+				manager := terminalManagerStub{}
+				if source == "identity" {
+					identity.err = canceled
+				} else {
+					manager.mintErr = canceled
+				}
+				handlers := NewBaseHandlers(&BaseHandlerConfig{
+					TransportName: "httpapi", MaskInternalErrors: true,
+					Terminal:      &terminalProviderStub{Manager: manager},
+					WindowManager: &terminalWindowManagerProviderStub{service: identity},
+				})
+				router := gin.New()
+				router.POST("/api/workspaces/:workspace_id/terminals/:id/attach-ticket", func(c *gin.Context) {
+					if source == "mapped" {
+						handlers.respondTerminalMappedError(c, http.StatusInternalServerError, canceled)
+						return
+					}
+					handlers.MintTerminalAttachTicket(c)
+				})
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+					"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
+					strings.NewReader(`{"mode":"write","client_id":"client:web"}`))
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set(terminalClientAttachmentHeader, "attachment-token")
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				var payload contract.TerminalErrorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("decode cancellation: %v", err)
+				}
+				if response.Code != statusClientClosedRequest || payload.Error.Code != terminalTransportAPIError ||
+					!strings.Contains(payload.Error.Message, context.Canceled.Error()) {
+					t.Fatalf("canceled attach status/body = %d/%s", response.Code, response.Body.String())
+				}
+			})
 		}
 	})
 

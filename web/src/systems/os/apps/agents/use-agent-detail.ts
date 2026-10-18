@@ -68,6 +68,7 @@ export interface UseAgentDetailResult {
   sessionRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
 }
 
+/** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
   const { runtimeWorkspaceId, pending } = useActiveWorkspace();
@@ -97,7 +98,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isError: sessionsError,
     retry: onRetrySessions,
   } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
+  const sessionLifecycle = useSessionLifecycleActions();
 
   const deleteFlow = useAgentDeleteFlow({
     agent,

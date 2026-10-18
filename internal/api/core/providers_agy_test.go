@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -259,19 +260,14 @@ func TestProviderAGYACPProbe(t *testing.T) {
 		if got, want := payload.AuthStatus.Login.Source, contract.ProviderLoginSourceAuthACPMethod; got != want {
 			t.Fatalf("Login.Source = %q, want %q", got, want)
 		}
-		if got, want := string(payload.AuthStatus.Login.Executable), "agy_acp_server.par"; got != want {
+		if got, want := payload.AuthStatus.Login.Executable, "agy_acp_server.par"; got != want {
 			t.Fatalf("Login.Executable = %q, want %q", got, want)
 		}
 	})
 }
 
 func seenHasEnv(env []string, want string) bool {
-	for _, entry := range env {
-		if entry == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(env, want)
 }
 
 // Invariant: the daemon probe env carries its working directory so the ACP
@@ -362,8 +358,8 @@ func TestProviderHandlersWithoutWorkingDirectory(t *testing.T) {
 		if err := os.Remove(workdir); err != nil {
 			t.Fatalf("remove working directory: %v", err)
 		}
-		if _, err := os.Getwd(); err == nil {
-			t.Fatal("os.Getwd() succeeded after removing the working directory")
+		if _, err := os.Stat(workdir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("removed working directory still exists: %v", err)
 		}
 		for _, endpoint := range []struct{ method, path, body string }{
 			{http.MethodGet, "/providers", `"providers":[`},

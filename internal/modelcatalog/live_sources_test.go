@@ -888,10 +888,10 @@ opencode/provider-managed
 		}
 	})
 
-	t.Run("Should fail closed for OpenClaw without configured discovery path", func(t *testing.T) {
+	t.Run("Should fail closed for Pi without configured discovery path", func(t *testing.T) {
 		t.Parallel()
 
-		source := newLiveSourceForTest(t, "openclaw", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "pi", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		})
 		store := newMemoryStore()
@@ -899,76 +899,17 @@ opencode/provider-managed
 
 		statuses, err := service.Refresh(
 			testutil.Context(t),
-			RefreshOptions{ProviderID: "openclaw", Force: true, Now: testTime(0)},
+			RefreshOptions{ProviderID: "pi", Force: true, Now: testTime(0)},
 		)
 		if !errors.Is(err, ErrAllSourcesFailed) {
 			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
 		}
-		status := requireStatus(t, statuses, "provider_live:openclaw")
+		status := requireStatus(t, statuses, "provider_live:pi")
 		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
 		if !strings.Contains(status.LastError, "no configured model discovery") {
 			t.Fatalf("LastError = %q, want no configured discovery path", status.LastError)
-		}
-	})
-
-	t.Run("Should discover Hermes models through an injected ACP probe", func(t *testing.T) {
-		t.Parallel()
-
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
-			ID:   "model",
-			Kind: acp.SessionConfigOptionKindSelect,
-			Values: []acp.SessionConfigOptionValue{{
-				Value: "hermes-model",
-				Label: "Hermes model",
-			}},
-		}}}
-		provider := compozyconfig.ProviderConfig{
-			Command: "hermes acp",
-		}
-		source := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
-			BaseEnv:  []string{"PATH=/bin"},
-			ACPProbe: probe,
-		})
-		rows, err := source.ListModels(testutil.Context(t), ListOptions{
-			ProviderID: "hermes",
-			Now:        testTime(0),
-		})
-		if err != nil {
-			t.Fatalf("ListModels(Hermes ACP) error = %v", err)
-		}
-		if got, want := requireSingleRow(t, rows).ModelID, "hermes-model"; got != want {
-			t.Fatalf("ModelID = %q, want %q", got, want)
-		}
-		if !source.BootstrapOnList() {
-			t.Fatal("BootstrapOnList() = false, want true")
-		}
-		req := probe.singleRequest(t)
-		if req.Command != provider.Command {
-			t.Fatalf("ACP discovery command = %q, want %q", req.Command, provider.Command)
-		}
-
-		disabled := false
-		provider.Models.Discovery.Enabled = &disabled
-		disabledSource := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
-			BaseEnv:  []string{"PATH=/bin"},
-			ACPProbe: probe,
-		})
-		store := newMemoryStore()
-		service := newTestService(t, store, []Source{disabledSource})
-		statuses, err := service.Refresh(
-			testutil.Context(t),
-			RefreshOptions{ProviderID: "hermes", Force: true, Now: testTime(0)},
-		)
-		if err != nil {
-			t.Fatalf("Refresh(disabled) error = %v", err)
-		}
-		if status := requireStatus(t, statuses, "provider_live:hermes"); status.RefreshState != RefreshStateDisabled {
-			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
-		}
-		if got := probe.requestCount(); got != 1 {
-			t.Fatalf("ACP probe calls = %d, want 1 after disabled refresh", got)
 		}
 	})
 
@@ -1111,9 +1052,7 @@ opencode/provider-managed
 		); status.RefreshState != RefreshStateDisabled {
 			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
 		}
-		if got := probe.requestCount(); got != 1 {
-			t.Fatalf("ACP probe calls = %d, want 1 after disabled refresh", got)
-		}
+		probe.singleRequest(t)
 		models, err := service.ListModels(testutil.Context(t), ListOptions{
 			ProviderID: liveSourcesAgyKey,
 			View:       CatalogViewAll,
@@ -1465,8 +1404,6 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 			"provider_live:openrouter",
 			"provider_live:vercel-ai-gateway",
 			"provider_live:opencode",
-			"provider_live:openclaw",
-			"provider_live:hermes",
 			"provider_live:pi",
 			"provider_live:ollama",
 			"provider_live:openai",
@@ -1825,12 +1762,6 @@ func (p *fakeACPModelProbe) singleRequest(t *testing.T) ACPModelProbeRequest {
 		t.Fatalf("len(requests) = %d, want 1", len(p.requests))
 	}
 	return p.requests[0]
-}
-
-func (p *fakeACPModelProbe) requestCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.requests)
 }
 
 func (e *fakeDiscoveryExecutor) RunDiscoveryCommand(

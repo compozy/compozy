@@ -97,7 +97,17 @@ func (s *Session) IsPrompting() bool {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.isPromptingLocked()
+}
+
+func (s *Session) isPromptingLocked() bool {
 	return s.turnStopPending || s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
+}
+
+// turnAwaitsAgentLocked reports a turn in flight that waits on the agent, not on the
+// operator's answer to a pending permission or clarify request. The caller holds s.mu.
+func (s *Session) turnAwaitsAgentLocked() bool {
+	return s.isPromptingLocked() && len(s.PendingInteractions) == 0
 }
 
 func (s *Session) isCurrentPromptAgentWaiting() bool {

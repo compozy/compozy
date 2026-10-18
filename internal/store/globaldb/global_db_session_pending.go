@@ -292,7 +292,7 @@ func insertOrphanResolutionInput(
 	input store.SessionInputQueueInsert,
 ) error {
 	normalized := input.Normalize()
-	count, err := countPendingSessionInputs(ctx, exec, normalized.SessionID)
+	count, err := countPendingSessionInputs(ctx, exec, normalized.SessionID, normalized.OriginClass)
 	if err != nil {
 		return err
 	}

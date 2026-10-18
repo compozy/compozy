@@ -9,11 +9,17 @@ import (
 
 const hostedProjectionGenerationRetries = 3
 
+// hostedProjectionCache holds immutable projection snapshots. Entries and flight results are
+// shared with every reader, so no path may mutate a response after it enters the cache.
 type hostedProjectionCache struct {
-	mu      sync.Mutex
-	entries map[string]hostedProjectionCacheEntry
-	flights map[hostedProjectionFlightKey]*hostedProjectionFlight
+	mu          sync.RWMutex
+	entries     map[string]hostedProjectionCacheEntry
+	flights     map[hostedProjectionFlightKey]*hostedProjectionFlight
+	unversioned map[string]hostedUnversionedProjection
 }
+
+// hostedProjectionBuilder produces a projection when no authoritative generation can key the cache.
+type hostedProjectionBuilder func(context.Context, tools.Registry, *hostedBindRecord) (HostedProjectionResponse, error)
 
 type hostedProjectionCacheEntry struct {
 	generation string
@@ -34,32 +40,35 @@ type hostedProjectionFlight struct {
 
 func newHostedProjectionCache() hostedProjectionCache {
 	return hostedProjectionCache{
-		entries: make(map[string]hostedProjectionCacheEntry),
-		flights: make(map[hostedProjectionFlightKey]*hostedProjectionFlight),
+		entries:     make(map[string]hostedProjectionCacheEntry),
+		flights:     make(map[hostedProjectionFlightKey]*hostedProjectionFlight),
+		unversioned: make(map[string]hostedUnversionedProjection),
 	}
 }
 
 // projectionForGeneration coalesces known generations and rebuilds views whenever generation authority is absent.
+// The response may be a cached snapshot shared with other readers; callers must not mutate it.
 func (s *HostedService) projectionForGeneration(
 	ctx context.Context,
 	record *hostedBindRecord,
 	registry tools.Registry,
+	unversioned hostedProjectionBuilder,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
-		return buildHostedProjection(ctx, registry, record)
+		return unversioned(ctx, registry, record)
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return buildHostedProjection(ctx, registry, record)
+			return unversioned(ctx, registry, record)
 		}
-		if cached, ok := s.projectionCache.load(record.bindID, generation); ok {
+		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
+		if cached, ok := s.projectionCache.load(key); ok {
 			return cached, nil
 		}
 
-		key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
 		flight, leader := s.projectionCache.begin(key)
 		if !leader {
 			response, retry, err := waitHostedProjectionFlight(ctx, flight)
@@ -79,7 +88,7 @@ func (s *HostedService) projectionForGeneration(
 		stored := s.finishProjectionGeneration(key, record, response, stable)
 		if stable {
 			if stored {
-				return cloneHostedProjectionResponse(response), nil
+				return response, nil
 			}
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
@@ -98,9 +107,7 @@ func (s *HostedService) finishProjectionGeneration(
 		return false
 	}
 	s.mu.Lock()
-	active := s.binds[key.bindID]
-	owned := active != nil && record != nil && active.sessionID == record.sessionID &&
-		active.peer.PID == record.peer.PID && active.peer.UID == record.peer.UID
+	owned := record != nil && s.ownsBindRecord(record)
 	s.projectionCache.finish(key, response, nil, false, owned)
 	s.mu.Unlock()
 	return owned
@@ -119,17 +126,18 @@ func buildHostedProjection(
 	return hostedProjectionResponse(views, record.digestMemo), nil
 }
 
-func (c *hostedProjectionCache) load(bindID string, generation string) (HostedProjectionResponse, bool) {
+// load returns the shared immutable snapshot cached for the exact bind generation.
+func (c *hostedProjectionCache) load(key hostedProjectionFlightKey) (HostedProjectionResponse, bool) {
 	if c == nil {
 		return HostedProjectionResponse{}, false
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.entries[bindID]
-	if !ok || entry.generation != generation {
+	c.mu.RLock()
+	entry, ok := c.entries[key.bindID]
+	c.mu.RUnlock()
+	if !ok || entry.generation != key.generation {
 		return HostedProjectionResponse{}, false
 	}
-	return cloneHostedProjectionResponse(entry.response), true
+	return entry.response, true
 }
 
 func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedProjectionFlight, bool) {
@@ -155,11 +163,11 @@ func (c *hostedProjectionCache) finish(
 	if store {
 		c.entries[key.bindID] = hostedProjectionCacheEntry{
 			generation: key.generation,
-			response:   cloneHostedProjectionResponse(response),
+			response:   response,
 		}
 	}
 	if flight != nil {
-		flight.response = cloneHostedProjectionResponse(response)
+		flight.response = response
 		flight.err = err
 		flight.retry = retry
 		delete(c.flights, key)
@@ -174,6 +182,7 @@ func (c *hostedProjectionCache) remove(bindID string) {
 	}
 	c.mu.Lock()
 	delete(c.entries, bindID)
+	delete(c.unversioned, bindID)
 	c.mu.Unlock()
 }
 
@@ -181,9 +190,9 @@ func (c *hostedProjectionCache) size() int {
 	if c == nil {
 		return 0
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.entries)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.entries) + len(c.unversioned)
 }
 
 func waitHostedProjectionFlight(
@@ -194,10 +203,11 @@ func waitHostedProjectionFlight(
 	case <-ctx.Done():
 		return HostedProjectionResponse{}, false, ctx.Err()
 	case <-flight.done:
-		return cloneHostedProjectionResponse(flight.response), flight.retry, flight.err
+		return flight.response, flight.retry, flight.err
 	}
 }
 
+// cloneHostedProjectionResponse detaches a shared snapshot before it reaches a caller that may mutate it.
 func cloneHostedProjectionResponse(response HostedProjectionResponse) HostedProjectionResponse {
 	return HostedProjectionResponse{
 		Tools:  cloneToolViews(response.Tools),

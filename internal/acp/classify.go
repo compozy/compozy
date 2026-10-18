@@ -36,8 +36,7 @@ func ClassifyProbeError(providerName string, err error) authproviders.Classifica
 			Action: authproviders.ProviderFailureActionLogin,
 		}
 	}
-	var unavailable *AuthMethodUnavailableError
-	if errors.As(err, &unavailable) && unavailable != nil {
+	if unavailable, ok := errors.AsType[*AuthMethodUnavailableError](err); ok && unavailable != nil {
 		return authproviders.Classification{
 			State: authproviders.ProviderAuthStateUnknown,
 			Code:  diagcontract.CodeProviderClassificationUnknown,

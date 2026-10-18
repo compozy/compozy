@@ -8,7 +8,7 @@
 - Pause, resume, recovery, blocks, and escalation
 - Scheduler controls
 - Coordinator, worker, and reviewer loops
-- Review verdicts, communication discipline, and safety
+- Review verdicts, communication discipline, supervisor/worker messaging, and safety
 
 ## Authority Model
 
@@ -36,8 +36,11 @@ existing session. Save `reply_watch.id`, finish your current turn, and let the r
 work. The watch follows the message through queued or steered delivery, not an unrelated turn.
 Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
-you wait. A stopped target keeps queued messages and their watches. If CompozyOS stopped you
-(inactivity, restart, crash), the reply resumes you; an operator stop waits for the operator's resume.
+you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
+the `expired` outcome. Once you end your turn you are idle, and an idle session is never stopped for
+inactivity; your runtime may be released and the reply rebinds it transparently. A stopped target
+keeps queued messages and their watches. If CompozyOS stopped you (restart, crash, or an inactivity
+stop of a hung turn), the reply resumes you; an operator stop waits for the operator's resume.
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
@@ -241,8 +244,9 @@ an unrelated lease. Global task runs do not consume this workspace limit.
 
 Action nodes have no inherited duration limit. Only `timeout` or lifecycle deadlines written on the
 node bound execution time; the Loop silence window raises attention without canceling work.
-Session supervision independently stops sessions whose evidence has expired when configured
-`stop_grace` elapses. After verified exit, owned task work consumes the next available attempt,
+Session supervision independently stops a session whose in-flight turn stays silent after its
+evidence expires, once configured `stop_grace` elapses; idle sessions are never stopped for
+inactivity. After verified exit, owned task work consumes the next available attempt,
 preserving its task identity and linking the new run. Exhaustion becomes `needs_attention` with
 `supervised_silence_exhausted`; explicit cancellation is never retried. Recovered expired leases
 increment the run's `recovery_count`; once `attempt + recovery_count` reaches `max_attempts`, the run
@@ -282,6 +286,24 @@ Use task state and session surfaces for clarification and handoff. Include the r
 blocker, next action, and relevant persisted IDs.
 
 If a direct room produced a conclusion, summarize back to the public thread without leaking private details or raw tokens.
+
+## Supervisor And Worker Messaging Protocol
+
+When a supervisor session dispatches workers (executors, children), keep messaging cheap and
+attributable.
+
+- Use `compozy__session_prompt` on both sides, never the CLI. Put the supervisor's session ID in the
+  worker briefing so the worker can report back.
+- Workers report milestones only: plan ready, blocked, PR opened, CI diagnosis, final result. They set
+  `supersede: true` on status updates so only the latest is delivered, and `notify_on_complete` only
+  when they need an answer.
+- The supervisor answers with `in_reply_to` set to the worker's `message_id`. Urgent corrections use
+  `mode: "steer"`; routine additions can be queued, and a long-running worker still receives them
+  through `session.messaging.queue_promote_after`.
+- Workers do not co-edit shared files such as `docs/_memory/change-impact.md`; impact notes go in the PR
+  body and the supervisor consolidates them.
+- A `message_rate_limited` or `message_hop_limit` error means too many messages or a forwarding chain,
+  not an outage: batch updates or ask the operator.
 
 ## Safety
 

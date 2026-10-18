@@ -13088,15 +13088,40 @@ func TestNativeSubagentHostedCaller(t *testing.T) {
 	}
 }
 
+// originNativeSessionManager models the session manager's message-origin contract: self-target and the
+// hop limit refuse, a rate-limited pair refuses with the typed budget error, and an accepted send is
+// stamped from the sender's status one hop deeper. The hop model itself is owned by the session suite.
 type originNativeSessionManager struct {
 	core.SessionManager
-	hop int
+	hop         int
+	rateLimited bool
 }
 
-var _ nativeSessionHopReader = originNativeSessionManager{}
+var _ nativeSessionMessageOriginBuilder = originNativeSessionManager{}
 
-func (m originNativeSessionManager) CurrentTurnEffectiveHop(context.Context, string) (int, error) {
-	return m.hop, nil
+func (m originNativeSessionManager) SessionMessageOrigin(
+	ctx context.Context,
+	req session.MessageOriginRequest,
+) (*acp.PromptOriginMeta, error) {
+	switch {
+	case req.SenderSessionID == req.TargetSessionID:
+		return nil, session.ErrSessionMessageSelfTarget
+	case m.hop >= acp.MaxSessionMessageHops:
+		return nil, session.ErrSessionMessageHopLimit
+	case m.rateLimited:
+		return nil, &session.MessageRateLimitError{
+			TargetSessionID: req.TargetSessionID, Limit: 30, Window: 10 * time.Minute, RetryAfter: time.Minute,
+		}
+	}
+	sender, err := m.Status(ctx, req.SenderSessionID)
+	if err != nil {
+		return nil, err
+	}
+	return &acp.PromptOriginMeta{
+		Kind: acp.PromptOriginKindSession, SessionID: req.SenderSessionID, WorkspaceID: sender.WorkspaceID,
+		AgentName: req.AgentName, TitleAtSend: sender.Name, Hop: m.hop + 1,
+		NotifyOnComplete: req.NotifyOnComplete, InReplyTo: req.InReplyTo,
+	}, nil
 }
 
 type replayNativeSessionManager struct {
@@ -13304,4 +13329,237 @@ func TestNativeSessionPromptOrigin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: the native send maps the session message budget to message_rate_limited, carries in_reply_to
+// into the stamped origin and supersede into admission, and refuses in_reply_to and supersede from operator scope.
+// Owner: native session_prompt suite.
+func TestNativeSessionPromptMessageGuards(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		operator    bool
+		rateLimited bool
+		omitReply   bool
+		code        toolspkg.ErrorCode
+	}{
+		{name: "Should refuse an exhausted sender budget with message_rate_limited", rateLimited: true,
+			code: toolspkg.ErrorCodeSessionMessageRateLimited},
+		{name: "Should carry in_reply_to and supersede through admission"},
+		{name: "Should refuse in_reply_to from operator scope", operator: true,
+			code: toolspkg.ErrorCodeInvalidRequest},
+		{name: "Should refuse supersede from operator scope", operator: true, omitReply: true,
+			code: toolspkg.ErrorCodeInvalidRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got *session.SendPromptOpts
+			base := nativeTestSessionManager("ws-origin")
+			base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, Name: "Sender title", WorkspaceID: "ws-origin",
+					AgentName: "coder", State: session.StateActive,
+				}, nil
+			}
+			base.SendPromptFn = func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				got = &opts
+				return session.SendPromptResult{Status: "accepted", MessageID: opts.MessageID}, nil
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions: originNativeSessionManager{
+						SessionManager: base, hop: 2, rateLimited: tc.rateLimited,
+					},
+					Workspaces: nativeTestWorkspaceService(t),
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			fields := map[string]any{
+				"workspace": "ws-origin", "session_id": "target", "message": "Approved.",
+				"message_id": "msg", "idempotency_key": "key", "in_reply_to": "msg-plan", "supersede": true,
+			}
+			if tc.omitReply {
+				delete(fields, "in_reply_to")
+			}
+			input, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					SessionID: "sender", WorkspaceID: "ws-origin", AgentName: "coder", Operator: tc.operator,
+				},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input},
+			)
+			if tc.code != "" {
+				requireToolCode(t, err, tc.code)
+				if got != nil {
+					t.Fatal("refused send reached admission")
+				}
+				return
+			}
+			if err != nil || got == nil {
+				t.Fatalf("send = %v, %v", got, err)
+			}
+			if got.Origin == nil || got.Origin.InReplyTo != "msg-plan" || got.Origin.Hop != 3 || !got.Supersede {
+				t.Fatalf("send opts = %+v origin = %+v, want in_reply_to and supersede carried", got, got.Origin)
+			}
+		})
+	}
+}
+
+type nativeLayoutSessions struct {
+	apitest.StubSessionManager
+	calls []string
+	scope store.SessionLayoutScope
+}
+
+func (s *nativeLayoutSessions) folders(call string, scope store.SessionLayoutScope) []store.SessionFolder {
+	s.calls = append(s.calls, call)
+	s.scope = scope
+	return []store.SessionFolder{{ID: "sfold-1", Name: "Release", SessionCount: 2}}
+}
+
+func (s *nativeLayoutSessions) ListSessionFolders(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+) ([]store.SessionFolder, error) {
+	return s.folders("list", scope), nil
+}
+
+func (s *nativeLayoutSessions) CreateSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	name string,
+) (store.SessionFolder, error) {
+	return s.folders("create "+name, scope)[0], nil
+}
+
+func (s *nativeLayoutSessions) RenameSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+	name string,
+) (store.SessionFolder, error) {
+	return s.folders("rename "+folderID+" "+name, scope)[0], nil
+}
+
+func (s *nativeLayoutSessions) DeleteSessionFolder(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+) error {
+	s.folders("delete "+folderID, scope)
+	return nil
+}
+
+func (s *nativeLayoutSessions) ReorderSessionFolders(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderIDs []string,
+) ([]store.SessionFolder, error) {
+	return s.folders("reorder-folders "+strings.Join(folderIDs, ","), scope), nil
+}
+
+func (s *nativeLayoutSessions) MoveSession(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	sessionID string,
+	folderID string,
+) error {
+	s.folders("move "+sessionID+" "+folderID, scope)
+	return nil
+}
+
+func (s *nativeLayoutSessions) ReorderSessions(
+	_ context.Context,
+	scope store.SessionLayoutScope,
+	folderID string,
+	sessionIDs []string,
+) error {
+	if len(sessionIDs) == 0 {
+		return fmt.Errorf("%w: session order is empty", store.ErrSessionLayoutInvalid)
+	}
+	s.folders("reorder-sessions "+folderID+" "+strings.Join(sessionIDs, ","), scope)
+	return nil
+}
+
+func TestNativeSessionLayoutTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should manage folders and manual order in the caller profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		workspace := workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace/compozy", Name: "compozy"}
+		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspace, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{Workspace: workspace, WorkspaceID: "ws-1"}, nil
+			},
+		}
+		sessions := &nativeLayoutSessions{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+			want  string
+		}{
+			{toolspkg.ToolIDSessionFolderCreate, `{"workspace":"ws-1","name":"Release"}`, `"folder":{`},
+			{toolspkg.ToolIDSessionFolderRename, `{"workspace":"ws-1","folder_id":"sfold-1","name":"Shipped"}`,
+				`"folder":{`},
+			{toolspkg.ToolIDSessionFolderReorder, `{"workspace":"ws-1","folder_ids":["sfold-1"]}`, `"folders":[`},
+			{toolspkg.ToolIDSessionMove, `{"workspace":"ws-1","session_id":"sess-1","folder_id":"sfold-1"}`,
+				`"session_count":2`},
+			{toolspkg.ToolIDSessionReorder, `{"workspace":"ws-1","folder_id":"sfold-1","session_ids":["sess-2","sess-1"]}`,
+				`"folders":[`},
+			{toolspkg.ToolIDSessionFolderDelete, `{"workspace":"ws-1","folder_id":"sfold-1"}`, `"folders":[`},
+			{toolspkg.ToolIDSessionFolderList, `{"workspace":"ws-1"}`, `"name":"Release"`},
+		} {
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+			}
+			requireNativeStructuredContains(t, result, []byte(tc.want))
+		}
+		if sessions.scope.WorkspaceID != "ws-1" || sessions.scope.ProfileID != store.DefaultProfileID {
+			t.Fatalf("layout scope = %#v, want ws-1 in the default profile", sessions.scope)
+		}
+		for _, want := range []string{
+			"create Release", "rename sfold-1 Shipped", "reorder-folders sfold-1", "move sess-1 sfold-1",
+			"reorder-sessions sfold-1 sess-2,sess-1", "delete sfold-1",
+		} {
+			if !slices.Contains(sessions.calls, want) {
+				t.Fatalf("layout calls = %#v, missing %q", sessions.calls, want)
+			}
+		}
+		callsBefore := len(sessions.calls)
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMove,
+			Input:  json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
+		})
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("session_move into an unknown workspace error = %v, want workspace not found", err)
+		}
+		if len(sessions.calls) != callsBefore {
+			t.Fatalf("layout calls after denied move = %#v, want no new call", sessions.calls[callsBefore:])
+		}
+		if sessions.scope.WorkspaceID != "ws-1" {
+			t.Fatalf("layout scope after denied move = %#v, want no call outside ws-1", sessions.scope)
+		}
+	})
 }

@@ -122,29 +122,29 @@ func TestPreStarter(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use Hermes ACP check only as a bounded import preflight", func(t *testing.T) {
+	t.Run("Should run the status command only as a bounded non-interactive preflight", func(t *testing.T) {
 		t.Parallel()
 
 		report := NewPreStarter().PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
-			Command:       "hermes acp",
+			Command:       "acme acp",
 			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
-			AuthStatusCmd: "hermes acp --check",
+			AuthStatusCmd: "acme auth status",
 		}, &ProbeEnv{
-			ProviderName: "hermes",
+			ProviderName: "acme",
 			LookPath: func(string) (string, error) {
-				return "/bin/hermes", nil
+				return "/bin/acme", nil
 			},
 			RunCommand: func(_ context.Context, spec ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
 				if !spec.NoTTY {
 					t.Fatal("NoTTY = false, want preflight to be non-interactive")
 				}
-				if spec.Executable != "/bin/hermes" {
-					t.Fatalf("Executable = %q, want /bin/hermes", spec.Executable)
+				if spec.Executable != "/bin/acme" {
+					t.Fatalf("Executable = %q, want /bin/acme", spec.Executable)
 				}
-				if !slices.Equal(spec.Args, []string{"acp", "--check"}) {
-					t.Fatalf("Args = %#v, want acp --check", spec.Args)
+				if !slices.Equal(spec.Args, []string{"auth", "status"}) {
+					t.Fatalf("Args = %#v, want auth status", spec.Args)
 				}
-				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Hermes ACP check OK"}, nil
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
 			},
 		})
 		assertNoPreStartReport(t, report)

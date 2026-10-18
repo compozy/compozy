@@ -142,8 +142,9 @@ func liftClaudeCodeMetadata(event *AgentEvent) {
 	var envelope struct {
 		Meta struct {
 			ClaudeCode struct {
-				ParentToolUseID string `json:"parentToolUseId"`
-				ToolName        string `json:"toolName"`
+				ParentToolUseID string          `json:"parentToolUseId"`
+				ToolName        string          `json:"toolName"`
+				ToolResponse    json.RawMessage `json:"toolResponse"`
 			} `json:"claudeCode"`
 		} `json:"_meta"`
 	}
@@ -155,4 +156,22 @@ func liftClaudeCodeMetadata(event *AgentEvent) {
 		envelope.Meta.ClaudeCode.ToolName,
 		event.ToolStatus(),
 	)
+	if claudeToolResponseAsync(envelope.Meta.ClaudeCode.ToolResponse) {
+		*event = event.WithProviderToolAsync()
+	}
+}
+
+// claudeToolResponseAsync reads the PostToolUse markers claude-agent-acp keeps on
+// `toolResponse`: an Agent/Task call that ran in the background reports
+// `status: "async_launched"` (with `isAsync: true`) instead of its result.
+// Other tools may carry a non-object toolResponse, which is not a marker.
+func claudeToolResponseAsync(raw json.RawMessage) bool {
+	var markers struct {
+		Status  string `json:"status"`
+		IsAsync bool   `json:"isAsync"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &markers) != nil {
+		return false
+	}
+	return markers.IsAsync || markers.Status == "async_launched"
 }

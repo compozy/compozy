@@ -1,5 +1,6 @@
 export { sessionCatalogStreamHandler } from "./catalog-stream-handler";
 export { handlers, resetSessionAttentionMock } from "./handlers";
+export { resetSessionFolderMock, seedSessionFolderMock } from "./folder-handlers";
 export {
   assistantMessageFixture,
   bashToolMessageFixture,
@@ -13,9 +14,6 @@ export {
   multiHunkEditToolMessageFixture,
   permissionRequestFixture,
   primarySessionFixture,
-  quietWarningNoAutoStopSessionFixture,
-  quietWarningNowFixture,
-  quietWarningSessionFixture,
   readToolMessageFixture,
   runningBashToolMessageFixture,
   sessionRuntime,

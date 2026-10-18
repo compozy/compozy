@@ -1256,6 +1256,7 @@ func launchHelperProcess(t *testing.T, scenario string, cfg LaunchConfig, extraE
 		HealthFailureThreshold: cfg.HealthFailureThreshold,
 		ProcessRegistry:        cfg.ProcessRegistry,
 		ProcessRecord:          cfg.ProcessRecord,
+		Niceness:               cfg.Niceness,
 	})
 	if err != nil {
 		t.Fatalf("Launch(helper %s) error = %v", scenario, err)

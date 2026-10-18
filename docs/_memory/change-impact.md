@@ -1,134 +1,170 @@
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
+
 # Compozy Change Impact
 
-## Development server IPv4 forwarding — 2026-10-17
+## Release integration repairs — 2026-10-18
 
-Vite explicitly binds to IPv4 loopback (`127.0.0.1`) so editor devcontainer port
-forwarding does not depend on `localhost` resolving to IPv4 rather than IPv6.
-The API proxy and production listener are unchanged; no LAN listener is added.
-Native tools, extensions/hooks/config, workspace isolation, persisted data,
-public API contracts, site, and official `skills/compozy/` are unaffected.
-`RT-dev-bootstrap-ready` records the live IPv4 probe and host-verification limit.
+Pending-steer completion retains its provider outcome and retries persistence with bounded backoff
+while preserving the dispatch lease. Logging happens outside the session lock, keeping status and
+Stop responsive during a storage failure. `TestManagerAgentQueueDelivery` owns the regression and
+`RT-session-message-origin` records the recovery walk. Native tool IDs, wire shapes, hooks,
+configuration, official skill instructions, Web/Docs APIs, and workspace/profile isolation remain
+unchanged; no schema migration is needed.
 
-## Development build version — 2026-10-17
+## Agent CPU priority and load-aware admission — 2026-10-17
 
-Air stamps the root package version plus development commit metadata instead of
-using an old release tag as the compatibility version. It watches `package.json`
-for version changes. Bundled extension minimum-version validation remains intact;
-native tools, CLI/HTTP/UDS shapes, hooks/config, workspace isolation, persisted data,
-and official `skills/compozy/` contracts are unchanged. No migration or codegen is
-needed. Web benefits from successful daemon startup without UI changes; release
-and Mage build stamping are unchanged. The existing development readiness suite
-owns regression coverage. Bounded startup evidence and verification limits are in
-`docs/qa/reports/2026-10-17-dev-checkout-version.md`; the existing
-`RT-dev-bootstrap-ready` scenario records the affected journey.
+Branch `perf/daemon-load-mitigations`. Agent ACP process groups now start at a background CPU
+niceness (`setpriority(PRIO_PGRP)` after launch; Windows no-op) so tools they spawn inherit it, and a
+daemon load sampler (1-minute load average / logical CPUs, darwin `vm.loadavg`, linux `sysinfo`)
+makes the admission gate hold new sessions and prompts carrying the background-work context marker
+(scheduled/trigger/extension automation dispatch, Loop action/judge sessions and prompts, scheduler
+wakes) until pressure clears or a bounded wait elapses. User prompts, user-created sessions, subagent
+spawns, and manual automation runs are never delayed. Public surfaces, all additive (SD-013): config
+keys `daemon.load.agent_niceness` (10), `daemon.load.admission_threshold` (1.5, `0` disables),
+`daemon.load.admission_max_wait` (2m), restart-required and agent-mutable through the config tools;
+doctor item `runtime.load` over HTTP/UDS/CLI. Settings DTOs, OpenAPI, Web, native tool IDs, hooks,
+extension SDKs, persisted state, and workspace/profile isolation are unchanged; no migration. Site
+`configuration/config-toml.mdx`, the generated lifecycle matrix, and official skill
+`references/configuration.md` record the keys.
 
-## AGY ACP provider (2026-10-16)
+## Session folders and manual order — 2026-10-17
 
-**Status:** specification approved by the owner on 2026-10-16 ("aceito"; implementation progress is tracked in the Task deltas below). Owning contract:
-`.compozy/tasks/agy-acp/_spec.md`; behavior, public surface, UI, tests, and design
-evidence live in its companion files. Downstream tasks cite this section and
-record their own deltas. The earlier custom-provider experiment is evidence of
-basic ACP interoperability, not acceptance of this built-in/login implementation.
+Issue #781 adds daemon-owned session folders and manual session order. Persisted state: global
+SQLite tables `session_folders` and `session_placements` (append-only migration 00139, additive, no
+backfill; existing users see no folders and their current sort). Public surfaces, all additive
+(SD-013): HTTP/UDS `GET|POST /api/workspaces/{workspace_id}/session-folders`,
+`PATCH|DELETE …/session-folders/{folder_id}`, `PUT …/session-order/{folders,sessions}`,
+`POST …/sessions/{session_id}/move`; `folder_id` on catalog rows and on `createSession`; catalog
+sort and `shell.sessions.sort` gain `manual`; the catalog stream adds kind `layout` (no session id)
+to `session_catalog_changed`. CLI: `compozy session folder list|create|rename|delete|reorder`,
+`compozy session move`, `compozy session reorder`, `session list --sort manual`. Native tools:
+`compozy__session_folder_{list,create,rename,delete,reorder}`, `compozy__session_move`,
+`compozy__session_reorder`, and `manual` in `compozy__session_list`. Workspace/profile isolation:
+folders and placements are keyed by profile and workspace; composite foreign keys prevent a session
+from joining another workspace's folder; foreign sessions read as not found; subagents follow their
+parent. Deleting a folder cascades only placements; session delete cascades its placement. Hooks and
+extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
+`docs/sessions/index.mdx`, generated CLI docs, and QA scenario
+`ET-web-session-folders-manual-order` record the contract.
 
-| Surface / boundary | Planned impact | Verification owner |
-| --- | --- | --- |
-| Provider registry and config | Add built-in `agy` / `Google Antigravity` with official per-OS server command, native auth, filtered env, operator home, no model seed/default. Add optional `providers.<id>.auth_acp_method`, per-operation native-command precedence, clone/overlay/validation/Settings-presence support. Do not alias existing `antigravity` providers or change defaults. | Spec UT-001/002/003, IT-006. `internal/config/provider_builtin.go`, `provider.go`, merge/resolve/validation helpers. |
-| ACP and provider auth | Shared bounded disposable auth/probe operations in `internal/acp`; classify through `internal/providers`. Only explicit local login calls advertised agent-method `authenticate`; reads/probes/discovery/session startup never open interactive login. No Google token parsing/store or new harness/sidecar. | IT-001–IT-005, real E2E-001/002; `start_process.go`, `session_inspection.go`, `control_request.go`, `providers/login_descriptor.go`, classifier/probe seams. |
-| CLI / HTTP / UDS | Existing provider auth login/status/inspect and provider/model inventories accept `agy`. Remote probe no longer requires a status command when protocol auth is configured. Reuse `BaseHandlers`; no interactive API route or new verb. Add safe `login.source=auth_acp_method`; ACP probes omit command-result `probe`. Existing unavailable-probe 422 and native-command contracts remain. | IT-005/006, CLI/API suites; `internal/cli/provider*.go`, `internal/api/core/providers.go`, `contract/providers.go`, Settings payloads, `spec/providers.go`. |
-| Model catalog and read boundaries | Register `provider_live:agy` through existing ACP discovery. Keep exact provider/model identity, context-scoped snapshots, atomic source publication, stale failure handling, unknown capabilities, and opt-out. No Gemini API source/account/price substitution. | UT-005, IT-007, E2E-001/003; `internal/modelcatalog/live_sources_adapters.go`, `live_sources_acp.go`, daemon catalog context/rebind owners. |
-| Permissions / lifecycle / workspace isolation | Reuse host authority, MCP wiring, cancellation, accepted-route restoration. Extend existing explicit full-access preference with `agy → yolo`; narrower permissions retain unrestricted-mode denial. Login/probe/discovery obey actual final env/home; operator-home Google state is intentionally shared across profiles, not copied. Work/event/catalog partitions remain scoped. | UT-004, IT-003/006/007, E2E-004/005; config mode checks, session provider-runtime conversions, existing permission/recovery suites. |
-| Web / shared UI | Add official Antigravity mark to `packages/ui/src/logos/` and shared `kind-icon-registry.ts`, not a Gemini alias or app-local asset. Extend existing native-auth form/draft with the non-secret method field and safe protocol descriptor. Reuse current provider list, Settings, runtime picker, and session mark; no OAuth modal/account-key fields/auth cache/redesign. | UT-006, E2E-003; `web/src/systems/settings/{types.ts,lib/provider-draft.ts,components/provider-edit-form-auth-fields.tsx,components/provider-login-descriptor.tsx}` and existing runtime consumers/stories. |
-| Generated contracts and references | Add method read/write field and login-source enum at Go contract owners, then regenerate OpenAPI / `web/src/generated/` / `sdk/go/contracts/` / `sdk/typescript/src/generated/` where their owning generator emits changes. Config/help references come from source; no hand-edited generated documents. | `make codegen`, `make codegen-check`, `make cli-docs`, `make cli-docs-check`, affected root Turbo consumers. Diagnose unrelated generator drift. |
-| Native tools / agent manageability | Existing `compozy__provider_models_list|status|refresh`, config get/set, and session tools remain the structured control paths. No new tool IDs, toolset, credential-binding requirement, or OAuth-consent tool. Google consent remains an explicit local operator action; absence of an agent OAuth path is the existing native-login security boundary, not missing runtime management. | Existing native model/config/session suites plus IT-007/E2E-004; `internal/daemon/native_provider_model_tools.go`, generated descriptors only if owner generation changes. |
-| Extensions / hooks / registry / bridge / MCP | External ACP registry is an official installation/doc source only. No Compozy marketplace schema, extension manifest/provide surface, SDK method, hook event, bridge registry entry, or external MCP auth change. Hosted native tools/session MCP continue through existing delivery/permissions; actual AGY consumption must be verified, not disabled to make smoke pass. | E2E-004 and existing native-tool/ACP delivery suites; inspect `internal/providerexec/native_cli.go`, ACP/session MCP seams. |
-| Site and official skill | Update `packages/site/content/docs/agents/providers.mdx` and `agents/model-catalog.mdx` with official binary prerequisite, explicit login/probe, exact model/default behavior, native auth/home ownership, and tested platform/version limits. Update generated config/help references through owners. Co-ship `skills/compozy/references/{native-tools,runtime-operations,configuration}.md` for protocol source, local consent, scope, diagnostics, and no secret workaround. No landing/marketing redesign. | Generator/site content checks, published examples exercised in E2E-001/002; root affected site lane. |
-| QA | Add focused `docs/qa/scenarios/RT-agy-acp-provider.md`; extend `MS-web-provider-auth-gate.md` and `RT-provider-full-access-mode.md`. Keep prior unrelated scenario statuses intact. Isolated homes/ports/socket and owned-process teardown; separate clean-login provider home needs explicit authorization. | Spec E2E-001–E2E-005; scoped live/browser receipts on the implementation build. |
+## Google Antigravity ACP provider — 2026-10-18
 
-**Compatibility (SD-013):** additive provider/config/enum semantics; no deletions,
-renames, or schema changes. Delete targets: none across user state, public
-interfaces, and internal code. Existing provider overrides/native commands and
-saved custom-provider identities remain valid. No migration, alias shim,
-deprecation window, or new persisted OAuth entity. Internal helper extraction
-updates all callers in one change, without a duplicate ACP transport or fallback
-wrapper. The spec artifacts are local under the repository's existing ignored
-`.compozy/tasks/` policy; authoring does not alter that policy or unrelated work.
+Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
+protocol-owned native login, and discovers exact model/configuration options through ACP. Provider
+configuration and Settings gain the optional `auth_acp_method` field; source DTOs and generated
+OpenAPI/client artifacts co-ship. Native tool IDs, existing CLI verbs, extension SDKs, hooks,
+workspace/profile isolation and persisted database shapes are unchanged; no migration is needed.
+Operator-owned login state follows the existing provider-home policy. Shared provider logos,
+Settings fixtures, official skill provider/auth guidance and site provider/model-catalog docs are
+updated. The long-tail provider removals and their compatibility window remain in effect.
+Existing provider/auth, model-catalog, settings and KindIcon suites own the observable behavior;
+the added provider QA scenarios retain their original journey steps. Authentication probes also verify
+that the launch directory still exists before using it, falling back to the temporary directory
+when the OS returns a stale working-directory path. The existing provider-handler subprocess
+suite owns this regression.
 
-**Task 01 delta (2026-10-16):** implemented the additive boundary only —
-`auth_acp_method` across TOML/overlay/clone/resolve/route/Settings/DTO owners
-with presence semantics, plus disposable `internal/acp` `Authenticate` /
-`ProbeAuthentication` over the shared launch/initialize/stop ladder. No
-built-in `agy`, no operation selection, no catalog/UI wiring. Evidence:
-`.compozy/tasks/agy-acp/evidence/task_01/`.
+## Long-tail built-in provider removal — 2026-10-17
 
-**Task 02 delta (2026-10-16):** registered built-in `agy` (per-OS server
-command via `agyACPServerCommand`, native CLI auth, filtered env, operator
-home, `oauth-personal`, no model seed/default change) with explicit
-`provider_full_access` + approve-all `agy → yolo` preference; wired shared
-selection (per-operation native-command precedence, no fallback after failure),
-safe `auth_acp_method` descriptors, CLI login/probe output, HTTP/UDS ACP probe
-(`probe` omitted), and successful-remote-probe startup-cache invalidation.
-Peer-backed public-entry check
-(`internal/daemon/agy_acp_entry_integration_test.go`, `integration` lane)
-walks discovery → real `acp.Authenticate` → real `acp.ProbeAuthentication` →
-real manager Create/Prompt through a `agy_acp_server.par` PATH shim; the raw
-JSON-RPC peer replaces only Google's server and records exactly one
-`oauth-personal` authenticate with no prompt during auth/probe. Co-shipped
-`providers.mdx` + `native-tools`/`runtime-operations`/`configuration` skill
-refs, new `RT-agy-acp-provider.md` (live walk stays blocked-verify), and
-`MS-web-provider-auth-gate` / `RT-provider-full-access-mode` deltas without
-passing unexecuted journeys. No live-Google success inferred. Evidence:
-`.compozy/tasks/agy-acp/evidence/task_02/`.
+Owner: branch `fix/issue-761-remove-longtail-providers`; issue #761.
 
-**Task 03 delta (2026-10-16):** registered `agy` as `liveDiscoveryACP` with
-Hermes-style bootstrap-on-list (`live_sources_adapters.go` entry only; no
-parser, auth scheme, credentials, static seed, or runtime-provider merge),
-reusing `SessionACPModelProbe`, final command/env/home resolution,
-context-partitioned snapshots, TTL/timeout, opt-out, atomic publication, and
-stale handling with native entry points unchanged. Exact advertised IDs and
-labels (suffixes intact) publish under `provider_live:agy`; unobserved
-pricing/context/reasoning/speed stay unknown; missing login is
-`auth_required` with no browser; disabled/empty sources publish no synthetic
-rows. Co-shipped model-catalog/providers docs, native-tools/runtime-operations
-skill refs, and `RT-agy-acp-provider.md` discovery/selection expectations
-(still blocked-verify). One enabling fix: `startupToolsReferenceSectionBudget`
-72,000 → 73,000 characters (combined trimmed bundled manuals measure 72,575
-after Task 02 + Task 03 guidance; the overflow predates this task). Evidence:
-`.compozy/tasks/agy-acp/evidence/task_03/`.
+The built-in registry drops `hermes`, `openclaw`, `blackbox`, `cline`, `goose`, `junie`, `kiro`,
+`openhands`, `qoder`, `mistral`, `groq`, and `minimax` plus their 14 aliases. Kept: `claude`,
+`codex`, `gemini`, `opencode`, `kimi-cli`, `qwen-code`, `copilot`, `cursor`, and the `pi_acp`
+harness with `pi`, `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`.
 
-**Provider probe availability review (2026-10-17):** the shared API probe
-environment preserves the daemon working directory when available and uses
-`os.TempDir()` if it was removed. Provider inventory/detail reads and native/ACP
-auth probes retain their existing HTTP/UDS contracts instead of failing with 500.
-The existing API provider suite owns the removed-directory regression. Native
-tools, extensions/hooks/config, workspace isolation, persisted data, Web/site,
-and the official skill need no contract changes; no migration or codegen is needed.
+- **Native tools:** provider, model-catalog, and session tools lose the removed IDs from their
+  projections; no tool ID, input, or output shape changes.
+- **Extensibility/hooks/config:** provider IDs in `config.toml` (`defaults.provider`,
+  `[providers.<id>]`), agent `provider:`, and Loop/automation runtime defaults are public surface.
+  SD-013 deprecation window: a boundary shim in `internal/config/provider_retired.go` keeps
+  removed IDs and aliases resolving with their former definition and logs one
+  `provider.retired_builtin` warning per ID (`removed_in=v0.5.0`, `replacement` = exact
+  `[providers.<id>]` TOML). Delete target in v0.5.0: the shim (public-surface regime); afterwards
+  an undeclared reference fails as provider unavailable. A declared `[providers.<id>]` with its own
+  `command` (and `harness = "pi_acp"` for pi IDs) is a plain custom provider. Hermes/OpenClaw
+  special-casing (native `.agents/skills` readers, `HERMES_HOME`/`OPENCLAW_STATE_DIR` homes, Hermes
+  live discovery, OpenClaw provider-managed strategy, auth-probe needle) is deleted (internal
+  regime). Hooks and extension SDKs are unchanged.
+- **Workspace data isolation:** no schema change or migration; persisted sessions and transcripts
+  that name a removed provider stay readable. The Agents skill source now has no native readers,
+  so `.agents/skills` is injected for every provider within the same workspace/profile scope.
+- **Official skill:** `skills/compozy/references/{agent-definitions,extensions,native-tools,
+  runtime-operations,tools-and-skills}.md` describe only kept built-ins, the custom-provider path,
+  and the deprecation window.
+- **Web/Docs:** Settings and pickers drop the removed providers and their logos; site docs
+  (`agents/providers.mdx` gains "Run another ACP CLI" and "Retired built-in providers"), the bug
+  template, `MIGRATION_GUIDE.md` (`kiro` → `unsupported_destination_value`), and the canonical copy
+  trio (now Claude Code, Codex, and Cursor) are updated. QA: `RT-retired-builtin-provider-shim`
+  added; `RT-hermes-live-model-readiness` and `RT-openclaw-provider-managed-runtime` retired.
+  Release note: `.release-notes/twelve-long-tail-providers-leave-the-built-in-registry-1792269885.md`.
 
-**Authentication validation review (2026-10-17):** `Authenticate` rejects empty
-or whitespace-only method IDs before starting a session; the existing ACP suite
-asserts the required-method error and preserves malformed-method coverage.
-Optional configuration methods, CLI/HTTP/UDS, native tools, hooks/extensions,
-workspace isolation, persisted data, Web, site, and official skill contracts are
-unchanged. No migration or live-provider scenario change is needed.
+## Issue 764 — Idle UI polling and attention cost — 2026-10-17
 
-**Harness-switch fix (2026-10-17):** `internal/config/provider_merge.go` clears
-only an inherited ACP auth method when the resolved harness is not `acp`; an
-explicit nonempty method still reaches validation and is rejected. Settings
-HTTP/UDS writes, CLI/config operations, and native config tools reuse the same
-resolution path without new fields, commands, or tool IDs. Web needs no code
-change; provider docs and the official skill clarify inheritance. Extensions,
-hooks, MCP, workspace/profile isolation, persisted schemas, and credentials are
-unchanged; no migration or codegen is needed. Owners: config ACP-method validation
-and Settings AGY save/reload suites; `MS-web-provider-auth-gate` records the
-automated regression and the outstanding browser walk.
+`GET /api/notifications/attention` reads task attention once for every registered population
+(`CatalogScopeAll`) instead of a global read plus one read per workspace; each inbox read
+re-prepared the catalog CTE, so the cost grew with the workspace count. Notification identity
+(`attention.Identity` over the task row), per-row workspace binding, `AllProfiles` read scope,
+actor authorization, and the registered-workspace filter are unchanged; the needs-input escalation
+read now maps the all population onto stored task scopes. In the web client, a session's
+stream-backed reads (detail, by-id, usage, usage turns, prompt queue) drop to a 30 s safety read
+while its transcript stream is live, background session windows stop polling their queue, and the
+bell polls every 30 s while the document is hidden. Internal regime only: HTTP/UDS DTOs, CLI,
+native tools, hooks, extensibility, config keys, persisted state, and official `skills/compozy/`
+are unchanged; no migration or compatibility adapter is needed. Workspace/profile isolation is
+unaffected. QA scenarios `RT-web-attention-title-count` and `RT-visible-session-streaming` record
+the change. No site documentation changes are needed.
 
-**Explicit method-clear review (2026-10-17):** Settings now writes
-`auth_acp_method = ""` when `AuthACPMethodSet` marks an explicit clear, while
-retaining nonempty writes. The existing Settings HTTP/UDS and Web write paths
-share this fix; no DTO, CLI, native tool ID, hook/extension, MCP, workspace
-isolation, schema, credential, site, or official skill change is needed.
-No migration or codegen is required. The Settings mutation and AGY save/reload
-suites verify persisted presence; `MS-web-provider-auth-gate` records that
-expectation without claiming a browser re-walk.
+## Web runtime performance — 2026-10-17
+
+Owner: branch `perf/web-performance`. Evidence and limits:
+`docs/qa/reports/2026-10-17-web-performance.md`.
+
+Web-only internal changes defer the empty-desktop composer and worktree dialog
+modules, remove unconsumed attention queries, pause closed workspace-setup reads,
+filter subagent cache subscriptions by their existing workspace/session key, and
+reuse sparse facts from immutable transcript content. Message ordering, permission
+and failure precedence, bounded paging, stream fences, stale handling, aggregate
+counts, and existing Query keys remain authoritative. WeakMap entries follow the
+lifetime of their source arrays; replacement/removal and workspace isolation stay
+with the existing query/runtime owners.
+
+Native tools and `compozy__*` IDs, CLI, HTTP/UDS DTOs and routes, hooks, extension
+SDKs, configuration, user state, schemas, and official `skills/compozy/` are
+unchanged. No compatibility adapter, migration, code generation, or site docs
+change is needed. QA impact is flagged in `RT-047`,
+`RT-visible-session-streaming`, `ET-hidden-window-live-resources`,
+`RT-web-attention-title-count`, `LP-web-bell-loop-requests`,
+`MS-web-workspace-add-directory-browser`, and `ET-web-catalog-navigation`.
+Focused canonical suites and differential probes provide local slice evidence;
+heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
+
+## Profile-bound session actions — 2026-10-17
+
+Owner: issue #783, branch `fix/issue-783-profile-session-404`.
+Evidence and route-by-route audit: `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+Web lifecycle mutations carry the selected row's profile and workspace; rewind
+and subagent cancellation refresh the current owner name through the canonical session detail query. Roster reads use the
+existing authorized aggregate read scope, and terminal 404/410 control polls stop. Failed
+cold-page walks require explicit retry. Existing workspace and profile authorization remains
+unchanged. OpenAPI additively documents already-supported profile selectors for archive,
+unarchive, rename, rewind, and subagent cancel; generated clients co-ship. HTTP/UDS paths and DTOs,
+CLI verbs, native `compozy__session_*`/subagent tool IDs, extensions, hooks, configuration,
+SQLite state, and workspace files retain their contracts; no migration or shim is needed.
+Official `skills/compozy/` already describes explicit owner selection and needs no change. Site guides need no
+behavioral rewrite. The session row, archive, profile-owner, and subagent QA scenarios cover
+the affected interactions; other profile surfaces are outside this focused change.
 
 ## One-click product update — 2026-10-12
 
@@ -3159,6 +3195,7 @@ renders its own payload). No site documentation changes are needed. QA owner:
 `ET-web-session-sidebar-threads`; automated owner: the `SessionList provider marks`
 suite in `web/src/systems/session/components/__tests__/session-list.test.tsx`.
 
+
 ## Post-merge runtime selector repair — 2026-10-16
 
 Owner: `fix/main-ci-after-merges`; main CI run 38936400681; originating PR #745.
@@ -3171,3 +3208,227 @@ hook/extensibility/configuration, persisted-state, workspace/profile-isolation,
 official skill, or site documentation contract changes. QA owner:
 `RT-model-catalog-cold-open`; regression owner: the rendered `ProviderAuthRequired`
 story plus the existing session provider override E2E journeys.
+
+
+## Session-list connection warnings — issue #767 — 2026-10-16
+
+Owner: branch `fix/issue-767-false-disconnected-banner`; issue #767.
+The window sidebar used the composer transport guard, which immediately reports reconnecting
+(`waiting-reconnect`, or `connecting` with a retained live timestamp) as disconnected. It now
+reuses the existing 2-second transport-feedback grace. The sessions modal's catalog owner waits
+10 seconds across reconnect attempts before reporting stale, clears on open/valid events, and
+cancels its timer on teardown. Disabled/connecting/loading states are not connection failures.
+Superseded catalog reads keep TanStack cancellation semantics; actual query failures stay visible.
+
+- Web: sidebar and sessions modal only; no new polling, query, dependency, or retry path.
+- Native tools, CLI, HTTP/UDS DTOs, hooks, extensions, config and official `skills/compozy/`: unchanged.
+- Workspace/profile isolation: existing scoped keys, stream URLs and generation fences remain authoritative.
+- User state/migrations: none. Public compatibility: unchanged. Site docs: no public contract change.
+- QA: `ET-web-session-sidebar-threads` and `ET-web-sessions-catalog-modal`; targeted hook regressions,
+  real local frontend walkthrough and rendered browser fault-injection evidence. Heavy gates run only in CI.
+
+## Issue #766 — background native subagents and the composer subagents control
+
+Owner: branch `fix/issue-766-subagent-status-indicator`; issue #766.
+
+- Runtime: a Claude Agent/Task call that runs in the background returns a launch receipt at once.
+  The ACP layer lifts claude-agent-acp's PostToolUse marker (`_meta.claudeCode.toolResponse`
+  `status: "async_launched"` / `isAsync: true`) and stamps it on that tool result; the session
+  layer also reads the launch input `run_in_background: true`. The receipt no longer settles the
+  provider-native row: it stays `running`/`working`. claude-agent-acp holds the prompt response
+  until every background subagent of the turn has settled and reports each outcome only to the
+  model, so the turn's non-canceled `done` completes those rows with `result: null`. Native tool
+  events are now ingested on the persistence path (when the event is recorded) instead of the
+  prompt-delivery pump, so ingestion and the `done` handling run on the goroutine that settles the
+  turn, in ledger order, whatever a slow prompt consumer does. Canceled turns, parent stops and boot
+  recovery still settle them `interrupted`. Foreground calls keep settling on their result.
+  Codex's own collab subagents are still not recorded as provider-native rows (unchanged).
+- Native tools, CLI, HTTP/UDS: `compozy__subagent_status`, `compozy session subagents`, and the
+  subagent routes keep their shapes; background provider-native rows now read `running` until the
+  turn ends and then `completed` without a result. The `subagent.settled` hook fires at that later
+  point with the same payload shape. Session events gain an optional `provider_tool_async` field on
+  the launch result (additive, omitted otherwise).
+- Persisted state (SD-013): no SQLite schema change or migration. Rows written before this change
+  that settled on a launch receipt keep their recorded status and result; they are settled history
+  and are not rewritten from prose. The event-ledger field is additive and older readers ignore it.
+- Web: the composer toolbar adds `SessionComposerSubagents` after the context ring and before the
+  attach button — a quiet icon while nothing runs, the subagent avatar's live dot plus the live
+  count while subagents work — and a `@compozy/ui` Popover that hosts the inspector's roster rows
+  (`SubagentRoster`, extracted from the inspector section and shared). The inspector section stays:
+  the inspector is closed by default, and the sidebar chip and transcript group "and N more" land on
+  it. The roster hook gains `coldRead` so an always-mounted host reads only the stream roster until
+  the session reports subagents or the popover opens.
+- Workspace/profile isolation: unchanged; rows stay scoped to their parent session and workspace.
+- Official skill and docs: `skills/compozy/references/native-tools.md`, the site subagents guide,
+  `COPY.md` Subagent Terms, and QA scenarios `ET-web-native-subagent` and `ET-web-subagent-card`
+  co-ship. Automated owners: `TestClaudeAgentSubagentContract`, `TestNativeSubagentEventFromStored`,
+  `TestSubagentNativeLifecycle`, IT-020 `TestSubagentNativeDaemonIntegration`, and the
+  `SubagentComposerControl`, composer-placement, and composer-control wiring web tests.
+
+## Daemon idle cost and Goal liveness — issues #762, #763, #764, #765 (2026-10-16)
+
+Owner: branch `daemon-cpu-attention`.
+- #763 Goal liveness: the Goal executor reports its bound session through the new liveness-only
+  action port (`loop.ReportActionLivenessSession`). The action heartbeat uses that session's activity
+  as evidence, so a working Goal no longer raises `silence` or a false session `needs-attention`. It
+  binds no `task_runs.session_id` and adds no confirmed-death resume for Goal segments. Persisted
+  false `silence` flags clear on the next evidence through the existing path. For every action
+  node, evidence now requires session activity newer than the last observation or an in-flight
+  tool, and a detected stall removes it. A session that stays alive without new activity therefore
+  still reaches its silence window instead of renewing liveness from a stale timestamp.
+- #762 hosted MCP: the projection stream (`/internal/hosted-mcp/projection/stream`, UDS) calls
+  `HostedService.StreamProjection`. Without an authoritative generation (always today, because native
+  availability carries none), it reuses the bind's last projection for at most 1s unless the daemon
+  projection epoch advanced (dispatch, catalog, settings). One-shot `Projection` reads stay fresh. The
+  wire payload, digest and SSE events are unchanged. Native tool availability flips reach agents
+  within about 1s instead of 100ms.
+- #764 usage reads: `session.Manager.Compactions` reads only compaction, compaction-fired, usage and
+  done rows instead of the whole history, and returns early when a session has no compaction marker.
+  This lowers the cost of `/usage` and `/usage/turns` for large sessions. Markers are read after the
+  usage rows, so a compaction appended between reads cannot lend its usage to an earlier one. The attention bell's
+  per-workspace inbox fan-out is unchanged and stays open on #764.
+- #765 session WAL: the writer keeps its PASSIVE checkpoint every 128 writes. Once it has been idle
+  for 1s after writes, it checkpoints and truncates a WAL above 16MB, letting readers delay that
+  idle-only truncation by at most 200ms, and retries a deferred truncation with 1s–30s idle-gated
+  backoff. Truncation never runs inside a write burst, so it adds no writer stall there.
+  `store.CheckpointTruncateConnection` exposes the existing busy-aware TRUNCATE on an acquired
+  connection.
+- SD-013: no persisted shape, migration, config key, CLI, HTTP/UDS DTO, hook, extension SDK or
+  native tool change. Workspace/profile isolation is unchanged. Official `skills/compozy/` and
+  `packages/site` need no update; behavior only becomes accurate (no false attention) and cheaper.
+  QA owner: `TA-action-run-liveness`.
+
+
+## Terminal background progress — issue #774 — 2026-10-17
+
+Owner: branch `fix/issue-774-terminal-workspace-stall`.
+
+- Runtime: PTY output is always drained independently of viewer ACKs. Existing bounded ACK/drop
+  queues, demotion, GAP, snapshot and replay remain. Removed internal Group wait coordination.
+  Preserve ATTACHED before overflow GAPs, and emit replay demotion events without reacquiring
+  the session lock.
+- Web: writable and read-only browser attachments use the existing drop flow; hidden, suspended,
+  minimized and stale renderers cannot pause the process. Input rights and resize votes remain
+  controlled by attach mode. Obsolete browser ACK bookkeeping is removed with all consumers.
+  Render and snapshot-tail buffers are bounded at 1 MiB or 1,024 frames; overflow requests a current snapshot
+  without throttling the PTY. Input stays gated through recovery, including pending replay.
+  Repeated server queue trims merge undelivered GAP ranges and byte counts.
+- Native tools/CLI/HTTP/UDS: `terminal_read` and `terminal_wait` observe background progress. Existing
+  `flow=ack` clients remain accepted with bounded queues; no request/frame/DTO shape changes.
+  Canceled terminal requests are classified as 499 using the existing `api_error` envelope.
+- Hooks/extensibility/config: no new hook, SDK shape, setting, permission, dependency or timer.
+- Compatibility/user state: no persisted layout, workspace-file or SQLite changes, no migration.
+  Profile/workspace authorization and retained history bounds remain authoritative.
+- Official `skills/compozy/`: existing detach/closed-browser process-lifetime guidance remains true;
+  no native invocation contract changes. Site documentation needs no changed command or shape.
+- QA: `ET-terminal-stream-resilience` owns workspace-switch, hidden-view and recovery checks.
+  Evidence is tracked in `docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md`.
+
+## Issue #782 — hung-turn watchdog and silent idle runtime release (2026-10-17)
+
+Owner: branch `fix/silent-idle-session-reclaim`; issue #782.
+
+- Runtime: `session.supervision.quiet_after`/`stop_grace` become a hung-turn watchdog. Silence
+  accrues only while a turn is in flight and waiting on the agent; an idle session (no turn in
+  flight) or a turn blocked on a pending permission/clarify request never warns or stops for
+  inactivity, and a quiet warning clears when the turn ends. The in-flight path is unchanged:
+  `session.supervision_warning`, the stop ladder with cause `inactivity`,
+  `session.supervision_stopped`, `stop_reason: "timeout"`/`stop_detail: "inactivity"`, task
+  recovery, Loop death-resume and reply-wake. A new idle runtime release stops the agent process of
+  an idle session with no work signal, no unknown source, no pending interaction, and ACP
+  `session/load` support after `session.supervision.idle_release_after`. The session stays
+  `active`, `runtime.status: "unbound"`, keeps transcript and ACP session id, and the next prompt
+  from any surface rebinds through `session/load`, falling back to bounded transcript replay, or
+  binds a newly selected route with the transcript. An unclean daemon exit while released boots the
+  session `stopped`/`shutdown` with detail "daemon exited while the idle session runtime was
+  released"; a later prompt resumes it.
+- Native tools, CLI, HTTP/UDS: no new tool or route; session describe/status/resource fields keep
+  their shapes. `runtime.status: "unbound"` on an active session now also means a released
+  runtime, and `supervision.quiet_warning` appears only during in-flight turns.
+- Extensibility/hooks/config (SD-013, additive): new key `session.supervision.idle_release_after`
+  (duration, default `30m`, zero or positive, `0` disables), readable/writable through config
+  get/set and `compozy__config_*`. A release dispatches no `session.post_stop` hook; the
+  process-level `agent.stopped` hook fires as for any runtime replacement. Inactivity stops, and the hooks that follow them, now happen only for
+  in-flight turns. No persisted schema change or migration; the released shape is the existing
+  active/unbound metadata.
+- Workspace/profile isolation: unchanged.
+- Web: the window-level quiet warning notice ("Quiet for … This session stops in …", Stop now) is
+  removed; a quiet in-flight turn adds a muted "quiet for …" segment to the working status line.
+  Released sessions render as ordinary idle sessions. Historic inactivity stops keep "Stopped after
+  … · no work for …".
+- Official skill and docs: `skills/compozy/references/runtime-operations.md`, `native-tools.md`,
+  `loops.md`, `tasks-and-orchestration.md`; site `sessions/lifecycle`, `sessions/health`,
+  `sessions/events` (stale `runtime_warning`/legacy-key text corrected), `sessions/orchestration`,
+  `agents/heartbeat`, and `configuration/config-toml`. QA scenarios `RT-session-native-stop`
+  (supervision branch rewritten, idle-release branch added, re-walk required) and
+  `RT-session-message-reply` (step 11).
+
+## Settings "Pause idle agents after" drives idle runtime release (2026-10-17)
+
+Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
+
+- Runtime: unchanged. The Settings → General control that wrote the unenforced
+  `session.limits.timeout` now writes `session.supervision.idle_release_after` (restart-required
+  under the existing `session.*` lifecycle rule).
+- HTTP/UDS (SD-013 regime 2, additive + deprecate N→N+1): `SettingsGeneralConfigPayload` gains
+  optional `idle_release_after` (Go duration, zero or positive; omitted on PATCH keeps the current
+  value; always returned on GET). `session_timeout` keeps its required shape and its meaning
+  (`session.limits.timeout`), is marked `deprecated` in OpenAPI, and a PATCH carrying a non-zero
+  value returns `Warning: 299 compozy "... use idle_release_after; removed in v0.5.0"`. Delete
+  target v0.5.0: the `session_timeout` DTO field, its decoder/encoder, and the Warning header.
+- Config (SD-013 regime 2, deprecate N→N+1): `session.limits.timeout` stays readable/writable
+  through `config get/set` and `compozy__config_*`; a non-zero value logs a load-time
+  deprecation warning. Delete target v0.5.0: the key, `SessionLimitsConfig`, its overlay, CLI and
+  tool-surface entries. No persisted schema change or migration.
+- Native tools/CLI/hooks/extensions: no shape change. Workspace/profile isolation: unchanged.
+- Web (regime 3): row label "Pause idle agents after", test id
+  `settings-page-general-idle-release-input`, presets Never/15m/30m/1h/4h/1d plus the configured
+  value as-is; E2E selectors and the settings transport spec follow the new field and key.
+- Official skill and docs: `skills/compozy/references/configuration.md` (new Idle Session
+  Settings section), `runtime-operations.md`; site `configuration/config-toml`,
+  `sessions/lifecycle`. QA scenario `MS-025` (re-walk required for the renamed control).
+
+
+## Issue #760 — Session messaging for long orchestrations
+
+- **Owner:** issue #760, branch `fix/issue-760-session-messaging-delivery`.
+- **Cause and policy:** a real 10-executor run showed queued agent messages never reaching long-turn
+  targets, agents outranking the operator, one turn per message, a hop limit that measured chat length,
+  and guidance that taught the failing paths. The queue is now operator-first with separate caps and a
+  real `queue_position`; agent steer never interrupts; `supersede`, batched dispatch (up to 8) and
+  promotion to steer after `queue_promote_after` apply; hops count forwarding only and a per sender→target
+  rate budget replaces depth as the flood guard, and a reply wake restores the sender's own hop so
+  sequential orchestration never accumulates; `in_reply_to` and a reply-watch TTL make replies explicit,
+  and an explicit answer never releases the sender's reply watch (the completion wake still fires).
+- **Native tools / CLI / HTTP / UDS:** `compozy__session_prompt` gains `supersede` and `in_reply_to`,
+  and its descriptor text explains `mode` and `notify_on_complete` (catalog fixture updated). New typed
+  error `message_rate_limited` (HTTP 429); the native tool returns the same detailed message as HTTP
+  (limit, window, retry delay). `compozy session prompt` gains `--from-session`, `--in-reply-to`,
+  `--supersede`; origin stamping is opt-in, not automatic (`--from-session auto` or an id; inside a
+  managed session without the flag it prints a stderr hint and stays operator input) so existing
+  scripts keep interrupt, slash commands and operator priority. `--in-reply-to` and `--supersede`
+  without a sending session are refused (CLI error; HTTP 400 and native tool `invalid_request`). Identity is a local trusted
+  session-ID header: no spoof protection beyond local operator trust. Operator promote of agent rows is
+  allowed (edit still `input_agent_authored`). OpenAPI and generated web types co-ship. All additive.
+- **Extensibility / hooks / config:** new `[session.messaging]` keys `rate_limit_messages`,
+  `rate_limit_window`, `reply_watch_ttl` (default 24h, `0s` never expires) and
+  `queue_promote_after`; no hook, extension SDK or permission change; origin gains `in_reply_to`.
+- **Isolation / compatibility:** all reads and rate counts are scoped to the exact sender and target
+  session; no cross-workspace change. Append-only migration 00138 (with the Atlas/sqlc
+  artifacts) widens the reply-watch outcome check (adds `expired`) and the session-input queue schema
+  (`origin_class`/`origin_session_id` with lossless backfill, per-sender steer index), copying `rowid`
+  so Goal batch cutoffs keep their meaning; existing rows survive. Boot recovery also returns steers
+  staged before a restart to delivery (agent steers to the queue, operator steers dispatchable). SD-013: public additions only, behavior fixes inside the
+  experimental-free messaging contract; no shim.
+- **Official skill / Web / site docs:** `native-tools.md`, `runtime-operations.md` and
+  `tasks-and-orchestration.md` carry the queue-vs-steer guidance and supervisor/worker protocol; the
+  `cy-orquestrate-issue` skill and executor prompt use the native tool with an orchestrator ID and a
+  milestone-only reporting protocol. Web adds the In reply chip, No reply outcome, grouped inbound
+  cards, Steer on agent queue rows and attention reasons; site orchestration, config and CLI prompt
+  pages and COPY.md §Session Message Terms updated.
+- **Review remediation:** promotion runs `input.pre_submit` and only injects messages whose runtime
+  matches the live turn; the admission fingerprint includes `supersede` and `in_reply_to` (omitted when
+  unset, so older receipts replay unchanged); reverting a reserved promotion reopens its admission;
+  Web reply links are keyed by peer session plus message id.
+- **QA / validation:** RT-session-message-origin (steps 9–16), RT-session-message-reply (12–13) and
+  ET-web-session-message-card.md updated; deterministic regressions run on real SQLite in the owning suites. Heavy gates are CI-owned.

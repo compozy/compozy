@@ -235,7 +235,7 @@ func TestSkillSourcesCommand(t *testing.T) {
 				WorkspacePath: ".agents/skills", GlobalPath: "~/.agents/skills",
 				Roots: []contract.SettingsSkillSourceRootPayload{{
 					RootID: "root-agents", Path: "/home/.agents/skills", Exists: true, Readable: true,
-					SkillCount: &count, Truncated: true, NativeReaders: []string{"hermes"},
+					SkillCount: &count, Truncated: true, NativeReaders: []string{},
 				}},
 			},
 		},

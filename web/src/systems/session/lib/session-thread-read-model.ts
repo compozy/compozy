@@ -33,12 +33,13 @@ export function mergeSessionThreadReadModel({
   }
 
   const transcriptIDs = transcriptMessageIDs(transcriptMessages);
-  const recordedFailureTurns = providerFailureTurnIDs(transcriptMessages);
+  let recordedFailureTurns: ReadonlySet<string> | undefined;
+  const failureTurns = () => (recordedFailureTurns ??= providerFailureTurnIDs(transcriptMessages));
   const optimisticTail: ThreadMessage[] = [];
 
   for (const message of runtimeMessages) {
     if (transcriptIDs.has(message.id)) continue;
-    if (isRecordedProviderFailure(message, recordedFailureTurns)) continue;
+    if (isRecordedProviderFailure(message, failureTurns)) continue;
     optimisticTail.push(message);
   }
 
@@ -82,11 +83,13 @@ function providerFailureTurnIDs(messages: readonly ThreadMessage[]): ReadonlySet
  */
 function isRecordedProviderFailure(
   message: ThreadMessage,
-  recordedFailureTurns: ReadonlySet<string>
+  recordedFailureTurns: () => ReadonlySet<string>
 ): boolean {
-  if (recordedFailureTurns.size === 0 || message.content.length === 0) return false;
+  if (message.content.length === 0) return false;
   return message.content.every(part => {
     const turnID = providerFailureTurnID(part);
-    return turnID !== null && recordedFailureTurns.has(turnID);
+    // Ordinary streamed text needs no scan of the durable history. Build the
+    // failure index only when a live failure can actually duplicate a record.
+    return turnID !== null && recordedFailureTurns().has(turnID);
   });
 }

@@ -136,7 +136,9 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 		releaseOnce()
 		drainHarnessIntegrationEvents(active)
-		for _, want := range []string{wake.TurnID, entry.TurnID, agentEntry.TurnID, ticket.PromptID} {
+		// Operator input runs first (#760); the queued agent message and the reply wake then share one
+		// batched turn, and the prepared Goal runs after that batch.
+		for _, want := range []string{entry.TurnID, agentEntry.TurnID, ticket.PromptID} {
 			select {
 			case got := <-received:
 				if got.TurnID != want {
@@ -146,12 +148,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					(got.Meta.Origin == nil || got.Meta.Origin.SessionID != target.ID || got.Meta.Origin.Hop != 1) {
 					t.Fatalf("queued agent origin = %#v", got.Meta.Origin)
 				}
+				if got.TurnID == agentEntry.TurnID && !strings.Contains(got.Message, "replied to your message goal-question") {
+					t.Fatalf("batched turn lacks the reply wake:\n%s", got.Message)
+				}
 				if got.TurnID == entry.TurnID && got.Meta.Origin != nil {
 					t.Fatalf("operator origin = %#v", got.Meta.Origin)
-				}
-				if got.TurnID == wake.TurnID &&
-					(got.Meta.Synthetic == nil || got.Meta.Synthetic.Kind != acp.PromptSyntheticKindSessionReply || got.Meta.Synthetic.WakeEventID != watch.ID) {
-					t.Fatalf("reply metadata = %#v", got.Meta.Synthetic)
 				}
 			case <-ctx.Done():
 				t.Fatalf("waiting for %q: %v", want, ctx.Err())
@@ -159,6 +160,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 		if _, err := fixture.runtime.AwaitActionPrompt(ctx, ticket); err != nil {
 			t.Fatal(err)
+		}
+		batchedWake, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, wake.ID)
+		if err != nil || batchedWake.Status != store.SessionInputQueueStatusSent || batchedWake.TurnID != agentEntry.TurnID {
+			t.Fatalf("reply wake = %q/%q, %v; want sent in the batched turn %s",
+				batchedWake.Status, batchedWake.TurnID, err, agentEntry.TurnID)
 		}
 		checkpoint, err = fixture.goalStore.LoadCheckpoint(ctx, fixture.key)
 		if err != nil || checkpoint.TurnsUsed != 1 || checkpoint.BindingEpoch != fixture.binding.BindingEpoch ||
@@ -175,8 +181,9 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err := fixture.manager.WaitForPromptDrains(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if prompts.Load() != 6 {
-			t.Fatalf("prompt count = %d, want original, answer, three queued inputs and Goal", prompts.Load())
+		if prompts.Load() != 5 {
+			t.Fatalf("prompt count = %d, want original, answer, operator input, one batched turn and Goal",
+				prompts.Load())
 		}
 	})
 	for _, test := range []struct {

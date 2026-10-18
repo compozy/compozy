@@ -251,8 +251,8 @@ before any filesystem write, and custom sources are never valid targets. Every f
 targets back. CompozyOS never copies skill content and never removes a link it does not own.
 
 Skills whose winning copy already lives in a root the session's own provider reads natively are
-omitted from that session's injected catalog only — `claude` reads the `claude` origin, `openclaw`
-and `hermes` read `agents`. They remain in the command catalog, in every list, and in explicit reads.
+omitted from that session's injected catalog only — `claude` reads the `claude` origin. No provider
+reads the `agents` origin natively, so CompozyOS injects `.agents/skills` for every provider. They remain in the command catalog, in every list, and in explicit reads.
 
 The bundled runtime skill named `compozy` is reserved. Same-named external definitions may keep a
 source-qualified command such as `/agents:compozy`, but that command resolves the daemon's current

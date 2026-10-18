@@ -47,6 +47,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithSessionStopConfig(deps.SessionStop),
 			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
+			session.WithSessionMessagingConfig(deps.SessionMessaging),
 			session.WithSessionDeriveConfig(deps.SessionDerive),
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionPromptAdmissionStore(deps.SessionPromptAdmission),
@@ -68,6 +69,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 				acp.WithProcessRegistry(deps.ProcessRegistry),
 				acp.WithTerminalManager(deps.Terminals),
 				acp.WithProviderPreStarter(d.providerPreStarter),
+				acp.WithAgentNiceness(deps.AgentNiceness),
 			))),
 		)
 	}

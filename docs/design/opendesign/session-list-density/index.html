@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session list — row density v2</title>
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<style>
+/* ============================================================
+   SESSION LIST DENSITY — board-local lane.
+   Product classes are named after the production component:
+     .sl-panel*   → session-list/session-list.tsx (host, unchanged)
+     .sl-row*     → session-list/session-list-row.tsx (modify)
+     .sl-thread*  → session-list/session-list-thread.tsx (modify)
+     .sl-chip     → subagents/subagent-chip.tsx (reuse, relocated)
+     .sl-prov     → session-list-provider-mark.tsx (reuse)
+     .sl-owner    → profiles ProfileOwnerTag compact (modify: plateless xs)
+   Lab chrome is prefixed `lab-` and is NEVER product UI.
+   ============================================================ */
+body{background:var(--desk);color:var(--fg);margin:0}
+.lab{max-width:1180px;margin:0 auto;padding:48px 32px 96px}
+.lab h1{font-size:28px;letter-spacing:-.015em;margin:0 0 8px;font-weight:600;color:var(--fg-strong)}
+.lab h2{font-size:var(--text-heading);margin:0 0 4px;font-weight:600;color:var(--fg-strong)}
+.lab p{color:var(--muted);max-width:72ch;line-height:1.55;margin:0 0 12px}
+.lab-lead{font-size:15px}
+.lab-section{margin-top:56px;padding-top:28px;border-top:1px solid var(--line-soft)}
+.lab-tag{font-family:var(--font-mono);font-size:11px;color:var(--subtle);letter-spacing:.02em}
+
+/* contract block */
+.lab-contract{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;margin-top:24px;background:var(--canvas);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 24px}
+.lab-contract h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin:0 0 10px;font-weight:600}
+.lab-contract ul{list-style:none;margin:0;padding:0;display:grid;gap:7px;font-size:13px;color:var(--fg-2);line-height:1.45}
+.lab-contract b{color:var(--fg);font-weight:500}
+.lab-contract i{font-style:normal;font-family:var(--font-mono);font-size:11px;color:var(--subtle);margin-left:6px}
+.lab-mod{display:inline-block;min-width:46px;font-family:var(--font-mono);font-size:10px;padding:1px 6px;border-radius:4px;margin-right:8px;text-align:center}
+.lab-mod--modify{background:var(--warning-tint);color:var(--warning)}
+.lab-mod--reuse{background:var(--neutral-tint);color:var(--muted)}
+.lab-mod--new{background:var(--info-tint);color:var(--info)}
+.lab-vc{font-family:var(--font-mono);font-size:11px;color:var(--fg-2);background:var(--surface-2);border-radius:4px;padding:1px 5px;margin-right:6px}
+
+/* controls */
+.lab-controls{display:flex;gap:16px;align-items:center;margin:20px 0 16px;flex-wrap:wrap}
+.lab-seg{display:inline-flex;background:var(--input-fill);border:1px solid var(--line);border-radius:999px;padding:2px}
+.lab-seg button{all:unset;cursor:pointer;font-size:12.5px;padding:5px 12px;border-radius:999px;color:var(--muted)}
+.lab-seg button[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong)}
+.lab-seg button:focus-visible{outline:2px solid var(--line-focus);outline-offset:1px}
+
+/* compare */
+.lab-compare{display:grid;grid-template-columns:repeat(2,max-content) 1fr;gap:32px;align-items:start}
+.lab-col h4{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--fg-2)}
+.lab-col h4 span{color:var(--subtle);font-weight:400}
+.lab-measure{font-family:var(--font-mono);font-size:11px;color:var(--subtle);margin-top:8px}
+.lab-measure b{color:var(--fg);font-weight:500}
+.lab-notes{font-size:13px;color:var(--fg-2);line-height:1.5}
+.lab-notes ol{margin:0;padding-left:18px;display:grid;gap:10px}
+.lab-notes strong{color:var(--fg-strong);font-weight:500}
+
+/* specimens */
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:28px;margin-top:20px}
+.lab-spec figcaption{margin-top:10px;font-size:12.5px;color:var(--fg-2);line-height:1.45}
+.lab-spec figcaption ol{margin:6px 0 0;padding-left:0;list-style:none;display:grid;gap:4px;color:var(--muted)}
+.lab-spec figcaption li{display:flex;gap:6px}
+.lab-spec figure{margin:0}
+.lab-n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--info);color:#0a0a0a;font:600 9.5px/1 var(--font-mono);font-style:normal;flex:none}
+.sl-row .lab-n{position:absolute;z-index:3;pointer-events:none;box-shadow:0 0 0 2px var(--sidebar)}
+.lab-table{border-collapse:collapse;font-size:13px;margin-top:12px;width:100%;max-width:880px}
+.lab-table th,.lab-table td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.lab-table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--subtle);font-weight:600}
+.lab-table td{color:var(--fg-2)}
+.lab-table td:first-child{color:var(--fg);white-space:nowrap}
+.lab-provisional{font-size:10px;font-family:var(--font-mono);color:var(--warning);border:1px solid color-mix(in srgb,var(--warning) 40%,transparent);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+
+/* ============ product: session list panel ============ */
+.sl-panel{width:265px;background:var(--sidebar);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:10px 8px 12px;box-sizing:border-box}
+.sl-panel--short{padding-top:8px}
+.sl-toolbar{display:flex;align-items:center;gap:4px;padding:0 4px 8px}
+.sl-toolbar .sp{flex:1}
+.sl-icon-btn{all:unset;width:28px;height:28px;display:grid;place-items:center;border-radius:999px;color:var(--muted)}
+.sl-icon-btn--fill{background:var(--btn-fill);color:var(--fg)}
+.sl-filter{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--input-fill);color:var(--subtle);font-size:13px;margin:0 2px 8px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i--sm{width:13px;height:13px}
+
+/* status mark (SessionBadgeMark) */
+.sl-mark{width:12px;height:12px;display:grid;place-items:center;flex:none}
+.sl-mark::before{content:"";display:block}
+.sl-mark--idle::before{width:6px;height:6px;border-radius:50%;background:var(--subtle)}
+.sl-mark--stopped::before{width:6px;height:6px;border-radius:1.5px;background:var(--subtle)}
+.sl-mark--running::before{width:9px;height:9px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--success) 25%,transparent);border-top-color:var(--success);animation:sl-spin 1s linear infinite}
+.sl-mark--needs::before{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-tint-strong)}
+.sl-mark--failed::before{width:7px;height:7px;border-radius:50%;background:var(--danger)}
+@keyframes sl-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.sl-mark--running::before{animation:none;border-color:var(--success);border-right-color:transparent}}
+
+/* provider + owner marks */
+.sl-prov{width:12px;height:12px;flex:none;color:var(--fg-2)}
+.sl-prov--muted{filter:grayscale(1);opacity:.75}
+.sl-owner{width:14px;height:14px;border-radius:4px;display:grid;place-items:center;flex:none;color:var(--owner,var(--muted));background:color-mix(in srgb,var(--owner,var(--muted)) 16%,transparent)}
+.sl-owner svg{width:10px;height:10px;stroke-width:2.2}
+
+/* ---------- PROPOSED row ---------- */
+.sl-thread{position:relative}
+.sl-thread__kids{position:relative;display:grid;grid-template-rows:1fr;transition:grid-template-rows var(--dur-base,.2s) ease}
+.sl-thread__kids > div{min-height:0;overflow:hidden;padding-left:18px}
+.sl-thread[data-folded] .sl-thread__kids{grid-template-rows:0fr}
+/* tree elbow ( |_ ) — the nested tool-call connector, applied to child sessions.
+   Rail sits under the parent's status mark (x = 14px); each child gets an elbow
+   into its own mark, and the rail continues only while a sibling follows. */
+.sl-thread__kids .sl-row::before{content:"";position:absolute;left:-5px;top:-4px;width:9px;height:20px;border-left:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);border-bottom-left-radius:6px;pointer-events:none}
+.sl-thread__kids .sl-row:not(:last-child)::after{content:"";position:absolute;left:-5px;top:14px;bottom:-5px;width:1px;background:var(--line-strong);pointer-events:none}
+@media (prefers-reduced-motion:reduce){.sl-thread__kids{transition:none}}
+
+.sl-row{position:relative;display:grid;grid-template-columns:12px minmax(0,1fr) auto;column-gap:8px;row-gap:3px;align-items:center;padding:6px 6px 6px 8px;border-radius:var(--radius-md);margin-bottom:1px}
+.sl-row:hover{background:var(--row-hover)}
+.sl-row[data-current]{background:var(--selected)}
+.sl-row:has(.sl-row__main:focus-visible){box-shadow:0 0 0 2px var(--line-focus)}
+.sl-row__lead{grid-column:1;grid-row:1;display:grid;place-items:center;height:20px}
+.sl-row__main{all:unset;grid-column:2;grid-row:1;min-width:0;font-size:var(--text-body);line-height:20px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+/* stretched target: the whole row navigates; aux controls sit above it */
+.sl-row__main::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.sl-row[data-current] .sl-row__main,.sl-row[data-attn] .sl-row__main{font-weight:500;color:var(--fg-strong)}
+.sl-row__end{grid-column:3;grid-row:1;display:grid;justify-items:end;align-items:center;min-width:24px;height:20px}
+.sl-row__end > *{grid-area:1/1}
+.sl-time{font-family:var(--font-mono);font-size:11px;line-height:20px;padding-top:1px;color:var(--subtle);font-variant-numeric:tabular-nums;transition:opacity .12s}
+.sl-more{all:unset;position:relative;z-index:2;width:24px;height:22px;display:grid;place-items:center;border-radius:6px;color:var(--muted);opacity:0;transition:opacity .12s;cursor:pointer}
+.sl-more:hover{background:var(--btn-hover);color:var(--fg)}
+.sl-more:focus-visible{opacity:1;outline:2px solid var(--line-focus)}
+.sl-row:hover .sl-time,.sl-row:focus-within .sl-time,.sl-row[data-force-hover] .sl-time{opacity:0}
+.sl-row:hover .sl-more,.sl-row:focus-within .sl-more,.sl-row[data-force-hover] .sl-more{opacity:1}
+.sl-row[data-force-hover]{background:var(--row-hover)}
+.sl-row[data-current][data-force-hover]{background:var(--selected)}
+
+.sl-row__meta{grid-column:2 / 4;grid-row:2;display:flex;align-items:center;gap:8px;min-width:0;height:18px}
+.sl-row__who{display:flex;align-items:center;gap:5px;min-width:0;flex:1;overflow:hidden;font-size:var(--text-eyebrow);color:var(--subtle);white-space:nowrap}
+/* truncation priority: notes give way first, then the agent name; the
+   attention word and the aux cluster never truncate. */
+.sl-row__who .agent{color:var(--muted);font-weight:500;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sl-row__who .sep{flex:none;color:var(--faint)}
+.sl-row__who .word{flex:none}
+.sl-row__who .note{flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sl-word--needs{color:var(--accent-strong);font-weight:500}
+.sl-word--failed{color:var(--danger)}
+.sl-row__aux{display:flex;align-items:center;gap:2px;flex:none;position:relative;z-index:2;margin-right:-2px}
+.sl-chip,.sl-fold{all:unset;display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 5px;border-radius:999px;font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;cursor:pointer}
+.sl-chip:hover,.sl-fold:hover{background:var(--btn-hover);color:var(--fg)}
+.sl-chip:focus-visible,.sl-fold:focus-visible{outline:2px solid var(--line-focus)}
+.sl-chip .ring{width:9px;height:9px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--success) 25%,transparent);border-top-color:var(--success)}
+.sl-fold svg{transition:transform .15s}
+.sl-fold[aria-expanded="true"] svg{transform:rotate(90deg)}
+.sl-fold .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.sl-check{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--line-focus);box-sizing:border-box;display:grid;place-items:center}
+.sl-check[data-on]{background:var(--fg);border-color:var(--fg);color:var(--primary-ink)}
+.sl-check svg{width:10px;height:10px;stroke-width:3}
+
+/* ---------- TODAY row (recreation of production) ---------- */
+.ol-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:start;margin-bottom:1px}
+.ol-main{display:grid;grid-template-columns:12px minmax(0,1fr) auto;column-gap:8px;padding:6px 8px;border-radius:var(--radius-md);min-width:0;align-items:start}
+.ol-row[data-current] .ol-main{background:var(--selected)}
+.ol-title{grid-column:2;font-size:var(--text-body);line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ol-end{grid-column:3;display:flex;align-items:center;gap:6px;height:20px}
+.ol-end .t{font-size:12px;color:var(--subtle);white-space:nowrap}
+.ol-sub{grid-column:2 / 4;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--subtle)}
+.ol-sub .agent{color:var(--muted);font-weight:500}
+.ol-trail{display:flex;align-items:center;gap:2px;padding-top:4px}
+.ol-plate{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:color-mix(in srgb,var(--owner,var(--muted)) 22%,var(--surface-2));color:var(--owner,var(--muted))}
+.ol-plate svg{width:14px;height:14px}
+.ol-pill{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 5px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.ol-more{width:24px;height:22px;display:grid;place-items:center;color:var(--muted)}
+.ol-kids{position:relative;padding-left:20px}
+.ol-kids::before{content:"";position:absolute;left:11px;top:2px;bottom:4px;width:1px;background:var(--line-strong)}
+.ol-mark{margin-top:4px}
+
+@media (max-width:900px){.lab-compare{grid-template-columns:1fr}.lab-contract{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="p-claude" viewBox="0 0 256 257"><path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/></symbol>
+  <symbol id="p-openai" viewBox="0 0 721 721"><path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/></symbol>
+</svg>
+
+<main class="lab" data-od-id="board">
+  <span class="lab-tag">opendesign / session-list-density · board v1 · 2026-10-17</span>
+  <h1>Session list — give the title its line back</h1>
+  <p class="lab-lead">Each row now carries status, title, time, profile, subagent progress, thread fold and actions — all on the title's line. At the real sidebar width the title ends up with a sliver (“Ci…”, “Corrigir…”), worst with <em>All profiles</em> on. This board proposes a two-line anatomy where line 1 belongs to the title and every secondary signal moves to the meta line, plus inheritance rules that keep child rows short.</p>
+
+  <section class="lab-contract" data-od-id="contract" aria-label="Board contract">
+    <div>
+      <h3>What it represents</h3>
+      <p style="font-size:13px;margin-bottom:14px">Row anatomy v2 for the sidebar session list (scoped and aggregate/All-profiles). Visual + layout only: no new data, no new endpoints. All titles, times and counts here are <strong>illustrative</strong>.</p>
+      <h3>Production components it modifies</h3>
+      <ul>
+        <li><span class="lab-mod lab-mod--modify">modify</span><span><b>SessionListRow</b><i>session-list-row.tsx</i> two-line grid, time/actions share one slot, aux on meta line, full-width plate</span></li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><span><b>SessionListThread · ThreadToggle</b><i>session-list-thread.tsx</i> toggle moves to the meta line; children inherit meta; <code>CHILD_RAIL</code> straight rail → tree elbow ( |_ ) like nested tool calls</span><span class="lab-provisional">match tool-call connector token</span></li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><span><b>ProfileOwnerTag compact</b><i>profiles/…/profile-owner-tag.tsx</i> 14 px tinted glyph instead of the 22 px plate</span><span class="lab-provisional">verify ProfileGlyph xs</span></li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><span><b>Time</b><i>@compozy/ui</i> compact relative format (<code>now · 38m · 2h · 3d</code>)</span><span class="lab-provisional">verify existing format prop</span></li>
+        <li><span class="lab-mod lab-mod--modify">modify</span><span><b>SessionListProviderMark</b><i>session-list-provider-mark.tsx</i> brand ink, as in the runtime selector: drop <code>grayscale</code> + <code>tone="muted"</code></span></li>
+        <li><span class="lab-mod lab-mod--reuse">reuse</span><span><b>SubagentChip</b>, <b>SessionBadgeMark</b>, <b>SessionRowActions</b> — unchanged, relocated</span></li>
+      </ul>
+    </div>
+    <div>
+      <h3>States · visual contract</h3>
+      <ul>
+        <li><span><span class="lab-vc">VC-01</span><b>Anatomy</b> — line 1 = mark + title + time/actions slot; line 2 = who · state + aux</span></li>
+        <li><span><span class="lab-vc">VC-02</span><b>Scoped list</b> — no owner glyph</span></li>
+        <li><span><span class="lab-vc">VC-10</span><b>Provider ink</b> — marks keep brand colour (Claude orange, OpenAI light ink) so providers read apart at 12 px</span></li>
+        <li><span><span class="lab-vc">VC-03</span><b>All profiles</b> — owner glyph leads the meta line of roots only</span></li>
+        <li><span><span class="lab-vc">VC-04</span><b>Hover / keyboard focus</b> — time cross-fades to “…”, title width does not change</span></li>
+        <li><span><span class="lab-vc">VC-05</span><b>Current</b> — plate spans the whole row, aux included</span></li>
+        <li><span><span class="lab-vc">VC-06</span><b>Folded thread</b> — count + most urgent child signal stay visible</span></li>
+        <li><span><span class="lab-vc">VC-07</span><b>Child inheritance</b> — single line when agent/provider/profile match the parent</span></li>
+        <li><span><span class="lab-vc">VC-08</span><b>Attention words</b> — needs-you / failed always earn a meta line</span></li>
+        <li><span><span class="lab-vc">VC-11</span><b>Tree elbow</b> — each child hangs off the parent rail with a |_ elbow; the rail stops at the last child</span></li>
+        <li><span><span class="lab-vc">VC-12</span><b>Bulletproof</b> — long agent, long/unbroken title, large counts, stacked notes, no runtime, 220 px sidebar</span></li>
+        <li><span><span class="lab-vc">VC-09</span><b>Selection mode</b> — checkbox replaces the mark; actions hidden</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===== Compare ===== -->
+  <section class="lab-section" data-od-id="compare">
+    <h2>Today vs proposed, at the real 265 px sidebar</h2>
+    <p>Same records in both panels. Toggle the list scope to see the aggregate cost; hover rows, fold threads and click to move the current row. The width readout is measured live from the rendered titles.</p>
+    <div class="lab-controls">
+      <div class="lab-seg" role="group" aria-label="List scope" data-od-id="scope-toggle">
+        <button type="button" data-scope="scoped" aria-pressed="false">This profile</button>
+        <button type="button" data-scope="all" aria-pressed="true">All profiles</button>
+      </div>
+    </div>
+    <div class="lab-compare">
+      <div class="lab-col">
+        <h4>Today <span>· production, recreated</span></h4>
+        <div class="sl-panel" id="panel-today" data-od-id="panel-today"></div>
+        <div class="lab-measure" id="measure-today"></div>
+      </div>
+      <div class="lab-col">
+        <h4>Proposed <span>· v2 anatomy</span></h4>
+        <div class="sl-panel" id="panel-next" data-od-id="panel-next"></div>
+        <div class="lab-measure" id="measure-next"></div>
+      </div>
+      <div class="lab-notes" data-od-id="rationale">
+        <ol>
+          <li><strong>Line 1 is the title's.</strong> Only one 24 px slot shares it: compact time at rest, the “…” menu on hover/focus. Everything else that sat beside the title (owner plate, subagent chip, fold toggle) moves down.</li>
+          <li><strong>The meta line already had free space.</strong> “✳ general” uses ~60 px of a ~220 px line. Aux controls right-align there without touching the title.</li>
+          <li><strong>Owner is a glyph, not a plate.</strong> 14 px tinted glyph leads the meta line, roots only. Children belong to their root's profile, so repeating it is noise.</li>
+          <li><strong>Children inherit.</strong> A child whose agent, provider and profile match its parent drops line 2 entirely — the Issue fan-out becomes a compact list. A child that differs (Codex vs Claude) or needs attention keeps it.</li>
+          <li><strong>Children hang off a tree elbow.</strong> The straight rail becomes the same |_ connector nested tool calls use, so parentage reads at a glance and the last child is obvious.</li>
+          <li><strong>Provider marks keep their brand ink.</strong> Grey Claude and grey OpenAI marks are indistinguishable at 12 px; the runtime selector already shows them in colour, so the list matches it.</li>
+          <li><strong>Current plate covers the full row.</strong> Today the plate stops before the trailing chip and fold toggle, which reads as a clipped selection.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Anatomy + states ===== -->
+  <section class="lab-section" data-od-id="states">
+    <h2>Anatomy and states</h2>
+    <p>Numbered callouts mark the parts each caption explains. Specimens are static (hover is forced where noted).</p>
+    <div class="lab-grid" id="specimens"></div>
+  </section>
+
+  <!-- ===== Bulletproof ===== -->
+  <section class="lab-section" data-od-id="bulletproof">
+    <h2>Bulletproof variants <span class="lab-tag">VC-12</span></h2>
+    <p>Hostile but real inputs. Truncation priority on the meta line: secondary notes give way first, then the agent name (down to nothing when the line is full); the attention word, owner glyph, provider mark and the aux cluster never truncate. Full values stay in the accessible name and tooltip.</p>
+    <div class="lab-grid" id="bulletproof"></div>
+  </section>
+
+  <!-- ===== Width budget ===== -->
+  <section class="lab-section" data-od-id="budget">
+    <h2>Line-1 width budget</h2>
+    <p>What competes with the title on its own line, per root row at 265 px.</p>
+    <table class="lab-table">
+      <thead><tr><th>Element</th><th>Today on line 1</th><th>Proposed</th></tr></thead>
+      <tbody>
+        <tr><td>Status mark</td><td>12 px + 8 gap</td><td>12 px + 8 gap (unchanged)</td></tr>
+        <tr><td>Relative time</td><td>“38m ago” / “just now” ≈ 55–65 px</td><td>“38m” / “now” ≈ 18–26 px, mono, shares slot with “…”</td></tr>
+        <tr><td>Owner (All profiles)</td><td>22 px plate + 6 gap</td><td>moved to meta line, 14 px glyph</td></tr>
+        <tr><td>Subagent chip</td><td>spinner + “1/14” ≈ 50 px</td><td>moved to meta line (right)</td></tr>
+        <tr><td>Thread toggle</td><td>“› 4” ≈ 30 px</td><td>moved to meta line (right)</td></tr>
+        <tr><td>Row actions “…”</td><td>24 px, always reserved</td><td>overlays the time slot on hover/focus</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:14px;font-size:13px"><strong style="color:var(--fg)">Implementation notes.</strong> The row becomes a stretched-target grid: the title button's <code>::after</code> covers the row for navigation and the aux controls sit above it (<code>z-index</code>), so no interactive control nests inside another — the same constraint the current sibling layout solves. The accessible name stays the full title; truncated titles keep the existing tooltip. Keyboard focus on the row reveals “…” exactly like hover (VC-04), and the time keeps its <code>&lt;time datetime&gt;</code> with the full timestamp in the title attribute.</p>
+  </section>
+</main>
+
+<noscript><p style="padding:24px;color:#ccc">The list specimens render with JavaScript; the contract and budget above remain readable.</p></noscript>
+
+<script>
+(() => {
+const ICON = {
+  globe:'<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/>',
+  archive:'<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
+  sort:'<path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/>',
+  plus:'<path d="M5 12h14M12 5v14"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  more:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  chev:'<path d="m9 18 6-6-6-6"/>',
+  chevDown:'<path d="m6 9 6 6 6-6"/>',
+  palette:'<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  circle:'<circle cx="12" cy="12" r="9"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>'
+};
+const svg = (n, cls='i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const prov = (p, muted = false) => `<svg class="sl-prov${muted ? ' sl-prov--muted' : ''}" viewBox="0 0 24 24" aria-hidden="true"><use href="#p-${p==='codex'?'openai':'claude'}"/></svg>`;
+const OWNERS = {
+  personal:{name:'Personal', icon:'circle', color:'#a3a3a3'},
+  design:{name:'Design', icon:'palette', color:'#8e8eb5'}
+};
+const WORD = {needs:'Needs you', failed:'Failed'};
+const LONG = {now:'just now'};
+const longTime = t => t==='now' ? 'just now' : `${t} ago`;
+
+/* Illustrative records mirroring the reported screenshot. */
+const DATA = [
+  {id:'a', title:'New session', agent:'open-design-designer', prov:'claude', state:'running', t:'now', owner:'design'},
+  {id:'b', title:'Investigar lentidão do daemon com muitas sessões abertas', agent:'general', prov:'claude', state:'stopped', t:'38m', owner:'personal'},
+  {id:'c', title:'Ciclo de QA da release v0.3.1', agent:'general', prov:'claude', state:'running', t:'now', owner:'personal', sub:'1/14', kids:[
+    {id:'c1', title:'Settings: End idle sessions toggle', agent:'general', prov:'claude', state:'running', t:'now', owner:'personal'}
+  ]},
+  {id:'d', title:'Corrigir terminal travando após resize', agent:'general', prov:'claude', state:'idle', t:'18m', owner:'personal', kids:[
+    {id:'d1', title:'Issue #783 — Quiet watchdog fires on idle sessions', agent:'general', prov:'codex', state:'running', t:'now', owner:'personal'},
+    {id:'d2', title:'Issue #781 — Sidebar loses scroll position on refresh', agent:'general', prov:'claude', state:'needs', t:'now', owner:'personal'},
+    {id:'d3', title:'Issue #760 — Composer drops pasted images', agent:'general', prov:'claude', state:'running', t:'now', owner:'personal'},
+    {id:'d4', title:'Issue #761 — Release notes miss migration block', agent:'general', prov:'claude', state:'failed', t:'2m', owner:'personal'}
+  ]}
+];
+const state = {scope:'all', current:'c', folded:new Set()};
+
+const ownerGlyph = o => { const ow = OWNERS[o]; return `<span class="sl-owner" style="--owner:${ow.color}" role="img" aria-label="${ow.name}" title="${ow.name}">${svg(ow.icon)}</span>`; };
+
+/* ---------- proposed renderer ---------- */
+const sep = '<span class="sep" aria-hidden="true">·</span>';
+function whoLine(s, {showOwner, inherits, word}) {
+  const parts = [];
+  if (!inherits) parts.push(`<span class="agent" title="${s.agent}">${s.agent}</span>`);
+  if (word) parts.push(`<span class="word sl-word--${s.state}">${word}</span>`);
+  (s.notes || []).forEach(n => parts.push(`<span class="note" title="${n}">${n}</span>`));
+  const lead = (showOwner ? ownerGlyph(s.owner) : '') + (inherits || s.noRuntime ? '' : prov(s.prov));
+  return lead + parts.join(sep);
+}
+function rowNext(s, o = {}) {
+  const parent = o.parent;
+  const showOwner = o.scope === 'all' && !parent;
+  const inherits = parent && s.agent === parent.agent && s.prov === parent.prov && s.owner === parent.owner;
+  const word = WORD[s.state];
+  const hasAux = s.sub || (s.kids && s.kids.length);
+  const metaLine = !inherits || word || hasAux || (s.notes && s.notes.length);
+  const n = o.callouts || {};
+  const c = k => { if (!n[k]) return ''; const [label, css] = n[k].includes('|') ? n[k].split('|') : [k, n[k]]; return `<i class="lab-n" style="${css}">${label}</i>`; };
+  const lead = o.selecting
+    ? `<span class="sl-check" ${o.checked ? 'data-on' : ''} role="checkbox" aria-checked="${!!o.checked}" aria-label="Select ${s.title}">${o.checked ? svg('check') : ''}</span>`
+    : `<span class="sl-mark sl-mark--${s.state}" aria-hidden="true"></span>`;
+  let aux = '';
+  if (s.sub) aux += `<button type="button" class="sl-chip" aria-label="${s.sub.replace('/', ' of ')} subagents running">${'<span class="ring"></span>'}${s.sub}</button>`;
+  if (s.kids && s.kids.length) {
+    const folded = o.folded;
+    const urgent = folded && s.kids.some(k => k.state === 'needs');
+    aux += `<button type="button" class="sl-fold" data-fold="${s.id}" aria-expanded="${!folded}" aria-label="Toggle ${s.kids.length} child sessions">${svg('chev','i i--sm')}${s.kids.length}${urgent ? '<span class="dot" aria-label="a child needs you"></span>' : ''}</button>`;
+  }
+  return `<div class="sl-row" data-id="${s.id}" ${o.current ? 'data-current' : ''} ${word === 'Needs you' ? 'data-attn' : ''} ${o.forceHover ? 'data-force-hover' : ''}>
+    <span class="sl-row__lead">${lead}</span>${c(1)}
+    <button type="button" class="sl-row__main" data-select="${s.id}" title="${s.title}" ${o.current ? 'aria-current="true"' : ''}>${s.title}</button>${c(2)}
+    <span class="sl-row__end"><time class="sl-time" title="${longTime(s.t)}">${s.t}</time>${o.selecting ? '' : `<button type="button" class="sl-more" aria-label="Actions for ${s.title}">${svg('more')}</button>`}</span>${c(3)}
+    ${metaLine ? `<span class="sl-row__meta">
+      <span class="sl-row__who">${whoLine(s, {showOwner, inherits, word})}</span>${c(4)}
+      ${aux ? `<span class="sl-row__aux">${aux}</span>${c(5)}` : ''}
+    </span>` : ''}
+  </div>`;
+}
+function threadNext(s, o = {}) {
+  const folded = o.folded ?? state.folded.has(s.id);
+  const row = rowNext(s, {...o, folded, current: (o.current ?? state.current) === s.id});
+  if (!s.kids) return row;
+  const kids = s.kids.map(k => rowNext(k, {...o, parent:s, current:(o.current ?? state.current) === k.id, callouts:o.kidCallouts?.[k.id] || null, forceHover:false})).join('');
+  return `<div class="sl-thread" ${folded ? 'data-folded' : ''}>${row}<div class="sl-thread__kids" ${folded ? 'inert' : ''}><div>${kids}</div></div></div>`;
+}
+
+/* ---------- today renderer (recreation) ---------- */
+function rowToday(s, o = {}) {
+  const ow = OWNERS[s.owner];
+  const word = WORD[s.state];
+  return `<div class="ol-row" ${o.current ? 'data-current' : ''}>
+    <div class="ol-main">
+      <span class="sl-mark sl-mark--${s.state} ol-mark"></span>
+      <span class="ol-title">${s.title}</span>
+      <span class="ol-end">${o.scope === 'all' ? `<span class="ol-plate" style="--owner:${ow.color}">${svg(ow.icon)}</span>` : ''}<span class="t">${longTime(s.t)}</span></span>
+      <span class="ol-sub">${prov(s.prov, true)}<span class="agent">${s.agent}</span>${word ? ` · <span class="sl-word--${s.state}">${word}</span>` : ''}</span>
+    </div>
+    <div class="ol-trail">
+      ${s.sub ? `<span class="ol-pill"><span class="sl-mark sl-mark--running"></span>${s.sub}</span>` : ''}
+      ${s.kids ? `<span class="ol-pill">${svg('chevDown','i i--sm')}${s.kids.length}</span>` : ''}
+      <span class="ol-more">${svg('more')}</span>
+    </div>
+  </div>`;
+}
+function threadToday(s) {
+  const row = rowToday(s, {scope:state.scope, current:state.current === s.id});
+  if (!s.kids) return row;
+  return row + `<div class="ol-kids">${s.kids.map(k => rowToday(k, {scope:state.scope, current:state.current === k.id})).join('')}</div>`;
+}
+
+const panelChrome = `<div class="sl-toolbar"><span class="sl-icon-btn">${svg('globe')}</span><span class="sl-icon-btn">${svg('archive')}</span><span class="sp"></span><span class="sl-icon-btn">${svg('sort')}</span><span class="sl-icon-btn sl-icon-btn--fill">${svg('plus')}</span></div><div class="sl-filter">${svg('search')}Filter sessions…</div>`;
+
+function measure(els, out) {
+  const w = els.map(e => Math.round(e.getBoundingClientRect().width));
+  out.innerHTML = `root title width: <b>${w.length ? Math.min(...w) + '–' + Math.max(...w) : '–'} px</b>`;
+}
+
+function renderCompare() {
+  const today = document.getElementById('panel-today');
+  const next = document.getElementById('panel-next');
+  today.innerHTML = panelChrome + DATA.map(threadToday).join('');
+  next.innerHTML = panelChrome + DATA.map(s => threadNext(s, {scope:state.scope})).join('');
+  measure([...today.querySelectorAll(':scope > .ol-row .ol-title')], document.getElementById('measure-today'));
+  measure([...next.querySelectorAll(':scope > .sl-row .sl-row__main, :scope > .sl-thread > .sl-row .sl-row__main')], document.getElementById('measure-next'));
+  document.querySelectorAll('[data-scope]').forEach(b => b.setAttribute('aria-pressed', b.dataset.scope === state.scope));
+}
+
+document.addEventListener('click', e => {
+  const scope = e.target.closest('[data-scope]');
+  if (scope) { state.scope = scope.dataset.scope; renderCompare(); return; }
+  const fold = e.target.closest('#panel-next [data-fold]');
+  if (fold) { const id = fold.dataset.fold; state.folded.has(id) ? state.folded.delete(id) : state.folded.add(id); renderCompare(); document.querySelector(`#panel-next [data-fold="${id}"]`)?.focus(); return; }
+  const sel = e.target.closest('#panel-next [data-select]');
+  if (sel) { state.current = sel.dataset.select; renderCompare(); document.querySelector(`#panel-next [data-select="${sel.dataset.select}"]`)?.focus(); }
+});
+
+/* ---------- specimens ---------- */
+const D = Object.fromEntries(DATA.flatMap(d => [d, ...(d.kids || [])]).map(d => [d.id, d]));
+const SPECS = [
+  {vc:'VC-01', title:'Anatomy', od:'spec-anatomy',
+   html:() => rowNext(D.c, {scope:'all', callouts:{1:'left:2px;top:-4px', 2:'left:30px;top:-6px', 3:'right:-4px;top:-6px', 4:'left:22px;bottom:-6px', 5:'right:-4px;bottom:-6px'}}),
+   legend:['Status mark (SessionBadgeMark), unchanged.', 'Title — owns line 1 up to the end slot.', 'End slot: compact time at rest, “…” on hover/focus. Fixed 24 px.', 'Who line: owner glyph (aggregate only) · provider · agent · attention word.', 'Aux cluster: subagent chip, thread fold. Right-aligned on line 2.']},
+  {vc:'VC-02', title:'Scoped list — no owner', od:'spec-scoped',
+   html:() => rowNext(D.b, {scope:'scoped'}) + rowNext(D.a, {scope:'scoped'}), legend:[]},
+  {vc:'VC-03', title:'All profiles — owner glyph on roots', od:'spec-all',
+   html:() => rowNext(D.a, {scope:'all', callouts:{1:'left:22px;bottom:-6px'}}) + rowNext(D.b, {scope:'all'}),
+   legend:['14 px tinted glyph replaces the 22 px plate; it never touches line 1.']},
+  {vc:'VC-04', title:'Hover / keyboard focus', od:'spec-hover',
+   html:() => rowNext(D.b, {scope:'scoped', forceHover:true, callouts:{1:'right:-4px;top:-6px'}}),
+   legend:['Time cross-fades (120 ms) into “…”; the title width never reflows.']},
+  {vc:'VC-05', title:'Current row', od:'spec-current',
+   html:() => threadNext(D.c, {scope:'scoped', current:'c', folded:false, callouts:{1:'right:-4px;bottom:-6px'}}),
+   legend:['Plate spans the full row including the aux cluster.']},
+  {vc:'VC-06', title:'Folded thread with an urgent child', od:'spec-folded',
+   html:() => threadNext(D.d, {scope:'scoped', current:'', folded:true, callouts:{1:'right:-4px;bottom:-6px'}}),
+   legend:['Count stays; an accent dot carries the most urgent folded child state.']},
+  {vc:'VC-07 · VC-08', title:'Children inherit their parent’s meta', od:'spec-children',
+   html:() => threadNext(D.d, {scope:'all', current:'', folded:false, kidCallouts:{d1:{4:'1|left:22px;bottom:-6px'}, d2:{4:'2|left:62px;bottom:-6px'}, d3:{3:'3|right:2px;top:0'}}}),
+   legend:['#783 runs on Codex → keeps a meta line with its provider.', '#781 needs you and #761 failed → the word earns line 2.', '#760 matches the parent → single line.']},
+  {vc:'VC-09', title:'Selection mode', od:'spec-select',
+   html:() => rowNext(D.b, {scope:'scoped', selecting:true, checked:true}) + rowNext(D.a, {scope:'scoped', selecting:true}),
+   legend:['Checkbox replaces the mark (existing behaviour); “…” is withheld while selecting.']}
+];
+document.getElementById('specimens').innerHTML = SPECS.map(s => `
+  <figure class="lab-spec" data-od-id="${s.od}">
+    <div class="sl-panel sl-panel--short">${s.html()}</div>
+    <figcaption><span class="lab-vc">${s.vc}</span><b style="color:var(--fg);font-weight:500">${s.title}</b>
+      ${s.legend.length ? `<ol>${s.legend.map((l, i) => `<li><i class="lab-n">${i + 1}</i><span>${l}</span></li>`).join('')}</ol>` : ''}
+    </figcaption>
+  </figure>`).join('');
+const LONG_AGENT = 'open-design-designer-with-extended-review-loop';
+const BP = [
+  {title:'Very long agent name', od:'bp-long-agent', html:() => rowNext({id:'x1', title:'Refinar o board da lista de sessões', agent:LONG_AGENT, prov:'claude', state:'running', t:'now', owner:'design'}, {scope:'all', callouts:{1:'left:120px;bottom:-6px'}}),
+   legend:['Agent name ellipsizes; the full name is in its tooltip.']},
+  {title:'Long agent + needs-you + every aux control', od:'bp-max', html:() => threadNext({id:'x2', title:'Migração do store de sessões para o novo schema', agent:LONG_AGENT, prov:'codex', state:'needs', t:'12m', owner:'design', sub:'12/148', kids:Array.from({length:3}, (_, i) => ({id:'x2'+i, title:`Slice ${i + 1} — migrate session rows`, agent:LONG_AGENT, prov:'codex', state:'running', t:'now', owner:'design'}))}, {scope:'all', current:'', folded:true, callouts:{1:'left:60px;bottom:-6px', 2:'left:120px;bottom:-6px', 3:'right:-4px;bottom:-6px'}}),
+   legend:['Agent gives way first and may collapse entirely; owner and provider still identify the row.', '“Needs you” never truncates.', 'Subagent chip with large counts and the fold stay whole.']},
+  {title:'Unbroken title (URL / branch)', od:'bp-unbroken', html:() => rowNext({id:'x3', title:'fix/silent-idle-session-reclaim-and-runtime-rebind-after-session-load', agent:'general', prov:'claude', state:'idle', t:'3d'}, {scope:'scoped', callouts:{1:'right:-4px;top:-6px'}}),
+   legend:['Ellipsis, never a wrap; the time slot keeps its 24 px.']},
+  {title:'One-letter title, wide time', od:'bp-short', html:() => rowNext({id:'x4', title:'C', agent:'general', prov:'claude', state:'stopped', t:'11mo'}, {scope:'scoped'}),
+   legend:[]},
+  {title:'Stacked notes (orphaned subagent, archived, masked)', od:'bp-notes', html:() => rowNext({id:'x5', title:'Review the gateway pairing flow', agent:'reviewer', prov:'claude', state:'failed', t:'2h', notes:['Subagent of a deleted session', 'Archived']}, {scope:'scoped', callouts:{1:'right:30px;bottom:-6px'}}),
+   legend:['Notes truncate before the agent and the “Failed” word.']},
+  {title:'Unbound session — no runtime yet', od:'bp-no-runtime', html:() => rowNext({id:'x6', title:'New session', agent:'general', prov:'claude', state:'idle', t:'now', noRuntime:true}, {scope:'scoped', callouts:{1:'left:22px;bottom:-6px'}}),
+   legend:['No provider mark rather than a guess (current behaviour kept).']},
+  {title:'Deep fan-out, mixed children', od:'bp-fanout', html:() => threadNext({id:'x7', title:'Triagem das issues da semana', agent:'general', prov:'claude', state:'running', t:'now', owner:'personal', kids:[
+      {id:'x71', title:'Issue #801 — Desktop crash on wake', agent:'general', prov:'claude', state:'running', t:'now', owner:'personal'},
+      {id:'x72', title:'Issue #802 — Terminal paste drops newlines', agent:LONG_AGENT, prov:'codex', state:'needs', t:'1m', owner:'personal'},
+      {id:'x73', title:'Issue #803 — Slow archive', agent:'general', prov:'claude', state:'idle', t:'4m', owner:'personal'},
+      {id:'x74', title:'Issue #804 — Locale dates', agent:'general', prov:'claude', state:'failed', t:'9m', owner:'personal'}]}, {scope:'all', current:'x73', folded:false}),
+   legend:[]},
+  {title:'Narrow sidebar — 220 px', od:'bp-narrow', narrow:true, html:() => threadNext(D.c, {scope:'all', current:'', folded:false}) + rowNext({id:'x8', title:'Investigar lentidão do daemon', agent:LONG_AGENT, prov:'codex', state:'needs', t:'38m', owner:'design', sub:'3/9'}, {scope:'all'}),
+   legend:[]}
+];
+document.getElementById('bulletproof').innerHTML = BP.map(s => `
+  <figure class="lab-spec" data-od-id="${s.od}">
+    <div class="sl-panel sl-panel--short" ${s.narrow ? 'style="width:220px"' : ''}>${s.html()}</div>
+    <figcaption><b style="color:var(--fg);font-weight:500">${s.title}</b>
+      ${s.legend.length ? `<ol>${s.legend.map((l, i) => `<li><i class="lab-n">${i + 1}</i><span>${l}</span></li>`).join('')}</ol>` : ''}
+    </figcaption>
+  </figure>`).join('');
+// specimens are static: neutralize their navigation targets
+document.querySelectorAll('#specimens button, #bulletproof button').forEach(b => b.tabIndex = -1);
+
+renderCompare();
+})();
+</script>
+</body>
+</html>

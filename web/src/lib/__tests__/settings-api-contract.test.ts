@@ -24,6 +24,9 @@ type UpdateSettingsRolesBody = OperationRequestBody<"updateSettingsRoles">;
 describe("settings openapi contract", () => {
   it("keeps generated settings operation types aligned with the API surface", () => {
     expectTypeOf<UpdateSettingsGeneralBody["config"]["session_timeout"]>().toEqualTypeOf<string>();
+    expectTypeOf<UpdateSettingsGeneralBody["config"]["idle_release_after"]>().toEqualTypeOf<
+      string | undefined
+    >();
     expectTypeOf<UpdateSettingsGeneralBody["config"]["permissions"]["mode"]>().toEqualTypeOf<
       "approve-all" | "approve-reads" | "deny-all"
     >();
@@ -46,6 +49,9 @@ describe("settings openapi contract", () => {
     expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<"user">();
     expectTypeOf<GetSettingsGeneralResponse["config_paths"]["log_file"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["config"]["session_timeout"]>().toEqualTypeOf<string>();
+    expectTypeOf<GetSettingsGeneralResponse["config"]["idle_release_after"]>().toEqualTypeOf<
+      string | undefined
+    >();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["available"]>().toEqualTypeOf<boolean>();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["started_at"]>().toEqualTypeOf<
       string | null | undefined

@@ -5,7 +5,16 @@ import { describe, expect, it } from "vitest";
 import { KindIcon } from "../kind-icon";
 import { providerKindIconRegistry } from "../kind-icon-registry";
 
-const providerKeys = Object.keys(providerKindIconRegistry);
+const providerKeys = [
+  "agy",
+  "claude",
+  "codex",
+  "gemini",
+  "kimi-cli",
+  "ollama",
+  "openai",
+  "qwen-code",
+] as const;
 
 describe("KindIcon", () => {
   it("Should expose the shared provider registry with all supported provider keys", () => {

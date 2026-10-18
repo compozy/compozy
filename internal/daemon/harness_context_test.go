@@ -31,7 +31,6 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 			t.Parallel()
 			env := map[string]string{
 				"CLAUDE_CONFIG_DIR": filepath.Join(operatorHome, "claude-override"),
-				"HERMES_HOME":       filepath.Join(operatorHome, "hermes-override"),
 			}
 			lookup := func(key string) (string, bool) { value, ok := env[key]; return value, ok }
 
@@ -41,23 +40,6 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 			assertNativeRootSet(t, claude,
 				filepath.Join(workspace, ".claude", "skills"),
 				filepath.Join(env["CLAUDE_CONFIG_DIR"], "skills"),
-			)
-
-			env["OPENCLAW_STATE_DIR"] = filepath.Join(operatorHome, "openclaw-override")
-			openclaw := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
-				Provider: "openclaw", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
-			})
-			assertNativeRootSet(t, openclaw,
-				filepath.Join(workspace, ".agents", "skills"),
-				filepath.Join(env["OPENCLAW_STATE_DIR"], "skills"),
-			)
-
-			hermes := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
-				Provider: "hermes-agent", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
-			})
-			assertNativeRootSet(t, hermes,
-				filepath.Join(workspace, ".agents", "skills"),
-				filepath.Join(env["HERMES_HOME"], "skills"),
 			)
 
 			isolated := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
@@ -77,7 +59,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 
 		t.Run("Should fail open for unknown provider identities", func(t *testing.T) {
 			t.Parallel()
-			for _, provider := range []string{"", "custom", "claude --dangerously-skip-permissions"} {
+			for _, provider := range []string{"", "custom", "claude --dangerously-skip-permissions", "hermes", "openclaw"} {
 				if roots := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 					Provider: provider, Workspace: workspace, HomePaths: homePaths,
 				}); len(roots) != 0 {
@@ -145,7 +127,7 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 		resolved, err := resolver.Resolve(HarnessResolutionInput{
 			Surface: ResolutionSurfaceTurn,
 			Session: HarnessSessionInput{
-				SessionID: "sess-native", Type: session.SessionTypeUser, Provider: "hermes",
+				SessionID: "sess-native", Type: session.SessionTypeUser, Provider: "claude",
 				Workspace: workspace,
 			},
 			Turn: HarnessTurnRequest{Source: session.TurnSourceUser},
@@ -154,30 +136,30 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 			t.Fatalf("Resolve() error = %v", err)
 		}
 		filter := resolved.Policy.SkillInjectionFilter
-		workspaceAgents := &skillspkg.Skill{
-			Meta: skillspkg.SkillMeta{Name: "workspace-native"}, Origin: compozyconfig.SkillSourceAgents,
-			RootDir: filepath.Join(workspace, ".agents", "skills"), Enabled: true,
+		workspaceClaude := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "workspace-native"}, Origin: compozyconfig.SkillSourceClaude,
+			RootDir: filepath.Join(workspace, ".claude", "skills"), Enabled: true,
 		}
-		globalAgents := &skillspkg.Skill{
-			Meta: skillspkg.SkillMeta{Name: "global-not-native"}, Origin: compozyconfig.SkillSourceAgents,
-			RootDir: filepath.Join(operatorHome, ".agents", "skills"), Enabled: true,
+		workspaceAgents := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "agents-not-native"}, Origin: compozyconfig.SkillSourceAgents,
+			RootDir: filepath.Join(workspace, ".agents", "skills"), Enabled: true,
 		}
 		custom := &skillspkg.Skill{
 			Meta: skillspkg.SkillMeta{Name: "custom"}, Origin: "team-skills",
-			RootDir: workspaceAgents.RootDir, Enabled: true,
+			RootDir: workspaceClaude.RootDir, Enabled: true,
 		}
-		if filter(workspaceAgents) {
-			t.Fatal("workspace agents winner retained, want suppressed for Hermes")
+		if filter(workspaceClaude) {
+			t.Fatal("workspace claude winner retained, want suppressed for Claude")
 		}
-		if !filter(globalAgents) {
-			t.Fatal("global agents winner suppressed, want retained for Hermes")
+		if !filter(workspaceAgents) {
+			t.Fatal("agents winner suppressed, want retained because no provider reads .agents/skills natively")
 		}
 		if !filter(custom) {
 			t.Fatal("custom-origin winner suppressed, want fail-open retention")
 		}
 		for _, fragment := range []string{
 			"skills.injection.suppressed", "session_id=sess-native", "skill=workspace-native",
-			"source=agents", "provider=hermes",
+			"source=claude", "provider=claude",
 		} {
 			if !strings.Contains(logs.String(), fragment) {
 				t.Fatalf("suppression log = %q, want %q", logs.String(), fragment)
@@ -200,12 +182,9 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 				root: filepath.Join(operatorHome, ".claude", "skills"),
 			},
 			{
-				name: "Should suppress the OpenClaw workspace preset", provider: "openclaw", origin: "agents",
-				root: filepath.Join(workspace, ".agents", "skills"),
-			},
-			{
-				name: "Should suppress the OpenClaw operator preset", provider: "openclaw", origin: "agents",
-				root: filepath.Join(operatorHome, ".agents", "skills"),
+				name:     "Should retain the Agents workspace preset for every provider",
+				provider: "openclaw", origin: "agents",
+				root: filepath.Join(workspace, ".agents", "skills"), wantKeep: true,
 			},
 			{
 				name: "Should retain preset skills for an unknown provider", provider: "custom", origin: "claude",

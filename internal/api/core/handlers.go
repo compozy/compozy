@@ -77,6 +77,9 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
+	if !h.requireCreateSessionFolder(c, mutationScope.ProfileID, req) {
+		return
+	}
 	worktreeTarget, err := h.resolveCreateSessionWorktree(c, mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
@@ -114,11 +117,13 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
+	folderID := h.placeCreatedSession(c.Request.Context(), info, req.FolderID)
 	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
+	payload.FolderID = folderID
 	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
 }
 

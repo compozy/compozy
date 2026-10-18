@@ -76,30 +76,38 @@ function followUpModeFromConfig(config: {
   return config.busy_input?.default_mode === "queue" ? "queue" : DEFAULT_SESSION_BUSY_INPUT_MODE;
 }
 
-function parseSessionTimeoutSeconds(raw: string): number {
+/** `session.supervision.idle_release_after` default, shown when the daemon omits the value. */
+const DEFAULT_IDLE_RELEASE_AFTER = "30m";
+
+function parseDurationSeconds(raw: string): number {
   return (parsePositiveDurationMilliseconds(raw.trim()) ?? 0) / 1000;
 }
 
-function formatSessionTimeout(seconds: number): string {
+function formatDurationSeconds(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
   return `${Math.floor(seconds)}s`;
 }
 
-const SESSION_TIMEOUT_PRESETS: ReadonlyArray<{ seconds: number; label: string }> = [
+const IDLE_RELEASE_PRESETS: ReadonlyArray<{ seconds: number; label: string }> = [
   { seconds: 0, label: "Never" },
   { seconds: 15 * 60, label: "15 minutes" },
+  { seconds: 30 * 60, label: "30 minutes" },
   { seconds: 60 * 60, label: "1 hour" },
   { seconds: 4 * 60 * 60, label: "4 hours" },
   { seconds: 24 * 60 * 60, label: "1 day" },
 ];
 
-const CUSTOM_TIMEOUT = "custom";
+const CUSTOM_DURATION = "custom";
 
 /** Duration in plain words for a value that matches no preset ("90 minutes"). */
 function describeSeconds(seconds: number): string {
-  if (seconds % 3600 === 0) return `${seconds / 3600} hours`;
-  if (seconds % 60 === 0) return `${seconds / 60} minutes`;
-  return `${seconds} seconds`;
+  const [amount, unit] =
+    seconds % 3600 === 0
+      ? [seconds / 3600, "hour"]
+      : seconds % 60 === 0
+        ? [seconds / 60, "minute"]
+        : [seconds, "second"];
+  return `${amount} ${unit}${amount === 1 ? "" : "s"}`;
 }
 
 type GeneralPageModel = ReturnType<typeof useSettingsGeneralPage>;
@@ -225,8 +233,8 @@ function GeneralAdvancedSection({
   );
 }
 
-/** Idle-session cutoff as presets; a value that matches none stays selectable as-is. */
-function SessionTimeoutSelect({
+/** Idle-agent release delay as presets; a value that matches none stays selectable as-is. */
+function IdleReleaseSelect({
   disabled,
   onChange,
   value,
@@ -235,27 +243,27 @@ function SessionTimeoutSelect({
   onChange: (seconds: number) => void;
   value: string;
 }) {
-  const seconds = parseSessionTimeoutSeconds(value);
-  const preset = SESSION_TIMEOUT_PRESETS.find(option => option.seconds === seconds);
+  const seconds = parseDurationSeconds(value);
+  const preset = IDLE_RELEASE_PRESETS.find(option => option.seconds === seconds);
   return (
     <NativeSelect
-      aria-label="End idle sessions after"
-      data-testid="settings-page-general-session-timeout-input"
+      aria-label="Pause idle agents after"
+      data-testid="settings-page-general-idle-release-input"
       disabled={disabled}
       onChange={event => {
         const next = event.target.value;
-        if (next !== CUSTOM_TIMEOUT) onChange(Number(next));
+        if (next !== CUSTOM_DURATION) onChange(Number(next));
       }}
       size="sm"
-      value={preset ? String(preset.seconds) : CUSTOM_TIMEOUT}
+      value={preset ? String(preset.seconds) : CUSTOM_DURATION}
     >
-      {SESSION_TIMEOUT_PRESETS.map(option => (
+      {IDLE_RELEASE_PRESETS.map(option => (
         <NativeSelectOption key={option.seconds} value={String(option.seconds)}>
           {option.label}
         </NativeSelectOption>
       ))}
       {preset ? null : (
-        <NativeSelectOption value={CUSTOM_TIMEOUT}>{describeSeconds(seconds)}</NativeSelectOption>
+        <NativeSelectOption value={CUSTOM_DURATION}>{describeSeconds(seconds)}</NativeSelectOption>
       )}
     </NativeSelect>
   );
@@ -397,19 +405,19 @@ export function GeneralSettingsPage() {
           }
         />
         <SettingRow
-          data-testid="settings-page-general-session-timeout"
-          help="A session with no activity for this long is ended and kept in history."
-          label="End idle sessions after"
+          data-testid="settings-page-general-idle-release"
+          help="An agent idle this long is paused to free memory. The session stays open, and your next message picks up where it left off. Agents that can't resume keep running."
+          label="Pause idle agents after"
           control={
-            <SessionTimeoutSelect
+            <IdleReleaseSelect
               disabled={page.isSaving}
               onChange={value =>
                 setDraft(prev => {
                   const current = prev ?? draft;
-                  return { ...current, session_timeout: formatSessionTimeout(value) };
+                  return { ...current, idle_release_after: formatDurationSeconds(value) };
                 })
               }
-              value={draft.session_timeout}
+              value={draft.idle_release_after ?? DEFAULT_IDLE_RELEASE_AFTER}
             />
           }
         />

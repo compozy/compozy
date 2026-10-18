@@ -1,0 +1,183 @@
+import { Bot } from "lucide-react";
+import { useReducedMotionConfig } from "motion/react";
+
+import {
+  Button,
+  InputGroupButton,
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+  Skeleton,
+  SkeletonRows,
+  StatusDot,
+  cn,
+} from "@compozy/ui";
+
+import {
+  subagentComposerSignal,
+  subagentRosterTitle,
+  type SubagentComposerSignal,
+  type SubagentCounts,
+} from "./subagent-format";
+import { SubagentRoster, type SubagentRosterProps } from "./subagent-roster";
+import type { SubagentView } from "./types";
+
+export interface SubagentComposerControlProps {
+  subagents: readonly SubagentView[];
+  /** What the trigger reports: the rows' counts, or the session's summary before they load. */
+  counts: SubagentCounts;
+  /** The session reports subagents whose rows have not arrived yet. */
+  loading?: boolean;
+  /** The rows could not be read; `onRetry` reads them again. */
+  failed?: boolean;
+  onRetry?: () => void;
+  onOpen?: SubagentRosterProps["onOpen"];
+  onStop?: SubagentRosterProps["onStop"];
+  /** The popover opened or closed; the owner reads the roster while it is open. */
+  onOpenChange?: (open: boolean) => void;
+  /** Hold the live pulse still (rows the stream has not confirmed). */
+  stale?: boolean;
+}
+
+/** The subagents icon, carrying the avatar's live dot while any subagent runs. */
+function SubagentComposerGlyph({
+  signal,
+  stale,
+}: {
+  signal: SubagentComposerSignal;
+  stale: boolean;
+}) {
+  const reduced = useReducedMotionConfig();
+  const dot = signal.dot;
+  return (
+    <span className="relative inline-flex">
+      <Bot aria-hidden="true" className="size-4" />
+      {dot ? (
+        <StatusDot
+          tone={dot.tone ?? "faint"}
+          size="sm"
+          className={cn(
+            "absolute -right-0.5 -bottom-0.5 ring-2 ring-card group-hover/button:ring-surface-2 group-data-[popup-open]/button:ring-surface-2",
+            dot.pulse && !reduced && !stale && "animate-pulse"
+          )}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function SubagentComposerFailure({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-0.5">
+      <p className="text-transcript-caption text-muted">Couldn't load subagents.</p>
+      {onRetry ? (
+        <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
+          Try again
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** No rows: a placeholder while they load, or the empty state. */
+function SubagentComposerPlaceholder({ loading }: { loading: boolean }) {
+  if (loading) {
+    return (
+      <SkeletonRows count={2} className="gap-2 px-0.5" rowClassName="h-7.5 justify-center">
+        <Skeleton className="h-3.5 w-2/3" />
+      </SkeletonRows>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-0.5 px-0.5 pb-0.5">
+      <p className="text-small-body text-fg">Nothing delegated yet.</p>
+      <p className="text-transcript-caption text-pretty text-muted">
+        When the agent hands work to a subagent, it shows up here.
+      </p>
+    </div>
+  );
+}
+
+type SubagentComposerPanelProps = Omit<SubagentComposerControlProps, "onOpenChange" | "stale"> & {
+  stale: boolean;
+};
+
+/** Popover body: the roster rows, a failed read beside any rows that did load, or a placeholder. */
+function SubagentComposerPanel({
+  subagents,
+  counts,
+  loading = false,
+  failed = false,
+  onRetry,
+  onOpen,
+  onStop,
+  stale,
+}: SubagentComposerPanelProps) {
+  const hasRows = subagents.length > 0;
+  return (
+    <>
+      <div className="flex items-baseline gap-2 px-0.5">
+        <PopoverTitle className="text-transcript-meta font-semibold text-fg-strong">
+          {subagentRosterTitle(counts.live)}
+        </PopoverTitle>
+        {counts.total > 0 ? (
+          <span className="ml-auto font-mono text-mono-id text-faint tabular-nums">
+            {counts.total}
+          </span>
+        ) : null}
+      </div>
+      {hasRows ? (
+        <SubagentRoster
+          subagents={subagents}
+          onOpen={onOpen}
+          onStop={onStop}
+          stale={stale}
+          hoverSide="right"
+          // Nothing runs: the previous rows are the whole answer, so they start open.
+          defaultPreviousOpen={counts.live === 0}
+        />
+      ) : null}
+      {failed ? <SubagentComposerFailure onRetry={onRetry} /> : null}
+      {hasRows || failed ? null : <SubagentComposerPlaceholder loading={loading} />}
+    </>
+  );
+}
+
+/**
+ * The composer's subagents control (issue #766): a quiet icon while nothing
+ * runs; while subagents work, the icon takes their avatar's live dot and the
+ * live count. Its popover hosts the inspector's roster: current rows first,
+ * then previous.
+ */
+export function SubagentComposerControl({
+  onOpenChange,
+  stale = false,
+  ...panel
+}: SubagentComposerControlProps) {
+  const signal = subagentComposerSignal(panel.counts, panel.failed);
+  const live = signal.count !== null;
+
+  return (
+    <Popover onOpenChange={open => onOpenChange?.(open)}>
+      <PopoverTrigger
+        render={
+          <InputGroupButton
+            type="button"
+            size="tool"
+            aria-label={signal.ariaLabel}
+            data-testid="composer-subagents-button"
+            data-state={signal.state}
+            className="shrink-0 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg"
+          />
+        }
+      >
+        <SubagentComposerGlyph signal={signal} stale={stale} />
+        {live ? <span className="font-mono text-mono-id tabular-nums">{signal.count}</span> : null}
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-80 max-w-[calc(100vw-2rem)] gap-2">
+        <SubagentComposerPanel {...panel} stale={stale} />
+      </PopoverContent>
+    </Popover>
+  );
+}

@@ -27,7 +27,7 @@ flowchart TD
   F --> G[Single or batch update returns ordered per-item progress]
   G -->|one item fails| G1[Completed updates stay committed; failed item is explicit]
   G --> H[Invoke changed behavior and remove the installed extension]
-  E3 --> P[Enable once; Claude Code, OpenClaw, and Hermes sessions consume the same daemon-owned skills and MCP servers]
+  E3 --> P[Enable once; Claude Code sessions consume the daemon-owned skills and MCP servers; a session_mcp=false provider that needs hosted MCP fails before launch]
   P --> H
   H --> Z[True end: release lifecycle completed without a catalog submission or hidden trust elevation]
 ```
@@ -74,12 +74,12 @@ journey:
       verb: Partially fail a batch update, then remove
       expected_observable: Ordered outcomes preserve completed mutations; portable data survives updates; and removal either deletes or quarantines that data, never reporting success while a reusable instance key retains residue
     - step: 6
-      verb: Deliver one portable package through all supported ACP providers
-      expected_observable: Claude Code, OpenClaw, and Hermes sessions activate the same ingested skill, run the stdio server with the absolute root/data environment, and reach the remote server through the daemon without provider-specific package handling
+      verb: Deliver one portable package through the supported managed provider
+      expected_observable: Claude Code sessions activate the ingested skill, run the stdio server with the absolute root/data environment, and reach the remote server through the daemon without provider-specific package handling
   goal:
     observable: Direct publication and source-union consumption with passive update discovery and truthful integrity, trust, and partial progress
     side_effects: [release-published, extension-installed, extension-updated, extension-removed]
-  true_end_state: A second isolated home consumed, updated, invoked, and removed the extension; portable content worked through all three providers; failed source attempts left zero install state
+  true_end_state: A second isolated home consumed, updated, invoked, and removed the extension; portable content worked through Claude Code; failed source attempts left zero install state
   exit:
     natural: Continue publishing another release without Compozy catalog intervention
   abandonment:

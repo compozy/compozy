@@ -256,7 +256,7 @@ func runProviderAuthLoginCommand(
 		return err
 	}
 	if target.UseACP {
-		return runACPProviderLogin(cmd, deps, runtime, target, options)
+		return runACPProviderLogin(cmd, deps, runtime, &target, options)
 	}
 	loginResult, err := deps.runProviderAuthLoginCommand(cmd.Context(), providerAuthCommandSpec{
 		Command: target.LoginCommand,
@@ -301,7 +301,7 @@ func runACPProviderLogin(
 	cmd *cobra.Command,
 	deps commandDeps,
 	runtime *runtimeContext,
-	target providerAuthLoginTargetRecord,
+	target *providerAuthLoginTargetRecord,
 	options providerAuthLoginOptions,
 ) error {
 	ctx := cmd.Context()
@@ -311,12 +311,10 @@ func runACPProviderLogin(
 		defer cancel()
 	}
 	err := deps.runACPLogin(ctx, acp.AuthenticationRequest{
-		SessionInspectionRequest: acp.SessionInspectionRequest{
-			AgentName: target.ProviderName,
-			Command:   target.ACPCommand,
-			Cwd:       target.ACPCwd,
-			Env:       target.ACPEnv,
-		},
+		AgentName:         target.ProviderName,
+		Command:           target.ACPCommand,
+		Cwd:               target.ACPCwd,
+		Env:               target.ACPEnv,
 		MethodID:          target.ACPMethod,
 		InteractiveOutput: deps.acpLoginStderr,
 	})
@@ -337,8 +335,7 @@ func runACPProviderLogin(
 // method and a supplied login timeout use stable messages, while canceled or
 // failed readiness returns the ordinary CLI error envelope.
 func mapACPLoginError(methodID string, hasTimeout bool, err error) error {
-	var unavailable *acp.AuthMethodUnavailableError
-	if errors.As(err, &unavailable) {
+	if _, ok := errors.AsType[*acp.AuthMethodUnavailableError](err); ok {
 		return fmt.Errorf(
 			"provider auth: ACP method %q is not advertised as an agent method",
 			methodID,
@@ -400,7 +397,11 @@ func providerAuthLoginTarget(
 }
 
 // providerMissingNativeCLIError owns the stable missing-CLI message for both login paths.
-func providerMissingNativeCLIError(providerName string, provider compozyconfig.ProviderConfig, nativeCLI *providerNativeCLIStatusRecord) error {
+func providerMissingNativeCLIError(
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	nativeCLI *providerNativeCLIStatusRecord,
+) error {
 	executable := authproviders.DescribeProviderLogin(
 		provider,
 		nativeCLI,
@@ -443,7 +444,11 @@ func providerACPLoginTarget(
 	}
 	if _, err := resolve(ctx, parsed.Executable, probeEnv.CommandEnv, probeEnv.CommandDir); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			return providerAuthLoginTargetRecord{}, providerMissingNativeCLIError(providerName, provider, &providerNativeCLIStatusRecord{Command: parsed.Executable})
+			return providerAuthLoginTargetRecord{}, providerMissingNativeCLIError(
+				providerName,
+				provider,
+				&providerNativeCLIStatusRecord{Command: parsed.Executable},
+			)
 		}
 		return providerAuthLoginTargetRecord{}, fmt.Errorf(
 			"cli: resolve provider %q executable: %w",

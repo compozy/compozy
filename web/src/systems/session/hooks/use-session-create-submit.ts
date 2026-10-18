@@ -144,6 +144,7 @@ function validateSessionCreate(
     return { ok: false, message: "Select an agent before starting the session." };
   }
   const sessionName = flow.draft.sessionName.trim();
+  const folderId = flow.draft.folderId.trim();
   return {
     ok: true,
     agentName,
@@ -152,6 +153,7 @@ function validateSessionCreate(
       agent_name: agentName,
       ...binding,
       ...(sessionName ? { name: sessionName } : {}),
+      ...(folderId ? { folder_id: folderId } : {}),
     },
   };
 }

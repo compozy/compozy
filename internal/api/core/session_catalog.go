@@ -51,6 +51,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	ApplySessionPlacements(payloads, page.Placements)
 	var total *int
 	if !query.SkipTotal {
 		total = &page.Total

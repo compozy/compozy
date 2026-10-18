@@ -152,7 +152,7 @@ func (d *Driver) launcherForStart(opts StartOpts) Launcher {
 	if d.launcher != nil {
 		return d.launcher
 	}
-	return newLocalLauncher(d.logger, d.stopTimeout)
+	return newLocalLauncher(d.logger, d.stopTimeout, d.agentNiceness)
 }
 
 func (l *localLauncher) PrepareLaunch(

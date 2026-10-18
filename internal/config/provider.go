@@ -12,42 +12,28 @@ const (
 )
 
 const (
-	providerMiniMaxM21Path             = "MiniMax-M2.1"
 	providerNodeOptionsValue           = "NODE_OPTIONS"
 	providerAnthropicClaudeOpus47Path  = "anthropic/claude-opus-4-7"
 	providerAgyKey                     = "agy"
-	providerBlackboxKey                = "blackbox"
 	providerClaudeCodeAlias            = "claude-code"
 	providerGeminiKey                  = "gemini"
 	modelClaudeOpus47ID                = "claude-opus-4-7"
-	providerClineKey                   = "cline"
 	providerCodexKey                   = "codex"
-	providerDevstralMediumLatestValue  = "devstral-medium-latest"
 	providerGemini31ProPreviewPath     = "gemini-3.1-pro-preview"
 	providerGlm46Path                  = "glm-4.6"
-	providerGooseKey                   = "goose"
 	providerGrokAlias                  = "grok"
 	providerGrok4FastNonReasoningValue = "grok-4-fast-non-reasoning"
-	providerGroqKey                    = "groq"
-	providerHermesKey                  = "hermes"
 	providerHighKey                    = "high"
-	providerJunieKey                   = "junie"
 	providerKimiAlias                  = "kimi"
 	providerKimiCLIValue               = "kimi-cli"
 	providerKimiCodingValue            = "kimi-coding"
 	providerKimiK2ThinkingValue        = "kimi-k2-thinking"
 	providerMediumKey                  = "medium"
-	providerMinimaxKey                 = "minimax"
-	providerMistralKey                 = "mistral"
 	providerMoonshotKey                = "moonshot"
 	claudeProviderCommand              = "npx -y @agentclientprotocol/claude-agent-acp@latest"
 	providerOpenaiGpt54Path            = "openai/gpt-5.4"
-	providerOpenaiGptOss120bPath       = "openai/gpt-oss-120b"
-	providerOpenclawKey                = "openclaw"
 	providerOpencodeKey                = "opencode"
-	providerOpenhandsKey               = "openhands"
 	providerOpenrouterKey              = "openrouter"
-	providerQoderKey                   = "qoder"
 	providerQwenAlias                  = "qwen"
 	providerQwenCodeValue              = "qwen-code"
 	providerQwen36PlusPath             = "qwen3.6-plus"
@@ -239,13 +225,7 @@ const (
 )
 
 var builtinProviderAliases = map[string]string{
-	"blackbox-ai":                providerBlackboxKey,
-	"blackboxai":                 providerBlackboxKey,
 	providerClaudeCodeAlias:      providerClaudeKey,
-	"cline-cli":                  providerClineKey,
-	"goose-cli":                  providerGooseKey,
-	"hermes-agent":               providerHermesKey,
-	"junie-cli":                  providerJunieKey,
 	"ai-gateway":                 providerVercelAIGatewayValue,
 	"aigateway":                  providerVercelAIGatewayValue,
 	providerKimiAlias:            providerMoonshotKey,
@@ -254,12 +234,8 @@ var builtinProviderAliases = map[string]string{
 	"kimi-code":                  providerKimiCLIValue,
 	providerKimiCodingValue:      providerMoonshotKey,
 	"moonshotai":                 providerMoonshotKey,
-	"open-hands":                 providerOpenhandsKey,
-	"openhands-cli":              providerOpenhandsKey,
-	"openclaw-cli":               providerOpenclawKey,
 	"open-code":                  providerOpencodeKey,
 	"opencode-ai":                providerOpencodeKey,
-	"qoder-cli":                  providerQoderKey,
 	providerQwenAlias:            providerQwenCodeValue,
 	"qwen cli":                   providerQwenCodeValue,
 	"qwen code":                  providerQwenCodeValue,
@@ -274,11 +250,7 @@ var builtinProviderAliases = map[string]string{
 	"glm":                        providerZaiKey,
 	"openrouter-ai":              providerOpenrouterKey,
 	"openrouter-gateway":         providerOpenrouterKey,
-	"minimax-ai":                 providerMinimaxKey,
-	"minimax-cn":                 providerMinimaxKey,
 	providerGrokAlias:            providerXaiKey,
 	"x-ai":                       providerXaiKey,
 	providerXaiDotAlias:          providerXaiKey,
-	"mistralai":                  providerMistralKey,
-	"mistral-ai":                 providerMistralKey,
 }

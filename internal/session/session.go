@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -125,6 +126,10 @@ type Session struct {
 	supervisionProgressAt        time.Time
 	supervisionWarningRecordedAt time.Time
 	supervisionReportedSources   []SignalSourceState
+	// supervisionIdleSince starts when a session with no turn in flight goes quiet.
+	supervisionIdleSince time.Time
+	// runtimeRelease marks a runtime the supervisor released while the session was idle.
+	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr        error
 	stopVerifiedOutcome        StopOutcome // Protected by mu.
@@ -236,6 +241,14 @@ type Session struct {
 	turnStopPending         bool
 	currentPromptDone       chan struct{}
 	providerRedactions      []func()
+	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
+	inputPromotionActive atomic.Bool
+	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
+	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
+	promotedSteers sync.Map
+	// promotionDeclined maps a queued entry whose promotion input.pre_submit refused to the turn it was
+	// refused in, so later passes of that turn leave it for ordinary after-turn dispatch.
+	promotionDeclined sync.Map
 }
 
 func (s *Session) processHandle() *AgentProcess {

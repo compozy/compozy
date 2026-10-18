@@ -175,6 +175,8 @@ func (m *Manager) prepareSendPrompt(
 		if err := req.meta.Origin.Validate(); err != nil {
 			return sendPromptPreparation{}, nil, err
 		}
+		req.supersede = opts.Supersede
+		mode = agentBusyInputMode(mode, len(req.attachments) > 0)
 	}
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
@@ -448,6 +450,19 @@ func validateCommandIngress(allowCommands bool, caller PromptCaller) error {
 		return errors.New("session: slash commands require human operator ingress")
 	}
 	return nil
+}
+
+// agentBusyInputMode keeps another session from canceling the target's active turn: an agent
+// interrupt is delivered as steering, or queued when it carries attachments steering cannot hold.
+// Steering itself degrades to after-turn delivery when the target cannot inject it.
+func agentBusyInputMode(mode BusyInputMode, hasAttachments bool) BusyInputMode {
+	if mode != BusyInputModeInterrupt {
+		return mode
+	}
+	if hasAttachments {
+		return BusyInputModeQueue
+	}
+	return BusyInputModeSteer
 }
 
 func (m *Manager) normalizeBusyInputMode(mode BusyInputMode) (BusyInputMode, error) {

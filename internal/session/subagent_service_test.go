@@ -934,6 +934,80 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 		})
 	})
+	// Issue #766: a background launch returns at once; its receipt must not settle the row.
+	t.Run("Should run a background launch until the provider ends its turn", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_background", ToolName: "Agent",
+				Title: "S1 queue core implementation", Status: "in_progress", Background: true,
+			}
+			foreground := launch
+			foreground.ProviderToolCallID, foreground.Background = "toolu_foreground", false
+			for _, ev := range []NativeSubagentEvent{launch, foreground} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The receipt carries no background evidence of its own when only the input flagged it.
+			receipt := launch
+			receipt.Background, receipt.Status = false, "completed"
+			receipt.Result = "Async agent launched successfully."
+			if err := s.OnNativeToolEvent(t.Context(), "parent", receipt); err != nil {
+				t.Fatal(err)
+			}
+			id := subagentID("parent", launch.ProviderToolCallID)
+			if row := db.rows[id]; row.Status != "running" || row.Result != nil || hook.calls != 0 {
+				t.Fatal(row, hook.calls)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "other-turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if db.rows[id].Status != "running" {
+				t.Fatal(db.rows[id])
+			}
+			done := time.Date(2026, 10, 16, 17, 30, 0, 0, time.UTC)
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", done); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			row := db.rows[id]
+			if row.Status != "completed" || row.Result != nil || row.SettledAt == nil || !row.SettledAt.Equal(done) ||
+				row.Delivery != "none" || len(runtime.queues) != 0 || hook.calls != 1 {
+				t.Fatal(row, hook.calls)
+			}
+			// A foreground call that never returned is not completed by the turn's answer.
+			if row := db.rows[subagentID("parent", foreground.ProviderToolCallID)]; row.Status != "running" {
+				t.Fatal(row)
+			}
+		})
+	})
+	t.Run("Should interrupt a background launch when its turn is canceled", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_background", ToolName: "Agent",
+				Status: "completed", Background: true, Result: "Async agent launched successfully.",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnParentTurnInterrupted(t.Context(), "parent", "turn"); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", launch.ProviderToolCallID)]; row.Status != "interrupted" ||
+				row.Result != nil {
+				t.Fatal(row)
+			}
+		})
+	})
 }
 
 // UT-032/UT-057 and IT-025 service half: asynchronous injection completion owns the single fallback.

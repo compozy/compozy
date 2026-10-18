@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@compozy/ui";
@@ -14,8 +14,8 @@ vi.mock("../../adapters/onboarding-api", async importOriginal => ({
   browseDirectory: vi.fn(),
 }));
 
-function BrowserHarness() {
-  const setup = useWorkspaceSetupContent({ onWorkspaceResolved: () => undefined });
+function BrowserHarness({ enabled = true }: { enabled?: boolean }) {
+  const setup = useWorkspaceSetupContent({ enabled, onWorkspaceResolved: () => undefined });
   const { navigateTo, goToParent, goHome, ...view } = setup.browse;
   return (
     <DirectoryBrowser
@@ -30,6 +30,48 @@ function BrowserHarness() {
 }
 
 describe("DirectoryBrowser", () => {
+  // Invariant: closed workspace setup performs no filesystem reads and keeps
+  // the chosen browsing location when reopened. Owner: setup/query adapter;
+  // canonical suite: this real-hook directory browser integration suite.
+  it("Should browse only while enabled and retain its location across a close", async () => {
+    vi.mocked(browseDirectory).mockClear();
+    vi.mocked(browseDirectory).mockImplementation(async query => ({
+      path: query.path ?? "/home/operator",
+      home: "/home/operator",
+      parent: "/home",
+      roots: ["/"],
+      entries: [{ name: "project", path: "/home/operator/project", is_dir: true }],
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (enabled: boolean) => (
+      <QueryClientProvider client={client}>
+        <UIProvider reducedMotion="always">
+          <BrowserHarness enabled={enabled} />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+    const view = render(tree(false));
+    expect(browseDirectory).not.toHaveBeenCalled();
+    view.rerender(tree(true));
+    await user.click(await screen.findByRole("button", { name: "project" }));
+    expect(await screen.findByTitle("/home/operator/project")).toBeVisible();
+    expect(browseDirectory).toHaveBeenCalledTimes(2);
+
+    view.rerender(tree(false));
+    await client.invalidateQueries();
+    expect(browseDirectory).toHaveBeenCalledTimes(2);
+    view.rerender(tree(true));
+    await waitFor(() => expect(browseDirectory).toHaveBeenCalledTimes(3));
+    expect(await screen.findByTitle("/home/operator/project")).toBeVisible();
+    expect(browseDirectory).toHaveBeenLastCalledWith(
+      { dirsOnly: true, path: "/home/operator/project" },
+      expect.any(AbortSignal)
+    );
+    view.unmount();
+    client.clear();
+  });
+
   it("forwards native div attributes and navigates to an operating-system root", () => {
     const onClick = vi.fn();
     const onNavigate = vi.fn();

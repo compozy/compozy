@@ -20,9 +20,13 @@ answers four questions without ever calling the model:
 
 ## Recovering supervised work
 
-Session supervision warns after `session.supervision.quiet_after` (30 minutes by default) when no
-fresh work evidence remains. A positive `stop_grace` (10 minutes by default) then permits a verified
-process-tree stop. Valid work signals and unknown signal sources prevent this stop.
+Session supervision warns after `session.supervision.quiet_after` (30 minutes by default) when a
+turn is in flight, waiting on the agent, and no fresh work evidence remains. A positive `stop_grace`
+(10 minutes by default) then permits a verified process-tree stop. Valid work signals, unknown
+signal sources, and a pending permission or clarify request prevent this stop. A session with no
+turn in flight is never stopped for inactivity; its agent process may instead be released after
+`session.supervision.idle_release_after` while the session stays active (see
+[idle runtime release](/docs/sessions/lifecycle#idle-runtime-release)).
 
 After a verified stop, an authoritative task binding can recover through one linked queued attempt.
 The existing `max_attempts` budget includes previous lease recoveries; setting it to `1` disables
@@ -69,7 +73,8 @@ change task ownership. Editing or deleting `HEARTBEAT.md` does not change health
 | Daemon restart                                                | Health is recomputed before any wake consumer runs.                         |
 
 `[session.supervision]` continues to own active-prompt activity timers, runtime progress events,
-warnings, and the inactivity timeout. It does not write to `session_health`.
+the in-flight turn warning and inactivity stop, and idle runtime release. It does not write to
+`session_health`.
 
 ## Reading health
 

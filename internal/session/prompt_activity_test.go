@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -74,42 +76,45 @@ func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.
 
 // Invariant: waiting reports never renew work evidence. Owner: session; canonical activity/supervision suite.
 func TestPromptActivitySupervisorWaitingHeartbeatDoesNotPreventTimeout(t *testing.T) {
-	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	config := testSupervisionConfig()
-	config.QuietAfter, config.StopGrace = time.Second, time.Second
-	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(config))
-	target := createSession(t, h)
-	installAbsentWorkSources(h.manager)
-	supervisor := newPromptActivitySupervisor(t.Context(), h.manager, target,
-		newPromptTurnDispatchState(target, "turn-heartbeat-timeout", TurnSourceUser, "hello"), config)
-	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	for range 2 {
-		now = now.Add(time.Second)
-		supervisor.report(
-			acp.PromptActivityReport{
-				Timestamp: now,
-				Kind:      runtimeActivityKindAgentWaiting,
-				Detail:    "waiting for provider",
-			},
-		)
+	t.Run("Should stop a quiet in-flight turn whose agent only reports waiting", func(t *testing.T) {
+		now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+		config := testSupervisionConfig()
+		config.QuietAfter, config.StopGrace = time.Second, time.Second
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(config))
+		target := createSession(t, h)
+		installAbsentWorkSources(h.manager)
+		markTurnInFlight(target)
+		supervisor := newPromptActivitySupervisor(t.Context(), h.manager, target,
+			newPromptTurnDispatchState(target, "turn-heartbeat-timeout", TurnSourceUser, "hello"), config)
+		supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
 		if err := h.manager.Supervise(t.Context(), now); err != nil {
 			t.Fatal(err)
 		}
-	}
-	outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
-	if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
-		t.Fatalf("stop = %#v, %v", outcome, err)
-	}
-	meta := readMeta(t, target.MetaPath())
-	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout || meta.StopDetail != "inactivity" {
-		t.Fatalf("stop reason = %#v, %q", meta.StopReason, meta.StopDetail)
-	}
-	for _, kind := range []string{eventspkg.SessionSupervisionWarning, eventspkg.SessionSupervisionStopped} {
-		assertSupervisionEventCorrelation(t, h.manager, target, kind)
-	}
+		for range 2 {
+			now = now.Add(time.Second)
+			supervisor.report(
+				acp.PromptActivityReport{
+					Timestamp: now,
+					Kind:      runtimeActivityKindAgentWaiting,
+					Detail:    "waiting for provider",
+				},
+			)
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+			t.Fatalf("stop = %#v, %v", outcome, err)
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.StopReason == nil || *meta.StopReason != store.StopTimeout || meta.StopDetail != "inactivity" {
+			t.Fatalf("stop reason = %#v, %q", meta.StopReason, meta.StopDetail)
+		}
+		for _, kind := range []string{eventspkg.SessionSupervisionWarning, eventspkg.SessionSupervisionStopped} {
+			assertSupervisionEventCorrelation(t, h.manager, target, kind)
+		}
+	})
 }
 
 func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing.T) {
@@ -160,41 +165,53 @@ func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing
 
 // Invariant: warning is emitted once per quiet episode and real progress clears it. Owner: session; canonical activity suite.
 func TestPromptActivitySupervisorWarningEmitsOnce(t *testing.T) {
-	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	cfg := testSupervisionConfig()
-	cfg.QuietAfter = time.Minute
-	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
-	target := createSession(t, h)
-	installAbsentWorkSources(h.manager)
-	for range 4 {
+	t.Run("Should warn once per quiet in-flight episode", func(t *testing.T) {
+		now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter = time.Minute
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		installAbsentWorkSources(h.manager)
+		markTurnInFlight(target)
+		for range 4 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Minute)
+		}
+		if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 1 {
+			t.Fatal("quiet episode must warn exactly once")
+		}
+		warning := target.Info().Supervision.QuietWarning
+		if warning == nil || warning.StopAt != nil {
+			t.Fatalf("warning-only policy = %#v", warning)
+		}
+		h.manager.recordWorkProgress(target, now)
+		if target.Info().Supervision.QuietWarning != nil {
+			t.Fatal("progress did not clear quiet warning")
+		}
+		now = now.Add(2*cfg.ActivityHeartbeatInterval + time.Second)
 		if err := h.manager.Supervise(t.Context(), now); err != nil {
 			t.Fatal(err)
 		}
 		now = now.Add(time.Minute)
-	}
-	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 1 {
-		t.Fatal("quiet episode must warn exactly once")
-	}
-	warning := target.Info().Supervision.QuietWarning
-	if warning == nil || warning.StopAt != nil {
-		t.Fatalf("warning-only policy = %#v", warning)
-	}
-	h.manager.recordWorkProgress(target, now)
-	if target.Info().Supervision.QuietWarning != nil {
-		t.Fatal("progress did not clear quiet warning")
-	}
-	now = now.Add(2*cfg.ActivityHeartbeatInterval + time.Second)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	now = now.Add(time.Minute)
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 2 {
-		t.Fatal("new quiet episode did not warn")
-	}
-	reportSessionStop(t, h, target.ID)
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 2 {
+			t.Fatal("new quiet episode did not warn")
+		}
+		reportSessionStop(t, h, target.ID)
+	})
+}
+
+// markTurnInFlight puts a turn in flight without a prompt pump: quiet supervision is a
+// hung-turn watchdog and only applies while the session waits on its agent.
+func markTurnInFlight(target *Session) {
+	target.mu.Lock()
+	target.currentTurnSource = TurnSourceUser
+	target.currentTurnID = "turn-quiet"
+	target.mu.Unlock()
 }
 
 func installAbsentWorkSources(manager *Manager) {
@@ -430,34 +447,37 @@ func TestPromptActivitySupervisorIgnoresUnknownProcessHealthSnapshot(t *testing.
 // Invariant: quiet grace settles through the shared verified stop ladder and emits a truthful terminal event.
 // Owner: session lifecycle; this existing activity suite owns the supervision trigger.
 func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
-	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	cfg := testSupervisionConfig()
-	cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
-	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
-	target := createSession(t, h)
-	installAbsentWorkSources(h.manager)
-	for range 2 {
+	t.Run("Should settle a quiet in-flight turn through the verified stop ladder", func(t *testing.T) {
+		now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		installAbsentWorkSources(h.manager)
+		markTurnInFlight(target)
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Second)
+		}
+		if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 0 {
+			t.Fatal("supervision stopped before settlement")
+		}
 		if err := h.manager.Supervise(t.Context(), now); err != nil {
 			t.Fatal(err)
 		}
-		now = now.Add(time.Second)
-	}
-	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 0 {
-		t.Fatal("supervision stopped before settlement")
-	}
-	if err := h.manager.Supervise(t.Context(), now); err != nil {
-		t.Fatal(err)
-	}
-	outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
-	if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
-		t.Fatalf("stop = %#v, %v", outcome, err)
-	}
-	if h.driver.cancelCalls != 1 || h.driver.stopCalls != 1 {
-		t.Fatalf("cancel/stop = %d/%d", h.driver.cancelCalls, h.driver.stopCalls)
-	}
-	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 1 {
-		t.Fatal("missing unique supervision settlement")
-	}
+		outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+			t.Fatalf("stop = %#v, %v", outcome, err)
+		}
+		if h.driver.cancelCalls != 1 || h.driver.stopCalls != 1 {
+			t.Fatalf("cancel/stop = %d/%d", h.driver.cancelCalls, h.driver.stopCalls)
+		}
+		if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 1 {
+			t.Fatal("missing unique supervision settlement")
+		}
+	})
 }
 
 func TestPromptActivitySupervisorRecordsRecoveredMarker(t *testing.T) {
@@ -912,6 +932,7 @@ func TestSupervisionDisableAndSourceFailure(t *testing.T) {
 			h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
 			target := createSession(t, h)
 			installAbsentWorkSources(h.manager)
+			markTurnInFlight(target)
 			fixed := now
 			if mode != "disabled" {
 				h.manager.SetWorkSignalSources(
@@ -984,6 +1005,7 @@ func TestSupervisionWarningRetriesSameEpisode(t *testing.T) {
 			target := createSession(t, h)
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 			installAbsentWorkSources(h.manager)
+			markTurnInFlight(target)
 			recorder := &quietWarningFailingRecorder{EventRecorder: target.recorderHandle(), afterCommit: afterCommit}
 			recorder.fail.Store(true)
 			target.mu.Lock()
@@ -1105,6 +1127,366 @@ func TestPromptActivitySupervisorEventBatch(t *testing.T) {
 		if activity.CurrentTool != "" || activity.ToolCallID != "" ||
 			activity.LastActivityKind != acp.EventTypeThought {
 			t.Fatalf("completed batch activity = %#v, want tool cleared with latest thought", activity)
+		}
+	})
+}
+
+// Invariant: quiet supervision is a hung-turn watchdog; a session waiting for the operator never warns or
+// stops for inactivity. Owner: session supervision; canonical activity/supervision suite.
+func TestSupervisionIgnoresSessionWaitingForOperator(t *testing.T) {
+	t.Run("Should not warn or stop a session with no turn in flight", func(t *testing.T) {
+		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		for range 4 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Minute)
+		}
+		info := target.Info()
+		if info.State != StateActive || info.Supervision.QuietWarning != nil {
+			t.Fatalf("idle session state = %s, warning = %#v", info.State, info.Supervision.QuietWarning)
+		}
+		if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 0 {
+			t.Fatal("idle session recorded a quiet warning")
+		}
+	})
+	t.Run("Should not warn while the turn waits on a pending operator interaction", func(t *testing.T) {
+		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		installAbsentWorkSources(h.manager)
+		markTurnInFlight(target)
+		target.mu.Lock()
+		target.PendingInteractions = []store.PendingInteraction{{InteractionID: "permission-1"}}
+		target.mu.Unlock()
+		for range 3 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Minute)
+		}
+		if info := target.Info(); info.State != StateActive || info.Supervision.QuietWarning != nil {
+			t.Fatalf("pending interaction state = %s, warning = %#v", info.State, info.Supervision.QuietWarning)
+		}
+		target.mu.Lock()
+		target.PendingInteractions = nil
+		target.currentTurnSource, target.currentTurnID = "", ""
+		target.mu.Unlock()
+		reportSessionStop(t, h, target.ID)
+	})
+	t.Run("Should clear the quiet warning when the turn ends", func(t *testing.T) {
+		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Minute
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		markTurnInFlight(target)
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Second)
+		}
+		if target.Info().Supervision.QuietWarning == nil {
+			t.Fatal("quiet in-flight turn did not warn")
+		}
+		target.mu.Lock()
+		target.currentTurnSource, target.currentTurnID = "", ""
+		target.mu.Unlock()
+		for range 2 {
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Minute)
+		}
+		if info := target.Info(); info.State != StateActive || info.Supervision.QuietWarning != nil {
+			t.Fatalf("ended turn state = %s, warning = %#v", info.State, info.Supervision.QuietWarning)
+		}
+	})
+}
+
+// Invariant: an idle runtime the agent can reload is released silently — the session stays active and idle —
+// and the next prompt reloads the same ACP session, replaying the transcript only when the load fails.
+// Owner: session supervision and runtime binding; canonical activity/supervision suite.
+func TestSupervisionReleasesIdleRuntime(t *testing.T) {
+	idleReleaseHarness := func(
+		t *testing.T, startHook func(acp.StartOpts, int) (*fakeProcess, error), opts ...Option,
+	) (
+		*harness, *Session, func() time.Time, func(time.Duration),
+	) {
+		t.Helper()
+		var nowMu sync.Mutex
+		now := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+		clock := func() time.Time { nowMu.Lock(); defer nowMu.Unlock(); return now }
+		advance := func(step time.Duration) { nowMu.Lock(); now = now.Add(step); nowMu.Unlock() }
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace, cfg.IdleReleaseAfter = time.Second, time.Second, time.Minute
+		h := newHarness(t, append([]Option{WithNow(clock), WithSessionSupervision(cfg)}, opts...)...)
+		h.driver.startHook = startHook
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return completedSyntheticPromptEvents(req.TurnID), nil
+		}
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		return h, target, clock, advance
+	}
+	superviseFor := func(t *testing.T, h *harness, clock func() time.Time, advance func(time.Duration), ticks int) {
+		t.Helper()
+		for range ticks {
+			if err := h.manager.Supervise(t.Context(), clock()); err != nil {
+				t.Fatal(err)
+			}
+			advance(time.Minute)
+		}
+	}
+	driverCounts := func(h *harness) (int, []acp.StartOpts) {
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		return h.driver.stopCalls, slices.Clone(h.driver.startCalls)
+	}
+	setStopHook := func(h *harness, hook func(*fakeProcess) error) {
+		h.driver.mu.Lock()
+		h.driver.stopHook = hook
+		h.driver.mu.Unlock()
+	}
+	// superviseUntilReleaseError ticks the release window and returns its first failure.
+	superviseUntilReleaseError := func(h *harness, clock func() time.Time, advance func(time.Duration)) error {
+		for range 3 {
+			if err := h.manager.Supervise(context.Background(), clock()); err != nil {
+				return err
+			}
+			advance(time.Minute)
+		}
+		return nil
+	}
+	refusedStops := func(refusals int, err error) func(*fakeProcess) error {
+		var remaining atomic.Int32
+		remaining.Store(int32(refusals))
+		return func(proc *fakeProcess) error {
+			if remaining.Add(-1) >= 0 {
+				return err
+			}
+			proc.exit()
+			return nil
+		}
+	}
+
+	t.Run("Should release the runtime without stopping the session", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		acpSessionID := target.Info().ACPSessionID
+		superviseFor(t, h, clock, advance, 3)
+		info := target.Info()
+		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("released session state = %s, runtime = %s", info.State, info.RuntimeStatus)
+		}
+		if badge := BadgeForInfo(info); badge != BadgeIdle {
+			t.Fatalf("released session badge = %q, want %q", badge, BadgeIdle)
+		}
+		if stops, _ := driverCounts(h); stops != 1 {
+			t.Fatalf("driver stop calls = %d, want the released process stopped once", stops)
+		}
+		stored := readStoredEvents(t, target)
+		for _, kind := range []string{eventspkg.SessionSupervisionWarning, eventspkg.SessionSupervisionStopped} {
+			if countEventType(stored, kind) != 0 {
+				t.Fatalf("idle release recorded %s", kind)
+			}
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.State != string(StateActive) || meta.RuntimeStatus != store.SessionRuntimeUnbound ||
+			derefString(meta.ACPSessionID) != acpSessionID {
+			t.Fatalf("released meta = %s/%s/%q", meta.State, meta.RuntimeStatus, derefString(meta.ACPSessionID))
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after release error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
+		}
+		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady || info.ACPSessionID != acpSessionID {
+			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
+		}
+	})
+	t.Run("Should keep the released process identity durable until its exit is verified", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		pid := readMeta(t, target.MetaPath()).Liveness.SubprocessPID
+		entered, unblock := make(chan struct{}), make(chan struct{})
+		setStopHook(h, func(proc *fakeProcess) error {
+			close(entered)
+			<-unblock
+			proc.exit()
+			return nil
+		})
+		released := make(chan error, 1)
+		go func() { released <- superviseUntilReleaseError(h, clock, advance) }()
+		select {
+		case <-entered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("idle release did not stop the runtime")
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness == nil ||
+			meta.Liveness.SubprocessPID != pid || meta.Liveness.SubprocessStartedAt == nil {
+			t.Fatalf(
+				"in-progress release meta = %s/%#v, want the process identity kept",
+				meta.RuntimeStatus,
+				meta.Liveness,
+			)
+		}
+		close(unblock)
+		if err := <-released; err != nil {
+			t.Fatalf("Supervise() error = %v", err)
+		}
+		meta = readMeta(t, target.MetaPath())
+		if meta.Liveness == nil || meta.Liveness.SubprocessPID != 0 || meta.Liveness.SubprocessStartedAt != nil {
+			t.Fatalf("completed release liveness = %#v, want no subprocess", meta.Liveness)
+		}
+	})
+	t.Run("Should persist the rollback when the release cannot be recorded", func(t *testing.T) {
+		catalog := newRecordingSessionCatalog()
+		catalogErr := errors.New("catalog unavailable")
+		var failed atomic.Bool
+		catalog.updateHook = func(update store.SessionStateUpdate) error {
+			if update.RuntimeSet && update.RuntimeStatus == store.SessionRuntimeUnbound &&
+				failed.CompareAndSwap(false, true) {
+				return catalogErr
+			}
+			return nil
+		}
+		h, target, clock, advance := idleReleaseHarness(t, nil, WithSessionCatalog(catalog))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, catalogErr) {
+			t.Fatalf("Supervise() error = %v, want the catalog failure", err)
+		}
+		if info := target.Info(); info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady {
+			t.Fatalf("rolled back session = %s/%s, want the runtime kept", info.State, info.RuntimeStatus)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.RuntimeStatus != store.SessionRuntimeReady {
+			t.Fatalf("rolled back meta runtime = %s, want the rollback persisted", meta.RuntimeStatus)
+		}
+		if stops, _ := driverCounts(h); stops != 0 {
+			t.Fatalf("driver stop calls = %d, want the kept runtime untouched", stops)
+		}
+	})
+	t.Run("Should block the rebind until a failed release stop verifies the old process exit", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		acpSessionID := target.Info().ACPSessionID
+		stopErr := errors.New("stop refused")
+		setStopHook(h, refusedStops(2, stopErr))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, stopErr) {
+			t.Fatalf("Supervise() error = %v, want the refused stop", err)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.Liveness == nil || meta.Liveness.SubprocessPID == 0 {
+			t.Fatalf("failed release liveness = %#v, want the unverified process identity kept", meta.Liveness)
+		}
+		_, before := driverCounts(h)
+		if _, err := h.manager.Prompt(testutil.Context(t), target.ID, "too early"); !errors.Is(err, stopErr) {
+			t.Fatalf("Prompt() while the released process runs error = %v, want the refused stop", err)
+		}
+		if _, starts := driverCounts(h); len(starts) != len(before) {
+			t.Fatalf("start calls = %d, want no rebind while the released process may run", len(starts))
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after the released process exit error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
+		}
+	})
+	t.Run("Should stop the released process before a session stop verifies exit", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		released := h.driver.lastProcess()
+		stopErr := errors.New("stop refused")
+		setStopHook(h, refusedStops(1, stopErr))
+		if err := superviseUntilReleaseError(h, clock, advance); !errors.Is(err, stopErr) {
+			t.Fatalf("Supervise() error = %v, want the refused stop", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), target.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if !isProcessDone(released.handle) {
+			t.Fatal("session stop finished while the released process still ran")
+		}
+	})
+	t.Run("Should keep the runtime when the agent cannot reload its session", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		target.mu.Lock()
+		target.ACPCaps.SupportsLoadSession = false
+		target.mu.Unlock()
+		superviseFor(t, h, clock, advance, 3)
+		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
+			t.Fatalf("runtime = %s, want the unloadable runtime kept", info.RuntimeStatus)
+		}
+		if stops, _ := driverCounts(h); stops != 0 {
+			t.Fatalf("driver stop calls = %d, want none", stops)
+		}
+	})
+	t.Run("Should keep the runtime while work or an operator interaction is pending", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		target.mu.Lock()
+		target.PendingInteractions = []store.PendingInteraction{{InteractionID: "clarify-1"}}
+		target.mu.Unlock()
+		superviseFor(t, h, clock, advance, 3)
+		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
+			t.Fatalf("runtime = %s, want the runtime kept for a pending interaction", info.RuntimeStatus)
+		}
+		target.mu.Lock()
+		target.PendingInteractions = nil
+		target.mu.Unlock()
+		h.manager.SetWorkSignalSources(WorkSignalSource{
+			Kind: WorkSignalTaskLease,
+			Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+				lease := WorkSignal{Kind: WorkSignalTaskLease, Since: clock(), ValidUntil: clock().Add(time.Hour)}
+				return []WorkSignal{lease}, nil
+			}),
+		})
+		superviseFor(t, h, clock, advance, 3)
+		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
+			t.Fatalf("runtime = %s, want the runtime kept while a task lease is held", info.RuntimeStatus)
+		}
+	})
+	t.Run("Should replay the transcript when the released session cannot be reloaded", func(t *testing.T) {
+		loadFails := func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: session %s is gone", acp.ErrLoadSessionFailed, opts.ResumeSessionID)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence)), nil
+		}
+		h, target, clock, advance := idleReleaseHarness(t, loadFails)
+		acpSessionID := target.Info().ACPSessionID
+		superviseFor(t, h, clock, advance, 3)
+		if info := target.Info(); info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("runtime = %s, want released", info.RuntimeStatus)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after a failed reload error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if len(starts) < 3 || starts[len(starts)-2].ResumeSessionID != acpSessionID ||
+			starts[len(starts)-1].ResumeSessionID != "" {
+			t.Fatalf("start calls = %d, want a failed load of %q then a fresh session", len(starts), acpSessionID)
+		}
+		info := target.Info()
+		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.ACPSessionID == acpSessionID {
+			t.Fatalf("fallback runtime = %s/%s, ACP session = %q", info.State, info.RuntimeStatus, info.ACPSessionID)
 		}
 	})
 }

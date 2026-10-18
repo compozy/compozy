@@ -2,7 +2,7 @@ import { Bot } from "lucide-react";
 
 import { Button, Separator } from "@compozy/ui";
 
-import { SUBAGENT_OF_DELETED_SESSION } from "./subagent-format";
+import { SUBAGENT_OF_DELETED_SESSION } from "../../lib/session-subagent-summary";
 
 export interface SubagentOriginParent {
   id: string;

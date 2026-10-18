@@ -1,4 +1,5 @@
 import {
+  SessionComposerSubagents,
   SessionContextControl,
   useSessionContextActivity,
   type SessionContextActivitySource,
@@ -22,8 +23,6 @@ import {
   SessionEnvironmentControl,
   type SessionEnvironmentControlHandle,
   SessionPromptRuntimeSelector,
-  type SessionQuietWarning,
-  SessionQuietWarningNotice,
   SessionDeriveHost,
   SessionOriginContext,
   SessionResumeFailure,
@@ -31,7 +30,6 @@ import {
   SessionSidebar,
   SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
-  sessionQuietWarning,
   useCreateSession,
 } from "@/systems/session";
 
@@ -72,20 +70,37 @@ function SessionWindowInspector({
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
 
+/** Drill-in from a subagent row (S1 rule): this window, or a new one with ⌘/Ctrl. */
+function subagentOpener(
+  openSession: ReturnType<typeof useSessionWindowController>["sidebar"]["openSession"],
+  workspaceId: string
+): NonNullable<SessionInspectorProps["onOpenSubagent"]> {
+  return (subagent, options) => {
+    if (subagent.child_session_id === null) return;
+    openSession(
+      {
+        sessionId: subagent.child_session_id,
+        agentName: subagent.runtime.agent ?? "",
+        workspaceId,
+      },
+      options
+    );
+  };
+}
+
 /**
  * The one session-level notice above the transcript, on the transcript's inset
  * rail so it aligns with the messages below instead of running edge to edge.
  * Precedence: a recovering runtime, then an unverified stop, then an attach
- * failure, then a runtime that can only be forked, then the daemon's quiet
- * warning (US-014.EC-2) — every actionable failure outranks a warning about
- * work that merely paused.
+ * failure, then a runtime that can only be forked. A turn that went quiet is
+ * not a session-level notice: the working status line under the transcript
+ * says so, and the composer and topbar Stop stay the action.
  */
 type SessionWindowNoticeProps = {
   agentName: string;
   controls: SessionWindowControls;
   isForking: boolean;
   onFork: () => void;
-  quietWarning: SessionQuietWarning | null;
   session: SessionPayload;
   sessionId: string;
 };
@@ -106,7 +121,6 @@ function SessionWindowNoticeContent({
   controls,
   isForking,
   onFork,
-  quietWarning,
   session,
   sessionId,
 }: SessionWindowNoticeProps) {
@@ -126,19 +140,6 @@ function SessionWindowNoticeContent({
       />
     );
   }
-  if (controls.resumeFailure) {
-    return (
-      <SessionResumeFailure
-        agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
-        isRetrying={controls.isResuming}
-        message={controls.resumeFailure.message}
-        missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
-        onDismiss={controls.handleDismissResumeFailure}
-        onRetry={controls.handleResume}
-        sessionId={sessionId}
-      />
-    );
-  }
   if (hasUnrecoverableRuntime(session)) {
     return (
       <SessionResumeFailure
@@ -152,15 +153,6 @@ function SessionWindowNoticeContent({
         sessionId={sessionId}
         showDismiss={false}
         title="Session ended"
-      />
-    );
-  }
-  if (quietWarning) {
-    return (
-      <SessionQuietWarningNotice
-        isStopping={controls.isStopping}
-        onStop={controls.canRetryStop ? controls.handleStop : undefined}
-        warning={quietWarning}
       />
     );
   }
@@ -231,8 +223,8 @@ export function SessionWindowContent({
     promptRuntimeSnapshot
   );
 
-  const quietWarning = sessionQuietWarning(session);
   const subagentParent = derive.subagentOrigin?.parent ?? null;
+  const openSubagent = subagentOpener(sidebar.openSession, workspaceId);
 
   const handleForkDeadSession = () => {
     forkSession.mutate(
@@ -281,7 +273,6 @@ export function SessionWindowContent({
               controls={controls}
               isForking={forkSession.isPending}
               onFork={handleForkDeadSession}
-              quietWarning={quietWarning}
               session={session}
               sessionId={sessionId}
             />
@@ -295,7 +286,6 @@ export function SessionWindowContent({
               failure={session.failure}
               statusSession={session}
               stopCompletionNote={controls.stopCompletionNote}
-              quietWarning={quietWarning}
               canPrompt={controls.canPrompt}
               onCancelPrompt={controls.handleCancelPrompt}
               onQueuePrompt={controls.handleQueuePrompt}
@@ -323,6 +313,7 @@ export function SessionWindowContent({
                   onOpen={() => inspector.setOpen(true)}
                 />
               }
+              subagentControl={<SessionComposerSubagents session={session} onOpen={openSubagent} />}
               runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
               environmentControl={
                 <SessionEnvironmentControl
@@ -379,17 +370,7 @@ export function SessionWindowContent({
                 }}
                 context={sessionContext.context}
                 session={session}
-                onOpenSubagent={(subagent, options) => {
-                  if (subagent.child_session_id === null) return;
-                  sidebar.openSession(
-                    {
-                      sessionId: subagent.child_session_id,
-                      agentName: subagent.runtime.agent ?? "",
-                      workspaceId,
-                    },
-                    options
-                  );
-                }}
+                onOpenSubagent={openSubagent}
                 turns={sessionUsageTurns.data}
                 turnsUnavailable={sessionUsageTurns.isError}
                 usage={inspectorUsage}

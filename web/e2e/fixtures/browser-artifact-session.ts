@@ -380,7 +380,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       permission_prompt_visible: document.querySelector('[data-testid="permission-dock"]') !== null,
       processing_indicator_visible:
         document.querySelector('[data-testid="processing-indicator"]') !== null,
-      resume_button_visible: document.querySelector('[data-testid="resume-button"]') !== null,
       session_name: readText("session-name"),
       stop_button_visible: document.querySelector('[data-testid="stop-button"]') !== null,
       tasks_active_mode: tasksActiveMode,

@@ -82,7 +82,11 @@ func describeACPMethodLogin(
 	return finishLoginDescriptor(descriptor, parsed.Executable, nativeCLI)
 }
 
-func finishLoginDescriptor(descriptor ProviderLoginDescriptor, executable string, nativeCLI *providerauth.NativeCLIStatus) ProviderLoginDescriptor {
+func finishLoginDescriptor(
+	descriptor ProviderLoginDescriptor,
+	executable string,
+	nativeCLI *providerauth.NativeCLIStatus,
+) ProviderLoginDescriptor {
 	descriptor.Executable = providerLoginExecutableBase(executable)
 	if nativeCLI == nil || providerLoginExecutableBase(nativeCLI.Command) != descriptor.Executable {
 		return descriptor

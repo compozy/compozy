@@ -17,6 +17,9 @@ const sessionCreateExample = `  # Start a session in the current workspace using
   # Auto-register an absolute workspace path before creating the session
   compozy session new --cwd "$PWD" --agent reviewer
 
+  # Start a session inside a session folder
+  compozy session new --agent reviewer --folder sfold-1234
+
   # Start a recovery session for a failed parent session
   compozy session new --agent codex --parent sess_01J9R2K7M4T1 --lineage-kind recovery`
 
@@ -30,6 +33,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		workspaceRef string
 		parentID     string
 		lineageKind  string
+		folderID     string
 		worktreeRef  string
 		newWorktree  string
 	)
@@ -57,6 +61,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				Worktree:        strings.TrimSpace(worktreeRef),
 				ParentSessionID: strings.TrimSpace(parentID),
 				LineageKind:     strings.TrimSpace(lineageKind),
+				FolderID:        strings.TrimSpace(folderID),
 			}
 			if cmd.Flags().Changed("new-worktree") {
 				name := strings.TrimSpace(newWorktree)
@@ -81,6 +86,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		StringVar(&newWorktree, "new-worktree", "", "Create a worktree before starting; optionally provide its name")
 	cmd.Flags().Lookup("new-worktree").NoOptDefVal = sessionNewWorktreeAutoValue
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
+	cmd.Flags().StringVar(&folderID, sessionFolderFlagName, "", "Create the session at the end of this session folder")
 	cmd.Flags().StringVar(&parentID, "parent", "", "Record a same-workspace parent session as creation provenance")
 	cmd.Flags().StringVar(
 		&lineageKind,

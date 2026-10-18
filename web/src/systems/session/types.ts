@@ -420,3 +420,8 @@ export type SessionTranscriptOutlineResponse = OperationResponse<
   200
 >;
 export type SessionTranscriptOutlineEntry = SessionTranscriptOutlineResponse["entries"][number];
+
+/* Session folders and manual order (issue #781): daemon-owned sidebar layout. */
+export type SessionFoldersResponse = OperationResponse<"listSessionFolders", 200>;
+export type SessionFolderPayload = SessionFoldersResponse["folders"][number];
+export type ReorderSessionsRequest = OperationRequestBody<"reorderSessions">;

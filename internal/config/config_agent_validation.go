@@ -158,13 +158,16 @@ func (c SessionConfig) Validate() error {
 	if err := c.BusyInput.Validate(); err != nil {
 		return err
 	}
+	if err := c.Messaging.Validate(); err != nil {
+		return err
+	}
 	if err := c.Derive.Validate(); err != nil {
 		return err
 	}
 	return c.Attachments.Validate()
 }
 
-// Validate ensures session timeout settings are internally consistent.
+// Validate keeps the deprecated session.limits.timeout value well formed.
 func (c SessionLimitsConfig) Validate() error {
 	if c.Timeout < 0 {
 		return fmt.Errorf("session.limits.timeout must be zero or positive: %s", c.Timeout)
@@ -180,6 +183,7 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 		PromptDeadline:            0,
 		QuietAfter:                30 * time.Minute,
 		StopGrace:                 10 * time.Minute,
+		IdleReleaseAfter:          30 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
 	}
 }
@@ -273,6 +277,11 @@ func (c SessionSupervisionConfig) Validate() error {
 		)
 	case c.StopGrace < 0:
 		return fmt.Errorf("session.supervision.stop_grace must be zero or positive: %s", c.StopGrace)
+	case c.IdleReleaseAfter < 0:
+		return fmt.Errorf(
+			"session.supervision.idle_release_after must be zero or positive: %s",
+			c.IdleReleaseAfter,
+		)
 	case c.TimeoutCancelGrace <= 0:
 		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
 	default:

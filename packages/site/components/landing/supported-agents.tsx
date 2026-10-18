@@ -10,27 +10,15 @@ import {
 } from "@compozy/ui";
 import {
   AntigravityLogo,
-  BlackboxLogo,
   ClaudeLogo,
-  ClineLogo,
   CursorLogo,
   GeminiLogo,
   GithubLogo,
-  GooseLogo,
-  GroqLogo,
-  HermesLogo,
-  JunieLogo,
   KimiLogo,
-  KiroLogo,
-  MinimaxLogo,
-  MistralLogo,
   OpenAILogo,
-  OpenClawLogo,
   OpenCodeLogo,
-  OpenHandsLogo,
   OpenRouterLogo,
   PiLogo,
-  QoderLogo,
   QwenLogo,
   VercelLogo,
   XAILogo,
@@ -58,26 +46,14 @@ const providerLogos: Record<BuiltinProviderIntegration["id"], ReactNode> = {
   opencode: <OpenCodeLogo aria-hidden className={logoClassName} />,
   copilot: <GithubLogo aria-hidden className={logoClassName} />,
   cursor: <CursorLogo aria-hidden className={logoClassName} />,
-  kiro: <KiroLogo aria-hidden className="size-6" />,
   pi: <PiLogo aria-hidden className="size-6" />,
-  blackbox: <BlackboxLogo aria-hidden className={logoClassName} />,
-  cline: <ClineLogo aria-hidden className={logoClassName} />,
-  goose: <GooseLogo aria-hidden className={logoClassName} />,
-  hermes: <HermesLogo aria-hidden className={logoClassName} />,
-  junie: <JunieLogo aria-hidden className="size-6" />,
   "kimi-cli": <KimiLogo aria-hidden className={logoClassName} />,
-  openclaw: <OpenClawLogo aria-hidden className="size-6" />,
-  openhands: <OpenHandsLogo aria-hidden className={logoClassName} />,
-  qoder: <QoderLogo aria-hidden className={logoClassName} />,
   "qwen-code": <QwenLogo aria-hidden className={logoClassName} />,
   openrouter: <OpenRouterLogo aria-hidden className={logoClassName} />,
   zai: <ZAILogo aria-hidden className={logoClassName} />,
   moonshot: <KimiLogo aria-hidden className={logoClassName} />,
   "vercel-ai-gateway": <VercelLogo aria-hidden className={logoClassName} />,
   xai: <XAILogo aria-hidden className={logoClassName} />,
-  minimax: <MinimaxLogo aria-hidden className="size-6" />,
-  mistral: <MistralLogo aria-hidden className="size-6" />,
-  groq: <GroqLogo aria-hidden className="size-6" />,
 };
 
 const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
@@ -89,10 +65,10 @@ const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
 // with PROVIDERS order; keep the '*' count in sync whenever PROVIDERS grows or
 // shrinks so the radial mask continues to fade the band ends instead of orphans.
 const QUILT_PATTERN = [
-  "**..*.*.*..*.*",
-  "*.*.**.*.*..*.",
-  ".*.**.*.*.*.*.",
-  "*..*.*.*..*..*",
+  "**...*..*...*.",
+  "...*...*...*..",
+  "*...*.....*..*",
+  "..*...*.*.....",
 ] as const;
 const QUILT_COLS = QUILT_PATTERN[0].length;
 

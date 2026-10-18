@@ -23,6 +23,7 @@ type localLauncher struct {
 	// sessions; authentication flows set it to the operator's local writer so
 	// live login progress never enters persisted diagnostics.
 	stderrSink io.Writer
+	niceness   int
 }
 
 type localProcessHandle struct {
@@ -32,10 +33,10 @@ type localProcessHandle struct {
 
 // NewLocalLauncher returns the local daemon-host subprocess launcher.
 func NewLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) Launcher {
-	return newLocalLauncher(logger, stopTimeout)
+	return newLocalLauncher(logger, stopTimeout, 0)
 }
 
-func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLauncher {
+func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration, niceness int) *localLauncher {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -45,6 +46,7 @@ func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLaun
 	return &localLauncher{
 		logger:      logger,
 		stopTimeout: stopTimeout,
+		niceness:    niceness,
 	}
 }
 
@@ -70,6 +72,7 @@ func (l *localLauncher) Launch(
 		StderrSink:       l.stderrSink,
 		DisableTransport: true,
 		ShutdownTimeout:  l.stopTimeout,
+		Niceness:         l.niceness,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("acp: start subprocess %s: %w", launchCommandIdentity(prepared.Command), err)

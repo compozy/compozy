@@ -130,38 +130,37 @@ Keep the same `message_id` and `idempotency_key` when retrying. Another sender o
 v4 receipts replay unchanged, without invented origin or reply watches; that replay shim is removed
 in v0.5.0.
 
-Agent-authored queue entries cannot be edited or promoted to steer: `input_agent_authored` directs
-the operator to cancel instead. Self-targeting returns `invalid_request`. To continue work in the
-same session, end the turn; to schedule work, use a subagent or `compozy session prompt` from the
-operator. Message chains allow eight hops, including steering received during the active turn;
-`message_hop_limit` requires operator intervention to start a fresh chain.
+Agent-authored queue entries cannot be edited (`input_agent_authored`). Self-targeting returns
+`invalid_request`. Message other sessions with this tool, never the CLI. An agent `interrupt` becomes
+`steer`; prefer `steer` for a busy target. Send at milestones; `supersede: true` replaces your queued
+status in any mode; answer with `in_reply_to` (keeps the hop). On `message_hop_limit` or
+`message_rate_limited`, stop and batch. Queue order, promotion, hops and replies: `references/runtime-operations.md`.
 
 Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
 optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace
 root or configured `additional_dirs`, or existing workspace/session-scoped `att_...` IDs; at least
-`message` or one attachment is required. Paths are
-uploaded through the attachment store before submission. Use
-`compozy session attachments upload <session-id> <file> -o json` when the caller needs a durable ID.
-The store enforces `session.attachments.max_file_bytes`,
-`session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
-attachment settings in `references/configuration.md` before submitting large or unsupported files.
-The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, speed,
-and typed `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
-`bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
-rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
-`runtime` object rather than deriving it from the session state.
+`message` or one attachment is required. Paths are uploaded through the attachment store before
+submission; use `compozy session attachments upload <session-id> <file> -o json` for a durable ID.
+The store enforces `session.attachments.max_file_bytes`, `session.attachments.max_files_per_prompt`,
+and `session.attachments.allowed_mime` (see `references/configuration.md`).
+The first prompt to a never-bound session requires `runtime.provider`; a session whose idle runtime
+was released keeps its selection and rebinds without it. Model, reasoning effort, speed, and typed
+`acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
+`bool_value`. Runtime semantics, queued/interrupt snapshot behavior, and the rollback rule live in
+`references/runtime-operations.md`; read the nested `runtime` object from `compozy__session_status`
+rather than deriving it from the session state.
 
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
 the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
 history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
-`reply_watches` in state `armed` or `fired`; delivered and abandoned watches disappear from that list.
+`reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
-summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain
-and the target session should be inspected. An offline sender receives its pending wake on resume.
+summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
+so inspect the target session. An offline sender receives its pending wake on resume.
 Archiving or deleting the sender abandons its watches. Canceling a queued reply wake does not cause
-redelivery. `notify_on_complete` is an agent-facing option, not an HTTP operator prompt field.
-Operator-scoped native calls requesting it return `invalid_request` with
+redelivery. `notify_on_complete` is agent-only, not an HTTP operator prompt field; operator-scoped
+native calls requesting it return `invalid_request` with
 `notify_on_complete requires an agent session`. A same-key retry after a pre-dispatch send failure
 re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
 `abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
@@ -237,7 +236,8 @@ settles a running subagent `failed`. A waiting subagent does not wake you: the o
 call `compozy__session_approve` or `compozy__session_clarify_answer` on its `child_session_id` after
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
 for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
-(`origin: "provider_native"`) return `subagent_not_cancelable`. For another review round, delegate again
+(`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
+its turn ends, then reads `completed` with `result: null`. For another review round, delegate again
 with the original brief, prior findings, and open objections instead of prompting the old child. A
 subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
 concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
@@ -376,15 +376,12 @@ one-time secret must be issued.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Claude, Codex, Hermes, and Agy catalog discovery starts a short-lived ACP inspection and stores its live
-model and configuration options under `provider_live:<id>`. `agy` rows keep exact advertised IDs; pricing, context, reasoning, and speed are unobserved; an omitted model negotiates the server
-default during a real session, and an unknown explicit model fails with `model_unavailable` instead of
-a silent default. Cursor runs `cursor-agent models`, groups
+Claude, Codex and Agy catalog discovery starts a short-lived ACP inspection and stores its live
+model and configuration options under `provider_live:<id>`. Cursor runs `cursor-agent models`, groups
 transport aliases into logical models, and keeps valid Reasoning, Fast, and Thinking combinations plus
 private launch bindings. Live sources refresh periodically and after their five-minute TTL; failed
 refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
-out of the default view, so use `view=all` before concluding it is absent. OpenClaw is provider-managed
-and exposes no fabricated model controls. Refresh through `compozy__provider_models_refresh` or
+out of the default view, so use `view=all` before concluding it is absent. Refresh through `compozy__provider_models_refresh` or
 `compozy provider models refresh <provider>`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only
 writes do not invoke the provider.

@@ -87,44 +87,94 @@ func (s *Session) raiseTurnHop(turnID string, hop int) {
 
 // CurrentTurnEffectiveHop includes the pre-provider fence and every durable input in the active turn.
 func (m *Manager) CurrentTurnEffectiveHop(ctx context.Context, sessionID string) (int, error) {
+	turn, err := m.currentTurnMessageContext(ctx, sessionID)
+	return turn.hop, err
+}
+
+// turnMessageContext is what the active turn knows about the session messages driving it.
+type turnMessageContext struct {
+	hop int
+	// senders holds every session whose input started or joined the active turn, including reply wakes.
+	senders map[string]struct{}
+}
+
+func (c turnMessageContext) drivenBy(sessionID string) bool {
+	_, ok := c.senders[strings.TrimSpace(sessionID)]
+	return ok
+}
+
+func (m *Manager) currentTurnMessageContext(ctx context.Context, sessionID string) (turnMessageContext, error) {
 	s, err := m.lookup(strings.TrimSpace(sessionID))
 	if err != nil {
-		return 0, err
+		return turnMessageContext{}, err
 	}
 	for {
 		s.mu.RLock()
-		turnID, hop := s.currentTurnID, s.currentTurnHopFloor
+		turnID, hop, meta := s.currentTurnID, s.currentTurnHopFloor, s.currentPromptMeta
 		s.mu.RUnlock()
 		if turnID == "" {
-			return 0, nil
+			return turnMessageContext{}, nil
 		}
-		query := store.EventQuery{TurnID: turnID, Type: acp.EventTypeUserMessage, Limit: 200}
+		turn := turnMessageContext{hop: hop, senders: map[string]struct{}{}}
+		turn.addPromptMeta(meta)
+		if err := m.addTurnInputEvents(ctx, sessionID, turnID, &turn); err != nil {
+			return turnMessageContext{}, err
+		}
+		s.mu.RLock()
+		sameTurn := s.currentTurnID == turnID
+		turn.hop = max(turn.hop, s.currentTurnHopFloor)
+		s.mu.RUnlock()
+		if sameTurn {
+			return turn, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return turnMessageContext{}, err
+		}
+	}
+}
+
+// addTurnInputEvents folds in every durable input of the turn: operator and agent messages, and the
+// reply wakes a batched dispatch carried after the turn's own input.
+func (m *Manager) addTurnInputEvents(ctx context.Context, sessionID, turnID string, turn *turnMessageContext) error {
+	for _, eventType := range []string{acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry} {
+		query := store.EventQuery{TurnID: turnID, Type: eventType, Limit: 200}
 		for {
 			page, err := m.Events(ctx, sessionID, query)
 			if err != nil {
-				return 0, err
+				return err
 			}
 			for _, stored := range page {
 				event, err := transcript.UnmarshalAgentEvent(stored.Content)
 				if err != nil {
-					return 0, err
+					return err
 				}
-				hop = max(hop, originHop(event.PromptOrigin()))
+				turn.addPromptMeta(acp.PromptMeta{Origin: event.PromptOrigin(), Synthetic: event.Synthetic})
 			}
 			if len(page) < query.Limit {
 				break
 			}
 			query.BeforeSequence = page[0].Sequence
 		}
-		s.mu.RLock()
-		sameTurn := s.currentTurnID == turnID
-		hop = max(hop, s.currentTurnHopFloor)
-		s.mu.RUnlock()
-		if sameTurn {
-			return hop, nil
-		}
-		if err := ctx.Err(); err != nil {
-			return 0, err
+	}
+	return nil
+}
+
+func (c *turnMessageContext) addOrigin(origin *acp.PromptOriginMeta) {
+	if origin == nil {
+		return
+	}
+	c.hop = max(c.hop, origin.Hop)
+	if id := strings.TrimSpace(origin.SessionID); id != "" {
+		c.senders[id] = struct{}{}
+	}
+}
+
+func (c *turnMessageContext) addPromptMeta(meta acp.PromptMeta) {
+	c.addOrigin(meta.Origin)
+	c.hop = max(c.hop, promptMetaHop(meta))
+	if meta.Synthetic != nil && meta.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {
+		if id := strings.TrimSpace(meta.Synthetic.ChildSessionID); id != "" {
+			c.senders[id] = struct{}{}
 		}
 	}
 }

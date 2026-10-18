@@ -32,6 +32,9 @@ type SettingsLogTailEventPayload struct {
 	Line string `json:"line"`
 }
 
+const settingsSessionTimeoutDeprecationWarning = `299 compozy "general.config.session_timeout is deprecated ` +
+	`and has no effect; use idle_release_after; removed in v0.5.0"`
+
 // GetSettingsGeneral returns the general settings section.
 func (h *BaseHandlers) GetSettingsGeneral(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionGeneral)
@@ -43,6 +46,10 @@ func (h *BaseHandlers) UpdateSettingsGeneral(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
+	}
+	// The deprecated session_timeout field is accepted through v0.4; remove it in v0.5.0.
+	if req.General.SessionTimeout > 0 {
+		c.Header("Warning", settingsSessionTimeoutDeprecationWarning)
 	}
 	h.updateSettingsSection(c, req)
 }

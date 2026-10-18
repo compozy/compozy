@@ -2312,6 +2312,68 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			}
 		}
 	})
+	// Issue #766: a background launch result is the provider's receipt, not the subagent's outcome.
+	t.Run("Should mark a background launch result as an async receipt", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile("testdata/claude_agent_background_subagent.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+			var frame struct {
+				Params json.RawMessage `json:"params"`
+			}
+			if err := json.Unmarshal([]byte(line), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if err := proc.handleSessionUpdate(frame.Params); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The PostToolUse marker refines nothing visible, so it rides on the result.
+		got := collectEventsUntilCount(t, active.events, 5)
+		wants := []struct {
+			parent, tool, kind string
+			async              bool
+		}{
+			{"", "Agent", EventTypeToolCall, false},
+			{"", "Agent", EventTypeToolCall, false},
+			{"", "Agent", EventTypeToolResult, true},
+			{"toolu_background", "Bash", EventTypeToolCall, false},
+			{"toolu_background", "Bash", EventTypeToolResult, false},
+		}
+		for i, want := range wants {
+			if got[i].ParentToolCallID() != want.parent || got[i].ProviderToolName() != want.tool ||
+				got[i].Type != want.kind || got[i].ProviderToolAsync() != want.async {
+				t.Fatalf("event %d = %#v, want %#v", i, got[i], want)
+			}
+		}
+	})
+	t.Run("Should keep attribution when a tool response is not a marker object", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		raw := json.RawMessage(
+			`{"sessionId":"session-native","update":{"sessionUpdate":"tool_call","toolCallId":"inner","title":"ls","status":"pending","_meta":{"claudeCode":{"parentToolUseId":"toolu_agent","toolName":"Bash","toolResponse":"plain stdout"}}}}`,
+		)
+		if err := proc.handleSessionUpdate(raw); err != nil {
+			t.Fatal(err)
+		}
+		got := collectEventsUntilCount(t, active.events, 1)[0]
+		if got.ParentToolCallID() != "toolu_agent" || got.ProviderToolName() != "Bash" || got.ProviderToolAsync() {
+			t.Fatalf("event = %#v", got)
+		}
+	})
 	t.Run("Should fall back to ordinary rendering for an unknown metadata shape", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{}

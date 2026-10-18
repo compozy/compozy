@@ -53,6 +53,7 @@ function browserLifecycleSessionPath(sessionId: string): string {
 
 interface SessionPayload {
   id: string;
+  profile_name: string;
   name: string;
   agent_name: string;
   runtime: {
@@ -221,13 +222,16 @@ test("operator can create a provider/model override session and attach without l
   const renameResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "PATCH" &&
-      response
-        .url()
-        .endsWith(sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id))
+      new URL(response.url()).pathname ===
+        sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id)
   );
   await appPage.getByTestId("session-rename-name").fill("Provider override review");
   await appPage.getByTestId("session-rename-confirm").click();
-  expect((await renameResponsePromise).ok()).toBe(true);
+  const renameResponse = await renameResponsePromise;
+  expect(new URL(renameResponse.url()).searchParams.get("profile")).toBe(
+    createdSession.session.profile_name
+  );
+  expect(renameResponse.ok()).toBe(true);
   await expect(sessionWin.locator('[data-slot="topbar-title"]')).toContainText(
     "Provider override review"
   );
@@ -298,19 +302,6 @@ test("operator can create a provider/model override session and attach without l
     includeOverride: true,
   });
 
-  const attachResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response
-        .url()
-        .endsWith(
-          sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id, "/attach")
-        )
-  );
-
-  await expect(sessionUi.resumeButton).toBeVisible();
-  await sessionUi.resumeButton.click();
-  expect((await attachResponsePromise).ok()).toBe(true);
   await expect(sessionUi.stopButton).toBeVisible();
   await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await assertSessionParity(
@@ -321,7 +312,7 @@ test("operator can create a provider/model override session and attach without l
   );
 
   await sessionUi.stopButton.click();
-  await expect(sessionUi.resumeButton).not.toBeVisible();
+  await expect(sessionUi.stopButton).not.toBeVisible();
 });
 
 test("operator selects an exact AGY catalog model and keeps agy session attribution", async ({
@@ -467,7 +458,7 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
 
     if (await sessionUi.stopButton.isVisible().catch(() => false)) {
       await sessionUi.stopButton.click();
-      await expect(sessionUi.resumeButton).not.toBeVisible();
+      await expect(sessionUi.stopButton).not.toBeVisible();
     }
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, agySeed);

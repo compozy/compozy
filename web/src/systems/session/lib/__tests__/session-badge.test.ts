@@ -17,6 +17,7 @@ import {
   toSessionBadge,
   type SessionBadgeToken,
 } from "../session-badge";
+import { sessionAttentionReason } from "../session-attention-reason";
 
 /** Asks waiting on the operator: one attention glyph, told apart by their words. */
 const WAITING_ON_YOU: SessionBadgeToken[] = [
@@ -130,5 +131,47 @@ describe("attention classes", () => {
   it("Should classify an unrecognized badge as none instead of throwing (UT-051)", () => {
     expect(sessionAttentionClass("sleeping")).toBe("none");
     expect(isNeedsYouBadge("sleeping")).toBe(false);
+  });
+});
+
+describe("needs-attention reason (#760)", () => {
+  const supervision = (
+    sources: { kind: SourceKind; state: string; error?: string; ref?: string }[]
+  ) => ({ quiet_warning: null, work_signals: [], sources });
+  type SourceKind = "task_lease" | "awaiting_reply" | "loop_run" | "tool_running";
+
+  it("Should name the cause the payload carries, explicit blockers first", () => {
+    const reason = sessionAttentionReason(
+      {
+        attention: undefined,
+        state: "active",
+        supervision: supervision([
+          { kind: "loop_run", state: "unknown", error: "source is not configured" },
+          { kind: "task_lease", state: "stale", error: "task_lease evidence is stale" },
+          { kind: "tool_running", state: "present" },
+          { kind: "awaiting_reply", state: "attention", error: "Waiting on the reviewer" },
+        ]),
+      },
+      "needs-attention"
+    );
+    expect(reason?.summary).toBe("Waiting on the reviewer (+2)");
+    expect(reason?.detail.split("\n")).toEqual([
+      "Waiting on the reviewer",
+      "Task lease went stale: task_lease evidence is stale",
+      "Can't check Loop run: source is not configured",
+    ]);
+  });
+
+  it("Should name an unverified stop and stay silent for other badges or no cause", () => {
+    const stop = {
+      attention: "stop_verification_failed",
+      state: "stopping" as const,
+      supervision: null,
+    };
+    expect(sessionAttentionReason(stop, "needs-attention")?.summary).toBe("Stop not confirmed");
+    expect(sessionAttentionReason(stop, "running")).toBeNull();
+    expect(
+      sessionAttentionReason({ state: "active", supervision: null }, "needs-attention")
+    ).toBeNull();
   });
 });

@@ -63,6 +63,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Schema:            CanonicalSchema,
 		ParentToolCallID:  event.ParentToolCallID(),
 		ProviderToolName:  event.ProviderToolName(),
+		ProviderToolAsync: event.ProviderToolAsync(),
 		Status:            event.ToolStatus(),
 		Type:              event.Type,
 		SessionID:         event.SessionID,
@@ -187,6 +188,9 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		WithRequestID(decoded.RequestID).
 		WithResolvedBy(decoded.ResolvedBy).
 		WithDelivery(decoded.Delivery)
+	if decoded.ProviderToolAsync {
+		event = event.WithProviderToolAsync()
+	}
 	if event.Type == acp.EventTypeCompaction {
 		event.Compaction = &acp.CompactionObservation{
 			CompactionID: decoded.CompactionID,

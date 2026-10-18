@@ -1303,9 +1303,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Permissions: compozyconfig.PermissionsConfig{
 						Mode: compozyconfig.PermissionModeApproveReads,
 					},
-					SessionTimeout: 30 * time.Minute,
-					HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
-					Daemon:         compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
+					SessionTimeout:   30 * time.Minute,
+					IdleReleaseAfter: new(45 * time.Minute),
+					HTTP:             compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
+					Daemon:           compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
 				},
 				Actions: settingspkg.GeneralActions{
 					Restart: settingspkg.ActionMetadata{
@@ -1539,6 +1540,18 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				t.Fatalf("SettingsSectionResponseFromEnvelope(%s) error = %v", envelope.Section, err)
 			}
 			switch envelope.Section {
+			case settingspkg.SectionGeneral:
+				payload, ok := response.(contract.SettingsGeneralResponse)
+				if !ok {
+					t.Fatalf("general response = %T, want SettingsGeneralResponse", response)
+				}
+				if payload.Config.IdleReleaseAfter != "45m0s" || payload.Config.SessionTimeout != "30m0s" {
+					t.Fatalf(
+						"general config idle_release_after=%q session_timeout=%q, want 45m0s and the deprecated 30m0s",
+						payload.Config.IdleReleaseAfter, payload.Config.SessionTimeout,
+					)
+				}
+				return
 			case settingspkg.SectionAttention:
 				payload, ok := response.(contract.SettingsAttentionResponse)
 				if !ok {
@@ -1821,6 +1834,110 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 	decodeJSON(t, resp.Body.Bytes(), &payload)
 	if !strings.Contains(payload.Error, "general.config.session_timeout") {
 		t.Fatalf("payload.Error = %q, want section-specific context", payload.Error)
+	}
+}
+
+func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
+	t.Parallel()
+
+	generalBody := func(sessionTimeout string, idleReleaseAfter *string) []byte {
+		config := map[string]any{
+			"limits":          map[string]any{"max_concurrent_agents": 2},
+			"permissions":     map[string]any{"mode": "approve-reads"},
+			"session_timeout": sessionTimeout,
+			"http":            map[string]any{"host": "127.0.0.1", "port": 2123},
+			"daemon":          map[string]any{"socket": "/tmp/compozy.sock"},
+			"redact":          map[string]any{"enabled": true},
+		}
+		if idleReleaseAfter != nil {
+			config["idle_release_after"] = *idleReleaseAfter
+		}
+		return mustJSON(t, map[string]any{"config": config})
+	}
+
+	t.Run("Should forward idle_release_after including the disabled value", func(t *testing.T) {
+		t.Parallel()
+
+		for raw, want := range map[string]time.Duration{"45m": 45 * time.Minute, "0s": 0} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPatch,
+				"/api/settings/general",
+				generalBody("0s", &raw),
+			)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+			}
+			got := service.LastUpdateSectionRequest.General
+			if got == nil || got.IdleReleaseAfter == nil || *got.IdleReleaseAfter != want {
+				t.Fatalf("idle_release_after %q forwarded as %#v, want %s", raw, got, want)
+			}
+			if warning := resp.Header().Get("Warning"); warning != "" {
+				t.Fatalf("Warning = %q, want none without a deprecated session_timeout value", warning)
+			}
+		}
+	})
+
+	t.Run("Should keep the current value when idle_release_after is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", generalBody("0s", nil))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		if got := service.LastUpdateSectionRequest.General; got == nil || got.IdleReleaseAfter != nil {
+			t.Fatalf("General = %#v, want nil IdleReleaseAfter for an omitted field", got)
+		}
+	})
+
+	t.Run("Should accept and warn on the deprecated session_timeout", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", generalBody("30m", nil))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		if got := service.LastUpdateSectionRequest.General; got == nil || got.SessionTimeout != 30*time.Minute {
+			t.Fatalf("General = %#v, want the deprecated session_timeout forwarded unchanged", got)
+		}
+		warning := resp.Header().Get("Warning")
+		if !strings.Contains(warning, "session_timeout is deprecated") ||
+			!strings.Contains(warning, "idle_release_after") ||
+			!strings.Contains(warning, "v0.5.0") {
+			t.Fatalf("Warning = %q, want deprecation naming the replacement and removal release", warning)
+		}
+	})
+
+	for _, raw := range []string{"soon", "-1m", "", "   "} {
+		t.Run(fmt.Sprintf("Should reject idle_release_after %q", raw), func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPatch,
+				"/api/settings/general",
+				generalBody("0s", &raw),
+			)
+			if resp.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 {
+				t.Fatalf("idle_release_after %q: status = %d calls = %d, want 400 and no update",
+					raw, resp.Code, service.UpdateSectionCalls)
+			}
+			var payload contract.ErrorPayload
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if !strings.Contains(payload.Error, "general.config.idle_release_after") {
+				t.Fatalf("payload.Error = %q, want idle_release_after context", payload.Error)
+			}
+		})
 	}
 }
 

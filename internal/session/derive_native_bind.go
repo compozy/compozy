@@ -45,7 +45,8 @@ func (m *Manager) prepareNativeBootstrapBind(
 // launchPromptRuntimeCandidate starts the binding's process. For a pending native clone
 // the launch runs session/load of the clone id and settles the bootstrap: loaded on
 // success; failed when the clone cannot load (see nativeCloneLoadFailed), after which the
-// launch restarts on the carried context. Other errors surface.
+// launch restarts on the carried context. A released idle runtime reloads its own ACP
+// session the same way and replays the transcript when the load fails. Other errors surface.
 func (m *Manager) launchPromptRuntimeCandidate(
 	ctx context.Context,
 	session *Session,
@@ -58,21 +59,29 @@ func (m *Manager) launchPromptRuntimeCandidate(
 		return nil, err
 	}
 	candidate, err := m.startAgentProcess(ctx, &plan.spec, startOpts)
-	if native == nil {
+	reload := native == nil && plan.reloadACPSessionID != ""
+	if native == nil && !reload {
 		return candidate, err
 	}
 	if err == nil {
-		session.settleNativeBootstrap(store.SessionNativeStateLoaded, "", m.now())
+		if native != nil {
+			session.settleNativeBootstrap(store.SessionNativeStateLoaded, "", m.now())
+		}
 		return candidate, nil
 	}
 	if !nativeCloneLoadFailed(ctx, err) {
 		return nil, err
 	}
-	session.settleNativeBootstrap(store.SessionNativeStateFailed, nativeLoadErrorText(err), m.now())
-	m.sessionLogger(session).Info("session.fork.native_load_failed", "error", err)
+	plan.spec.resumeReplayReason = resumeFallbackReason(err)
+	if native != nil {
+		session.settleNativeBootstrap(store.SessionNativeStateFailed, nativeLoadErrorText(err), m.now())
+		m.sessionLogger(session).Info("session.fork.native_load_failed", "error", err)
+		plan.spec.resumeReplayReason = nativeBootstrapReplayFallback
+	} else {
+		m.sessionLogger(session).Info("session.runtime.rebind_load_failed", "error", err)
+	}
 	plan.spec.acpSessionID = ""
 	plan.spec.resumeReplay = true
-	plan.spec.resumeReplayReason = nativeBootstrapReplayFallback
 	startOpts, prepareErr := m.prepareSessionLaunch(ctx, &plan.spec, session, runtime, nil)
 	if prepareErr != nil {
 		return nil, errors.Join(err, prepareErr)

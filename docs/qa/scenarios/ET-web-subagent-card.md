@@ -4,8 +4,8 @@ area: ET
 title: Watch, open, and stop subagents from the session view
 persona: Bruno
 journey: J-13-follow-a-live-run
-expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the card flips to Completed and the wake turn renders before the parent's final reply; an isolated subagent (delegated with isolation "worktree") prepends its middle-truncated branch to line 2, links its PR as "#N" with a state glyph beside (never inside) the open control, lists Worktree, Branch, Base, Commits, PR and Observed in the hover only for facts the daemon observed, says "PR status unknown" when it could not check and "No pull request" when the forge answered none, and repeats the branch and PR link on its inspector roster row, while shared subagents stay unchanged; every surface matches its board VC in docs/design/opendesign/subagents/ and docs/design/opendesign/agent-collaboration/ (VC-06, VC-07).
-entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner and working status line; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03); docs/design/opendesign/agent-collaboration/agent-collaboration-subagents.html (VC-06, VC-07)
+expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the composer toolbar shows a subagents control after the context ring and before Attach files — a quiet icon while none run, the icon with a live dot (pulsing while running, accent when one needs you) and the live count while any run — whose popover (title "Subagents · N running", total, current rows first, then "Previous subagents (N)", "Nothing delegated yet." when the session has none) uses the inspector roster rows and returns focus to the control on Escape; the card flips to Completed and the wake turn renders before the parent's final reply; an isolated subagent (delegated with isolation "worktree") prepends its middle-truncated branch to line 2, links its PR as "#N" with a state glyph beside (never inside) the open control, lists Worktree, Branch, Base, Commits, PR and Observed in the hover only for facts the daemon observed, says "PR status unknown" when it could not check and "No pull request" when the forge answered none, and repeats the branch and PR link on its inspector roster row, while shared subagents stay unchanged; every surface matches its board VC in docs/design/opendesign/subagents/ and docs/design/opendesign/agent-collaboration/ (VC-06, VC-07).
+entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner, working status line, and SubagentComposerControl; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03); docs/design/opendesign/agent-collaboration/agent-collaboration-subagents.html (VC-06, VC-07)
 qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-card-hosted-tool-name; BUG-20261009-subagent-card-live-missing; BUG-20261009-subagent-running-count-settled; BUG-20261009-subagent-preview-raw-markdown
 fix_status: fixed
@@ -50,9 +50,17 @@ component stories. This scenario is the real-provider walk with visual parity ag
    `Read subagent status` / `Canceled a subagent`, grouped as `… 2 times`; a capabilities call with no
    success reads `Tried to check subagent capabilities`. During a turn the status line reads
    `Working for … · N agents running`, counting live subagents of both origins once.
-8. **Accessibility.** Cards are buttons with `aria-label="Open <title>"` and the status as
+8. **Composer control (issue #766).** With no subagents, the toolbar shows a quiet subagents icon
+   between the context ring and Attach files; its popover reads `Subagents` and
+   `Nothing delegated yet.` While two subagents run, the control shows the icon with a pulsing live
+   dot and `2`; with one waiting for you the dot takes the accent and the label adds `1 needs you`.
+   Open it from the keyboard (Tab, Enter): `Subagents · N running`, the total, failed and live rows
+   first, then `Previous subagents (N)` (open when nothing runs). A row opens its subagent like the
+   inspector row; Escape closes the popover and returns focus to the control. Check light and dark
+   themes and a narrow window, where the control stays in the toolbar.
+9. **Accessibility.** Cards are buttons with `aria-label="Open <title>"` and the status as
    `aria-description`; group disclosure exposes `aria-expanded`; elapsed is text, not color only.
-9. **Isolated subagents (agent-collaboration S5, VC-06/VC-07, E2E-004).** Ask the agent to delegate
+10. **Isolated subagents (agent-collaboration S5, VC-06/VC-07, E2E-004).** Ask the agent to delegate
    with `isolation: "worktree"`. While it runs, line 2 starts with the branch (mono, middle-truncated,
    full name on hover of the branch) and the hover shows only Worktree, Branch and Base. After it
    commits and runs `compozy worktree deliver`, the card shows `#N` with the PR state glyph; clicking
@@ -61,7 +69,7 @@ component stories. This scenario is the real-provider walk with visual parity ag
    and `Observed … ago`. Without a forge provider the card shows no link and the hover reads
    `PR status unknown`; with a forge and no PR it reads `No pull request`. The inspector roster row
    grows a branch line and carries the same PR link. A shared subagent shows no branch, PR or facts.
-10. **Visual parity.** Capture each state with `eng-ui-screenshot` and compare with the cited board
+11. **Visual parity.** Capture each state with `eng-ui-screenshot` and compare with the cited board
    VC ids; record differences in the QA report.
 
 QA impact 2026-10-08 (subagents): new in this change; no prior verdict.
@@ -89,3 +97,17 @@ visible before the UI roster confirms its child, even when the API already
 returns the child session ID. All navigation assertions in step 5 remain;
 verification runs in PR CI. This synchronization change does not change the
 scenario's real-provider or visual-parity verdict.
+
+QA impact 2026-10-16 (#766): the composer gains the subagents control and popover (step 8);
+rendered evidence for none, previous only, active, mixed, light/dark, and a narrow composer is in
+the PR. The inspector roster keeps its section. Real-provider walk pending; verdict unchanged.
+
+## Profile-bound session regression (#783)
+
+From All profiles, operate on a stopped session owned by a nondefault profile. Rename,
+archive, and restore it without switching the selected profile; inspect its deep link
+and subagent roster. Confirm the request uses the row owner for mutations, the roster
+returns successfully, and a terminal 404/410 does not cause recurring control polls.
+A failed cold roster page must stop automatic pagination until an explicit retry.
+Record the session slice separately from this scenario's broader coverage in
+`docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
