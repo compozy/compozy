@@ -5126,6 +5126,57 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
+	t.Run("Should requeue a rejected pending promotion whose pending state was unsaved", func(t *testing.T) {
+		t.Parallel()
+		failing := &steerResolveFailureStore{}
+		failing.armed.Store(true)
+		wrap := func(manager *Manager) {
+			failing.GlobalDB = manager.inputQueueStore.(*globaldb.GlobalDB)
+			manager.inputQueueStore = failing
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, []Option{wrap})
+		completion := make(chan error, 1)
+		f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
+			steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+				f.steered <- text
+				return acp.SteerAttemptPendingInjection, nil
+			},
+		}
+		turnID := f.sess.CurrentTurnID()
+		f.advance(2 * time.Minute)
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("late", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("long-turn agent message was not offered for injection")
+		}
+		waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusDispatching || entry.Dispatchable {
+			t.Fatalf("entry = %#v, %v; want the pending promotion kept leased while unsaved", entry, err)
+		}
+		failing.armed.Store(false)
+		completion <- errors.New("tool never finished")
+		waitForCondition(t, "rejected pending promotion reverted", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue &&
+				entry.Status == store.SessionInputQueueStatusQueued
+		})
+		drain(t, f)
+		waitForCondition(t, "rejected promotion dispatched after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
+		select {
+		case text := <-f.steered:
+			t.Fatalf("the rejected promotion was injected again: %q", text)
+		default:
+		}
+	})
+
 	t.Run("Should retry a delivered steer's input event before marking it sent", func(t *testing.T) {
 		t.Parallel()
 		failing := &userMessageFailingRecorder{}

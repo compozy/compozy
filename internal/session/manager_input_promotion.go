@@ -100,7 +100,11 @@ func (m *Manager) promoteQueuedInput(
 	}
 	session.promotedSteers.Store(entryID, struct{}{})
 	err = m.activateSteeringInputText(ctx, session, &staged, providerText)
-	if err != nil || staged.SteerDelivery != store.SteerDeliveryPendingInjection {
+	// A pending injection keeps its completion watch, even when its resolution could not be saved, and
+	// that watch returns a rejected promotion to the queue.
+	watched := staged.SteerDelivery == store.SteerDeliveryPendingInjection &&
+		(err == nil || errors.Is(err, errSteerDeliveredUnresolved))
+	if !watched {
 		session.promotedSteers.Delete(entryID)
 	}
 	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {

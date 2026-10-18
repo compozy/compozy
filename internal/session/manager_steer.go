@@ -89,6 +89,10 @@ func (m *Manager) activateSteeringInputText(
 			return err
 		}
 	} else if resolved, err = m.persistAcceptedSteer(session, entry); err != nil {
+		if delivery == store.SteerDeliveryPendingInjection && completion != nil {
+			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
+			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
+		}
 		return errors.Join(errSteerDeliveredUnresolved, err)
 	}
 	*entry = resolved
@@ -98,7 +102,7 @@ func (m *Manager) activateSteeringInputText(
 	session.mu.Unlock()
 	m.emitSteerMarker(ctx, session, entry)
 	if completion != nil {
-		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion)
+		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
 	}
 	if delivery != store.SteerDeliveryInterruptFallback {
 		return nil
