@@ -94,26 +94,37 @@ func (g *forkedAutoTitleGenerator) Generate(
 	runCtx, cancelRun := autoTitleRunContext(ctx, g.deadline)
 	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
-	child, err := g.spawnAutoTitleSession(runCtx, &role, correlation, request)
+	var child *session.Session
+	output, err := role.invokeRoleWithFallback(runCtx, correlation, func(
+		attemptCtx context.Context,
+		route roleAttemptRoute,
+	) (string, bool, error) {
+		spawned, spawnErr := g.sessions.Spawn(attemptCtx, g.autoTitleSpawnOpts(request, route))
+		if spawnErr != nil {
+			// Spawn errors can retain an accepted child that still requires cleanup.
+			child = spawned
+			return "", session.StartAccepted(spawnErr) || spawned != nil,
+				fmt.Errorf("daemon: spawn automatic title session: %w", spawnErr)
+		}
+		if spawned == nil {
+			return "", false, errors.New("daemon: automatic title spawn returned no session")
+		}
+		collected, attemptErr := g.runAutoTitleTurn(attemptCtx, spawned.ID, prompt)
+		if errors.Is(attemptErr, errProviderRefusedTurn) {
+			discardErr := g.discardAutoTitleAttempt(ctx, spawned.ID)
+			if discardErr == nil {
+				return "", false, attemptErr
+			}
+			// A failed stop keeps the child owned and prevents another route from starting.
+			child = spawned
+			return "", true, errors.Join(attemptErr, discardErr)
+		}
+		child = spawned
+		return collected, true, attemptErr
+	})
 	if child != nil {
 		defer g.stopAutoTitleSession(ctx, child.ID, &title, &err)
 	}
-	if err != nil {
-		return "", fmt.Errorf("daemon: spawn automatic title session: %w", err)
-	}
-
-	events, err := g.sessions.PromptSynthetic(runCtx, child.ID, session.SyntheticPromptOpts{
-		Message: prompt,
-		Metadata: acp.PromptSyntheticMeta{
-			TaskID:  autoTitleSyntheticTaskID,
-			Reason:  string(compozyconfig.RoleAutoTitle),
-			Summary: "generate a concise session title",
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("daemon: prompt automatic title session: %w", err)
-	}
-	output, err := collectAutoTitleOutput(runCtx, events)
 	if err != nil {
 		return "", err
 	}
@@ -124,36 +135,62 @@ func (g *forkedAutoTitleGenerator) Generate(
 	return title, nil
 }
 
-// spawnAutoTitleSession launches the auto-title child through the role's fallback chain.
-func (g *forkedAutoTitleGenerator) spawnAutoTitleSession(
-	ctx context.Context,
-	role *ResolvedRole,
-	correlation roleInvocationCorrelation,
+func (g *forkedAutoTitleGenerator) autoTitleSpawnOpts(
 	request autoTitleRequest,
-) (*session.Session, error) {
-	return role.invokeRoleWithFallback(ctx, correlation, func(
-		attemptCtx context.Context,
-		route roleAttemptRoute,
-	) (*session.Session, bool, error) {
-		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
-			ParentSessionID:     strings.TrimSpace(request.SessionID),
-			AgentName:           route.AgentName,
-			Provider:            route.Provider,
-			Model:               route.Model,
-			ReasoningEffort:     route.ReasoningEffort,
-			Speed:               route.Speed,
-			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
-			Command:             route.Command,
-			ChainOwner:          session.ChainOwnerCaller,
-			Name:                autoTitleSessionName,
-			PromptOverlay:       autoTitlePromptOverlay(),
-			SpawnRole:           session.SpawnRoleAutoTitle,
-			TTL:                 g.childTTL(),
-			AutoStopOnParent:    true,
-			DiscardStartFailure: true,
-		})
-		return spawned, session.StartAccepted(spawnErr) || spawned != nil, spawnErr
+	route roleAttemptRoute,
+) session.SpawnOpts {
+	return session.SpawnOpts{
+		ParentSessionID:     strings.TrimSpace(request.SessionID),
+		AgentName:           route.AgentName,
+		Provider:            route.Provider,
+		Model:               route.Model,
+		ReasoningEffort:     route.ReasoningEffort,
+		Speed:               route.Speed,
+		ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
+		Command:             route.Command,
+		ChainOwner:          session.ChainOwnerCaller,
+		Name:                autoTitleSessionName,
+		PromptOverlay:       autoTitlePromptOverlay(),
+		SpawnRole:           session.SpawnRoleAutoTitle,
+		TTL:                 g.childTTL(),
+		AutoStopOnParent:    true,
+		DiscardStartFailure: true,
+	}
+}
+
+// runAutoTitleTurn prompts one spawned attempt and collects its output. A
+// provider refusal is reported through errProviderRefusedTurn so the caller can
+// advance to the next fallback route.
+func (g *forkedAutoTitleGenerator) runAutoTitleTurn(
+	ctx context.Context,
+	sessionID string,
+	prompt string,
+) (string, error) {
+	events, err := g.sessions.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
+		Message: prompt,
+		Metadata: acp.PromptSyntheticMeta{
+			TaskID:  autoTitleSyntheticTaskID,
+			Reason:  string(compozyconfig.RoleAutoTitle),
+			Summary: "generate a concise session title",
+		},
 	})
+	if err != nil {
+		return "", fmt.Errorf("daemon: prompt automatic title session: %w", err)
+	}
+	return collectAutoTitleOutput(ctx, events)
+}
+
+// discardAutoTitleAttempt stops the child session of a refused route so the next
+// attempt does not leave it running.
+func (g *forkedAutoTitleGenerator) discardAutoTitleAttempt(ctx context.Context, sessionID string) error {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoTitleStopTimeout)
+	defer cancel()
+	if err := g.sessions.StopWithCause(
+		stopCtx, sessionID, session.CauseFailed, "automatic title route refused by provider",
+	); err != nil {
+		return fmt.Errorf("daemon: stop refused automatic title session: %w", err)
+	}
+	return nil
 }
 
 func autoTitleRunContext(ctx context.Context, deadline time.Duration) (context.Context, context.CancelFunc) {
@@ -234,7 +271,15 @@ func collectAutoTitleOutput(ctx context.Context, events <-chan acp.AgentEvent) (
 				}
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", fmt.Errorf("daemon: automatic title agent error: %s", strings.TrimSpace(event.Error))
+				agentErr := fmt.Errorf(
+					"daemon: automatic title agent error: %s", strings.TrimSpace(event.Error),
+				)
+				if output.Len() > 0 {
+					// The turn already produced work; refusing it now is not a
+					// pre-output refusal and must not advance to another route.
+					return "", agentErr
+				}
+				return "", providerRefusedTurnError(event, agentErr)
 			}
 		}
 	}

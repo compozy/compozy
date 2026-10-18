@@ -14,6 +14,21 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
+## Role fallback after a provider refuses a title turn — 2026-10-18
+
+Owner: PR #662. Automatic title generation runs each prompt inside its role-owned fallback
+attempt. Typed authentication or rate-limit refusals before any output advance to the next route
+only after the refused child stops. A turn that produced output remains accepted; failed child
+cleanup retains ownership and ends the chain. Route account commands, ChainOwnerCaller, typed
+start acceptance, cancellation deadlines and role.fallback.used events retain their current owners.
+The retired checkpoint-summary and memory subsystems stay deleted. Existing auto-title and
+role-fallback suites own the rejection, partial-output and cleanup boundaries.
+
+Native tools, CLI/HTTP/UDS contracts, hooks, extension SDKs, config keys, workspace/profile data
+isolation and persisted state are unchanged. No migration or compatibility shim is needed. The site
+configuration reference describes the title-specific refusal boundary. Official skill commands and
+Web behavior are unchanged; title generation uses the existing title QA journey.
+
 ## Release integration repairs — 2026-10-18
 
 Pending-steer completion retains its provider outcome and retries persistence with bounded backoff

@@ -1089,8 +1089,10 @@ fail with `…command: parse command: …`. There is no limit on the number of r
 length.
 
 Fallback chains replace as a whole when a workspace overlay declares them, including `command` on
-every route. A session-backed consumer may advance only before ACP accepts a session; CompozyOS never
-silently reroutes work after acceptance. Immediately before each fallback attempt, CompozyOS emits
+every route. A session-backed consumer may advance before ACP accepts a session. Automatic titles also
+advance when the provider refuses a turn before producing any output, after the refused child stops.
+A turn that produced output stays on its route, and a failed child stop prevents another attempt.
+Immediately before each fallback attempt, CompozyOS emits
 `role.fallback.used` with the role, the fallback's one-based `attempt`, provider, model, and
 `provider_command_fingerprint` (a `sha256:` fingerprint of the route's `command` when it sets one).
 The raw command never appears in events or logs. The event records an attempt, not success.
