@@ -19,6 +19,11 @@ export interface SessionListProviderMarkProps {
    * tooltip a keyboard user dismissed with Escape stays closed only for that focus.
    */
   keyboardFocus?: number | null;
+  /**
+   * The glyph sits above the row's stretched target so mouse hover reaches its
+   * tooltip; a click on it activates the row as the target would.
+   */
+  onClick?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 /**
@@ -36,6 +41,7 @@ export function SessionListProviderMark({
   sessionId,
   runtime,
   keyboardFocus = null,
+  onClick,
 }: SessionListProviderMarkProps) {
   const [hovered, setHovered] = useState(false);
   const [dismissedFocus, setDismissedFocus] = useState<number | null>(null);
@@ -58,7 +64,8 @@ export function SessionListProviderMark({
             registry={providerKindIconRegistry}
             size="xs"
             tone="muted"
-            className="shrink-0"
+            className="relative z-10 shrink-0"
+            onClick={onClick}
           />
         }
       />

@@ -144,6 +144,47 @@ export const ProvenanceThreads: Story = {
   },
 };
 
+const FOLDER_AT = "2026-10-17T00:00:00Z";
+const STORY_FOLDERS = [
+  { id: "fld-calm", name: "Calm surfaces", position: 0, session_count: 2 },
+  { id: "fld-pricing", name: "Pricing research", position: 1, session_count: 0 },
+].map(folder => ({
+  ...folder,
+  workspace_id: "ws-product",
+  profile_id: "00000000000000000000000000",
+  created_at: FOLDER_AT,
+  updated_at: FOLDER_AT,
+}));
+
+/**
+ * Folders from the workspace layout group root rows in Manual order; each row
+ * keeps its two-line anatomy, and filed threads still hang from their elbow.
+ */
+export const Folders: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    view: {
+      ...ProvenanceThreads.args!.view!,
+      sort: "manual",
+      layout: {
+        folders: STORY_FOLDERS,
+        createFolder: fn(async () => STORY_FOLDERS[0]!),
+        renameFolder: fn(async () => undefined),
+        deleteFolder: fn(async () => undefined),
+        moveFolder: fn(),
+        reorderFolders: fn(),
+        moveSession: fn(),
+        reorderSessions: fn(),
+      },
+    },
+    sessions: PROVENANCE_FAMILY.map(session =>
+      session.id === "sess-migration" || session.id === "sess-empty-states"
+        ? { ...session, folder_id: "fld-calm" }
+        : session
+    ),
+  },
+};
+
 /**
  * A collapsed thread keeps the most urgent child state on its toggle — the
  * failed scrape surfaces as a danger dot beside the child count.

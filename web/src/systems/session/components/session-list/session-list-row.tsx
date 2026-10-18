@@ -1,5 +1,3 @@
-import { useRef, useState } from "react";
-
 import { Checkbox, Time } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
@@ -7,13 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
-import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
 import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
-import { maskedAttentionNote } from "../../lib/session-pending-interactions";
-import {
-  sessionAttentionReason,
-  type SessionAttentionReason,
-} from "../../lib/session-attention-reason";
 import { useSessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
@@ -21,8 +13,10 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row-context-menu";
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
-import { SUBAGENT_OF_DELETED_SESSION } from "../subagents/subagent-format";
 import { SessionListProviderMark } from "./session-list-provider-mark";
+import { SessionListRowWho } from "./session-list-row-meta";
+import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
+import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
@@ -36,7 +30,7 @@ export interface SessionListRowProps {
   owner?: ProfileOwner;
   /**
    * The thread root of a child row. A child running the same agent on the same
-   * provider inherits the root's meta line and renders as a single line.
+   * provider and model inherits the root's meta line and renders as a single line.
    */
   parent?: SessionPayload;
   current?: boolean;
@@ -69,8 +63,14 @@ export interface SessionListRowProps {
  */
 export function SessionListRow(props: SessionListRowProps) {
   const { session, sessionActions, showActions = true, layoutMenu } = props;
+  const selected = props.selection?.selectedIds.has(session.id) ?? false;
   const row = (
     <SessionRowDragFrame
+      className={cn(
+        "group/session-row relative grid grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.75 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
+        (selected || props.current) && "bg-selected"
+      )}
+      data-slot="session-list-row"
       drag={props.drag}
       dropEdge={props.dropEdge ?? null}
       dragging={props.dragging ?? false}
@@ -108,58 +108,24 @@ function SessionListRowBody({
   const subagentCounts = sessionSubagentCounts(session);
   const runtime = useSessionRuntimeLabel(session.runtime?.effective);
   const signal = sessionBadgeSignal(session.badge);
-  // Each keyboard focus gets its own id; pointer focus reveals nothing.
-  const focusCount = useRef(0);
-  const [keyboardFocus, setKeyboardFocus] = useState<number | null>(null);
+  const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
   const meta = rowMeta({ session, parent, owner, runtime, signal, orphanedSubagent });
   const hasTrailing = subagentCounts !== null || trailing !== undefined;
   return (
-    <div
-      className={cn(
-        "group/session-row relative grid grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.75 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
-        (selected || current) && "bg-selected"
-      )}
-      data-slot="session-list-row"
-    >
-      <button
-        type="button"
-        className={cn(
-          "col-span-2 col-start-1 row-start-1 grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-center gap-x-2 text-left text-body text-fg outline-none after:absolute after:inset-0 after:rounded-md",
-          (signal.attention === "needs-you" || current) && "font-medium"
-        )}
-        data-slot="session-row-target"
-        // The meta line sits under the target, so the attention detail rides on the row.
-        title={meta.reason?.detail}
-        data-status={session.badge}
-        data-testid={`${testIdPrefix}-session-${session.id}`}
-        aria-current={current ? "true" : undefined}
-        // While a selection is open, activating the row toggles its membership,
-        // so the row reads as a toggle button; otherwise it only navigates.
-        aria-pressed={selection?.mode ? selected : undefined}
-        data-selected={selected || undefined}
+    <>
+      <SessionRowTarget
+        session={session}
+        title={title}
+        meta={meta}
+        emphasized={signal.attention === "needs-you" || current}
+        current={current}
+        selected={selected}
+        selection={selection}
+        testId={`${testIdPrefix}-session-${session.id}`}
         onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-        onFocus={event => {
-          focusCount.current += 1;
-          setKeyboardFocus(
-            event.currentTarget.matches(":focus-visible") ? focusCount.current : null
-          );
-        }}
-        onBlur={() => setKeyboardFocus(null)}
-      >
-        <SessionBadgeMark
-          badge={session.badge}
-          delegated={sessionAwaitsSubagents(session)}
-          className={cn(
-            selection &&
-              "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
-            selection?.mode && "opacity-0"
-          )}
-        />
-        <span className="min-w-0 truncate">{title}</span>
-        {/* The meta line is drawn outside the target; its words still name the row. */}
-        <span className="sr-only">{meta.spoken}</span>
-      </button>
+        focusHandlers={focusHandlers}
+      />
       {selection ? (
         <SessionRowCheckbox
           title={title}
@@ -168,55 +134,181 @@ function SessionListRowBody({
           selection={selection}
         />
       ) : null}
-      <span className="col-start-3 row-start-1 grid min-w-6 items-center justify-items-end *:col-start-1 *:row-start-1">
-        <Time
-          iso={session.updated_at}
-          mode="compact"
-          className={cn(
-            "font-mono text-micro text-subtle transition-opacity duration-fast motion-reduce:transition-none",
-            actionsVisible &&
-              "group-focus-within/session-row:opacity-0 group-hover/session-row:opacity-0 group-has-data-popup-open/session-row:opacity-0"
-          )}
-        />
-        {actionsVisible ? (
-          <span className="relative z-10 -my-1 opacity-0 transition-opacity duration-fast group-focus-within/session-row:opacity-100 group-hover/session-row:opacity-100 group-has-data-popup-open/session-row:opacity-100 motion-reduce:transition-none">
-            <SessionRowActions session={session} actions={sessionActions} />
-          </span>
-        ) : null}
-      </span>
+      <SessionRowEndSlot session={session} actions={actionsVisible ? sessionActions : null} />
       {meta.visible || hasTrailing ? (
-        <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2">
-          <span className="flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle">
-            {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
-            {meta.inherits ? null : (
+        <SessionRowMetaLine
+          session={session}
+          owner={owner}
+          meta={meta}
+          mark={
+            meta.inherits ? null : (
               <SessionListProviderMark
                 sessionId={session.id}
                 runtime={runtime}
                 keyboardFocus={keyboardFocus}
+                onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
               />
-            )}
-            <SessionListRowWho session={session} meta={meta} />
-          </span>
-          {hasTrailing ? (
-            <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">
-              {subagentCounts !== null ? (
-                <SessionListSubagentChip
-                  session={session}
-                  counts={subagentCounts}
-                  onSelect={onSelect}
-                />
-              ) : null}
-              {trailing}
-            </span>
-          ) : null}
+            )
+          }
+          trailing={
+            hasTrailing ? (
+              <SessionRowTrailing
+                session={session}
+                subagentCounts={subagentCounts}
+                trailing={trailing}
+                onSelect={onSelect}
+              />
+            ) : null
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** Line 1's title target; its `::after` stretches over the row so the whole row navigates. */
+function SessionRowTarget({
+  session,
+  title,
+  meta,
+  emphasized,
+  current,
+  selected,
+  selection,
+  testId,
+  onClick,
+  focusHandlers,
+}: {
+  session: SessionPayload;
+  title: string;
+  meta: RowMeta;
+  emphasized: boolean;
+  current: boolean;
+  selected: boolean;
+  selection: SessionRowSelection | undefined;
+  testId: string;
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
+  focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "col-span-2 col-start-1 row-start-1 grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-center gap-x-2 text-left text-body text-fg outline-none after:absolute after:inset-0 after:rounded-md",
+        emphasized && "font-medium"
+      )}
+      data-slot="session-row-target"
+      // The meta line sits under the target, so the attention detail rides on the row.
+      title={meta.reason?.detail}
+      data-status={session.badge}
+      data-testid={testId}
+      aria-current={current ? "true" : undefined}
+      // While a selection is open, activating the row toggles its membership,
+      // so the row reads as a toggle button; otherwise it only navigates.
+      aria-pressed={selection?.mode ? selected : undefined}
+      data-selected={selected || undefined}
+      onClick={onClick}
+      {...focusHandlers}
+    >
+      <SessionBadgeMark
+        badge={session.badge}
+        delegated={sessionAwaitsSubagents(session)}
+        className={badgeMarkClass(selection)}
+      />
+      <span className="min-w-0 truncate">{title}</span>
+      {/* The meta line is drawn outside the target; its words still name the row. */}
+      <span className="sr-only">{meta.spoken}</span>
+    </button>
+  );
+}
+
+/** Line 2: who runs the row (owner, provider, agent), its words, and the trailing cluster. */
+function SessionRowMetaLine({
+  session,
+  owner,
+  meta,
+  mark,
+  trailing,
+}: {
+  session: SessionPayload;
+  owner: ProfileOwner | undefined;
+  meta: RowMeta;
+  mark: React.ReactNode;
+  trailing: React.ReactNode;
+}) {
+  return (
+    <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle">
+        {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
+        {mark}
+        <SessionListRowWho session={session} meta={meta} />
+      </span>
+      {trailing}
+    </span>
+  );
+}
+
+/** Line 1's end slot: the compact time at rest, the row actions on hover or focus. */
+function SessionRowEndSlot({
+  session,
+  actions,
+}: {
+  session: SessionPayload;
+  actions: SessionLifecycleActionHandlers | null;
+}) {
+  return (
+    <span className="col-start-3 row-start-1 grid min-w-6 items-center justify-items-end *:col-start-1 *:row-start-1">
+      <Time
+        iso={session.updated_at}
+        mode="compact"
+        className={cn(
+          "font-mono text-micro text-subtle transition-opacity duration-fast motion-reduce:transition-none",
+          actions !== null &&
+            "group-focus-within/session-row:opacity-0 group-hover/session-row:opacity-0 group-has-data-popup-open/session-row:opacity-0"
+        )}
+      />
+      {actions !== null ? (
+        <span className="relative z-10 -my-1 opacity-0 transition-opacity duration-fast group-focus-within/session-row:opacity-100 group-hover/session-row:opacity-100 group-has-data-popup-open/session-row:opacity-100 motion-reduce:transition-none">
+          <SessionRowActions session={session} actions={actions} />
         </span>
       ) : null}
-    </div>
+    </span>
+  );
+}
+
+/** The meta line's trailing cluster, lifted above the row target. */
+function SessionRowTrailing({
+  session,
+  subagentCounts,
+  trailing,
+  onSelect,
+}: {
+  session: SessionPayload;
+  subagentCounts: ReturnType<typeof sessionSubagentCounts>;
+  trailing: React.ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">
+      {subagentCounts !== null ? (
+        <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
+      ) : null}
+      {trailing}
+    </span>
+  );
+}
+
+/** With a selection available, the badge gives way to the checkbox on hover or focus. */
+function badgeMarkClass(selection: SessionRowSelection | undefined): string | undefined {
+  if (!selection) return undefined;
+  return cn(
+    "transition-opacity duration-fast motion-reduce:transition-none group-hover/session-row:opacity-0 group-focus-within/session-row:opacity-0",
+    selection.mode && "opacity-0"
   );
 }
 
 function activateSessionRow(
-  event: React.MouseEvent<HTMLButtonElement>,
+  event: React.MouseEvent<HTMLElement>,
   sessionId: string,
   selection: SessionRowSelection | undefined,
   onSelect: () => void
@@ -276,11 +368,7 @@ function SessionRowDragFrame({
       {...rest}
       {...drag}
       data-dragging={dragging || undefined}
-      className={cn(
-        "relative",
-        dragging && "opacity-50",
-        className
-      )}
+      className={cn(dragging && "opacity-50", className)}
     >
       {dropEdge !== null ? <SessionRowDropLine edge={dropEdge} testId={dropTestId} /> : null}
       {children}
@@ -300,111 +388,4 @@ function SessionRowDropLine({ edge, testId }: { edge: SessionDropPosition; testI
       )}
     />
   );
-}
-
-interface RowMeta {
-  /** Same agent and provider as the thread root: the child drops its who line. */
-  inherits: boolean;
-  /** The meta line has something of its own to show. */
-  visible: boolean;
-  /** Attention words that never truncate. */
-  attention: string[];
-  /** Why the daemon raised attention; its detail is the row's hover title. */
-  reason: SessionAttentionReason | null;
-  /** Secondary notes, the first to give way when the line is full. */
-  notes: string[];
-  /** The row's accessible description, in reading order. */
-  spoken: string;
-}
-
-function rowMeta({
-  session,
-  parent,
-  owner,
-  runtime,
-  signal,
-  orphanedSubagent,
-}: {
-  session: SessionPayload;
-  parent: SessionPayload | undefined;
-  owner: ProfileOwner | undefined;
-  runtime: { label: string } | null;
-  signal: ReturnType<typeof sessionBadgeSignal>;
-  orphanedSubagent: boolean;
-}): RowMeta {
-  const inherits =
-    parent !== undefined &&
-    owner === undefined &&
-    parent.agent_name === session.agent_name &&
-    (parent.runtime?.effective?.provider ?? null) ===
-      (session.runtime?.effective?.provider ?? null);
-  const attention: string[] = [];
-  // The mark carries the state; the word speaks up whenever the glyph is shared.
-  if (signal.speaks) attention.push(signal.displayLabel);
-  const reason = sessionAttentionReason(session, signal.label);
-  if (reason !== null) attention.push(reason.summary);
-  const masked = maskedAttentionNote(session, signal.label);
-  if (masked !== null) attention.push(masked);
-  const notes: string[] = [];
-  if (orphanedSubagent) notes.push(SUBAGENT_OF_DELETED_SESSION);
-  if (session.archived_at !== null) notes.push("Archived");
-  const spoken = [runtime?.label, [session.agent_name, ...attention, ...notes].join(" · ")]
-    .filter(Boolean)
-    .join(" ");
-  return {
-    inherits,
-    visible: !inherits || attention.length > 0 || notes.length > 0,
-    attention,
-    reason,
-    notes,
-    spoken,
-  };
-}
-
-/**
- * The visible who line. Truncation order when the line is full: notes give way
- * first, then the agent name, and attention words only as a last resort. Each
- * separator lives inside the neighbour that gives way first, so a collapsed part
- * never leaves a stray `·`. The words repeat the target's accessible name, so the
- * line itself stays out of the a11y tree.
- */
-function SessionListRowWho({ session, meta }: { session: SessionPayload; meta: RowMeta }) {
-  const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
-  if (!meta.inherits) parts.push({ key: "agent", kind: "agent", text: session.agent_name });
-  meta.attention.forEach((text, index) =>
-    parts.push({ key: `attention-${index}`, kind: "attention", text })
-  );
-  meta.notes.forEach((text, index) => parts.push({ key: `note-${index}`, kind: "note", text }));
-  return (
-    <>
-      {parts.map((part, index) => {
-        const next = parts[index + 1];
-        const leading = index > 0 && part.kind === "note";
-        const trailing = next !== undefined && next.kind !== "note";
-        return (
-          <span
-            key={part.key}
-            aria-hidden="true"
-            className={cn(
-              "min-w-0 truncate",
-              part.kind === "agent" && "shrink-[100] font-medium text-muted",
-              part.kind === "attention" && "shrink",
-              part.kind === "attention" &&
-                index === firstAttention(parts) &&
-                sessionBadgeWordClass(session.badge),
-              part.kind === "note" && "shrink-[10000]"
-            )}
-          >
-            {leading ? <span className="text-faint">· </span> : null}
-            {part.text}
-            {trailing ? <span className="text-faint"> ·</span> : null}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
-function firstAttention(parts: { kind: string }[]): number {
-  return parts.findIndex(part => part.kind === "attention");
 }

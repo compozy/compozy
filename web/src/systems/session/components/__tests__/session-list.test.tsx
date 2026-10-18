@@ -766,9 +766,9 @@ describe("SessionList provider marks", () => {
     expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
   });
 
-  // Invariant: a child running its root's agent on its root's provider drops the
-  // repeated who line, yet still names its runtime and agent; any difference keeps it.
-  it("collapses a child that repeats its root's agent and provider, keeping its spoken runtime", () => {
+  // Invariant: a child running its root's agent on its root's provider and model drops
+  // the repeated who line, yet still names its runtime and agent; any difference keeps it.
+  it("collapses a child that repeats its root's agent, provider, and model, keeping its spoken runtime", () => {
     const lineage = (parent: string): SessionPayload["lineage"] => ({
       parent_session_id: parent,
       root_session_id: parent,
@@ -783,6 +783,7 @@ describe("SessionList provider marks", () => {
         row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
         row("same", { runtime: runtime("codex", "gpt-6.1-sol"), lineage: lineage("root") }),
         row("other", { runtime: runtime("claude"), lineage: lineage("root") }),
+        row("model", { runtime: runtime("codex", "gpt-6.1-mini"), lineage: lineage("root") }),
       ],
     });
 
@@ -794,6 +795,23 @@ describe("SessionList provider marks", () => {
       "data-kind",
       "claude"
     );
+    expect(screen.getByTestId("session-provider-mark-model")).toHaveAttribute("data-kind", "codex");
+  });
+
+  // Invariant: the mark answers mouse hover with its runtime and, lifted above the
+  // row's stretched target, still navigates to the row when clicked.
+  it("opens the runtime tooltip on hover and navigates when the mark is clicked", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = renderList({
+      sessions: [row("root", { runtime: runtime("codex", "gpt-6.1-sol") })],
+    });
+
+    const mark = screen.getByTestId("session-provider-mark-root");
+    expect(screen.queryByText("Codex · GPT-6.1 Sol")).not.toBeInTheDocument();
+    await user.hover(mark);
+    expect(await screen.findByText("Codex · GPT-6.1 Sol")).toBeInTheDocument();
+    await user.click(mark);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "root" }));
   });
 
   // Invariant: the aggregate tags a thread's root with its owner and a child only
