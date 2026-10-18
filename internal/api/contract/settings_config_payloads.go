@@ -12,14 +12,19 @@ type SettingsBusyInputPayload struct {
 }
 
 type SettingsGeneralConfigPayload struct {
-	BusyInput      *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
-	Limits         SettingsLimitsPayload      `json:"limits"`
-	Permissions    SettingsPermissionsPayload `json:"permissions"`
-	SessionTimeout string                     `json:"session_timeout"`
-	HTTP           SettingsHTTPPayload        `json:"http"`
-	Daemon         SettingsDaemonPayload      `json:"daemon"`
-	Redact         SettingsRedactPayload      `json:"redact"`
-	Terminal       SettingsTerminalPayload    `json:"terminal"`
+	BusyInput   *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
+	Limits      SettingsLimitsPayload      `json:"limits"`
+	Permissions SettingsPermissionsPayload `json:"permissions"`
+	// SessionTimeout is the deprecated mirror of session.limits.timeout, which no
+	// session enforces; IdleReleaseAfter replaces it. Removed in v0.5.0.
+	SessionTimeout string `json:"session_timeout"`
+	// IdleReleaseAfter mirrors session.supervision.idle_release_after. Omitted on
+	// update to keep the current value.
+	IdleReleaseAfter string                  `json:"idle_release_after,omitempty"`
+	HTTP             SettingsHTTPPayload     `json:"http"`
+	Daemon           SettingsDaemonPayload   `json:"daemon"`
+	Redact           SettingsRedactPayload   `json:"redact"`
+	Terminal         SettingsTerminalPayload `json:"terminal"`
 }
 
 type SettingsDefaultsPayload struct {

@@ -100,8 +100,8 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
   await expect(settingsUI.general.page).toBeVisible();
 
-  const nextTimeoutValue = await nextSessionTimeoutValue(settingsUI.general.sessionTimeoutInput);
-  await settingsUI.general.sessionTimeoutInput.selectOption(nextTimeoutValue);
+  const nextIdleRelease = await nextIdleReleaseValue(settingsUI.general.idleReleaseInput);
+  await settingsUI.general.idleReleaseInput.selectOption(nextIdleRelease);
   await expect(settingsUI.general.saveButton).toBeEnabled();
   await settingsUI.general.saveButton.click();
 
@@ -691,12 +691,12 @@ function normalizeTexts(values: string[]): string[] {
   return values.map(value => value.trim()).filter(value => value !== "");
 }
 
-async function nextSessionTimeoutValue(
-  input: ReturnType<typeof settingsOperatorSelectors>["general"]["sessionTimeoutInput"]
+async function nextIdleReleaseValue(
+  input: ReturnType<typeof settingsOperatorSelectors>["general"]["idleReleaseInput"]
 ): Promise<string> {
   const currentValue = Number.parseInt((await input.inputValue()) || "0", 10);
-  const primary = browserSettingsOperatorFlowScenario.general.primarySessionTimeoutSeconds;
-  const fallback = browserSettingsOperatorFlowScenario.general.fallbackSessionTimeoutSeconds;
+  const primary = browserSettingsOperatorFlowScenario.general.primaryIdleReleaseSeconds;
+  const fallback = browserSettingsOperatorFlowScenario.general.fallbackIdleReleaseSeconds;
   return String(currentValue === primary ? fallback : primary);
 }
 

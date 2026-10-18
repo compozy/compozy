@@ -68,8 +68,11 @@ type SessionAttachmentsRetentionConfig struct {
 	MaxAge   time.Duration `toml:"max_age"`
 }
 
-// SessionLimitsConfig defines runtime limits applied to every session.
+// SessionLimitsConfig holds the released session.limits keys.
 type SessionLimitsConfig struct {
+	// Timeout is deprecated and enforced by no session; it stays readable and
+	// writable until its removal in v0.5.0. Idle sessions use
+	// SessionSupervisionConfig.IdleReleaseAfter.
 	Timeout time.Duration `toml:"timeout,omitempty"`
 }
 

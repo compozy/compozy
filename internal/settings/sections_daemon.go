@@ -23,6 +23,9 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	if cfg.Session.Limits.Timeout != desired.SessionTimeout {
 		changed = append(changed, "session.limits.timeout")
 	}
+	if desired.IdleReleaseAfter != nil && cfg.Session.Supervision.IdleReleaseAfter != *desired.IdleReleaseAfter {
+		changed = append(changed, "session.supervision.idle_release_after")
+	}
 	if cfg.Permissions.Mode != desired.Permissions.Mode {
 		changed = append(changed, "permissions.mode")
 	}
@@ -96,6 +99,14 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		if err := editor.SetValue(
 			[]string{"session", "busy_input", "default_mode"},
 			*settings.FollowUpMode,
+		); err != nil {
+			return err
+		}
+	}
+	if settings.IdleReleaseAfter != nil {
+		if err := editor.SetValue(
+			[]string{sectionsSessionKey, "supervision", "idle_release_after"},
+			settings.IdleReleaseAfter.String(),
 		); err != nil {
 			return err
 		}

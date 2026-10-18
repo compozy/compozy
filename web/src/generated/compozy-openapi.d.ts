@@ -50603,6 +50603,8 @@ export interface operations {
                 host: string;
                 port: number;
               };
+              /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
+              idle_release_after?: string;
               limits: {
                 max_concurrent_agents: number;
               };
@@ -50613,6 +50615,10 @@ export interface operations {
               redact: {
                 enabled: boolean;
               };
+              /**
+               * @deprecated
+               * @description Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.
+               */
               session_timeout: string;
               terminal: {
                 default_shell: string;
@@ -50728,6 +50734,8 @@ export interface operations {
               host: string;
               port: number;
             };
+            /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
+            idle_release_after?: string;
             limits: {
               max_concurrent_agents: number;
             };
@@ -50738,6 +50746,10 @@ export interface operations {
             redact: {
               enabled: boolean;
             };
+            /**
+             * @deprecated
+             * @description Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.
+             */
             session_timeout: string;
             terminal: {
               default_shell: string;

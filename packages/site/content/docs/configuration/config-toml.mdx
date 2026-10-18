@@ -42,7 +42,7 @@ CompozyOS archives them on load instead of failing; see
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                     | `timeout = "0s"`                                                                                      |
+| `[session.limits]`                   | Deprecated. `timeout` has no effect and is removed in v0.5.0.                          | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Activity heartbeat, progress, hung-turn watchdog, and idle runtime release controls.   | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes, idle release 30m  |
 | `[session.derive]`                   | Size bounds of every transcript replay into a new agent session.                       | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[subagents]`                        | Size cap of the answer a subagent returns to its parent session.                       | `result_max_chars = 60000`                                                                            |
@@ -281,7 +281,8 @@ acp_options = [{ id = "thinking", bool_value = true }]
 max_concurrent_agents = 20
 
 [session.limits]
-# 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
+# Deprecated: no session enforces this key; it is removed in v0.5.0.
+# Use session.supervision.idle_release_after for idle sessions.
 timeout = "0s"
 
 [session.busy_input]
@@ -1107,9 +1108,16 @@ Subagents have no depth, count, or TTL caps.
 
 ## `[session.limits]`
 
-| Field     | Type     | Default | Valid values                  | Description                                                                    |
-| --------- | -------- | ------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| `timeout` | duration | `0s`    | Zero or positive Go duration. | Session-level wall-clock timeout. Zero means no configured wall-clock timeout. |
+<Callout type="warn">
+  `session.limits.timeout` is deprecated and has no effect: no session is ended or stopped when it
+  elapses. It stays readable and writable through v0.4 so existing files and scripts keep loading,
+  and a non-zero value logs a deprecation warning at load. It is removed in v0.5.0. To free the
+  agent of an idle session, use [`session.supervision.idle_release_after`](#sessionsupervision).
+</Callout>
+
+| Field     | Type     | Default | Valid values                  | Description                                                            |
+| --------- | -------- | ------- | ----------------------------- | ---------------------------------------------------------------------- |
+| `timeout` | duration | `0s`    | Zero or positive Go duration. | Deprecated; not enforced. Removed in v0.5.0. Use `idle_release_after`. |
 
 ## `[session.attachments]`
 
@@ -1177,6 +1185,11 @@ session stays active and the next prompt binds a runtime again. See
 [session lifecycle](/docs/sessions/lifecycle#runtime-activity-supervision) for signal validity,
 quiet warnings, unknown-source attention, the stop ladder, and
 [idle runtime release](/docs/sessions/lifecycle#idle-runtime-release).
+
+Settings → General → **Pause idle agents after** edits `idle_release_after` (Never, 15 minutes,
+30 minutes, 1 hour, 4 hours, or 1 day; any other configured duration is shown as-is). The general
+settings HTTP/UDS DTO carries it as `config.idle_release_after`; omit the field on update to keep
+the current value. Changing it requires a daemon restart.
 
 | Field                         | Type     | Default | Valid values          | Description                                                                              |
 | ----------------------------- | -------- | ------- | --------------------- | ---------------------------------------------------------------------------------------- |

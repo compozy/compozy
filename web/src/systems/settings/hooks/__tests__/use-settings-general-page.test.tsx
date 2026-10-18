@@ -74,6 +74,7 @@ const envelope: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s",
     terminal: {
       default_shell: "",
       shell_integration: true,
@@ -175,7 +176,7 @@ describe("useSettingsGeneralPage", () => {
   it("Should adopt the saved canonical duration and clear the acknowledged draft", async () => {
     const canonical = {
       ...envelope,
-      config: { ...envelope.config, session_timeout: "4h0m0s" },
+      config: { ...envelope.config, idle_release_after: "4h0m0s" },
     };
     vi.mocked(updateSettingsGeneral).mockImplementation(async () => {
       vi.mocked(getSettingsGeneral).mockResolvedValue(canonical);
@@ -186,18 +187,18 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
-      result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+      result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
     });
     expect(result.current.isDirty).toBe(true);
     act(() => result.current.handleSave());
 
     await waitFor(() => {
       expect(result.current.isSaving).toBe(false);
-      expect(result.current.draft?.session_timeout).toBe("4h0m0s");
+      expect(result.current.draft?.idle_release_after).toBe("4h0m0s");
       expect(result.current.isDirty).toBe(false);
     });
     expect(updateSettingsGeneral).toHaveBeenCalledExactlyOnceWith({
-      config: { ...envelope.config, session_timeout: "14400s" },
+      config: { ...envelope.config, idle_release_after: "14400s" },
     });
     expect(result.current.lastAppliedLabel).toContain("restart required");
   });
@@ -212,7 +213,7 @@ describe("useSettingsGeneralPage", () => {
       await waitFor(() => expect(result.current.draft).toBeTruthy());
 
       act(() => {
-        result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+        result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
       });
       act(() => result.current.handleSave());
       await waitFor(() => expect(updateSettingsGeneral).toHaveBeenCalledTimes(1));
@@ -222,19 +223,19 @@ describe("useSettingsGeneralPage", () => {
         rerender();
       });
       act(() => {
-        result.current.setDraft({ ...envelope.config, session_timeout: "3600s" });
+        result.current.setDraft({ ...envelope.config, idle_release_after: "3600s" });
       });
       vi.mocked(getSettingsGeneral).mockResolvedValue({
         ...envelope,
-        config: { ...envelope.config, session_timeout: "4h0m0s" },
+        config: { ...envelope.config, idle_release_after: "4h0m0s" },
       });
       await act(async () => pending.resolve(settingsRestartRequiredMutationFixture));
 
       await waitFor(() => {
         expect(result.current.isSaving).toBe(false);
-        expect(result.current.envelope?.config.session_timeout).toBe("4h0m0s");
+        expect(result.current.envelope?.config.idle_release_after).toBe("4h0m0s");
       });
-      expect(result.current.draft?.session_timeout).toBe("3600s");
+      expect(result.current.draft?.idle_release_after).toBe("3600s");
       expect(result.current.isDirty).toBe(true);
     }
   );
@@ -246,12 +247,12 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
-      result.current.setDraft({ ...envelope.config, session_timeout: "14400s" });
+      result.current.setDraft({ ...envelope.config, idle_release_after: "14400s" });
     });
     act(() => result.current.handleSave());
 
     await waitFor(() => expect(result.current.saveError).toBe("Couldn't save General"));
-    expect(result.current.draft?.session_timeout).toBe("14400s");
+    expect(result.current.draft?.idle_release_after).toBe("14400s");
     expect(result.current.isDirty).toBe(true);
     expect(result.current.lastAppliedLabel).toBeNull();
   });

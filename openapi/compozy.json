@@ -124545,6 +124545,10 @@
                           ],
                           "type": "object"
                         },
+                        "idle_release_after": {
+                          "description": "Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value.",
+                          "type": "string"
+                        },
                         "limits": {
                           "properties": {
                             "max_concurrent_agents": {
@@ -124584,6 +124588,8 @@
                           "type": "object"
                         },
                         "session_timeout": {
+                          "deprecated": true,
+                          "description": "Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.",
                           "type": "string"
                         },
                         "terminal": {
@@ -124915,6 +124921,10 @@
                         ],
                         "type": "object"
                       },
+                      "idle_release_after": {
+                        "description": "Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value.",
+                        "type": "string"
+                      },
                       "limits": {
                         "properties": {
                           "max_concurrent_agents": {
@@ -124954,6 +124964,8 @@
                         "type": "object"
                       },
                       "session_timeout": {
+                        "deprecated": true,
+                        "description": "Deprecated: mirrors session.limits.timeout, which no session enforces. Use idle_release_after. Removed in v0.5.0.",
                         "type": "string"
                       },
                       "terminal": {

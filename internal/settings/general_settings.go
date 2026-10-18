@@ -12,21 +12,24 @@ type GeneralSettings struct {
 	Limits         compozyconfig.LimitsConfig
 	Permissions    compozyconfig.PermissionsConfig
 	SessionTimeout time.Duration
-	HTTP           compozyconfig.HTTPConfig
-	Daemon         compozyconfig.DaemonConfig
-	Redact         compozyconfig.RedactConfig
-	Terminal       compozyconfig.TerminalConfig
+	// IdleReleaseAfter is nil when an update leaves the current value unchanged.
+	IdleReleaseAfter *time.Duration
+	HTTP             compozyconfig.HTTPConfig
+	Daemon           compozyconfig.DaemonConfig
+	Redact           compozyconfig.RedactConfig
+	Terminal         compozyconfig.TerminalConfig
 }
 
 func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
 	return GeneralSettings{
-		FollowUpMode:   new(cfg.Session.BusyInput.Normalize().DefaultMode),
-		Limits:         cfg.Limits,
-		Permissions:    cfg.Permissions,
-		SessionTimeout: cfg.Session.Limits.Timeout,
-		HTTP:           cfg.HTTP,
-		Daemon:         cfg.Daemon,
-		Redact:         cfg.Redact,
-		Terminal:       cfg.Terminal,
+		FollowUpMode:     new(cfg.Session.BusyInput.Normalize().DefaultMode),
+		Limits:           cfg.Limits,
+		Permissions:      cfg.Permissions,
+		SessionTimeout:   cfg.Session.Limits.Timeout,
+		IdleReleaseAfter: new(cfg.Session.Supervision.IdleReleaseAfter),
+		HTTP:             cfg.HTTP,
+		Daemon:           cfg.Daemon,
+		Redact:           cfg.Redact,
+		Terminal:         cfg.Terminal,
 	}
 }

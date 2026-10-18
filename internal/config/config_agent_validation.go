@@ -164,7 +164,7 @@ func (c SessionConfig) Validate() error {
 	return c.Attachments.Validate()
 }
 
-// Validate ensures session timeout settings are internally consistent.
+// Validate keeps the deprecated session.limits.timeout value well formed.
 func (c SessionLimitsConfig) Validate() error {
 	if c.Timeout < 0 {
 		return fmt.Errorf("session.limits.timeout must be zero or positive: %s", c.Timeout)

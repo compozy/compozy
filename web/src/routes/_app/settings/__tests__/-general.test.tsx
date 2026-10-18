@@ -94,6 +94,7 @@ const envelope = {
     permissions: { mode: "approve-all" as const },
     redact: { enabled: true },
     session_timeout: "0s",
+    idle_release_after: "30m0s" as string | undefined,
     terminal: {
       default_shell: "",
       shell_integration: true,
@@ -329,7 +330,7 @@ describe("GeneralSettingsPage", () => {
     );
   });
 
-  it("offers idle-session presets and writes the chosen preset as seconds", () => {
+  it("writes the chosen idle-agent preset as seconds, including Never", () => {
     let nextDraft: Envelope["config"] = envelope.config;
     pageState.setDraft.mockImplementation((update: SetStateAction<Envelope["config"] | null>) => {
       const updated = typeof update === "function" ? update(envelope.config) : update;
@@ -337,27 +338,40 @@ describe("GeneralSettingsPage", () => {
     });
     render(<GeneralSettingsPage />);
 
-    const select = screen.getByTestId("settings-page-general-session-timeout-input");
+    const select = screen.getByTestId("settings-page-general-idle-release-input");
     fireEvent.change(select, { target: { value: String(60 * 60) } });
-    expect(nextDraft.session_timeout).toBe("3600s");
+    expect(nextDraft.idle_release_after).toBe("3600s");
     fireEvent.change(select, { target: { value: "0" } });
-    expect(nextDraft.session_timeout).toBe("0s");
+    expect(nextDraft.idle_release_after).toBe("0s");
+    expect(nextDraft.session_timeout).toBe(envelope.config.session_timeout);
   });
 
   it.each([
     ["0s", "Never"],
     ["15m0s", "15 minutes"],
+    ["30m0s", "30 minutes"],
     ["1h0m0s", "1 hour"],
     ["4h0m0s", "4 hours"],
     ["24h0m0s", "1 day"],
     ["1h30m0s", "90 minutes"],
+    ["2h0m0s", "2 hours"],
+    ["1m0s", "1 minute"],
     ["1.5s", "1.5 seconds"],
-  ])("Should display the saved duration %s as %s", (duration, label) => {
-    pageState.draft = { ...envelope.config, session_timeout: duration };
+  ])("Should display the saved idle-agent duration %s as %s", (duration, label) => {
+    pageState.draft = { ...envelope.config, idle_release_after: duration };
     render(<GeneralSettingsPage />);
 
-    expect(screen.getByRole("combobox", { name: "End idle sessions after" })).toHaveDisplayValue(
+    expect(screen.getByTestId("settings-page-general-idle-release-input")).toHaveDisplayValue(
       label
+    );
+  });
+
+  it("shows the 30-minute default when the daemon omits the idle-agent duration", () => {
+    pageState.draft = { ...envelope.config, idle_release_after: undefined };
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-idle-release-input")).toHaveDisplayValue(
+      "30 minutes"
     );
   });
 
@@ -413,7 +427,7 @@ describe("GeneralSettingsPage", () => {
     fireEvent.click(screen.getByTestId("settings-page-general-follow-up-queue"));
     expect(pageState.setDraft).toHaveBeenCalledTimes(1);
     expect(nextDraft.busy_input).toEqual({ default_mode: "queue" });
-    expect(nextDraft.session_timeout).toBe(envelope.config.session_timeout);
+    expect(nextDraft.idle_release_after).toBe(envelope.config.idle_release_after);
   });
 
   it("renders the queue follow-up value and locks the control while saving", () => {

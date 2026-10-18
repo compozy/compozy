@@ -41,3 +41,18 @@ func settingsUpdateTargetSetSchema() *openapi3.Schema {
 	}
 	return targets
 }
+
+func customizeSettingsGeneralConfigSchema(schema *openapi3.Schema) {
+	if schema == nil {
+		return
+	}
+	if timeout := schema.Properties["session_timeout"]; timeout != nil && timeout.Value != nil {
+		timeout.Value.Deprecated = true
+		timeout.Value.Description = "Deprecated: mirrors session.limits.timeout, which no session enforces. " +
+			"Use idle_release_after. Removed in v0.5.0."
+	}
+	if release := schema.Properties["idle_release_after"]; release != nil && release.Value != nil {
+		release.Value.Description = "Idle time before a resumable idle session's agent process is released " +
+			"(session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value."
+	}
+}

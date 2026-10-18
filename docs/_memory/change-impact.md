@@ -3287,3 +3287,28 @@ Owner: branch `fix/silent-idle-session-reclaim`; issue #782.
   `agents/heartbeat`, and `configuration/config-toml`. QA scenarios `RT-session-native-stop`
   (supervision branch rewritten, idle-release branch added, re-walk required) and
   `RT-session-message-reply` (step 11).
+
+## Settings "Pause idle agents after" drives idle runtime release (2026-10-17)
+
+Owner: branch `fix/settings-idle-release-control`, stacked on #787; issue #782.
+
+- Runtime: unchanged. The Settings → General control that wrote the unenforced
+  `session.limits.timeout` now writes `session.supervision.idle_release_after` (restart-required
+  under the existing `session.*` lifecycle rule).
+- HTTP/UDS (SD-013 regime 2, additive + deprecate N→N+1): `SettingsGeneralConfigPayload` gains
+  optional `idle_release_after` (Go duration, zero or positive; omitted on PATCH keeps the current
+  value; always returned on GET). `session_timeout` keeps its required shape and its meaning
+  (`session.limits.timeout`), is marked `deprecated` in OpenAPI, and a PATCH carrying a non-zero
+  value returns `Warning: 299 compozy "... use idle_release_after; removed in v0.5.0"`. Delete
+  target v0.5.0: the `session_timeout` DTO field, its decoder/encoder, and the Warning header.
+- Config (SD-013 regime 2, deprecate N→N+1): `session.limits.timeout` stays readable/writable
+  through `config get/set` and `compozy__config_*`; a non-zero value logs a load-time
+  deprecation warning. Delete target v0.5.0: the key, `SessionLimitsConfig`, its overlay, CLI and
+  tool-surface entries. No persisted schema change or migration.
+- Native tools/CLI/hooks/extensions: no shape change. Workspace/profile isolation: unchanged.
+- Web (regime 3): row label "Pause idle agents after", test id
+  `settings-page-general-idle-release-input`, presets Never/15m/30m/1h/4h/1d plus the configured
+  value as-is; E2E selectors and the settings transport spec follow the new field and key.
+- Official skill and docs: `skills/compozy/references/configuration.md` (new Idle Session
+  Settings section), `runtime-operations.md`; site `configuration/config-toml`,
+  `sessions/lifecycle`. QA scenario `MS-025` (re-walk required for the renamed control).

@@ -3,7 +3,11 @@ package config
 import (
 	"log/slog"
 	"strings"
+	"sync"
 )
+
+// Config reloads are frequent; the deprecated session.limits.timeout warns once per process.
+var sessionLimitsTimeoutDeprecation sync.Once
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
 	if o.Stop.CooperativeGrace != nil {
@@ -19,6 +23,13 @@ func (o sessionOverlay) Apply(dst *SessionConfig) {
 func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
 	if o.Timeout != nil {
 		dst.Timeout = *o.Timeout
+		// Retain the released key through v0.4; remove it in v0.5.0.
+		if dst.Timeout > 0 {
+			sessionLimitsTimeoutDeprecation.Do(func() {
+				slog.Warn("session.limits.timeout is deprecated and has no effect; " +
+					"use session.supervision.idle_release_after before v0.5.0")
+			})
+		}
 	}
 }
 

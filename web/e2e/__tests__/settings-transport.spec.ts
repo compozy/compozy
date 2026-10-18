@@ -45,31 +45,31 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
 
   await expect(appPage.getByText(remoteHTTPAPIBlockedMessage, { exact: false })).toBeVisible();
 
-  const general = await requestOperatorJSON<{ config: { session_timeout: string } }>(
+  const general = await requestOperatorJSON<{ config: { idle_release_after: string } }>(
     runtime,
     "/api/settings/general"
   );
-  const nextTimeout = nextDurationSeconds(general.config.session_timeout);
+  const nextIdleRelease = nextDurationSeconds(general.config.idle_release_after);
   const udsMutation = await requestOperatorJSON<unknown>(runtime, "/api/settings/general", {
     method: "PATCH",
     body: JSON.stringify({
       config: {
         ...general.config,
-        session_timeout: nextTimeout,
+        idle_release_after: nextIdleRelease,
       },
     }),
   });
   const cliValue = await runCLIJSON(runtime.paths, [
     "config",
     "get",
-    "session.limits.timeout",
+    "session.supervision.idle_release_after",
     "-o",
     "json",
   ]);
 
   expect(JSON.stringify(udsMutation)).toContain("restart_required");
   expect(JSON.stringify(udsMutation)).toContain("global-config");
-  expect(JSON.stringify(cliValue)).toContain(nextTimeout);
+  expect(JSON.stringify(cliValue)).toContain(nextIdleRelease);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     http_restriction: remoteHTTPAPIBlockedMessage,
     uds_mutation: udsMutation,
