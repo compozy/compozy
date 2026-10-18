@@ -158,6 +158,7 @@ func (e *releaseRateLimitError) Error() string {
 	)
 }
 
+// releaseRetryAt selects the latest of the one-minute minimum and GitHub's retry/reset deadlines.
 func releaseRetryAt(header http.Header, now time.Time) time.Time {
 	retryAt := now.Add(time.Minute)
 	if seconds, err := strconv.ParseInt(header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 {

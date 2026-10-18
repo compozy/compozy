@@ -199,8 +199,12 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	needRefresh = needRefresh && !m.refreshThrottled(checkedAt, opts.MinimumRefreshInterval)
 
 	if needRefresh {
-		m.lastCheckAttempt = m.now().UTC()
+		attemptedAt := m.now().UTC()
 		freshRelease, err := m.fetchLatestRelease(ctx)
+		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+			return State{}, nil, ctxErr
+		}
+		m.lastCheckAttempt = attemptedAt
 		m.lastCheckError = err
 		if limited, ok := errors.AsType[*releaseRateLimitError](err); ok {
 			m.checkBackoffUntil = limited.retryAt
@@ -242,6 +246,7 @@ func (m *Manager) checkResult(
 	return state, latest, nil
 }
 
+// refreshThrottled always honors upstream backoff, then applies the interval to the latest attempt or success.
 func (m *Manager) refreshThrottled(checkedAt *time.Time, interval time.Duration) bool {
 	if m.now().Before(m.checkBackoffUntil) {
 		return true

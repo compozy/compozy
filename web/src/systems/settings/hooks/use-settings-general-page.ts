@@ -157,7 +157,10 @@ export function useSettingsGeneralPage() {
     updateActions: {
       check: () => updateCheck.mutate(),
       isChecking: updateCheck.isPending,
-      checkError: updateActionError(updateCheck.error),
+      checkError:
+        updateCheck.context?.checkedAt === update.data?.runtime.checked_at
+          ? updateActionError(updateCheck.error)
+          : null,
       apply: productUpdate.apply,
       cancel: () => updateCancel.mutate(),
       isApplying: productUpdate.applying,

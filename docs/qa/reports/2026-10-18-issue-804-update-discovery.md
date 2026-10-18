@@ -15,7 +15,9 @@
 
 ## Focused verification
 
-Go manager/projection, daemon background/controller, API handlers, config lifecycle and OpenAPI tests passed with race instrumentation. Web's three owning files passed 89 tests; desktop consumer/policy/state passed 29 tests. Web and desktop typechecks passed via root Turbo. React Doctor returned 100/100 without findings.
+Go manager/projection, daemon background/controller, API handlers, config lifecycle and OpenAPI tests passed with race instrumentation. Web's three owning files passed 90 tests, including recovery after a failed manual check; desktop consumer/policy/state passed 29 tests. Web and desktop typechecks passed via root Turbo. React Doctor returned 100/100 without findings.
+
+Review remediation also passed the focused updater race suite and updater/API-spec lint. The updater coverage verifies that a disconnected manual-check client does not cancel shared discovery, that the refresh has a bounded deadline, and that a canceled direct check does not throttle the next attempt or hide a real upstream failure.
 
 The test-convention heuristic passed the changed update/daemon suites. Its eight findings in `internal/api/core/settings_test.go` concern pre-existing unrelated functions; the new check-handler case uses a parallel `Should ...` subtest.
 

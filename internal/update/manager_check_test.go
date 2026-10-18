@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -14,6 +15,55 @@ import (
 )
 
 func TestManagerCheck(t *testing.T) {
+	t.Run("Should complete a bounded manual refresh after the client disconnects", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if err := request.Context().Err(); err != nil {
+					return nil, err
+				}
+				deadline, ok := request.Context().Deadline()
+				if !ok || time.Until(deadline) > defaultHTTPTimeout {
+					t.Errorf("manual refresh deadline = %v, present %t", deadline, ok)
+				}
+				return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
+					TagName: "v1.2.0", HTMLURL: "https://github.com/compozy/compozy/releases/tag/v1.2.0",
+					Assets: testGitHubAssets(t, nil),
+				}), nil
+			})},
+		})
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		state, err := manager.Refresh(ctx)
+		if err != nil || state.Runtime.LatestVersion != "v1.2.0" || state.Runtime.CheckedAt == nil {
+			t.Fatalf("Refresh after disconnect = %#v, %v", state, err)
+		}
+	})
+	t.Run("Should retry immediately after cancellation without hiding upstream failures", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int32
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if requests.Add(1) == 1 {
+					cancel()
+					return nil, request.Context().Err()
+				}
+				return nil, errors.New("upstream unavailable")
+			})},
+		})
+		if _, _, err := manager.Check(ctx, CheckOptions{ForceRefresh: true}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled Check error = %v", err)
+		}
+		state, _, err := manager.Check(
+			t.Context(),
+			CheckOptions{ForceRefresh: true, MinimumRefreshInterval: time.Minute},
+		)
+		if requests.Load() != 2 || err == nil || !strings.Contains(state.LastError, "upstream unavailable") {
+			t.Fatalf("retry = %#v, %v, requests %d", state, err, requests.Load())
+		}
+	})
 	t.Run("Should honor GitHub reset deadlines across manual and background checks", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 10, 18, 14, 18, 0, 0, time.UTC)

@@ -98,13 +98,16 @@ func (m *Manager) Snapshot(ctx context.Context) (MultiState, error) {
 }
 
 // Refresh checks upstream at most once a minute across Settings clients.
+// The shared check survives a disconnected client and completes within defaultHTTPTimeout.
 func (m *Manager) Refresh(ctx context.Context) (MultiState, error) {
-	if _, _, err := m.Check(ctx, CheckOptions{
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultHTTPTimeout)
+	defer cancel()
+	if _, _, err := m.Check(refreshCtx, CheckOptions{
 		ForceRefresh: true, AllowCachedOnFailure: true, MinimumRefreshInterval: time.Minute,
 	}); err != nil {
 		return MultiState{}, err
 	}
-	return m.Snapshot(ctx)
+	return m.Snapshot(refreshCtx)
 }
 
 // OperationStore exposes the single journal authority to composition roots.
