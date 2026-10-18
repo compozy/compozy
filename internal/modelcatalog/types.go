@@ -221,6 +221,25 @@ type SourceStatus struct {
 	Stale        bool
 }
 
+// FreshAt reports whether a settled source status still defers its next refresh past now.
+func (s SourceStatus) FreshAt(now time.Time) bool {
+	if s.NextRefresh.IsZero() || !s.NextRefresh.After(now) {
+		return false
+	}
+	switch s.RefreshState {
+	case RefreshStateSucceeded, RefreshStateFailed, RefreshStateDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// SourceProviderKey identifies one source/provider pair that owns stored rows.
+type SourceProviderKey struct {
+	SourceID   string
+	ProviderID string
+}
+
 // Source produces model rows for one catalog source.
 type Source interface {
 	ID() string
@@ -253,6 +272,8 @@ type Store interface {
 	// ReplaceSourceRowsBatch publishes every replacement atomically.
 	ReplaceSourceRowsBatch(ctx context.Context, replacements []SourceRowsReplacement) error
 	ListRows(ctx context.Context, opts ListOptions) ([]ModelRow, error)
+	// ListRowOwners returns the distinct source/provider pairs of rows matching opts without hydrating rows.
+	ListRowOwners(ctx context.Context, opts ListOptions) ([]SourceProviderKey, error)
 	ListSourceStatus(ctx context.Context, opts StatusOptions) ([]SourceStatus, error)
 }
 

@@ -212,6 +212,36 @@ func (s *refreshPlanStore) ListRows(ctx context.Context, opts ListOptions) ([]Mo
 	return cloneModelRows(result), nil
 }
 
+func (s *refreshPlanStore) ListRowOwners(ctx context.Context, opts ListOptions) ([]SourceProviderKey, error) {
+	owners, err := s.base.ListRowOwners(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SourceProviderKey, 0, len(owners))
+	for _, owner := range owners {
+		if !replacementMatchesSourceProvider(s.replacements, opts.SourceContexts, owner.SourceID, owner.ProviderID) {
+			result = append(result, owner)
+		}
+	}
+	for _, replacement := range s.replacements {
+		if !replacementMatchesList(replacement, opts) {
+			continue
+		}
+		if slices.ContainsFunc(replacement.Rows, func(row ModelRow) bool {
+			return !row.Stale || opts.IncludeAll || opts.IncludeStale
+		}) {
+			result = append(result, SourceProviderKey{
+				SourceID:   replacement.SourceID,
+				ProviderID: replacement.ProviderID,
+			})
+		}
+	}
+	slices.SortFunc(result, func(a, b SourceProviderKey) int {
+		return cmp.Or(cmp.Compare(a.SourceID, b.SourceID), cmp.Compare(a.ProviderID, b.ProviderID))
+	})
+	return slices.Compact(result), nil
+}
+
 func (s *refreshPlanStore) ListSourceStatus(
 	ctx context.Context,
 	opts StatusOptions,

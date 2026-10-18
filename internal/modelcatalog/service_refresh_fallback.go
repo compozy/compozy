@@ -51,7 +51,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 		}
 		staleRows := markRowsStale(previous, redacted)
 		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		if err := s.preserveLastSuccess(ctx, provider, historyExecutionContext, &status); err != nil {
+		if err := s.carryPriorFailureState(ctx, provider, historyExecutionContext, &status); err != nil {
 			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
 		}
 		if err := s.store.ReplaceSourceRows(

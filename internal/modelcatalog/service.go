@@ -196,6 +196,9 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 	if providerKey == "" {
 		return s.refreshAllProviders(ctx, sources, opts, now)
 	}
+	if statuses, fresh := s.freshSelectedSource(ctx, sources, opts, now); fresh {
+		return statuses, nil
+	}
 	ownedSourceIDs, err := s.storedSourceIDsForProvider(ctx, providerKey, opts, now)
 	if err != nil {
 		return nil, err
@@ -266,7 +269,7 @@ func (s *CatalogService) persistSourceRows(
 		}
 		status := sourceStatus(source, provider, now, len(providerRows), stale, lastError, state)
 		if stale {
-			if err := s.preserveLastSuccess(ctx, provider, executionContext, &status); err != nil {
+			if err := s.carryPriorFailureState(ctx, provider, executionContext, &status); err != nil {
 				return nil, err
 			}
 		}
@@ -356,7 +359,7 @@ func (s *CatalogService) storedProvidersForSource(
 			providerSet[providerID] = struct{}{}
 		}
 	}
-	rows, err := s.store.ListRows(ctx, ListOptions{
+	owners, err := s.store.ListRowOwners(ctx, ListOptions{
 		SourceID:         source.ID(),
 		ExecutionContext: executionContext,
 		SourceContexts:   singleSourceExecutionContext(source.ID(), executionContext),
@@ -365,10 +368,10 @@ func (s *CatalogService) storedProvidersForSource(
 		Now:              now,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("model catalog: list stored source rows for %q: %w", source.ID(), err)
+		return nil, fmt.Errorf("model catalog: list stored row owners for %q: %w", source.ID(), err)
 	}
-	for _, row := range rows {
-		if providerID := strings.TrimSpace(row.ProviderID); providerID != "" {
+	for _, owner := range owners {
+		if providerID := strings.TrimSpace(owner.ProviderID); providerID != "" {
 			providerSet[providerID] = struct{}{}
 		}
 	}
@@ -441,31 +444,6 @@ func sourceStatus(
 		status.NextRefresh = now.Add(ttlProvider.TTL())
 	}
 	return status
-}
-
-func (s *CatalogService) preserveLastSuccess(
-	ctx context.Context,
-	providerID string,
-	executionContext CatalogExecutionContext,
-	status *SourceStatus,
-) error {
-	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
-		ProviderID:       providerID,
-		ExecutionContext: executionContext,
-		SourceContexts: map[string]CatalogExecutionContext{
-			status.SourceID: executionContext,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("model catalog: list prior source status for %q/%q: %w", status.SourceID, providerID, err)
-	}
-	for _, previous := range statuses {
-		if previous.SourceID == status.SourceID {
-			status.LastSuccess = previous.LastSuccess
-			return nil
-		}
-	}
-	return nil
 }
 
 func groupRowsByProvider(source Source, rows []ModelRow) map[string][]ModelRow {
