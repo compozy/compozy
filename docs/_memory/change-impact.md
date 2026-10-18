@@ -1,5 +1,23 @@
 # Compozy Change Impact
 
+## Profile inheritance and global profile selection — 2026-10-18
+
+Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
+back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
+added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
+global choice: CLI resolution and `compozy profile use|create` read and write the Global slot only,
+and legacy per-workspace slots stay stored but no longer resolve (no migration, no data loss; the
+HTTP/UDS selection routes and DTOs are unchanged). Web drops the per-workspace lens: the switcher
+keeps its selection across workspace and breadth changes, All profiles is kept by the browser
+across reloads, and creation under All profiles lands in the remembered profile. Settings' "Where
+each profile is active" map is removed. Native tools: only the `session_create` description
+changed. Hooks, extension SDKs and config keys are unchanged. Workspace and profile isolation hold:
+scoped reads still return not found across profiles. Official skill (`profiles.md`,
+`native-tools.md`, `configuration.md`), site profile pages, QA scenarios
+`ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the contract.
+The startup tool-reference budget rises to 76,000 bytes so skills-disabled sessions keep both
+complete manuals.
+
 ## Session folders and manual order — 2026-10-17
 
 Issue #781 adds daemon-owned session folders and manual session order. Persisted state: global
