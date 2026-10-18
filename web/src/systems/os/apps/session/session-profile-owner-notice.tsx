@@ -1,9 +1,4 @@
-import {
-  ProfileOwnerBanner,
-  useProfileLens,
-  useSwitchProfile,
-  type ProfileOwner,
-} from "@/systems/profiles";
+import { ProfileOwnerBanner, useSwitchProfile, type ProfileOwner } from "@/systems/profiles";
 import { type SessionPayload } from "@/systems/session";
 
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
@@ -37,8 +32,7 @@ export function SessionProfileOwnerNotice({
   windowId,
   liveTailEnabled,
 }: SessionProfileOwnerNoticeProps) {
-  const lens = useProfileLens();
-  const switchProfile = useSwitchProfile(lens);
+  const switchProfile = useSwitchProfile();
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"

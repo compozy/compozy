@@ -14,13 +14,13 @@ import {
   tasksListOptions,
   type TasksRouteSearch,
 } from "@/systems/tasks";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadTasksRoute(
   queryClient: QueryClient,
   search: TasksRouteSearch
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   const mode = parseTasksSurfaceMode(search);
   const resolution = await resolveActiveWorkspaceSelection(queryClient);
   const scope = taskScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
@@ -74,7 +74,7 @@ export async function preloadTasksRoute(
  */
 export async function preloadTaskDetailRoute(queryClient: QueryClient, id: string): Promise<void> {
   if (!id) return;
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(taskDetailOptions(id, profileScope)).catch(() => null),
     queryClient.ensureQueryData(taskRunsOptions(id, profileScope)),
@@ -88,7 +88,7 @@ export async function preloadTaskRunRoute(
   runId: string
 ): Promise<void> {
   if (!runId) return;
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
+  const profileScope = readProfileScopeParams(queryClient);
   await settleRouteQueries([
     queryClient.ensureQueryData(taskRunDetailOptions(runId, profileScope)).catch(() => null),
     preloadTaskDetailRoute(queryClient, taskId),

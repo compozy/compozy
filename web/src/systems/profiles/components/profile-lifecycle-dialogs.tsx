@@ -7,7 +7,7 @@ import { useProfileLifecycleDialogs } from "../hooks/use-profile-lifecycle-dialo
 import { useProfileIconCatalog } from "../hooks/use-profile-icon-catalog";
 import { symbolPatch } from "../lib/profile-identity";
 import { openProfileDialog } from "../stores/profile-dialog-store";
-import type { ProfileLens, ProfilePayload } from "../types";
+import type { ProfilePayload } from "../types";
 import { ProfileArchiveDialog } from "./profile-archive-dialog";
 import { ProfileCreateDialog } from "./profile-create-dialog";
 import { ProfileDeleteDialog } from "./profile-delete-dialog";
@@ -17,7 +17,6 @@ import { ProfileUnarchiveDialog } from "./profile-unarchive-dialog";
 
 export interface ProfileLifecycleDialogsProps {
   profiles: readonly ProfilePayload[];
-  lens: ProfileLens;
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
 }
 
@@ -36,7 +35,6 @@ function retryStalePlan(refetch: () => void): (error: unknown) => void {
  */
 export function ProfileLifecycleDialogs({
   profiles,
-  lens,
   onSetAutomationEnabled,
 }: ProfileLifecycleDialogsProps) {
   const model = useProfileLifecycleDialogs(profiles);
@@ -58,7 +56,6 @@ export function ProfileLifecycleDialogs({
         open
         onOpenChange={dismiss}
         existingCount={profiles.length}
-        lens={lens}
         isPending={model.create.isPending}
         nameError={errors.nameError}
         error={errors.error}

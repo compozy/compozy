@@ -102,8 +102,8 @@ func profileCurrentBundle(resolution profileResolution) outputBundle {
 		jsonl:     writeProfileResolutionFrame,
 		human: func() (string, error) {
 			source := resolution.Source
-			if source == profileResolutionRemembered && workspace != "" {
-				source = "remembered choice of workspace " + workspace
+			if source == profileResolutionRemembered {
+				source = "remembered choice"
 			}
 			if resolution.Note != "" {
 				source += "; " + resolution.Note
@@ -122,17 +122,8 @@ func profileCurrentBundle(resolution profileResolution) outputBundle {
 	}
 }
 
-func profileUseBundle(
-	selection contract.ProfileSelection,
-	workspace workspaceResolution,
-	hasWorkspace bool,
-) outputBundle {
-	message := "Active global profile: " + selection.Profile + "."
-	if hasWorkspace {
-		name := cmp.Or(workspace.Detail.Workspace.Name, workspace.ID)
-		message = "Active profile for workspace " + name + ": " + selection.Profile + "."
-	}
-	return simpleProfileBundle(selection, message)
+func profileUseBundle(selection contract.ProfileSelection) outputBundle {
+	return simpleProfileBundle(selection, "Active profile for every workspace: "+selection.Profile+".")
 }
 
 func profileMutationBundle(profile contract.Profile, message string) outputBundle {

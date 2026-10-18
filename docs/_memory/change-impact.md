@@ -189,6 +189,27 @@ change is needed. QA impact is flagged in `RT-047`,
 Focused canonical suites and differential probes provide local slice evidence;
 heavy final validation is CI-owned by explicit user instruction. Deferred-feature download failures are isolated by the existing window error boundary with local recovery surfaces; the worktree dialog remains dismissible and an explicit Reload retries module loading.
 
+## Profile inheritance and global profile selection — 2026-10-18
+
+Issue #792. `compozy__session_create` now binds the calling session's profile instead of falling
+back to `default` (spawn, delegate and the in-session CLI already inherited it); no profile input was
+added, so agent-native calls keep deriving their immutable session profile. Profile selection is one
+global choice. User state (SD-013 regime 1): append-only migration 00140 seeds an empty Global slot
+from the most recently remembered workspace slot and keeps every workspace row. Public surfaces
+(regime 2, removal in v0.5.0): the CLI still resolves a workspace's legacy slot inside that workspace
+with a stderr deprecation warning, and `PUT /api/profiles/selection` with `scope: "workspace"` returns
+a `Warning` header; route and DTO shapes are unchanged. Writing the Global choice (`profile use`,
+`profile create`, the Web switcher) clears the legacy slots, so an explicit new choice converges every
+surface. Web (regime 3) drops the per-workspace lens: the switcher keeps its selection across
+workspace and breadth changes, All profiles is kept by the browser across reloads, and creation under
+All profiles lands in the remembered profile. Settings' "Where each profile is active" map is removed;
+it only rendered `GET /api/profiles/selection`, which is unchanged. Hooks, extension SDKs and config
+keys are unchanged. Scoped reads still return not found across profiles. Official skill
+(`profiles.md`, `configuration.md`; `native-tools.md` is untouched to stay inside the startup budget), site profile pages, the release note, QA
+scenarios `ET-profile-switcher-restore` and `ET-profile-selection-precedence`, and E2E-013 record the
+contract. The skills-disabled startup-manual budget overflow is fixed by #793, which this PR depends
+on.
+
 ## Profile-bound session actions — 2026-10-17
 
 Owner: issue #783, branch `fix/issue-783-profile-session-404`.

@@ -6,11 +6,9 @@ import {
   fetchProfile,
   fetchProfileOperations,
   fetchProfileSelection,
-  fetchProfileSelections,
   fetchProfiles,
   fetchRenamePlan,
 } from "../adapters/profiles-api";
-import type { ProfileLens } from "../types";
 import { loadProfileIconCatalog } from "./profile-identity";
 import { profileKeys } from "./query-keys";
 
@@ -34,29 +32,19 @@ export function profileDetailOptions(name: string, enabled = true) {
 }
 
 /**
- * The remembered choice for one lens.
+ * The remembered Global choice — the one selection every workspace shares.
  *
  * This is the projection the `profile.selection_changed` stream invalidates. It
  * is deliberately *not* the active view: refreshing it changes what a client
  * would default to on next entry, never what it is currently showing.
  */
-export function profileSelectionOptions(lens: ProfileLens, enabled = true) {
+export function profileSelectionOptions(enabled = true) {
   return queryOptions({
-    queryKey: profileKeys.selection(lens),
-    queryFn: ({ signal }) => fetchProfileSelection(lens, signal),
+    queryKey: profileKeys.selection(),
+    queryFn: ({ signal }) => fetchProfileSelection(signal),
     enabled,
-    // Re-entering a lens must see a choice changed before its stream event arrives.
+    // A reload must see a choice changed before its stream event arrives.
     staleTime: 0,
-  });
-}
-
-/** The whole project → profile map, for the Settings disclosure. */
-export function profileSelectionMapOptions(enabled = true) {
-  return queryOptions({
-    queryKey: profileKeys.selectionMap(),
-    queryFn: ({ signal }) => fetchProfileSelections(signal),
-    enabled,
-    staleTime: 30_000,
   });
 }
 

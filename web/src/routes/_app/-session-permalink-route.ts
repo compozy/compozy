@@ -17,7 +17,7 @@ import {
   type SessionPayload,
   sessionTranscriptOptions,
 } from "@/systems/session";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import { readProfileScopeParams } from "@/systems/profiles";
 
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;
@@ -112,7 +112,7 @@ export async function resolveSessionPermalink({
     // workspaces without the operator's confirmation.
     await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
     session = await queryClient.ensureQueryData(
-      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient, readProfileLens()))
+      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {

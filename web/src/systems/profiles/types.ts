@@ -27,20 +27,13 @@ export type ProfilePlacement = RenameProfilePlan["dormant_placements"][number];
 
 export type ProfileOperation = OperationResponse<"listProfileOperations", 200>[number];
 
-/**
- * The lens a selection is remembered against. A workspace lens carries its id;
- * the Global lens is the across-projects slot and carries none (ADR-003).
- */
-export type ProfileLens =
-  | { scope: "workspace"; workspaceId: string }
-  | { scope: "global"; workspaceId?: undefined };
-
-/** The reserved aggregate state. Never persisted as a remembered choice (ADR-003). */
+/** The reserved aggregate state. Never persisted as a daemon remembered choice. */
 export const PROFILE_AGGREGATE = "@all" as const;
 
 /**
  * What a client is currently looking through: one real profile, or the labeled
- * aggregate. This is per-client view state, not the remembered choice.
+ * aggregate. It is one global per-client view shared by every workspace, not the
+ * remembered choice.
  */
 export type ProfileView = { kind: "profile"; profile: string } | { kind: "aggregate" };
 

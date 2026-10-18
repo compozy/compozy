@@ -7346,6 +7346,79 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bind agent-created sessions to the caller session profile", func(t *testing.T) {
+		t.Parallel()
+
+		const designProfileID = "prof-open-design"
+		caller := &session.Info{
+			ID:          "sess-design",
+			ProfileID:   designProfileID,
+			AgentName:   "general",
+			WorkspaceID: "ws-1",
+			State:       session.StateActive,
+		}
+		var accepted []session.CreateAcceptedOpts
+		manager := &nativeSessionPageHealthManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != caller.ID {
+					return nil, session.ErrSessionNotFound
+				}
+				return caller, nil
+			},
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = append(accepted, opts)
+				return &session.Info{
+					ID:          "sess-child",
+					ProfileID:   opts.Session.ProfileID,
+					AgentName:   opts.Session.AgentName,
+					WorkspaceID: opts.Session.Workspace,
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-1"}, nil
+			},
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{ID: "ws-1", WorkspaceID: "ws-stable"}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: workspaces,
+			Sessions:   manager,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(t.Context(), toolspkg.Scope{
+			SessionID: caller.ID, WorkspaceID: "ws-1", AgentName: "general",
+		}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate,
+			Input:  json.RawMessage(`{"agent":"general","name":"delegated","workspace":"ws-stable"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create agent) error = %v", err)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate,
+			Input:  json.RawMessage(`{"agent":"general","workspace":"ws-stable"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create operator) error = %v", err)
+		}
+		if len(accepted) != 2 {
+			t.Fatalf("CreateAccepted calls = %d, want 2", len(accepted))
+		}
+		if got := accepted[0].Session.ProfileID; got != designProfileID {
+			t.Fatalf("agent session_create profile = %q, want caller profile %q", got, designProfileID)
+		}
+		if accepted[0].Session.Lineage == nil || accepted[0].Session.Lineage.ParentSessionID != caller.ID {
+			t.Fatalf("agent session_create lineage = %#v, want parent %q", accepted[0].Session.Lineage, caller.ID)
+		}
+		if got := accepted[1].Session.ProfileID; got != store.DefaultProfileID {
+			t.Fatalf("operator session_create profile = %q, want %q", got, store.DefaultProfileID)
+		}
+	})
+
 	t.Run("Should route session tools through the existing session manager boundary", func(t *testing.T) {
 		t.Parallel()
 

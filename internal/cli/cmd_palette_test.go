@@ -376,8 +376,7 @@ func TestCmdPaletteCommands(t *testing.T) {
 							{ID: "profile-other", Name: "other", State: "active"},
 						},
 						selections: []contract.ProfileSelection{{
-							Scope:       contract.ProfileSelectionScopeWorkspace,
-							WorkspaceID: "/workspace/project", Profile: remembered,
+							Scope: contract.ProfileSelectionScopeGlobal, Profile: remembered,
 						}},
 					},
 				}

@@ -89,7 +89,7 @@ describe("use-agent-soul", () => {
   );
 
   it("Should read and cache same-name soul resources independently for the selected profile", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -125,7 +125,7 @@ describe("use-agent-soul", () => {
       expect.any(AbortSignal),
       "open-design"
     );
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+    act(() => setProfileView({ kind: "profile", profile: "default" }));
     await waitFor(() => expect(result.current.file.data).toEqual(original));
     await waitFor(() => expect(result.current.history.data).toEqual(defaultHistory));
     expect(queryClient.getQueryData(agentKeys.soul("coder", "ws_alpha", "open-design"))).toEqual(
@@ -145,7 +145,7 @@ describe("use-agent-soul", () => {
   )(
     "Should retain the original soul resource for $operation while $phase",
     async ({ operation, phase }) => {
-      setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+      setProfileView({ kind: "profile", profile: "open-design" });
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       });
@@ -242,7 +242,7 @@ describe("use-agent-soul", () => {
       } else {
         await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
       }
-      act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+      act(() => setProfileView({ kind: "profile", profile: "default" }));
       rerender({ name: "reviewer", workspace: "ws_beta" });
       await waitFor(() => expect(result.current.profile).toBe("default"));
       act(() => onlineManager.setOnline(true));

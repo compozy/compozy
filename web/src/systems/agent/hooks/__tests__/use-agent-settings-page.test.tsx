@@ -95,7 +95,7 @@ describe("useAgentSettingsPage", () => {
   });
 
   it("Should save one whole-definition draft with CAS and return to pristine", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const { result } = renderHook(
       () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" }),
       { wrapper: createWrapper() }
@@ -242,7 +242,7 @@ describe("useAgentSettingsPage", () => {
       };
       renderedPrompts.length = 0;
       if (dimension === "profile") {
-        act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" }));
+        act(() => setProfileView({ kind: "profile", profile: "open-design" }));
       }
       rerender({ name: dimension === "agent" ? "replacement-agent" : primaryAgentFixture.name });
 

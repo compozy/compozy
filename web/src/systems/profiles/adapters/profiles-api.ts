@@ -11,7 +11,6 @@ import type {
   CreateProfileParams,
   DeleteProfilePlan,
   DeleteProfileResult,
-  ProfileLens,
   ProfileOperation,
   ProfilePayload,
   ProfileSelectionParams,
@@ -224,16 +223,16 @@ export async function fetchProfileSelections(
   return Array.isArray(payload) ? payload : [payload];
 }
 
-/** The remembered choice for one lens. The daemon answers `default` when none is stored. */
+/**
+ * The remembered Global choice. Legacy per-workspace slots may still be stored,
+ * but selection is one machine-wide choice, so only the Global row is read.
+ */
 export async function fetchProfileSelection(
-  lens: ProfileLens,
   signal?: AbortSignal
 ): Promise<ProfileSelectionPayload> {
   const selections = await fetchProfileSelections(signal);
-  const match = selections.find(
-    row => row.scope === lens.scope && (row.workspace_id ?? "") === (lens.workspaceId ?? "")
-  );
-  return match ?? { scope: lens.scope, profile: "default" };
+  const match = selections.find(row => row.scope === "global");
+  return match ?? { scope: "global", profile: "default" };
 }
 
 export async function putProfileSelection(

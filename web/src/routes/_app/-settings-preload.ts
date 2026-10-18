@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentsListOptions } from "@/systems/agent";
-import { actingProfile, readProfileLens, readProfileView } from "@/systems/profiles";
+import { readActingProfile } from "@/systems/profiles";
 import {
   settingsApplyRecordsOptions,
   settingsGeneralOptions,
@@ -37,7 +37,7 @@ export function preloadSettingsProvidersRoute(queryClient: QueryClient): Promise
 }
 
 export function preloadSettingsDefaultsRoute(queryClient: QueryClient): Promise<void> {
-  const profileName = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profileName = readActingProfile(queryClient);
   return settleRouteQueries([
     queryClient.ensureQueryData(
       settingsPersonaOptions(settingsPersonaFilterForProfile(profileName))
@@ -48,9 +48,7 @@ export function preloadSettingsDefaultsRoute(queryClient: QueryClient): Promise<
 
 export function preloadSettingsSkillsRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([
-    queryClient.ensureQueryData(
-      agentsListOptions(undefined, actingProfile(readProfileView(queryClient, readProfileLens())))
-    ),
+    queryClient.ensureQueryData(agentsListOptions(undefined, readActingProfile(queryClient))),
     queryClient.ensureQueryData(workspacesListOptions()),
     queryClient.ensureQueryData(settingsSkillsOptions({ scope: "user" })),
   ]);
@@ -64,7 +62,7 @@ export function preloadSettingsRolesRoute(queryClient: QueryClient): Promise<voi
 }
 
 export function preloadSettingsAttentionRoute(queryClient: QueryClient): Promise<void> {
-  const profileName = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profileName = readActingProfile(queryClient);
   return settleRouteQueries([
     queryClient.ensureQueryData(
       settingsAttentionOptions(settingsAttentionFilterForProfile(profileName))
@@ -85,7 +83,7 @@ export function preloadSettingsExtensionsRoute(queryClient: QueryClient): Promis
 }
 
 export function preloadSettingsMCPRoute(queryClient: QueryClient): Promise<void> {
-  const profile = actingProfile(readProfileView(queryClient, readProfileLens()));
+  const profile = readActingProfile(queryClient);
   return settleRouteQueries([
     queryClient.ensureQueryData(workspacesListOptions()),
     queryClient.ensureQueryData(

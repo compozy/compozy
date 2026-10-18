@@ -8,7 +8,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { PROFILE_AGGREGATE, type ProfileView } from "../../types";
 import { profileKeys } from "../query-keys";
-import { readProfileScopeParams, readProfileView } from "../profile-scope-resolver";
+import {
+  readActingProfile,
+  readProfileScopeParams,
+  readProfileView,
+} from "../profile-scope-resolver";
 import {
   isAggregateView,
   ownerFromRow,
@@ -80,36 +84,35 @@ describe("isAggregateView", () => {
 });
 
 describe("profile scope resolver precedence", () => {
-  const lens = { scope: "workspace", workspaceId: "workspace:alpha" } as const;
-
   it("Should prefer a local view over the remembered selection", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(profileKeys.selection(lens), {
-      scope: "workspace",
-      workspace_id: "workspace:alpha",
-      profile: "marketing",
-    });
-    setProfileView(lens, AGGREGATE);
+    queryClient.setQueryData(profileKeys.selection(), { scope: "global", profile: "marketing" });
+    setProfileView(AGGREGATE);
 
-    expect(readProfileView(queryClient, lens)).toEqual(AGGREGATE);
-    expect(readProfileScopeParams(queryClient, lens)).toEqual({ all_profiles: true });
+    expect(readProfileView(queryClient)).toEqual(AGGREGATE);
+    expect(readProfileScopeParams(queryClient)).toEqual({ all_profiles: true });
   });
 
   it("Should use the remembered selection before falling back to default", () => {
     const queryClient = new QueryClient();
-    expect(readProfileView(queryClient, lens)).toEqual({
+    expect(readProfileView(queryClient)).toEqual({
       kind: "profile",
       profile: "default",
     });
 
-    queryClient.setQueryData(profileKeys.selection(lens), {
-      scope: "workspace",
-      workspace_id: "workspace:alpha",
-      profile: "marketing",
-    });
-    expect(readProfileView(queryClient, lens)).toEqual({
+    queryClient.setQueryData(profileKeys.selection(), { scope: "global", profile: "marketing" });
+    expect(readProfileView(queryClient)).toEqual({
       kind: "profile",
       profile: "marketing",
     });
+  });
+
+  it("Should create into the remembered Global profile under the aggregate", () => {
+    const queryClient = new QueryClient();
+    setProfileView(AGGREGATE);
+    expect(readActingProfile(queryClient)).toBe("default");
+
+    queryClient.setQueryData(profileKeys.selection(), { scope: "global", profile: "marketing" });
+    expect(readActingProfile(queryClient)).toBe("marketing");
   });
 });

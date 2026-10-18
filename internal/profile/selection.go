@@ -113,7 +113,7 @@ func (s *selectionStore) Put(ctx context.Context, selection Selection) error {
 		if err != nil {
 			return fmt.Errorf("profile: put selection: %w", err)
 		}
-		return nil
+		return supersedeWorkspaceSelections(ctx, exec, validated.Lens)
 	})
 	if err != nil {
 		return err
@@ -148,4 +148,19 @@ func normalizeSelectionLens(lens SelectionLens, workspaceID string) (Selection, 
 		return Selection{}, err
 	}
 	return Selection{Lens: l.Kind, WorkspaceID: l.WorkspaceID}, nil
+}
+
+// supersedeWorkspaceSelections clears the per-workspace slots when the Global choice is written.
+// Profile selection is one choice shared by every workspace (#792), so an explicit new choice
+// replaces the slots the CLI still honors as a deprecation shim until v0.5.0.
+func supersedeWorkspaceSelections(ctx context.Context, exec globaldb.ProfileWriteExecutor, lens SelectionLens) error {
+	if lens != SelectionLensGlobal {
+		return nil
+	}
+	if _, err := exec.ExecContext(
+		ctx, `DELETE FROM profile_selections WHERE lens = ?`, string(SelectionLensWorkspace),
+	); err != nil {
+		return fmt.Errorf("profile: supersede workspace selections: %w", err)
+	}
+	return nil
 }

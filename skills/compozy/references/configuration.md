@@ -234,9 +234,9 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 ## Profile Selection Environment
 
 Profiles add no `config.toml` key. `COMPOZY_PROFILE` selects one active profile for commands in the
-current process environment, after an explicit root `--profile` flag and before the workspace's
-remembered choice. `daemon`, `doctor`, and `update` ignore both inputs. Persist a workspace or Global
-lens choice with `compozy profile use`; read `references/profiles.md` for the complete precedence and
+current process environment, after an explicit root `--profile` flag and before the remembered
+choice shared by every workspace. `daemon`, `doctor`, and `update` ignore both inputs. Persist that
+choice with `compozy profile use`; read `references/profiles.md` for the complete precedence and
 lifecycle contract.
 
 ## Automation Schedules

@@ -138,7 +138,7 @@ describe("use-agent-heartbeat", () => {
   );
 
   it("Should read and cache same-name heartbeat resources independently for the selected profile", async () => {
-    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+    setProfileView({ kind: "profile", profile: "open-design" });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -186,7 +186,7 @@ describe("use-agent-heartbeat", () => {
       { workspaceId: "ws_alpha", profile: "open-design" },
       expect.any(AbortSignal)
     );
-    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+    act(() => setProfileView({ kind: "profile", profile: "default" }));
     await waitFor(() => expect(result.current.file.data).toEqual(original));
     await waitFor(() => expect(result.current.history.data).toEqual(defaultHistory));
     expect(
@@ -212,7 +212,7 @@ describe("use-agent-heartbeat", () => {
   )(
     "Should retain the original heartbeat resource for $operation while $phase",
     async ({ operation, phase }) => {
-      setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+      setProfileView({ kind: "profile", profile: "open-design" });
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       });
@@ -326,7 +326,7 @@ describe("use-agent-heartbeat", () => {
       } else {
         await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
       }
-      act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+      act(() => setProfileView({ kind: "profile", profile: "default" }));
       rerender({ name: "reviewer", workspace: "ws_beta" });
       await waitFor(() => expect(result.current.profile).toBe("default"));
       act(() => onlineManager.setOnline(true));
