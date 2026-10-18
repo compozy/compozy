@@ -1443,7 +1443,10 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 	t.Parallel()
 	for _, leased := range []bool{false, true} {
 		t.Run(
-			fmt.Sprintf("Should auto-enqueue an opted-in dependent and skip an opted-out one on blocker completion with leased=%t", leased),
+			fmt.Sprintf(
+				"Should auto-enqueue an opted-in dependent and skip an opted-out one on blocker completion with leased=%t",
+				leased,
+			),
 			func(t *testing.T) {
 				t.Parallel()
 

@@ -30,7 +30,7 @@ The opt-out canary became `ready` with zero runs. The failed-blocker canary rema
 - Fix: move the existing bounded auto-enqueue call into shared completed-run publication, after dependent reconciliation. Preserve the Loop-worker exclusion and canonical enqueue/idempotency guards.
 - Canonical SQLite suite: `TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration`, extended for manual and leased completion, concurrent blockers, opt-out, and completion replay after service recreation. Both manual cases failed before the fix with zero dependent runs; all four pass after it.
 - Focused race validation also passed completion/rollup, block breaker, transient expiry, approval, recovery, and terminal-session suites (16.234s); final auto-enqueue rerun passed (4.679s).
-- Pinned golangci-lint v2.13.1 on `internal/task`: zero issues. The installed binary was built with an older Go version, so the pinned tool was run with the repository's current toolchain.
+- Pinned golangci-lint v2.13.1 on `internal/task` without integration tags: zero issues. With integration tags it additionally exposed eight pre-existing findings; the one introduced formatting finding was corrected. The installed binary was built with an older Go version, so the pinned tool was run with the repository's current toolchain.
 - Test-convention heuristic: 16 identical findings on base and changed file; none introduced by this change.
 
 ## Limits and cleanup
