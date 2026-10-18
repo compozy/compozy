@@ -26,6 +26,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -3659,6 +3660,32 @@ func (s *queueSentFailureStore) MarkSessionInputSentInTurn(
 	return s.GlobalDB.MarkSessionInputSentInTurn(ctx, sessionID, entryID, turnID, now)
 }
 
+// userMessageFailingRecorder fails the next failures user-message writes before they persist.
+type userMessageFailingRecorder struct {
+	*sessiondb.SessionDB
+	failures atomic.Int32
+}
+
+func (r *userMessageFailingRecorder) install(manager *Manager) {
+	manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+		db, err := sessiondb.OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			return nil, err
+		}
+		r.SessionDB = db
+		return r, nil
+	}
+}
+
+func (r *userMessageFailingRecorder) RecordPersisted(
+	ctx context.Context, event store.SessionEvent,
+) (store.SessionEvent, error) {
+	if event.Type == acp.EventTypeUserMessage && r.failures.Add(-1) >= 0 {
+		return store.SessionEvent{}, errors.New("input event write unavailable")
+	}
+	return r.SessionDB.RecordPersisted(ctx, event)
+}
+
 // steerResolveFailureStore fails steer resolution while armed, after the provider accepted the guidance.
 type steerResolveFailureStore struct {
 	*globaldb.GlobalDB
@@ -5097,6 +5124,63 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Fatalf("reverted entry = %#v, %v; want it kept after the sender's next steer", entry, err)
 		}
 		drain(t, f)
+	})
+
+	t.Run("Should retry a delivered steer's input event before marking it sent", func(t *testing.T) {
+		t.Parallel()
+		failing := &userMessageFailingRecorder{}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{failing.install})
+		failing.failures.Store(steerPersistAttempts - 1)
+		steer := agentOpts("guidance", "sess-a", false)
+		steer.Mode = BusyInputModeSteer
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer)
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInjected {
+			t.Fatalf("steer = %#v, %v; want injected after the input event retry", result, err)
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusSent {
+			t.Fatalf("entry = %#v, %v; want sent", entry, err)
+		}
+		recorded := 0
+		for _, event := range managerUserPromptEvents(t, f.h, f.sess.ID) {
+			if event.MessageIDValue() == "guidance" {
+				recorded++
+			}
+		}
+		if recorded != 1 {
+			t.Fatalf("guidance input events = %d, want exactly one in history", recorded)
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should keep a delivered steer leased when its input event never persists", func(t *testing.T) {
+		t.Parallel()
+		failing := &userMessageFailingRecorder{}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{failing.install})
+		failing.failures.Store(steerPersistAttempts)
+		steer := agentOpts("guidance", "sess-a", false)
+		steer.Mode = BusyInputModeSteer
+		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, steer); err == nil {
+			t.Fatal("SendPrompt() error = nil, want the unpersisted guidance reported")
+		}
+		select {
+		case <-f.steered:
+		default:
+			t.Fatal("guidance was not injected")
+		}
+		pending, err := f.db.ListPendingSessionInputs(t.Context(), f.sess.ID)
+		if err != nil || len(pending) != 1 || pending[0].Status != store.SessionInputQueueStatusDispatching ||
+			pending[0].Dispatchable {
+			t.Fatalf("pending = %#v, %v; want the delivered guidance leased, neither sent nor requeued", pending, err)
+		}
+		drain(t, f)
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		for _, call := range f.h.driver.promptCalls {
+			if strings.Contains(call.Message, "status guidance") {
+				t.Fatalf("delivered guidance dispatched again: %q", call.Message)
+			}
+		}
 	})
 
 	t.Run("Should inject the input hook's rewrite and never promote a message the hook refuses", func(t *testing.T) {

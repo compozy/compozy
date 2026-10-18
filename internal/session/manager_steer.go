@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/config"
@@ -10,9 +11,12 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-// errSteerDeliveredUnresolved marks a steer the provider already accepted whose durable resolution
-// failed. Its reservation stays leased: requeueing it would deliver the same guidance twice.
+// errSteerDeliveredUnresolved marks a steer the provider already accepted whose durable records could
+// not be saved. Its reservation stays leased: requeueing it would deliver the same guidance twice.
 var errSteerDeliveredUnresolved = errors.New("session: delivered steer could not be resolved")
+
+// steerPersistAttempts bounds the synchronous retries of each durable record of an accepted steer.
+const steerPersistAttempts = 3
 
 func (m *Manager) activateSteeringInput(
 	ctx context.Context,
@@ -78,18 +82,14 @@ func (m *Manager) activateSteeringInputText(
 		}
 	}
 	entry.SteerDelivery = delivery
-	// Once the provider accepted the guidance, a persistence failure must not abort the remaining
-	// saves: the reservation would otherwise stay unresolved and could be delivered a second time.
-	if err := m.recordInjectedSteerInput(m.fallbackLifecycleContext(), session, entry); err != nil {
-		m.sessionLogger(session).
-			Error("session: persist injected guidance failed", "entry_id", entry.ID, "error", err)
-	}
-	resolved, err := m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
-	if err != nil {
-		if delivery != store.SteerDeliveryInterruptFallback {
-			return errors.Join(errSteerDeliveredUnresolved, err)
+	var resolved store.SessionInputQueueEntry
+	if delivery == store.SteerDeliveryInterruptFallback {
+		resolved, err = m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
+		if err != nil {
+			return err
 		}
-		return err
+	} else if resolved, err = m.persistAcceptedSteer(session, entry); err != nil {
+		return errors.Join(errSteerDeliveredUnresolved, err)
 	}
 	*entry = resolved
 	entry.SupersededIDs = superseded
@@ -185,11 +185,55 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSteered, message, evidence)
 }
 
+// persistAcceptedSteer saves the durable records of guidance the provider accepted: its input event
+// first, then its resolution. The entry is never marked sent before its input event is durable, so the
+// guidance cannot vanish from history; on failure it stays leased instead of returning to the queue.
+func (m *Manager) persistAcceptedSteer(
+	session *Session, entry *store.SessionInputQueueEntry,
+) (store.SessionInputQueueEntry, error) {
+	ctx := m.fallbackLifecycleContext()
+	if err := m.recordAcceptedSteerInput(ctx, session, entry); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	return m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+}
+
+// recordAcceptedSteerInput retries the input event of delivered guidance a bounded number of times. Every
+// attempt carries the same event identity and timestamp, so a retry after a write that landed returns the
+// stored row instead of a second event.
+func (m *Manager) recordAcceptedSteerInput(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) error {
+	recordedAt := m.now()
+	var err error
+	for range steerPersistAttempts {
+		if err = m.recordInjectedSteerInput(ctx, session, entry, recordedAt); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func (m *Manager) resolveAcceptedSteer(
+	ctx context.Context, sessionID, entryID string, delivery store.SteerDeliveryMode,
+) (store.SessionInputQueueEntry, error) {
+	var (
+		resolved store.SessionInputQueueEntry
+		err      error
+	)
+	for range steerPersistAttempts {
+		if resolved, err = m.inputQueue.ResolveSteer(ctx, sessionID, entryID, delivery); err == nil {
+			return resolved, nil
+		}
+	}
+	return store.SessionInputQueueEntry{}, err
+}
+
 // A pending injection is represented by its durable authored receipt until the
 // provider confirms delivery. Only confirmed injection becomes a sent user
 // message; fallback keeps the ordinary queue-dispatch identity and turn.
 func (m *Manager) recordInjectedSteerInput(
-	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry, recordedAt time.Time,
 ) error {
 	if entry.SteerDelivery != store.SteerDeliveryInjected {
 		return nil
@@ -204,6 +248,7 @@ func (m *Manager) recordInjectedSteerInput(
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
+		inputAt: recordedAt,
 	}
 	return m.recordPromptInputEvent(ctx, session, &req)
 }
